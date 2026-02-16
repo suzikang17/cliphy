@@ -9,7 +9,8 @@
     "build:server": "pnpm --filter server build",
     "prepare": "husky",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest"
   },
   "engines": {
     "node": ">=18"
@@ -35,6 +36,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
-    "typescript-eslint": "^8.56.0"
+    "typescript-eslint": "^8.56.0",
+    "vitest": "^4.0.18"
   }
 }
