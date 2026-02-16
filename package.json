@@ -1,0 +1,16 @@
+{
+  "name": "cliphy",
+  "private": true,
+  "scripts": {
+    "dev:extension": "pnpm --filter extension dev",
+    "dev:server": "pnpm --filter server dev",
+    "build:extension": "pnpm --filter extension build",
+    "build:server": "pnpm --filter server build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}
