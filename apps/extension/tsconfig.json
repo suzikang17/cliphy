@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "outDir": "./dist",
-    "types": ["chrome"]
+    "outDir": "./dist"
   },
-  "include": ["src"]
+  "include": ["entrypoints", "lib", ".wxt/wxt.d.ts"]
 }
