@@ -1,16 +1,40 @@
 {
   "name": "cliphy",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev:extension": "pnpm --filter extension dev",
     "dev:server": "pnpm --filter server dev",
     "build:extension": "pnpm --filter extension build",
-    "build:server": "pnpm --filter server build"
+    "build:server": "pnpm --filter server build",
+    "prepare": "husky",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "engines": {
     "node": ">=18"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,html}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.56.0"
   }
 }
