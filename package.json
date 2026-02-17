@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "test": "vitest"
   },
+  "packageManager": "pnpm@10.11.1",
   "engines": {
     "node": ">=18"
   },
