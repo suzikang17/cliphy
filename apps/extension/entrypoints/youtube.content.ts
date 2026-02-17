@@ -10,7 +10,8 @@ export default defineContentScript({
     }
 
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message.type === "GET_VIDEO_INFO") {
+      const msg = message as { type: string };
+      if (msg.type === "GET_VIDEO_INFO") {
         sendResponse(getVideoInfo());
       }
       return true;

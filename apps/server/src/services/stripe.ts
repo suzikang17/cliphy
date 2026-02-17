@@ -1,13 +1,10 @@
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-01-27.acacia",
+  apiVersion: "2025-02-24.acacia",
 });
 
-export async function createCheckoutSession(
-  customerId: string,
-  priceId: string,
-): Promise<string> {
+export async function createCheckoutSession(customerId: string, priceId: string): Promise<string> {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
@@ -18,9 +15,7 @@ export async function createCheckoutSession(
   return session.url!;
 }
 
-export async function createPortalSession(
-  customerId: string,
-): Promise<string> {
+export async function createPortalSession(customerId: string): Promise<string> {
   const session = await stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: `${process.env.API_URL}/billing`,

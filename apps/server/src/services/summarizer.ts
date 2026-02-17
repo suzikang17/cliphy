@@ -18,8 +18,7 @@ export async function summarizeTranscript(
     ],
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
 
   // TODO: Parse structured response into content + keyPoints
   return {

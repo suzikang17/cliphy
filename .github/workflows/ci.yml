@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm exec prettier --check .
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck shared
+        run: pnpm --filter shared typecheck
+
+      - name: Typecheck extension
+        run: pnpm --filter extension typecheck
+
+      - name: Typecheck server
+        run: pnpm --filter server typecheck
+
+      - name: Build extension
+        run: pnpm build:extension
+
+      - name: Build server
+        run: pnpm build:server
+
+      - name: Test
+        run: pnpm test -- --run
