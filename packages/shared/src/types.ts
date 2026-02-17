@@ -7,28 +7,31 @@ export interface User {
   email: string;
   plan: PlanTier;
   stripeCustomerId?: string;
+  dailySummaryCount: number;
+  dailyCountResetAt: string;
   createdAt: string;
+  updatedAt: string;
 }
 
-export interface QueueItem {
-  id: string;
-  userId: string;
-  videoId: string;
-  videoTitle: string;
-  videoUrl: string;
-  status: SummaryStatus;
-  createdAt: string;
+/** Shape of the AI-generated summary stored as JSONB in summaries.summary_json */
+export interface SummaryJson {
+  tldr: string;
+  keyPoints: string[];
+  timestamps: string[];
 }
 
+/** Unified queue + result row from the `summaries` table */
 export interface Summary {
   id: string;
-  queueItemId: string;
   userId: string;
   videoId: string;
-  videoTitle: string;
-  content: string;
-  keyPoints: string[];
+  videoTitle?: string;
+  videoUrl?: string;
+  status: SummaryStatus;
+  summaryJson?: SummaryJson;
+  errorMessage?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface UsageInfo {
@@ -45,7 +48,7 @@ export interface QueueAddRequest {
 }
 
 export interface QueueAddResponse {
-  item: QueueItem;
+  summary: Summary;
 }
 
 export interface SummaryResponse {

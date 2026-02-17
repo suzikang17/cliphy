@@ -4,7 +4,6 @@ import type {
   QueueAddResponse,
   SummaryResponse,
   UsageResponse,
-  QueueItem,
   Summary,
 } from "@cliphy/shared";
 import { getAuthToken } from "./auth";
@@ -36,7 +35,7 @@ export async function addToQueue(body: QueueAddRequest) {
 }
 
 export async function getQueue() {
-  return request<{ items: QueueItem[] }>(API_ROUTES.QUEUE.LIST);
+  return request<{ summaries: Summary[] }>(API_ROUTES.QUEUE.LIST);
 }
 
 export async function getSummary(id: string) {
