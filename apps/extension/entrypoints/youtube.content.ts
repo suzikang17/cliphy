@@ -1,20 +1,60 @@
+import type { ExtensionMessage, VideoInfo } from "@cliphy/shared";
+
 export default defineContentScript({
   matches: ["https://www.youtube.com/*"],
 
   main() {
-    function getVideoInfo() {
+    function getVideoInfo(): VideoInfo {
       const url = window.location.href;
       const videoId = new URL(url).searchParams.get("v");
       const title = document.title.replace(" - YouTube", "");
-      return { videoId, title, url };
+
+      const channelEl =
+        document.querySelector<HTMLAnchorElement>("ytd-channel-name a") ??
+        document.querySelector<HTMLAnchorElement>("#owner a");
+      const channel = channelEl?.textContent?.trim() ?? null;
+
+      const durationEl = document.querySelector("span.ytp-time-duration");
+      const duration = durationEl?.textContent?.trim() ?? null;
+
+      return { videoId, title, url, channel, duration };
     }
 
+    function isVideoPage(): boolean {
+      return new URL(window.location.href).searchParams.has("v");
+    }
+
+    function notifyBackground(video: VideoInfo) {
+      browser.runtime.sendMessage({
+        type: "VIDEO_DETECTED",
+        video,
+      } satisfies ExtensionMessage);
+    }
+
+    // Listen for on-demand requests from popup
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      const msg = message as { type: string };
+      const msg = message as ExtensionMessage;
       if (msg.type === "GET_VIDEO_INFO") {
         sendResponse(getVideoInfo());
       }
       return true;
     });
+
+    // Detect SPA navigation (YouTube fires this on page transitions)
+    document.addEventListener("yt-navigate-finish", () => {
+      if (isVideoPage()) {
+        // Small delay to let DOM update with new video's metadata
+        setTimeout(() => {
+          notifyBackground(getVideoInfo());
+        }, 500);
+      }
+    });
+
+    // Also detect initial page load if already on a video
+    if (isVideoPage()) {
+      setTimeout(() => {
+        notifyBackground(getVideoInfo());
+      }, 1000);
+    }
   },
 });
