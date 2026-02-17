@@ -12,11 +12,16 @@ Verify, commit, push, and update Notion in one flow.
 
 ### 1. Verify
 
-Run in parallel:
+Run the full CI suite locally before committing:
 
+- `pnpm exec prettier --check .`
 - `pnpm lint`
+- `pnpm --filter shared typecheck`
+- `pnpm --filter extension typecheck`
+- `pnpm --filter server typecheck`
 - `pnpm build:extension`
 - `pnpm build:server`
+- `pnpm test -- --run`
 
 If any fail, stop and fix before continuing.
 

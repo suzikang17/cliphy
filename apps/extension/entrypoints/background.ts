@@ -15,7 +15,9 @@ export default defineBackground(() => {
       case "ADD_TO_QUEUE":
         // TODO: Send video to backend queue
         sendResponse({ success: true });
-        return true; // keep channel open for async sendResponse
+        break;
     }
+
+    return true;
   });
 });

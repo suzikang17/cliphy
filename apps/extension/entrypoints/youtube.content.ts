@@ -37,6 +37,7 @@ export default defineContentScript({
       if (msg.type === "GET_VIDEO_INFO") {
         sendResponse(getVideoInfo());
       }
+      return true;
     });
 
     // Detect SPA navigation (YouTube fires this on page transitions)
