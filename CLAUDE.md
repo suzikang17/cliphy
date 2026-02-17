@@ -35,7 +35,7 @@ Monorepo with pnpm workspaces:
 
 ## Commands
 
-- `pnpm dev:extension` — Run extension in dev mode (opens Chrome with fresh profile)
+- `pnpm dev:extension` — Build extension in watch mode (output: `apps/extension/.output/chrome-mv3`). Load unpacked in Chrome via `chrome://extensions`.
 - `pnpm dev:server` — Run API server in dev mode (port 3000)
 - `pnpm --filter extension build` — Build extension for production
 - `pnpm --filter server build` — Build server
