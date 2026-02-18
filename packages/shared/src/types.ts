@@ -15,7 +15,7 @@ export interface User {
 
 /** Shape of the AI-generated summary stored as JSONB in summaries.summary_json */
 export interface SummaryJson {
-  tldr: string;
+  summary: string;
   keyPoints: string[];
   timestamps: string[];
 }
