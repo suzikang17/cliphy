@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest",
-    "eval": "tsx apps/server/eval/run-eval.ts"
+    "eval": "tsx apps/server/eval/run-eval.ts",
+    "eval:add": "tsx apps/server/eval/run-eval.ts --save --url"
   },
   "packageManager": "pnpm@10.11.1",
   "engines": {

@@ -112,18 +112,58 @@ function printMarkdown(results: EvalResult[]): string {
     lines.push(`| **Average** | | ${avgTime}s | ${avgWords} | ${avgKp} | | |`);
   }
 
+  // Full output per video in collapsible sections
+  lines.push("\n---\n");
+  for (const r of results) {
+    if (r.error) {
+      lines.push(
+        `<details>\n<summary><strong>${r.title}</strong> (${r.category}) — ERROR</summary>\n`,
+      );
+      lines.push(`\`\`\`\n${r.error}\n\`\`\`\n`);
+      lines.push("</details>\n");
+      continue;
+    }
+    lines.push(`<details>\n<summary><strong>${r.title}</strong> (${r.category})</summary>\n`);
+    lines.push(`### Summary\n\n${r.summary.summary}\n`);
+    lines.push(`### Key Points\n`);
+    for (const kp of r.summary.keyPoints) {
+      lines.push(`- ${kp}`);
+    }
+    lines.push(`\n### Timestamps\n`);
+    for (const ts of r.summary.timestamps) {
+      lines.push(`- ${ts}`);
+    }
+    lines.push("\n</details>\n");
+  }
+
   return lines.join("\n");
 }
 
 // --- CLI ---
 
-async function runFull() {
-  const fixtures = loadFixtures();
+async function runFull(opts: { category?: string; videoIds?: string[] } = {}) {
+  let fixtures = loadFixtures();
+  if (opts.videoIds && opts.videoIds.length > 0) {
+    fixtures = fixtures.filter((f) => opts.videoIds!.includes(f.videoId));
+  } else if (opts.category) {
+    fixtures = fixtures.filter((f) => f.category === opts.category);
+  }
   if (fixtures.length === 0) {
-    console.error("No fixtures found. Run: npx tsx apps/server/eval/seed-fixtures.ts");
+    if (opts.videoIds) {
+      console.error(`No fixtures found for video IDs: ${opts.videoIds.join(", ")}`);
+    } else if (opts.category) {
+      console.error(`No fixtures found for category "${opts.category}".`);
+    } else {
+      console.error("No fixtures found. Run: npx tsx apps/server/eval/seed-fixtures.ts");
+    }
     process.exit(1);
   }
-  console.log(`Running eval on ${fixtures.length} fixtures...\n`);
+  const label = opts.videoIds
+    ? `${fixtures.length} selected fixture(s)`
+    : opts.category
+      ? `${fixtures.length} "${opts.category}" fixtures`
+      : `${fixtures.length} fixtures`;
+  console.log(`Running eval on ${label}...\n`);
   const results: EvalResult[] = [];
   for (const fixture of fixtures) {
     const result = await evalFixture(fixture);
@@ -180,10 +220,17 @@ async function runOneOff(url: string, save: boolean) {
 
 const args = process.argv.slice(2);
 const urlIndex = args.indexOf("--url");
+const catIndex = args.indexOf("--category");
+const videosIndex = args.indexOf("--videos");
 const save = args.includes("--save");
 
 if (urlIndex !== -1 && args[urlIndex + 1]) {
   runOneOff(args[urlIndex + 1], save);
 } else {
-  runFull();
+  const category = catIndex !== -1 ? args[catIndex + 1] : undefined;
+  const videoIds =
+    videosIndex !== -1 && args[videosIndex + 1]
+      ? args[videosIndex + 1].split(",").map((id) => id.trim())
+      : undefined;
+  runFull({ category, videoIds });
 }

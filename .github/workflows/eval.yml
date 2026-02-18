@@ -3,8 +3,21 @@ name: Summary Eval
 on:
   workflow_dispatch:
     inputs:
-      video_url:
-        description: "YouTube URL for one-off eval (leave empty for full eval)"
+      category:
+        description: "Filter by video category"
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - short
+          - tutorial
+          - music
+          - lecture
+          - explainer
+          - long
+      videos:
+        description: "Comma-separated video IDs to eval (overrides category)"
         required: false
         type: string
 
@@ -29,8 +42,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -n "${{ inputs.video_url }}" ]; then
-            pnpm eval -- --url "${{ inputs.video_url }}"
+          if [ -n "${{ inputs.videos }}" ]; then
+            pnpm eval -- --videos "${{ inputs.videos }}"
+          elif [ "${{ inputs.category }}" != "all" ]; then
+            pnpm eval -- --category "${{ inputs.category }}"
           else
             pnpm eval
           fi
