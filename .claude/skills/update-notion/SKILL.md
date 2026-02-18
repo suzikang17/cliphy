@@ -31,11 +31,18 @@ Search for today's Day N entry. Append if it exists, create if it doesn't.
 
 Day numbering: Day 0 = Feb 15, Day 1 = Feb 16, etc.
 
-Include:
+Use these sections in order:
 
-- **What happened** — concise bullets with commit hashes
-- **Why** — root cause or reasoning for non-obvious things
-- **What to remember** — gotchas for future sessions
+1. **Session summary** — 2-3 sentence TL;DR of the session at the very top
+2. **What got done** — high-level bullets with commit hashes
+3. **Decisions** — brief notes on tech choices (details go to Decisions Log)
+4. **Issues** — what broke, root cause, how it was fixed
+5. **What to remember** — gotchas for future sessions
+6. **Commits** — full list with short descriptions (after a horizontal rule)
+7. **Task details** — per-task breakdowns when multiple tasks were completed (after a horizontal rule)
+8. **Tomorrow's plan** _(optional)_ — what's queued up next
+
+Omit empty sections. "Task details" uses `### Task Name` sub-headings.
 
 ### 3. Decisions Log (collection://796aacf9-23e4-4038-8bc6-c073afbeadd6)
 
