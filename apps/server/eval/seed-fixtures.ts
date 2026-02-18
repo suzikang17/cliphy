@@ -11,7 +11,7 @@ const VIDEOS = [
   { videoId: "dQw4w9WgXcQ", title: "Rick Astley - Never Gonna Give You Up", category: "music" },
   { videoId: "hY7m5jjJ9mM", title: "CSS in 100 Seconds", category: "tutorial" },
   {
-    videoId: "pTB0EiLXUC8",
+    videoId: "iG9CE55wbtY",
     title: "Do schools kill creativity? - Ken Robinson TED",
     category: "lecture",
   },
