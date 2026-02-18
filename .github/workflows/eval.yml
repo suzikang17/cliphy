@@ -1,0 +1,36 @@
+name: Summary Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "YouTube URL for one-off eval (leave empty for full eval)"
+        required: false
+        type: string
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${{ inputs.video_url }}" ]; then
+            pnpm eval -- --url "${{ inputs.video_url }}"
+          else
+            pnpm eval
+          fi
