@@ -10,7 +10,8 @@
     "prepare": "husky",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest"
+    "test": "vitest",
+    "eval": "tsx apps/server/eval/run-eval.ts"
   },
   "packageManager": "pnpm@10.11.1",
   "engines": {
