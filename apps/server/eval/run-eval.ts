@@ -143,7 +143,15 @@ async function runFull() {
 async function runOneOff(url: string, save: boolean) {
   const videoId = parseVideoId(url);
   console.log(`Fetching transcript for ${videoId}...`);
-  const transcript = await fetchTranscript(videoId);
+
+  let transcript: string;
+  try {
+    transcript = await fetchTranscript(videoId);
+  } catch (err) {
+    console.error(`\nFailed to fetch transcript: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+
   console.log(`Transcript: ${transcript.length} chars`);
 
   const title = `Video ${videoId}`;
