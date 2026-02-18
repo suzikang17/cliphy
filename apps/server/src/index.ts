@@ -7,6 +7,7 @@ import { queueRoutes } from "./routes/queue.js";
 import { summaryRoutes } from "./routes/summaries.js";
 import { usageRoutes } from "./routes/usage.js";
 import { billingRoutes } from "./routes/billing.js";
+import { summarizeRoutes } from "./routes/summarize.js";
 
 const app = new Hono().basePath("/api");
 
@@ -18,6 +19,7 @@ app.route("/queue", queueRoutes);
 app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
+app.route("/summarize", summarizeRoutes);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
