@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:extension": "pnpm --filter extension build --watch",
+    "dev:extension": "pnpm --filter extension dev",
     "dev:server": "pnpm --filter server dev",
     "build:extension": "pnpm --filter extension build",
     "build:server": "pnpm --filter server build",
