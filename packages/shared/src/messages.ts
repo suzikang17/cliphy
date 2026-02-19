@@ -25,4 +25,18 @@ export interface AddToQueueMessage {
   videoUrl: string;
 }
 
-export type ExtensionMessage = VideoDetectedMessage | GetVideoInfoMessage | AddToQueueMessage;
+// Popup → Background (auth)
+export interface SignInMessage {
+  type: "SIGN_IN";
+}
+
+export interface SignOutMessage {
+  type: "SIGN_OUT";
+}
+
+export type ExtensionMessage =
+  | VideoDetectedMessage
+  | GetVideoInfoMessage
+  | AddToQueueMessage
+  | SignInMessage
+  | SignOutMessage;

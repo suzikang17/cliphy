@@ -1,4 +1,5 @@
 import type { ExtensionMessage } from "@cliphy/shared";
+import { signIn, signOut } from "../lib/auth";
 
 export default defineBackground(() => {
   console.log("Cliphy extension installed");
@@ -16,6 +17,18 @@ export default defineBackground(() => {
         // TODO: Send video to backend queue
         sendResponse({ success: true });
         break;
+
+      case "SIGN_IN":
+        signIn()
+          .then(() => sendResponse({ success: true }))
+          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        return true; // keep port open for async response
+
+      case "SIGN_OUT":
+        signOut()
+          .then(() => sendResponse({ success: true }))
+          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        return true;
     }
 
     return true;

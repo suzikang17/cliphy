@@ -6,24 +6,40 @@ import type {
   UsageResponse,
   Summary,
 } from "@cliphy/shared";
-import { getAuthToken } from "./auth";
+import { getAccessToken, refreshAccessToken } from "./auth";
 
-const API_URL = "http://localhost:3000"; // TODO: configurable via env/storage
+const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getAuthToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-  });
+  const token = await getAccessToken();
+
+  const doFetch = async (authToken: string | null) => {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...options?.headers,
+      },
+    });
+    return res;
+  };
+
+  let res = await doFetch(token);
+
+  // If 401, try refreshing the token once
+  if (res.status === 401 && token) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      res = await doFetch(newToken);
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
   }
+
   return res.json();
 }
 

@@ -1,6 +1,8 @@
 import type { MiddlewareHandler } from "hono";
+import type { AppEnv } from "../env.js";
+import { supabase } from "../lib/supabase.js";
 
-export const authMiddleware: MiddlewareHandler = async (c, next) => {
+export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({ error: "Unauthorized" }, 401);
@@ -8,9 +10,17 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
 
   const token = authHeader.slice(7);
 
-  // TODO: Verify JWT with Supabase
-  // For now, pass through
-  c.set("userId" as never, token);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  c.set("userId", user.id);
+  c.set("userEmail", user.email ?? "");
 
   await next();
 };

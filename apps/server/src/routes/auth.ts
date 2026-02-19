@@ -1,13 +1,22 @@
 import { Hono } from "hono";
+import type { AppEnv } from "../env.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { supabase } from "../lib/supabase.js";
 
-export const authRoutes = new Hono();
+export const authRoutes = new Hono<AppEnv>();
 
-authRoutes.get("/callback", async (c) => {
-  // TODO: Handle Supabase auth callback
-  return c.json({ message: "auth callback" });
-});
+authRoutes.get("/me", authMiddleware, async (c) => {
+  const userId = c.get("userId");
 
-authRoutes.get("/me", async (c) => {
-  // TODO: Return current user info
-  return c.json({ message: "current user" });
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("id, email, plan, daily_summary_count, daily_count_reset_at, created_at")
+    .eq("id", userId)
+    .single();
+
+  if (error || !user) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ user });
 });
