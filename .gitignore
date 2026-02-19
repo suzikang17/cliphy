@@ -9,3 +9,6 @@ dist/
 .output/
 .vercel/
 .turbo/
+.vercel
+.env*.local
+api/
