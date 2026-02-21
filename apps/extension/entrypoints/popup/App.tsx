@@ -1,4 +1,6 @@
+import type { VideoInfo } from "@cliphy/shared";
 import { useEffect, useState } from "react";
+import { VideoCard } from "../../components/VideoCard";
 import { getAccessToken, isAuthenticated } from "../../lib/auth";
 
 interface UserInfo {
@@ -10,6 +12,10 @@ export function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [video, setVideo] = useState<VideoInfo | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [addStatus, setAddStatus] = useState<"idle" | "queued" | "processing" | "error">("idle");
+  const [addError, setAddError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     checkAuth();
@@ -22,6 +28,7 @@ export function App() {
         const token = await getAccessToken();
         if (token) {
           await fetchUser(token);
+          await detectVideo();
         }
       }
     } catch {
@@ -39,6 +46,43 @@ export function App() {
     if (res.ok) {
       const data = await res.json();
       setUser({ email: data.user.email, plan: data.user.plan });
+    }
+  }
+
+  async function detectVideo() {
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id && tab.url?.includes("youtube.com/watch")) {
+        const info = (await browser.tabs.sendMessage(tab.id, {
+          type: "GET_VIDEO_INFO",
+        })) as VideoInfo;
+        if (info?.videoId) setVideo(info);
+      }
+    } catch {
+      // Not on a YouTube video page or content script not loaded
+    }
+  }
+
+  async function handleAddToQueue() {
+    if (!video?.videoId) return;
+    setIsAdding(true);
+    setAddError(undefined);
+    try {
+      const response = (await browser.runtime.sendMessage({
+        type: "ADD_TO_QUEUE",
+        videoUrl: video.url,
+      })) as { success: boolean; error?: string };
+      if (response?.success) {
+        setAddStatus("queued");
+      } else {
+        setAddStatus("error");
+        setAddError(response?.error ?? "Failed to add to queue");
+      }
+    } catch (err) {
+      setAddStatus("error");
+      setAddError(err instanceof Error ? err.message : "Failed to add to queue");
+    } finally {
+      setIsAdding(false);
     }
   }
 
@@ -60,6 +104,8 @@ export function App() {
   async function handleSignOut() {
     await browser.runtime.sendMessage({ type: "SIGN_OUT" });
     setUser(null);
+    setVideo(null);
+    setAddStatus("idle");
   }
 
   if (loading) {
@@ -98,6 +144,18 @@ export function App() {
         </button>
       </div>
       <p className="mt-1 text-sm text-gray-600">{user.email}</p>
+
+      {video && (
+        <div className="mt-4">
+          <VideoCard
+            video={video}
+            onAdd={handleAddToQueue}
+            isAdding={isAdding}
+            status={addStatus}
+            error={addError}
+          />
+        </div>
+      )}
     </div>
   );
 }
