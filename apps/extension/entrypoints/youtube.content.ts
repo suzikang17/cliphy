@@ -36,14 +36,12 @@ export default defineContentScript({
       const msg = message as ExtensionMessage;
       if (msg.type === "GET_VIDEO_INFO") {
         sendResponse(getVideoInfo());
-      }
-      if (msg.type === "SEEK_VIDEO") {
+      } else if (msg.type === "SEEK_VIDEO") {
         const video = document.querySelector("video");
         if (video) {
           video.currentTime = msg.seconds;
         }
       }
-      return true;
     });
 
     // Detect SPA navigation (YouTube fires this on page transitions)
