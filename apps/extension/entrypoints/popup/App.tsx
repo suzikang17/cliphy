@@ -64,79 +64,40 @@ export function App() {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px", textAlign: "center" }}>
-        <p style={{ color: "#666" }}>Loading...</p>
+      <div className="p-4 text-center">
+        <p className="text-gray-500 text-sm">Loading...</p>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div style={{ padding: "16px" }}>
-        <h1 style={{ fontSize: "20px", margin: 0 }}>Cliphy</h1>
-        <p style={{ color: "#666", marginTop: "8px" }}>
-          Queue YouTube videos and get AI-powered summaries.
-        </p>
+      <div className="p-4">
+        <h1 className="text-xl m-0 font-semibold">Cliphy</h1>
+        <p className="text-gray-500 mt-2">Queue YouTube videos and get AI-powered summaries.</p>
         <button
           onClick={handleSignIn}
-          style={{
-            marginTop: "16px",
-            padding: "10px 20px",
-            fontSize: "14px",
-            backgroundColor: "#4285f4",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            width: "100%",
-          }}
+          className="mt-4 px-5 py-2.5 text-sm bg-blue-600 text-white border-none rounded cursor-pointer w-full hover:bg-blue-700"
         >
           Sign in with Google
         </button>
-        {error && <p style={{ color: "#d93025", fontSize: "12px", marginTop: "8px" }}>{error}</p>}
+        {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "16px" }}>
-      <h1 style={{ fontSize: "20px", margin: 0 }}>Cliphy</h1>
-      <div
-        style={{
-          marginTop: "12px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <p style={{ margin: 0, fontSize: "14px" }}>{user.email}</p>
-          <p
-            style={{
-              margin: "2px 0 0",
-              fontSize: "12px",
-              color: "#666",
-              textTransform: "capitalize",
-            }}
-          >
-            {user.plan} plan
-          </p>
-        </div>
+    <div className="p-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl m-0 font-semibold">Cliphy</h1>
         <button
           onClick={handleSignOut}
-          style={{
-            padding: "6px 12px",
-            fontSize: "12px",
-            backgroundColor: "transparent",
-            color: "#666",
-            border: "1px solid #ddd",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
+          className="px-3 py-1.5 text-xs bg-transparent text-gray-500 border border-gray-300 rounded cursor-pointer hover:bg-gray-50"
         >
           Sign out
         </button>
       </div>
+      <p className="mt-1 text-sm text-gray-600">{user.email}</p>
     </div>
   );
 }
