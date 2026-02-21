@@ -1,4 +1,4 @@
-import type { Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
+import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import { useEffect, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { UsageBar } from "../../components/UsageBar";
@@ -26,6 +26,36 @@ export function App() {
     checkAuth();
   }, []);
 
+  // Listen for real-time summary updates from background script
+  useEffect(() => {
+    const listener = (message: unknown) => {
+      const msg = message as ExtensionMessage;
+      if (msg.type !== "SUMMARY_UPDATED") return;
+
+      const updated = msg.summary;
+      setSummaries((prev) => {
+        const idx = prev.findIndex((s) => s.id === updated.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updated;
+          return next;
+        }
+        // New item — prepend
+        return [updated, ...prev];
+      });
+
+      // Refresh usage when a summary completes (count may have changed)
+      if (updated.status === "completed" || updated.status === "failed") {
+        getUsage()
+          .then((res) => setUsage(res.usage))
+          .catch(() => {});
+      }
+    };
+
+    browser.runtime.onMessage.addListener(listener);
+    return () => browser.runtime.onMessage.removeListener(listener);
+  }, []);
+
   async function checkAuth() {
     try {
       const authed = await isAuthenticated();
@@ -44,7 +74,7 @@ export function App() {
   }
 
   async function fetchUser(token: string) {
-    const apiUrl = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3000";
+    const apiUrl = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
     const res = await fetch(`${apiUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });

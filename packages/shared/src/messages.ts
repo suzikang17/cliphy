@@ -1,3 +1,5 @@
+import type { Summary } from "./types.js";
+
 // Extension message types for communication between content script and background
 
 export interface VideoInfo {
@@ -34,6 +36,12 @@ export interface SignOutMessage {
   type: "SIGN_OUT";
 }
 
+// Background → Popup/UI (Realtime update)
+export interface SummaryUpdatedMessage {
+  type: "SUMMARY_UPDATED";
+  summary: Summary;
+}
+
 // Side panel → Content script
 export interface SeekVideoMessage {
   type: "SEEK_VIDEO";
@@ -46,4 +54,5 @@ export type ExtensionMessage =
   | AddToQueueMessage
   | SignInMessage
   | SignOutMessage
+  | SummaryUpdatedMessage
   | SeekVideoMessage;

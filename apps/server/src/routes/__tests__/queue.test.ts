@@ -79,6 +79,12 @@ vi.mock("../../services/summarizer.js", () => ({
   }),
 }));
 
+vi.mock("../../lib/inngest.js", () => ({
+  inngest: {
+    send: vi.fn().mockResolvedValue({ ids: [] }),
+  },
+}));
+
 // Dynamically import to pick up mocks
 async function createApp() {
   const { queueRoutes } = await import("../queue.js");
@@ -443,7 +449,7 @@ describe("Queue", () => {
       feature("Process Video");
     });
 
-    it("processes a pending queue item", async () => {
+    it("fires Inngest event for a pending queue item", async () => {
       severity("critical");
       const fetchChain = mockChain({
         data: {
@@ -452,31 +458,21 @@ describe("Queue", () => {
           user_id: "test-user-id",
           youtube_video_id: "dQw4w9WgXcQ",
           video_title: null,
-        },
-      });
-      const updateProcessingChain = mockChain({ data: { id: "sum-1" } });
-      const updateCompletedChain = mockChain({
-        data: {
-          id: "sum-1",
-          user_id: "test-user-id",
-          youtube_video_id: "dQw4w9WgXcQ",
           video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-          video_title: "Test",
-          status: "completed",
-          summary_json: { summary: "A summary", keyPoints: ["Point 1"], timestamps: ["0:00"] },
+          summary_json: null,
           error_message: null,
           created_at: "2026-02-20T10:00:00Z",
           updated_at: "2026-02-20T10:00:00Z",
         },
       });
+      const updateChain = mockChain({ data: { id: "sum-1" } });
 
       let callCount = 0;
       supabaseMock = {
         from: vi.fn().mockImplementation(() => {
           callCount++;
           if (callCount === 1) return fetchChain;
-          if (callCount === 2) return updateProcessingChain;
-          return updateCompletedChain;
+          return updateChain;
         }),
         rpc: vi.fn(),
       } as unknown as ReturnType<typeof mockChain>;
@@ -486,8 +482,7 @@ describe("Queue", () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.summary.status).toBe("completed");
-      expect(json.summary.summaryJson).toBeDefined();
+      expect(json.summary.status).toBe("pending");
     });
 
     it("returns 404 for non-existent item", async () => {
@@ -501,7 +496,7 @@ describe("Queue", () => {
       expect(res.status).toBe(404);
     });
 
-    it("returns 409 for non-pending item", async () => {
+    it("returns 409 for completed item", async () => {
       supabaseMock = {
         from: vi
           .fn()

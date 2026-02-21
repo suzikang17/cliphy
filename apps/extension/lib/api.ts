@@ -8,7 +8,7 @@ import type {
 } from "@cliphy/shared";
 import { getAccessToken, refreshAccessToken } from "./auth";
 
-const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3000";
+const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getAccessToken();
@@ -60,12 +60,6 @@ export async function getSummary(id: string) {
 
 export async function getSummaries() {
   return request<{ summaries: Summary[] }>(API_ROUTES.SUMMARIES.LIST);
-}
-
-export async function processQueueItem(id: string) {
-  return request<{ summary: Summary }>(API_ROUTES.QUEUE.PROCESS(id), {
-    method: "POST",
-  });
 }
 
 export async function getUsage() {

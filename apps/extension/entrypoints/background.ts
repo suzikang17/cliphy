@@ -1,17 +1,62 @@
-import type { ExtensionMessage } from "@cliphy/shared";
+import type { ExtensionMessage, Summary } from "@cliphy/shared";
 import { extractVideoId } from "@cliphy/shared";
 import type { Menus, Tabs, Runtime } from "wxt/browser";
-import { signIn, signOut, isAuthenticated } from "../lib/auth";
-import { addToQueue, processQueueItem } from "../lib/api";
+import { signIn, signOut, isAuthenticated, getAccessToken } from "../lib/auth";
+import { addToQueue } from "../lib/api";
+import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
 
-/** Queue a video and process it. Returns the completed summary or throws. */
-async function queueAndProcess(videoUrl: string) {
-  const { summary } = await addToQueue({ videoUrl });
-  const { summary: processed } = await processQueueItem(summary.id);
-  return processed;
+/** Decode a JWT payload without verification (just base64). */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(base64));
+}
+
+/** Map a DB row (snake_case) from Realtime payload to a Summary (camelCase). */
+function toSummary(row: Record<string, unknown>): Summary {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    videoId: row.youtube_video_id as string,
+    videoTitle: (row.video_title as string) ?? undefined,
+    videoUrl: (row.video_url as string) ?? undefined,
+    status: row.status as Summary["status"],
+    summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
+    errorMessage: (row.error_message as string) ?? undefined,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+/** Start listening for Realtime changes if authenticated. */
+async function setupRealtime() {
+  const token = await getAccessToken();
+  if (!token) return;
+
+  try {
+    const payload = decodeJwtPayload(token);
+    const userId = payload.sub as string;
+    if (!userId) return;
+
+    startRealtimeSubscription(userId, (row) => {
+      const summary = toSummary(row);
+      browser.runtime
+        .sendMessage({
+          type: "SUMMARY_UPDATED",
+          summary,
+        } satisfies ExtensionMessage)
+        .catch(() => {
+          // No listeners — popup/sidepanel not open, that's fine
+        });
+    });
+  } catch {
+    // Invalid token or decode failure — skip Realtime
+  }
 }
 
 export default defineBackground(() => {
+  // ── Realtime setup on startup ──────────────────────────────
+  setupRealtime();
+
   // ── Context menu ──────────────────────────────────────────
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({
@@ -29,7 +74,7 @@ export default defineBackground(() => {
     if (!url || !extractVideoId(url)) return;
 
     try {
-      await queueAndProcess(url);
+      await addToQueue({ videoUrl: url });
     } catch (err) {
       console.error("[Cliphy] Context menu queue failed:", err);
     }
@@ -56,19 +101,23 @@ export default defineBackground(() => {
             return true;
           }
 
-          queueAndProcess(msg.videoUrl)
-            .then((summary) => sendResponse({ success: true, summary }))
+          addToQueue({ videoUrl: msg.videoUrl })
+            .then((result) => sendResponse({ success: true, summary: result.summary }))
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;
         }
 
         case "SIGN_IN":
           signIn()
-            .then(() => sendResponse({ success: true }))
+            .then(() => {
+              setupRealtime();
+              sendResponse({ success: true });
+            })
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;
 
         case "SIGN_OUT":
+          stopRealtimeSubscription();
           signOut()
             .then(() => sendResponse({ success: true }))
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));

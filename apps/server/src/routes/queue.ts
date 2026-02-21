@@ -2,10 +2,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
+import { inngest } from "../lib/inngest.js";
 import { extractVideoId, PLAN_LIMITS } from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
-import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
-import { summarizeTranscript } from "../services/summarizer.js";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -142,6 +141,16 @@ queueRoutes.post("/", async (c) => {
   if (insertError || !row) {
     return c.json({ error: "Failed to add to queue" }, 500);
   }
+
+  // Fire Inngest event for async processing
+  await inngest.send({
+    name: "video/summarize.requested",
+    data: {
+      summaryId: row.id as string,
+      videoId,
+      videoTitle: (row.video_title as string) ?? "Untitled Video",
+    },
+  });
 
   // Calculate queue position (number of pending/processing items created before this one)
   const { count } = await supabase
@@ -281,6 +290,18 @@ queueRoutes.post("/batch", async (c) => {
     return c.json({ error: "Failed to add videos to queue" }, 500);
   }
 
+  // Fire Inngest events for each inserted row
+  await inngest.send(
+    rows.map((row) => ({
+      name: "video/summarize.requested" as const,
+      data: {
+        summaryId: row.id as string,
+        videoId: row.youtube_video_id as string,
+        videoTitle: (row.video_title as string) ?? "Untitled Video",
+      },
+    })),
+  );
+
   return c.json(
     {
       summaries: rows.map(toSummary),
@@ -292,7 +313,7 @@ queueRoutes.post("/batch", async (c) => {
   );
 });
 
-// POST /:id/process — Process a queued item (fetch transcript + summarize)
+// POST /:id/process — Retry a queued item (fires Inngest event)
 queueRoutes.post("/:id/process", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
@@ -308,42 +329,23 @@ queueRoutes.post("/:id/process", async (c) => {
     return c.json({ error: "Queue item not found" }, 404);
   }
 
-  if (row.status !== "pending") {
-    return c.json({ error: "Item is not in pending state" }, 409);
+  if (row.status !== "pending" && row.status !== "failed") {
+    return c.json({ error: "Item must be in pending or failed state to retry" }, 409);
   }
 
-  await supabase.from("summaries").update({ status: "processing" }).eq("id", id);
+  // Reset to pending before re-firing
+  await supabase.from("summaries").update({ status: "pending", error_message: null }).eq("id", id);
 
-  try {
-    const transcript = await fetchTranscript(row.youtube_video_id as string);
-    const summaryJson = await summarizeTranscript(
-      transcript,
-      (row.video_title as string) ?? "Untitled Video",
-    );
+  await inngest.send({
+    name: "video/summarize.requested",
+    data: {
+      summaryId: id,
+      videoId: row.youtube_video_id as string,
+      videoTitle: (row.video_title as string) ?? "Untitled Video",
+    },
+  });
 
-    const { data: updated, error: updateError } = await supabase
-      .from("summaries")
-      .update({ status: "completed", summary_json: summaryJson })
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (updateError || !updated) {
-      return c.json({ error: "Failed to update summary" }, 500);
-    }
-
-    return c.json({ summary: toSummary(updated) });
-  } catch (err) {
-    const errorMessage =
-      err instanceof TranscriptNotAvailableError ? err.message : "Failed to generate summary";
-
-    await supabase
-      .from("summaries")
-      .update({ status: "failed", error_message: errorMessage })
-      .eq("id", id);
-
-    return c.json({ error: errorMessage }, 422);
-  }
+  return c.json({ summary: toSummary({ ...row, status: "pending", error_message: null }) });
 });
 
 // DELETE /:id — Remove a queued item
