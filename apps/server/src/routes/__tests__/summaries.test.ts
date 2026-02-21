@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { epic, feature, parentSuite } from "allure-js-commons";
+import { epic, feature, layer } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 
@@ -88,153 +88,155 @@ const sampleRow = {
 
 // ── Tests ─────────────────────────────────────────────────────
 
-describe("GET /summaries", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromCallCount = 0;
-    fromResults = [];
-    parentSuite("Unit Tests");
-    epic("Summaries");
-    feature("Browse Summaries");
+describe("Summaries", () => {
+  describe("GET /summaries", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("Browse Summaries");
+    });
+
+    it("returns paginated list of summaries", async () => {
+      // 1st from() → users table (plan check)
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      // 2nd from() → summaries table (list)
+      fromResults.push(mockChain({ data: [sampleRow], count: 1 }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.summaries).toHaveLength(1);
+      expect(json.summaries[0].videoId).toBe("abc12345678");
+      expect(json.total).toBe(1);
+      expect(json.offset).toBe(0);
+      expect(json.limit).toBe(20);
+    });
+
+    it("respects limit and offset params", async () => {
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      fromResults.push(mockChain({ data: [], count: 0 }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries?limit=5&offset=10");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.limit).toBe(5);
+      expect(json.offset).toBe(10);
+    });
+
+    it("caps limit at 100", async () => {
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      fromResults.push(mockChain({ data: [], count: 0 }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries?limit=999");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.limit).toBe(100);
+    });
   });
 
-  it("returns paginated list of summaries", async () => {
-    // 1st from() → users table (plan check)
-    fromResults.push(mockChain({ data: { plan: "pro" } }));
-    // 2nd from() → summaries table (list)
-    fromResults.push(mockChain({ data: [sampleRow], count: 1 }));
+  describe("GET /summaries/:id", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("View Summary");
+    });
 
-    const app = await createApp();
-    const res = await app.request("/summaries");
+    it("returns summary detail", async () => {
+      fromResults.push(mockChain({ data: sampleRow }));
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.summaries).toHaveLength(1);
-    expect(json.summaries[0].videoId).toBe("abc12345678");
-    expect(json.total).toBe(1);
-    expect(json.offset).toBe(0);
-    expect(json.limit).toBe(20);
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.summary.videoId).toBe("abc12345678");
+      expect(json.summary.summaryJson.keyPoints).toHaveLength(1);
+    });
+
+    it("returns 404 for non-existent summary", async () => {
+      fromResults.push(mockChain({ data: null, error: { message: "not found" } }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/nonexistent");
+
+      expect(res.status).toBe(404);
+    });
   });
 
-  it("respects limit and offset params", async () => {
-    fromResults.push(mockChain({ data: { plan: "pro" } }));
-    fromResults.push(mockChain({ data: [], count: 0 }));
+  describe("GET /summaries/search", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("Search Summaries");
+    });
 
-    const app = await createApp();
-    const res = await app.request("/summaries?limit=5&offset=10");
+    it("returns 400 when q parameter is missing", async () => {
+      const app = await createApp();
+      const res = await app.request("/summaries/search");
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.limit).toBe(5);
-    expect(json.offset).toBe(10);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toMatch(/q.*required/i);
+    });
+
+    it("searches summaries by query", async () => {
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      fromResults.push(mockChain({ data: [sampleRow], count: 1 }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/search?q=test");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.summaries).toHaveLength(1);
+      expect(json.total).toBe(1);
+    });
   });
 
-  it("caps limit at 100", async () => {
-    fromResults.push(mockChain({ data: { plan: "pro" } }));
-    fromResults.push(mockChain({ data: [], count: 0 }));
+  describe("DELETE /summaries/:id", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("Delete Summary");
+    });
 
-    const app = await createApp();
-    const res = await app.request("/summaries?limit=999");
+    it("soft-deletes a summary", async () => {
+      fromResults.push(mockChain({ data: { id: "sum-1" } }));
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.limit).toBe(100);
-  });
-});
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1", { method: "DELETE" });
 
-describe("GET /summaries/:id", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromCallCount = 0;
-    fromResults = [];
-    parentSuite("Unit Tests");
-    epic("Summaries");
-    feature("View Summary");
-  });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.deleted).toBe(true);
+      expect(json.id).toBe("sum-1");
+    });
 
-  it("returns summary detail", async () => {
-    fromResults.push(mockChain({ data: sampleRow }));
+    it("returns 404 for non-existent or already deleted summary", async () => {
+      fromResults.push(mockChain({ data: null, error: { message: "not found" } }));
 
-    const app = await createApp();
-    const res = await app.request("/summaries/sum-1");
+      const app = await createApp();
+      const res = await app.request("/summaries/nonexistent", { method: "DELETE" });
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.summary.videoId).toBe("abc12345678");
-    expect(json.summary.summaryJson.keyPoints).toHaveLength(1);
-  });
-
-  it("returns 404 for non-existent summary", async () => {
-    fromResults.push(mockChain({ data: null, error: { message: "not found" } }));
-
-    const app = await createApp();
-    const res = await app.request("/summaries/nonexistent");
-
-    expect(res.status).toBe(404);
-  });
-});
-
-describe("GET /summaries/search", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromCallCount = 0;
-    fromResults = [];
-    parentSuite("Unit Tests");
-    epic("Summaries");
-    feature("Search Summaries");
-  });
-
-  it("returns 400 when q parameter is missing", async () => {
-    const app = await createApp();
-    const res = await app.request("/summaries/search");
-
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toMatch(/q.*required/i);
-  });
-
-  it("searches summaries by query", async () => {
-    fromResults.push(mockChain({ data: { plan: "pro" } }));
-    fromResults.push(mockChain({ data: [sampleRow], count: 1 }));
-
-    const app = await createApp();
-    const res = await app.request("/summaries/search?q=test");
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.summaries).toHaveLength(1);
-    expect(json.total).toBe(1);
-  });
-});
-
-describe("DELETE /summaries/:id", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromCallCount = 0;
-    fromResults = [];
-    parentSuite("Unit Tests");
-    epic("Summaries");
-    feature("Delete Summary");
-  });
-
-  it("soft-deletes a summary", async () => {
-    fromResults.push(mockChain({ data: { id: "sum-1" } }));
-
-    const app = await createApp();
-    const res = await app.request("/summaries/sum-1", { method: "DELETE" });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.deleted).toBe(true);
-    expect(json.id).toBe("sum-1");
-  });
-
-  it("returns 404 for non-existent or already deleted summary", async () => {
-    fromResults.push(mockChain({ data: null, error: { message: "not found" } }));
-
-    const app = await createApp();
-    const res = await app.request("/summaries/nonexistent", { method: "DELETE" });
-
-    expect(res.status).toBe(404);
+      expect(res.status).toBe(404);
+    });
   });
 });

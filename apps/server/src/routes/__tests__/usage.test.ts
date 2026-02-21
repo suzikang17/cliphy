@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { epic, feature, parentSuite } from "allure-js-commons";
+import { epic, feature, layer } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 
@@ -48,65 +48,67 @@ async function createApp() {
 
 // ── Tests ─────────────────────────────────────────────────────
 
-describe("GET /usage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    parentSuite("Unit Tests");
-    epic("Billing");
-    feature("Usage Tracking");
-  });
-
-  it("returns usage info for free user", async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    mockResult = mockChain({
-      data: { plan: "free", daily_summary_count: 3, daily_count_reset_at: today },
+describe("Billing", () => {
+  describe("GET /usage", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      layer("unit");
+      epic("Billing");
+      feature("Usage Tracking");
     });
 
-    const app = await createApp();
-    const res = await app.request("/usage");
+    it("returns usage info for free user", async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      mockResult = mockChain({
+        data: { plan: "free", daily_summary_count: 3, daily_count_reset_at: today },
+      });
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.usage.plan).toBe("free");
-    expect(json.usage.used).toBe(3);
-    expect(json.usage.limit).toBe(5);
-  });
+      const app = await createApp();
+      const res = await app.request("/usage");
 
-  it("returns usage info for pro user", async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    mockResult = mockChain({
-      data: { plan: "pro", daily_summary_count: 42, daily_count_reset_at: today },
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.usage.plan).toBe("free");
+      expect(json.usage.used).toBe(3);
+      expect(json.usage.limit).toBe(5);
     });
 
-    const app = await createApp();
-    const res = await app.request("/usage");
+    it("returns usage info for pro user", async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      mockResult = mockChain({
+        data: { plan: "pro", daily_summary_count: 42, daily_count_reset_at: today },
+      });
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.usage.plan).toBe("pro");
-    expect(json.usage.used).toBe(42);
-    expect(json.usage.limit).toBe(100);
-  });
+      const app = await createApp();
+      const res = await app.request("/usage");
 
-  it("resets count when reset date is in the past", async () => {
-    mockResult = mockChain({
-      data: { plan: "free", daily_summary_count: 5, daily_count_reset_at: "2026-02-19" },
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.usage.plan).toBe("pro");
+      expect(json.usage.used).toBe(42);
+      expect(json.usage.limit).toBe(100);
     });
 
-    const app = await createApp();
-    const res = await app.request("/usage");
+    it("resets count when reset date is in the past", async () => {
+      mockResult = mockChain({
+        data: { plan: "free", daily_summary_count: 5, daily_count_reset_at: "2026-02-19" },
+      });
 
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.usage.used).toBe(0); // reset because date is yesterday
-  });
+      const app = await createApp();
+      const res = await app.request("/usage");
 
-  it("returns 404 when user not found", async () => {
-    mockResult = mockChain({ data: null, error: { message: "not found" } });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.usage.used).toBe(0); // reset because date is yesterday
+    });
 
-    const app = await createApp();
-    const res = await app.request("/usage");
+    it("returns 404 when user not found", async () => {
+      mockResult = mockChain({ data: null, error: { message: "not found" } });
 
-    expect(res.status).toBe(404);
+      const app = await createApp();
+      const res = await app.request("/usage");
+
+      expect(res.status).toBe(404);
+    });
   });
 });
