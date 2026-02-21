@@ -34,9 +34,16 @@ export interface SignOutMessage {
   type: "SIGN_OUT";
 }
 
+// Side panel → Content script
+export interface SeekVideoMessage {
+  type: "SEEK_VIDEO";
+  seconds: number;
+}
+
 export type ExtensionMessage =
   | VideoDetectedMessage
   | GetVideoInfoMessage
   | AddToQueueMessage
   | SignInMessage
-  | SignOutMessage;
+  | SignOutMessage
+  | SeekVideoMessage;

@@ -31,11 +31,17 @@ export default defineContentScript({
       } satisfies ExtensionMessage);
     }
 
-    // Listen for on-demand requests from popup
+    // Listen for on-demand requests from popup / side panel
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const msg = message as ExtensionMessage;
       if (msg.type === "GET_VIDEO_INFO") {
         sendResponse(getVideoInfo());
+      }
+      if (msg.type === "SEEK_VIDEO") {
+        const video = document.querySelector("video");
+        if (video) {
+          video.currentTime = msg.seconds;
+        }
       }
       return true;
     });
