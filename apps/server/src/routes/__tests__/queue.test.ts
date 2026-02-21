@@ -65,6 +65,19 @@ vi.mock("../../middleware/auth.js", () => ({
   ),
 }));
 
+vi.mock("../../services/transcript.js", () => ({
+  fetchTranscript: vi.fn().mockResolvedValue("fake transcript text"),
+  TranscriptNotAvailableError: class extends Error {},
+}));
+
+vi.mock("../../services/summarizer.js", () => ({
+  summarizeTranscript: vi.fn().mockResolvedValue({
+    summary: "A summary",
+    keyPoints: ["Point 1"],
+    timestamps: ["0:00"],
+  }),
+}));
+
 // ── extractVideoId unit tests ─────────────────────────────────
 
 describe("extractVideoId", () => {
@@ -398,5 +411,83 @@ describe("GET /queue", () => {
     const json = await res.json();
     expect(json.items).toHaveLength(1);
     expect(json.items[0].videoId).toBe("abc12345678");
+  });
+});
+
+describe("POST /queue/:id/process", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("processes a pending queue item", async () => {
+    const fetchChain = mockChain({
+      data: {
+        id: "sum-1",
+        status: "pending",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_title: null,
+      },
+    });
+    const updateProcessingChain = mockChain({ data: { id: "sum-1" } });
+    const updateCompletedChain = mockChain({
+      data: {
+        id: "sum-1",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+        video_title: "Test",
+        status: "completed",
+        summary_json: { summary: "A summary", keyPoints: ["Point 1"], timestamps: ["0:00"] },
+        error_message: null,
+        created_at: "2026-02-20T10:00:00Z",
+        updated_at: "2026-02-20T10:00:00Z",
+      },
+    });
+
+    let callCount = 0;
+    supabaseMock = {
+      from: vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return fetchChain;
+        if (callCount === 2) return updateProcessingChain;
+        return updateCompletedChain;
+      }),
+      rpc: vi.fn(),
+    } as unknown as ReturnType<typeof mockChain>;
+
+    const app = await createApp();
+    const res = await app.request("/queue/sum-1/process", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.summary.status).toBe("completed");
+    expect(json.summary.summaryJson).toBeDefined();
+  });
+
+  it("returns 404 for non-existent item", async () => {
+    supabaseMock = {
+      from: vi.fn().mockReturnValue(mockChain({ data: null, error: { message: "not found" } })),
+      rpc: vi.fn(),
+    } as unknown as ReturnType<typeof mockChain>;
+
+    const app = await createApp();
+    const res = await app.request("/queue/nonexistent/process", { method: "POST" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 409 for non-pending item", async () => {
+    supabaseMock = {
+      from: vi
+        .fn()
+        .mockReturnValue(
+          mockChain({ data: { id: "sum-1", status: "completed", user_id: "test-user-id" } }),
+        ),
+      rpc: vi.fn(),
+    } as unknown as ReturnType<typeof mockChain>;
+
+    const app = await createApp();
+    const res = await app.request("/queue/sum-1/process", { method: "POST" });
+    expect(res.status).toBe(409);
   });
 });

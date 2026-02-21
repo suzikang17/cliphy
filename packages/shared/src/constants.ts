@@ -14,6 +14,7 @@ export const API_ROUTES = {
     LIST: "/api/queue",
     ADD: "/api/queue",
     ITEM: (id: string) => `/api/queue/${id}`,
+    PROCESS: (id: string) => `/api/queue/${id}/process`,
   },
   SUMMARIES: {
     LIST: "/api/summaries",

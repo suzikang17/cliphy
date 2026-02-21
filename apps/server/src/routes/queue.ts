@@ -4,6 +4,8 @@ import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
 import { extractVideoId, PLAN_LIMITS } from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
+import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
+import { summarizeTranscript } from "../services/summarizer.js";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -288,6 +290,60 @@ queueRoutes.post("/batch", async (c) => {
     },
     201,
   );
+});
+
+// POST /:id/process — Process a queued item (fetch transcript + summarize)
+queueRoutes.post("/:id/process", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const { data: row, error: fetchError } = await supabase
+    .from("summaries")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+
+  if (fetchError || !row) {
+    return c.json({ error: "Queue item not found" }, 404);
+  }
+
+  if (row.status !== "pending") {
+    return c.json({ error: "Item is not in pending state" }, 409);
+  }
+
+  await supabase.from("summaries").update({ status: "processing" }).eq("id", id);
+
+  try {
+    const transcript = await fetchTranscript(row.youtube_video_id as string);
+    const summaryJson = await summarizeTranscript(
+      transcript,
+      (row.video_title as string) ?? "Untitled Video",
+    );
+
+    const { data: updated, error: updateError } = await supabase
+      .from("summaries")
+      .update({ status: "completed", summary_json: summaryJson })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (updateError || !updated) {
+      return c.json({ error: "Failed to update summary" }, 500);
+    }
+
+    return c.json({ summary: toSummary(updated) });
+  } catch (err) {
+    const errorMessage =
+      err instanceof TranscriptNotAvailableError ? err.message : "Failed to generate summary";
+
+    await supabase
+      .from("summaries")
+      .update({ status: "failed", error_message: errorMessage })
+      .eq("id", id);
+
+    return c.json({ error: errorMessage }, 422);
+  }
 });
 
 // DELETE /:id — Remove a queued item
