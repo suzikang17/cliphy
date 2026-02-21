@@ -1,4 +1,5 @@
 import type { ExtensionMessage, VideoInfo } from "@cliphy/shared";
+import type { Runtime } from "wxt/browser";
 
 export default defineContentScript({
   matches: ["https://www.youtube.com/*"],
@@ -32,17 +33,23 @@ export default defineContentScript({
     }
 
     // Listen for on-demand requests from popup / side panel
-    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      const msg = message as ExtensionMessage;
-      if (msg.type === "GET_VIDEO_INFO") {
-        sendResponse(getVideoInfo());
-      } else if (msg.type === "SEEK_VIDEO") {
-        const video = document.querySelector("video");
-        if (video) {
-          video.currentTime = msg.seconds;
+    browser.runtime.onMessage.addListener(
+      (
+        message: unknown,
+        _sender: Runtime.MessageSender,
+        sendResponse: (response: unknown) => void,
+      ) => {
+        const msg = message as ExtensionMessage;
+        if (msg.type === "GET_VIDEO_INFO") {
+          sendResponse(getVideoInfo());
+        } else if (msg.type === "SEEK_VIDEO") {
+          const video = document.querySelector("video");
+          if (video) {
+            video.currentTime = msg.seconds;
+          }
         }
-      }
-    });
+      },
+    );
 
     // Detect SPA navigation (YouTube fires this on page transitions)
     document.addEventListener("yt-navigate-finish", () => {

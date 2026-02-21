@@ -1,5 +1,6 @@
 import type { ExtensionMessage } from "@cliphy/shared";
 import { extractVideoId } from "@cliphy/shared";
+import type { Menus, Tabs, Runtime } from "wxt/browser";
 import { signIn, signOut, isAuthenticated } from "../lib/auth";
 import { addToQueue, processQueueItem } from "../lib/api";
 
@@ -21,7 +22,7 @@ export default defineBackground(() => {
     });
   });
 
-  browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  browser.contextMenus.onClicked.addListener(async (info: Menus.OnClickData, tab?: Tabs.Tab) => {
     if (info.menuItemId !== "add-to-cliphy") return;
 
     const url = info.pageUrl ?? tab?.url;
@@ -35,40 +36,46 @@ export default defineBackground(() => {
   });
 
   // ── Message handling ──────────────────────────────────────
-  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    const msg = message as ExtensionMessage;
+  browser.runtime.onMessage.addListener(
+    (
+      message: unknown,
+      _sender: Runtime.MessageSender,
+      sendResponse: (response: unknown) => void,
+    ) => {
+      const msg = message as ExtensionMessage;
 
-    switch (msg.type) {
-      case "VIDEO_DETECTED":
-        console.log("[Cliphy] Video detected:", msg.video.videoId);
-        break;
+      switch (msg.type) {
+        case "VIDEO_DETECTED":
+          console.log("[Cliphy] Video detected:", msg.video.videoId);
+          break;
 
-      case "ADD_TO_QUEUE": {
-        const authed = isAuthenticated();
-        if (!authed) {
-          sendResponse({ success: false, error: "Not authenticated" });
+        case "ADD_TO_QUEUE": {
+          const authed = isAuthenticated();
+          if (!authed) {
+            sendResponse({ success: false, error: "Not authenticated" });
+            return true;
+          }
+
+          queueAndProcess(msg.videoUrl)
+            .then((summary) => sendResponse({ success: true, summary }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;
         }
 
-        queueAndProcess(msg.videoUrl)
-          .then((summary) => sendResponse({ success: true, summary }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
-        return true;
+        case "SIGN_IN":
+          signIn()
+            .then(() => sendResponse({ success: true }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+          return true;
+
+        case "SIGN_OUT":
+          signOut()
+            .then(() => sendResponse({ success: true }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+          return true;
       }
 
-      case "SIGN_IN":
-        signIn()
-          .then(() => sendResponse({ success: true }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
-        return true;
-
-      case "SIGN_OUT":
-        signOut()
-          .then(() => sendResponse({ success: true }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
-        return true;
-    }
-
-    return true;
-  });
+      return true;
+    },
+  );
 });
