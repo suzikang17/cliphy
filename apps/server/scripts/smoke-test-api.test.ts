@@ -11,48 +11,50 @@
  *   pnpm test:smoke
  */
 
-import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-// ── Config ───────────────────────────────────────────────────
-
-const API_BASE = (process.env.API_BASE_URL ?? "https://cliphy.vercel.app").replace(/\/$/, "");
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY!;
-
-const TEST_EMAIL = `smoke-${Date.now()}@cliphy-test.local`;
-const TEST_PASSWORD = `SmokeTest-${randomUUID()}`;
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-
-const anon = createClient(SUPABASE_URL, ANON_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-
 // ── Helpers ──────────────────────────────────────────────────
 
-async function api(path: string, token?: string, init?: RequestInit): Promise<Response> {
+let apiBase: string;
+
+function api(path: string, token?: string, init?: RequestInit): Promise<Response> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  return fetch(`${API_BASE}${path}`, { ...init, headers });
+  return fetch(`${apiBase}${path}`, { ...init, headers });
 }
 
 // ── Setup / Teardown ─────────────────────────────────────────
 
+let admin: SupabaseClient;
 let token: string;
 let userId: string;
 let queueItemId: string | undefined;
 
 beforeAll(async () => {
+  apiBase = (process.env.API_BASE_URL ?? "https://cliphy.vercel.app").replace(/\/$/, "");
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const anonKey = process.env.SUPABASE_ANON_KEY!;
+
+  admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const anon = createClient(supabaseUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const testEmail = `smoke-${Date.now()}@cliphy-test.local`;
+  const testPassword = `SmokeTest-${randomUUID()}`;
+
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email: TEST_EMAIL,
-    password: TEST_PASSWORD,
+    email: testEmail,
+    password: testPassword,
     email_confirm: true,
   });
 
@@ -63,8 +65,8 @@ beforeAll(async () => {
   userId = created.user.id;
 
   const { data: session, error: signInErr } = await anon.auth.signInWithPassword({
-    email: TEST_EMAIL,
-    password: TEST_PASSWORD,
+    email: testEmail,
+    password: testPassword,
   });
 
   if (signInErr || !session.session) {
@@ -83,7 +85,7 @@ afterAll(async () => {
 
 // ── Tests ────────────────────────────────────────────────────
 
-describe(`API smoke tests (${API_BASE})`, () => {
+describe("API smoke tests", () => {
   test("GET /api/health returns 200", async () => {
     const res = await api("/api/health");
     expect(res.status).toBe(200);
