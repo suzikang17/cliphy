@@ -31,6 +31,7 @@ Monorepo with pnpm workspaces:
 - Commit directly to main (solo dev)
 - Commit messages: imperative mood, concise
   (e.g. "add queue endpoint" not "added queue endpoint")
+- Use worktrees only for parallel sessions (separate tabs). Rebase onto main, fast-forward merge, push when done.
 - Use `browser.*` API in extension code (WXT auto-polyfills, not `chrome.*`)
 
 ## Commands
