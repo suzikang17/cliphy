@@ -21,7 +21,7 @@ Run the full CI suite locally before committing:
 - `pnpm --filter server typecheck`
 - `pnpm build:extension`
 - `pnpm build:server`
-- `pnpm test -- --run`
+- `pnpm test:unit -- --run`
 
 If any fail, stop and fix before continuing.
 
