@@ -12,3 +12,5 @@ dist/
 .vercel
 .env*.local
 api/
+allure-results/
+allure-report/

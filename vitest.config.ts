@@ -4,5 +4,10 @@ export default defineConfig({
   test: {
     passWithNoTests: true,
     exclude: ["**/node_modules/**"],
+    setupFiles: ["allure-vitest/setup"],
+    reporters: ["default", "allure-vitest/reporter"],
+    outputFile: {
+      "allure-vitest/reporter": "./allure-results",
+    },
   },
 });
