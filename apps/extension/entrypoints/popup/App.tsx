@@ -48,10 +48,9 @@ export function App() {
     const res = await fetch(`${apiUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (res.ok) {
-      const data = await res.json();
-      setUser({ email: data.user.email, plan: data.user.plan });
-    }
+    if (!res.ok) throw new Error("Failed to load account");
+    const data = await res.json();
+    setUser({ email: data.user.email, plan: data.user.plan });
   }
 
   async function fetchQueueAndUsage() {

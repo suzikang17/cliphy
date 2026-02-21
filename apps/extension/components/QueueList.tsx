@@ -19,7 +19,12 @@ function statusIcon(status: Summary["status"]): string {
 
 export function QueueList({ summaries, onViewSummary }: QueueListProps) {
   if (summaries.length === 0) {
-    return <p className="text-sm text-gray-400 text-center py-4">No videos queued yet.</p>;
+    return (
+      <div className="text-center py-4">
+        <p className="text-sm text-gray-400">No videos queued yet.</p>
+        <p className="text-xs text-gray-400 mt-1">Visit a YouTube video and click "Add to Queue"</p>
+      </div>
+    );
   }
 
   return (
