@@ -1,12 +1,13 @@
 import { beforeEach, describe, it, expect } from "vitest";
-import { epic, feature } from "allure-js-commons";
+import { epic, feature, parentSuite } from "allure-js-commons";
 import { runChecks } from "../checks.js";
 import type { SummaryJson } from "@cliphy/shared";
 
 describe("runChecks", () => {
   beforeEach(() => {
-    epic("Eval");
-    feature("Quality Checks");
+    parentSuite("Unit Tests");
+    epic("Video Processing");
+    feature("Summary Quality Checks");
   });
 
   const good: SummaryJson = {

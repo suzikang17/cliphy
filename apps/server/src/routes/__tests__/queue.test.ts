@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { epic, feature, story } from "allure-js-commons";
+import { epic, feature, story, parentSuite } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 import { extractVideoId } from "@cliphy/shared";
@@ -83,8 +83,9 @@ vi.mock("../../services/summarizer.js", () => ({
 
 describe("extractVideoId", () => {
   beforeEach(() => {
-    epic("Server");
-    feature("Shared Utilities");
+    parentSuite("Unit Tests");
+    epic("Video Processing");
+    feature("URL Parsing");
   });
 
   it("extracts from youtube.com/watch?v=", () => {
@@ -140,9 +141,10 @@ async function createApp() {
 describe("POST /queue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Queue API");
-    story("Add to Queue");
+    parentSuite("Unit Tests");
+    epic("Queue");
+    feature("Add Video");
+    story("Single video");
   });
 
   it("adds a video and returns 201 with summary and position", async () => {
@@ -274,9 +276,10 @@ describe("POST /queue", () => {
 describe("POST /queue/batch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Queue API");
-    story("Batch Add");
+    parentSuite("Unit Tests");
+    epic("Queue");
+    feature("Add Video");
+    story("Batch");
   });
 
   it("returns 403 for non-pro users", async () => {
@@ -335,9 +338,9 @@ describe("POST /queue/batch", () => {
 describe("DELETE /queue/:id", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Queue API");
-    story("Delete from Queue");
+    parentSuite("Unit Tests");
+    epic("Queue");
+    feature("Remove Video");
   });
 
   it("deletes a queued item", async () => {
@@ -396,9 +399,9 @@ describe("DELETE /queue/:id", () => {
 describe("GET /queue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Queue API");
-    story("List Queue");
+    parentSuite("Unit Tests");
+    epic("Queue");
+    feature("List Queue");
   });
 
   it("returns list of queue items", async () => {
@@ -435,9 +438,9 @@ describe("GET /queue", () => {
 describe("POST /queue/:id/process", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Queue API");
-    story("Process Queue Item");
+    parentSuite("Unit Tests");
+    epic("Queue");
+    feature("Process Video");
   });
 
   it("processes a pending queue item", async () => {

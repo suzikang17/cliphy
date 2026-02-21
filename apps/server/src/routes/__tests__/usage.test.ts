@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { epic, feature } from "allure-js-commons";
+import { epic, feature, parentSuite } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 
@@ -51,8 +51,9 @@ async function createApp() {
 describe("GET /usage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    epic("Server");
-    feature("Usage API");
+    parentSuite("Unit Tests");
+    epic("Billing");
+    feature("Usage Tracking");
   });
 
   it("returns usage info for free user", async () => {

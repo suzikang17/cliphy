@@ -1,11 +1,12 @@
 import { beforeEach, describe, it, expect } from "vitest";
-import { epic, feature } from "allure-js-commons";
+import { epic, feature, parentSuite } from "allure-js-commons";
 import { parseSummaryResponse } from "../summarizer.js";
 
 describe("parseSummaryResponse", () => {
   beforeEach(() => {
-    epic("Server");
-    feature("Summarizer Service");
+    parentSuite("Unit Tests");
+    epic("Video Processing");
+    feature("AI Response Parsing");
   });
 
   it("parses valid JSON response", () => {
