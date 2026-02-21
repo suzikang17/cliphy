@@ -62,6 +62,12 @@ export async function getSummaries() {
   return request<{ summaries: Summary[] }>(API_ROUTES.SUMMARIES.LIST);
 }
 
+export async function processQueueItem(id: string) {
+  return request<{ summary: Summary }>(API_ROUTES.QUEUE.PROCESS(id), {
+    method: "POST",
+  });
+}
+
 export async function getUsage() {
   return request<UsageResponse>(API_ROUTES.USAGE.INFO);
 }
