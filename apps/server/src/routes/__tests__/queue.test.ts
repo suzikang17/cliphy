@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
-import { extractVideoId } from "../queue.js";
+import { extractVideoId } from "@cliphy/shared";
 
 // ── Mock Supabase ─────────────────────────────────────────────
 
