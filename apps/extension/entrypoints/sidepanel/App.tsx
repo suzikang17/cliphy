@@ -89,8 +89,7 @@ export function App() {
   }
 
   function handlePopOut(id: string) {
-    // summaries.html will be added in a future task — cast to bypass WXT's PublicPath type
-    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}` as "/popup.html");
+    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}`);
     browser.tabs.create({ url });
   }
 

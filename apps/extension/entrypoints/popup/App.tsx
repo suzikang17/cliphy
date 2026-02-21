@@ -101,10 +101,22 @@ export function App() {
     }
   }
 
-  function handleViewSummary(id: string) {
-    // summaries.html will be added in a future task — cast to bypass WXT's PublicPath type
-    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}` as `/popup.html`);
-    browser.tabs.create({ url });
+  async function handleViewSummary(id: string) {
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await browser.sidePanel.open({ tabId: tab.id });
+        await browser.sidePanel.setOptions({
+          tabId: tab.id,
+          path: `/sidepanel.html?id=${id}`,
+          enabled: true,
+        });
+      }
+    } catch {
+      // Fallback to full tab
+      const url = browser.runtime.getURL(`/summaries.html#/summary/${id}`);
+      browser.tabs.create({ url });
+    }
     window.close();
   }
 
@@ -195,8 +207,7 @@ export function App() {
       <div className="mt-4 text-center">
         <button
           onClick={() => {
-            // summaries.html will be added in a future task — cast to bypass WXT's PublicPath type
-            const url = browser.runtime.getURL("/summaries.html" as "/popup.html");
+            const url = browser.runtime.getURL("/summaries.html");
             browser.tabs.create({ url });
             window.close();
           }}
