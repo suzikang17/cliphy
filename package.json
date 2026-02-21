@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:unit": "vitest --exclude '**/smoke-test-*'",
-    "test:smoke": "vitest run --reporter=verbose --reporter=./apps/server/scripts/github-summary-reporter.ts apps/server/scripts/smoke-test-api.test.ts",
+    "test:smoke": "vitest run --reporter=verbose --reporter=./apps/server/scripts/github-summary-reporter.ts --reporter=allure-vitest/reporter apps/server/scripts/smoke-test-api.test.ts",
     "eval": "tsx apps/server/eval/run-eval.ts",
     "eval:add": "tsx apps/server/eval/run-eval.ts --save --url"
   },
