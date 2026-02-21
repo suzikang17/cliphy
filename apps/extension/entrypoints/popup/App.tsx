@@ -1,6 +1,9 @@
-import type { VideoInfo } from "@cliphy/shared";
+import type { Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import { useEffect, useState } from "react";
+import { QueueList } from "../../components/QueueList";
+import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
+import { getQueue, getUsage } from "../../lib/api";
 import { getAccessToken, isAuthenticated } from "../../lib/auth";
 
 interface UserInfo {
@@ -16,6 +19,8 @@ export function App() {
   const [isAdding, setIsAdding] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "queued" | "processing" | "error">("idle");
   const [addError, setAddError] = useState<string | undefined>(undefined);
+  const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -28,7 +33,7 @@ export function App() {
         const token = await getAccessToken();
         if (token) {
           await fetchUser(token);
-          await detectVideo();
+          await Promise.all([detectVideo(), fetchQueueAndUsage()]);
         }
       }
     } catch {
@@ -46,6 +51,16 @@ export function App() {
     if (res.ok) {
       const data = await res.json();
       setUser({ email: data.user.email, plan: data.user.plan });
+    }
+  }
+
+  async function fetchQueueAndUsage() {
+    try {
+      const [queueRes, usageRes] = await Promise.all([getQueue(), getUsage()]);
+      setSummaries(queueRes.summaries);
+      setUsage(usageRes.usage);
+    } catch {
+      // Silently fail — queue/usage are non-critical
     }
   }
 
@@ -74,6 +89,7 @@ export function App() {
       })) as { success: boolean; error?: string };
       if (response?.success) {
         setAddStatus("queued");
+        await fetchQueueAndUsage();
       } else {
         setAddStatus("error");
         setAddError(response?.error ?? "Failed to add to queue");
@@ -84,6 +100,13 @@ export function App() {
     } finally {
       setIsAdding(false);
     }
+  }
+
+  function handleViewSummary(id: string) {
+    // summaries.html will be added in a future task — cast to bypass WXT's PublicPath type
+    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}` as `/popup.html`);
+    browser.tabs.create({ url });
+    window.close();
   }
 
   async function handleSignIn() {
@@ -106,6 +129,8 @@ export function App() {
     setUser(null);
     setVideo(null);
     setAddStatus("idle");
+    setSummaries([]);
+    setUsage(null);
   }
 
   if (loading) {
@@ -145,6 +170,12 @@ export function App() {
       </div>
       <p className="mt-1 text-sm text-gray-600">{user.email}</p>
 
+      {usage && (
+        <div className="mt-4">
+          <UsageBar usage={usage} />
+        </div>
+      )}
+
       {video && (
         <div className="mt-4">
           <VideoCard
@@ -156,6 +187,25 @@ export function App() {
           />
         </div>
       )}
+
+      <div className="mt-4">
+        <h2 className="text-sm font-medium text-gray-700 mb-2">Queue</h2>
+        <QueueList summaries={summaries} onViewSummary={handleViewSummary} />
+      </div>
+
+      <div className="mt-4 text-center">
+        <button
+          onClick={() => {
+            // summaries.html will be added in a future task — cast to bypass WXT's PublicPath type
+            const url = browser.runtime.getURL("/summaries.html" as "/popup.html");
+            browser.tabs.create({ url });
+            window.close();
+          }}
+          className="text-sm text-blue-600 hover:text-blue-700 bg-transparent border-none cursor-pointer"
+        >
+          View all summaries &rarr;
+        </button>
+      </div>
     </div>
   );
 }
