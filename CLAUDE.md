@@ -41,7 +41,8 @@ Monorepo with pnpm workspaces:
 - `pnpm --filter server build` — Build server
 - `pnpm lint` — ESLint
 - `pnpm format` — Prettier
-- `pnpm test` — Vitest
+- `pnpm test:unit` — Unit tests (Vitest)
+- `pnpm test:smoke` — Live API smoke tests (requires env vars)
 
 ## Notion integration
 

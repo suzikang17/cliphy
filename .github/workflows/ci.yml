@@ -44,4 +44,4 @@ jobs:
         run: pnpm build:server
 
       - name: Test
-        run: pnpm test -- --run
+        run: pnpm test:unit -- --run
