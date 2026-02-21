@@ -1,8 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
+import { epic, feature } from "allure-js-commons";
 import { runChecks } from "../checks.js";
 import type { SummaryJson } from "@cliphy/shared";
 
 describe("runChecks", () => {
+  beforeEach(() => {
+    epic("Eval");
+    feature("Quality Checks");
+  });
+
   const good: SummaryJson = {
     summary: "Word ".repeat(300).trim(),
     keyPoints: ["a", "b", "c", "d", "e"],

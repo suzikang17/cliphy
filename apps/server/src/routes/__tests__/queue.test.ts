@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { epic, feature, story } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 import { extractVideoId } from "@cliphy/shared";
@@ -81,6 +82,11 @@ vi.mock("../../services/summarizer.js", () => ({
 // ── extractVideoId unit tests ─────────────────────────────────
 
 describe("extractVideoId", () => {
+  beforeEach(() => {
+    epic("Server");
+    feature("Shared Utilities");
+  });
+
   it("extracts from youtube.com/watch?v=", () => {
     expect(extractVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
   });
@@ -134,6 +140,9 @@ async function createApp() {
 describe("POST /queue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    epic("Server");
+    feature("Queue API");
+    story("Add to Queue");
   });
 
   it("adds a video and returns 201 with summary and position", async () => {
@@ -265,6 +274,9 @@ describe("POST /queue", () => {
 describe("POST /queue/batch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    epic("Server");
+    feature("Queue API");
+    story("Batch Add");
   });
 
   it("returns 403 for non-pro users", async () => {
@@ -323,6 +335,9 @@ describe("POST /queue/batch", () => {
 describe("DELETE /queue/:id", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    epic("Server");
+    feature("Queue API");
+    story("Delete from Queue");
   });
 
   it("deletes a queued item", async () => {
@@ -381,6 +396,9 @@ describe("DELETE /queue/:id", () => {
 describe("GET /queue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    epic("Server");
+    feature("Queue API");
+    story("List Queue");
   });
 
   it("returns list of queue items", async () => {
@@ -417,6 +435,9 @@ describe("GET /queue", () => {
 describe("POST /queue/:id/process", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    epic("Server");
+    feature("Queue API");
+    story("Process Queue Item");
   });
 
   it("processes a pending queue item", async () => {

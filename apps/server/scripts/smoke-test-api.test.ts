@@ -14,7 +14,8 @@
 import "dotenv/config";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { epic, feature } from "allure-js-commons";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -86,6 +87,11 @@ afterAll(async () => {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("API smoke tests", () => {
+  beforeEach(() => {
+    epic("Smoke Tests");
+    feature("Live API");
+  });
+
   test("GET /api/health returns 200", async () => {
     const res = await api("/api/health");
     expect(res.status).toBe(200);

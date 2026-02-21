@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { epic, feature, story } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 
@@ -92,6 +93,9 @@ describe("GET /summaries", () => {
     vi.clearAllMocks();
     fromCallCount = 0;
     fromResults = [];
+    epic("Server");
+    feature("Summaries API");
+    story("List Summaries");
   });
 
   it("returns paginated list of summaries", async () => {
@@ -143,6 +147,9 @@ describe("GET /summaries/:id", () => {
     vi.clearAllMocks();
     fromCallCount = 0;
     fromResults = [];
+    epic("Server");
+    feature("Summaries API");
+    story("Get Summary Detail");
   });
 
   it("returns summary detail", async () => {
@@ -172,6 +179,9 @@ describe("GET /summaries/search", () => {
     vi.clearAllMocks();
     fromCallCount = 0;
     fromResults = [];
+    epic("Server");
+    feature("Summaries API");
+    story("Search Summaries");
   });
 
   it("returns 400 when q parameter is missing", async () => {
@@ -202,6 +212,9 @@ describe("DELETE /summaries/:id", () => {
     vi.clearAllMocks();
     fromCallCount = 0;
     fromResults = [];
+    epic("Server");
+    feature("Summaries API");
+    story("Delete Summary");
   });
 
   it("soft-deletes a summary", async () => {

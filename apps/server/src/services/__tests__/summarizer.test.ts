@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
+import { epic, feature } from "allure-js-commons";
 import { parseSummaryResponse } from "../summarizer.js";
 
 describe("parseSummaryResponse", () => {
+  beforeEach(() => {
+    epic("Server");
+    feature("Summarizer Service");
+  });
+
   it("parses valid JSON response", () => {
     const raw = JSON.stringify({
       summary: "This video covers...",
