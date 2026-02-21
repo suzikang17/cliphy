@@ -105,12 +105,12 @@ export function App() {
     try {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
-        await browser.sidePanel.open({ tabId: tab.id });
         await browser.sidePanel.setOptions({
           tabId: tab.id,
           path: `/sidepanel.html?id=${id}`,
           enabled: true,
         });
+        await browser.sidePanel.open({ tabId: tab.id });
       }
     } catch {
       // Fallback to full tab
