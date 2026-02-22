@@ -126,7 +126,7 @@ queueRoutes.post("/", async (c) => {
     );
   }
 
-  // Insert new queue item
+  // Insert new queue item (store transcript if provided by extension)
   const { data: row, error: insertError } = await supabase
     .from("summaries")
     .insert({
@@ -134,6 +134,7 @@ queueRoutes.post("/", async (c) => {
       youtube_video_id: videoId,
       video_url: body.videoUrl,
       status: "pending",
+      ...(body.transcript ? { transcript: body.transcript } : {}),
     })
     .select("*")
     .single();
@@ -149,7 +150,6 @@ queueRoutes.post("/", async (c) => {
       summaryId: row.id as string,
       videoId,
       videoTitle: (row.video_title as string) ?? "Untitled Video",
-      ...(body.transcript ? { transcript: body.transcript } : {}),
     },
   });
 
