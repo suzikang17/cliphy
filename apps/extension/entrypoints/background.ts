@@ -95,7 +95,7 @@ export default defineBackground(() => {
       switch (msg.type) {
         case "VIDEO_DETECTED":
           console.log("[Cliphy] Video detected:", msg.video.videoId);
-          break;
+          return false; // No async response needed
 
         case "ADD_TO_QUEUE": {
           const authed = isAuthenticated();
@@ -129,7 +129,7 @@ export default defineBackground(() => {
           return true;
       }
 
-      return true;
+      return false;
     },
   );
 });
