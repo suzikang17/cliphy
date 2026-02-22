@@ -86,7 +86,7 @@ export function App() {
   async function fetchQueueAndUsage() {
     try {
       const [queueRes, usageRes] = await Promise.all([getQueue(), getUsage()]);
-      setSummaries(queueRes.summaries);
+      setSummaries(queueRes.items);
       setUsage(usageRes.usage);
     } catch {
       // Silently fail — queue/usage are non-critical

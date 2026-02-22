@@ -51,7 +51,7 @@ export async function addToQueue(body: QueueAddRequest) {
 }
 
 export async function getQueue() {
-  return request<{ summaries: Summary[] }>(API_ROUTES.QUEUE.LIST);
+  return request<{ items: Summary[] }>(API_ROUTES.QUEUE.LIST);
 }
 
 export async function getSummary(id: string) {
