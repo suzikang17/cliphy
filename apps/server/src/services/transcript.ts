@@ -3,6 +3,7 @@ import {
   YoutubeTranscriptDisabledError,
   YoutubeTranscriptInvalidVideoIdError,
   YoutubeTranscriptNotAvailableError,
+  YoutubeTranscriptTooManyRequestError,
   YoutubeTranscriptVideoUnavailableError,
 } from "@egoist/youtube-transcript-plus";
 
@@ -44,13 +45,23 @@ function decodeHtmlEntities(text: string): string {
 export async function fetchTranscript(videoId: string): Promise<string> {
   let result;
   try {
-    result = await fetchYoutubeTranscript(videoId, { lang: "en" });
+    // Try English first, fall back to any available language
+    try {
+      result = await fetchYoutubeTranscript(videoId, { lang: "en" });
+    } catch {
+      result = await fetchYoutubeTranscript(videoId);
+    }
   } catch (error) {
     if (
       error instanceof YoutubeTranscriptDisabledError ||
       error instanceof YoutubeTranscriptNotAvailableError
     ) {
-      throw new TranscriptNotAvailableError("This video doesn't have captions available.");
+      const detail = error instanceof Error ? ` (${error.name}: ${error.message})` : "";
+      throw new TranscriptNotAvailableError(`This video doesn't have captions available.${detail}`);
+    }
+    if (error instanceof YoutubeTranscriptTooManyRequestError) {
+      // Rate limited by YouTube — this IS retryable, let Inngest retry
+      throw error;
     }
     if (error instanceof YoutubeTranscriptVideoUnavailableError) {
       throw new TranscriptNotAvailableError("This video is unavailable or private.");
