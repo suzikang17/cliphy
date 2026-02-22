@@ -4,6 +4,7 @@ import type { Menus, Tabs, Runtime } from "wxt/browser";
 import { signIn, signOut, isAuthenticated, getAccessToken } from "../lib/auth";
 import { addToQueue } from "../lib/api";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
+import { fetchTranscript } from "../lib/transcript";
 
 /** Decode a JWT payload without verification (just base64). */
 function decodeJwtPayload(token: string): Record<string, unknown> {
@@ -71,10 +72,12 @@ export default defineBackground(() => {
     if (info.menuItemId !== "add-to-cliphy") return;
 
     const url = info.pageUrl ?? tab?.url;
-    if (!url || !extractVideoId(url)) return;
+    const vid = url ? extractVideoId(url) : null;
+    if (!url || !vid) return;
 
     try {
-      await addToQueue({ videoUrl: url });
+      const transcript = await fetchTranscript(vid).catch(() => undefined);
+      await addToQueue({ videoUrl: url, transcript });
     } catch (err) {
       console.error("[Cliphy] Context menu queue failed:", err);
     }
@@ -101,7 +104,9 @@ export default defineBackground(() => {
             return true;
           }
 
-          addToQueue({ videoUrl: msg.videoUrl })
+          const videoId = extractVideoId(msg.videoUrl);
+          (videoId ? fetchTranscript(videoId).catch(() => undefined) : Promise.resolve(undefined))
+            .then((transcript) => addToQueue({ videoUrl: msg.videoUrl, transcript }))
             .then((result) => sendResponse({ success: true, summary: result.summary }))
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;

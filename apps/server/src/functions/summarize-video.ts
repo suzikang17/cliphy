@@ -18,16 +18,27 @@ export const summarizeVideo = inngest.createFunction(
   },
   { event: "video/summarize.requested" },
   async ({ event, step }) => {
-    const { summaryId, videoId, videoTitle } = event.data as {
+    const {
+      summaryId,
+      videoId,
+      videoTitle,
+      transcript: providedTranscript,
+    } = event.data as {
       summaryId: string;
       videoId: string;
       videoTitle: string;
+      transcript?: string;
     };
 
-    // Step 1: Mark as processing and fetch transcript
+    // Step 1: Mark as processing and fetch transcript (skip if provided by extension)
     const transcript = await step.run("fetch-transcript", async () => {
       await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
 
+      if (providedTranscript) {
+        return providedTranscript;
+      }
+
+      // Fallback: fetch server-side (may fail from datacenter IPs)
       try {
         return await fetchTranscript(videoId);
       } catch (err) {

@@ -73,7 +73,7 @@ queueRoutes.get("/:id", async (c) => {
 queueRoutes.post("/", async (c) => {
   const userId = c.get("userId");
 
-  let body: { videoUrl?: string };
+  let body: { videoUrl?: string; transcript?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -149,6 +149,7 @@ queueRoutes.post("/", async (c) => {
       summaryId: row.id as string,
       videoId,
       videoTitle: (row.video_title as string) ?? "Untitled Video",
+      ...(body.transcript ? { transcript: body.transcript } : {}),
     },
   });
 
