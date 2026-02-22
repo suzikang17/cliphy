@@ -17,7 +17,16 @@ const app = new Hono<AppEnv>().basePath("/api");
 app.use("*", logger());
 app.use("*", cors());
 
-app.on(["GET", "PUT", "POST"], "/inngest", serve({ client: inngest, functions: [summarizeVideo] }));
+app.on(
+  ["GET", "PUT", "POST"],
+  "/inngest",
+  serve({
+    client: inngest,
+    functions: [summarizeVideo],
+    serveHost: process.env.INNGEST_SERVE_HOST,
+    servePath: "/api/inngest",
+  }),
+);
 
 app.route("/auth", authRoutes);
 app.route("/queue", queueRoutes);
