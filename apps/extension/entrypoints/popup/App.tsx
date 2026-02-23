@@ -115,6 +115,7 @@ export function App() {
       const response = (await browser.runtime.sendMessage({
         type: "ADD_TO_QUEUE",
         videoUrl: video.url,
+        videoTitle: video.title,
       })) as { success: boolean; error?: string };
       if (response?.success) {
         setAddStatus("queued");
@@ -177,7 +178,7 @@ export function App() {
   if (loading) {
     return (
       <div className="p-4 text-center">
-        <p className="text-gray-500 text-sm">Loading...</p>
+        <p className="text-gray-600 text-xs uppercase tracking-wide">Loading...</p>
       </div>
     );
   }
@@ -185,11 +186,13 @@ export function App() {
   if (!user) {
     return (
       <div className="p-4">
-        <h1 className="text-xl m-0 font-semibold">Cliphy</h1>
-        <p className="text-gray-500 mt-2">Queue YouTube videos and get AI-powered summaries.</p>
+        <h1 className="text-xl m-0 font-black uppercase tracking-tight">Cliphy</h1>
+        <p className="text-gray-600 mt-2 text-sm">
+          Queue YouTube videos and get AI-powered summaries.
+        </p>
         <button
           onClick={handleSignIn}
-          className="mt-4 px-5 py-2.5 text-sm bg-blue-600 text-white border-none rounded cursor-pointer w-full hover:bg-blue-700"
+          className="mt-4 px-5 py-2.5 text-sm bg-black text-white border-2 border-black cursor-pointer w-full hover:bg-white hover:text-black font-bold uppercase tracking-wide"
         >
           Sign in with Google
         </button>
@@ -201,15 +204,15 @@ export function App() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl m-0 font-semibold">Cliphy</h1>
+        <h1 className="text-xl m-0 font-black uppercase tracking-tight">Cliphy</h1>
         <button
           onClick={handleSignOut}
-          className="px-3 py-1.5 text-xs bg-transparent text-gray-500 border border-gray-300 rounded cursor-pointer hover:bg-gray-50"
+          className="px-3 py-1.5 text-xs bg-transparent text-black border-2 border-black cursor-pointer hover:bg-black hover:text-white"
         >
           Sign out
         </button>
       </div>
-      <p className="mt-1 text-sm text-gray-600">{user.email}</p>
+      <p className="mt-1 text-xs text-gray-600">{user.email}</p>
 
       {usage && (
         <div className="mt-4">
@@ -230,7 +233,7 @@ export function App() {
       )}
 
       <div className="mt-4">
-        <h2 className="text-sm font-medium text-gray-700 mb-2">Queue</h2>
+        <h2 className="text-xs font-black uppercase tracking-widest text-black mb-2">Queue</h2>
         <QueueList summaries={summaries} onViewSummary={handleViewSummary} />
       </div>
 
@@ -241,7 +244,7 @@ export function App() {
             browser.tabs.create({ url });
             window.close();
           }}
-          className="text-sm text-blue-600 hover:text-blue-700 bg-transparent border-none cursor-pointer"
+          className="text-xs font-bold uppercase tracking-wide text-black hover:text-white hover:bg-black bg-transparent border-2 border-black px-4 py-2 cursor-pointer"
         >
           View all summaries &rarr;
         </button>

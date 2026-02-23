@@ -12,9 +12,9 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
   const isDisabled = isAdding || status === "queued" || status === "processing";
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3">
-      <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
-      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+    <div className="border-2 border-black p-3">
+      <p className="text-xs font-bold leading-snug line-clamp-2">{video.title}</p>
+      <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono text-gray-500 uppercase tracking-wide">
         {video.channel && <span>{video.channel}</span>}
         {video.channel && video.duration && <span>·</span>}
         {video.duration && <span>{video.duration}</span>}
@@ -22,10 +22,10 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
       <button
         onClick={onAdd}
         disabled={isDisabled}
-        className={`mt-3 w-full py-2 text-sm rounded font-medium ${
+        className={`mt-3 w-full py-2 text-xs font-bold uppercase tracking-wide ${
           isDisabled
-            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-            : "bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
+            ? "bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-300"
+            : "bg-black text-white cursor-pointer hover:bg-white hover:text-black border-2 border-black"
         }`}
       >
         {isAdding

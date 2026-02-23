@@ -25,6 +25,7 @@ export interface GetVideoInfoMessage {
 export interface AddToQueueMessage {
   type: "ADD_TO_QUEUE";
   videoUrl: string;
+  videoTitle?: string;
 }
 
 // Popup → Background (auth)

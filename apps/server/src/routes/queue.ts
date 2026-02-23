@@ -73,7 +73,7 @@ queueRoutes.get("/:id", async (c) => {
 queueRoutes.post("/", async (c) => {
   const userId = c.get("userId");
 
-  let body: { videoUrl?: string; transcript?: string };
+  let body: { videoUrl?: string; videoTitle?: string; transcript?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -132,6 +132,7 @@ queueRoutes.post("/", async (c) => {
     .insert({
       user_id: userId,
       youtube_video_id: videoId,
+      video_title: body.videoTitle || null,
       video_url: body.videoUrl,
       status: "pending",
     })

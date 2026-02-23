@@ -45,6 +45,7 @@ export interface UsageInfo {
 
 export interface QueueAddRequest {
   videoUrl: string;
+  videoTitle?: string;
   transcript?: string;
 }
 

@@ -104,7 +104,7 @@ export default defineBackground(() => {
 
           console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
 
-          addToQueue({ videoUrl: msg.videoUrl })
+          addToQueue({ videoUrl: msg.videoUrl, videoTitle: msg.videoTitle })
             .then((result) => {
               sendResponse({ success: true, summary: result.summary });
             })
