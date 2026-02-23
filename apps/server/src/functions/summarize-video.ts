@@ -24,24 +24,14 @@ export const summarizeVideo = inngest.createFunction(
       videoTitle: string;
     };
 
-    // Step 1: Mark as processing, read transcript from DB (or fetch as fallback)
+    // Step 1: Mark as processing and fetch transcript server-side
     const transcript = await step.run("fetch-transcript", async () => {
       await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
 
-      // Check if transcript was stored by the extension
-      const { data: row } = await supabase
-        .from("summaries")
-        .select("transcript")
-        .eq("id", summaryId)
-        .single();
-
-      if (row?.transcript) {
-        return row.transcript as string;
-      }
-
-      // Fallback: fetch server-side (may fail from datacenter IPs)
       try {
-        return await fetchTranscript(videoId);
+        const text = await fetchTranscript(videoId);
+        console.log(`[summarize-video] Transcript fetched for ${videoId}: ${text.length} chars`);
+        return text;
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {
           await supabase
@@ -59,11 +49,11 @@ export const summarizeVideo = inngest.createFunction(
       return await summarizeTranscript(transcript, videoTitle || "Untitled Video");
     });
 
-    // Step 3: Save result and clear stored transcript (no longer needed)
+    // Step 3: Save result
     await step.run("save-result", async () => {
       await supabase
         .from("summaries")
-        .update({ status: "completed", summary_json: summaryJson, transcript: null })
+        .update({ status: "completed", summary_json: summaryJson })
         .eq("id", summaryId);
     });
 

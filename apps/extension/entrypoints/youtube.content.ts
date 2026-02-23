@@ -32,7 +32,7 @@ export default defineContentScript({
       } satisfies ExtensionMessage);
     }
 
-    // Listen for on-demand requests from popup / side panel
+    // Listen for on-demand requests from popup / side panel / background
     browser.runtime.onMessage.addListener(
       (
         message: unknown,
@@ -40,14 +40,21 @@ export default defineContentScript({
         sendResponse: (response: unknown) => void,
       ) => {
         const msg = message as ExtensionMessage;
+
         if (msg.type === "GET_VIDEO_INFO") {
           sendResponse(getVideoInfo());
-        } else if (msg.type === "SEEK_VIDEO") {
+          return false;
+        }
+
+        if (msg.type === "SEEK_VIDEO") {
           const video = document.querySelector("video");
           if (video) {
             video.currentTime = msg.seconds;
           }
+          return false;
         }
+
+        return false;
       },
     );
 
