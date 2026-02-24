@@ -75,6 +75,10 @@ async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
 
   const data = (await res.json()) as PlayerResponse;
 
+  console.log(
+    `[transcript] videoId=${videoId} status=${data.playabilityStatus?.status} hasCaptions=${!!data.captions} tracks=${data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0} proxy=${!!process.env.WEBSHARE_PROXY_USERNAME}`,
+  );
+
   if (data.playabilityStatus?.status === "ERROR") {
     throw new TranscriptNotAvailableError("This video is unavailable or private.");
   }
