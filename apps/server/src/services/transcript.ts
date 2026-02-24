@@ -1,3 +1,5 @@
+import { fetchViaProxy } from "../lib/proxy.js";
+
 const MAX_TRANSCRIPT_LENGTH = 100_000;
 
 // Non-speech markers YouTube inserts into auto-generated captions
@@ -58,7 +60,7 @@ interface PlayerResponse {
 
 /** Fetch caption tracks via InnerTube Player API (ANDROID client, no auth needed). */
 async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
-  const res = await fetch(INNERTUBE_PLAYER_URL, {
+  const res = await fetchViaProxy(INNERTUBE_PLAYER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -72,13 +74,6 @@ async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
   }
 
   const data = (await res.json()) as PlayerResponse;
-
-  console.log(
-    `[transcript] Player response for ${videoId}:`,
-    `status=${data.playabilityStatus?.status}`,
-    `hasCaptions=${!!data.captions}`,
-    `tracks=${data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0}`,
-  );
 
   if (data.playabilityStatus?.status === "ERROR") {
     throw new TranscriptNotAvailableError("This video is unavailable or private.");
@@ -100,7 +95,7 @@ function pickTrack(tracks: CaptionTrack[]): CaptionTrack {
 /** Fetch and parse timedtext XML (srv3 format: <p> tags with <s> children). */
 async function fetchTimedText(track: CaptionTrack): Promise<string[]> {
   const url = `${track.baseUrl}&fmt=srv1`;
-  const res = await fetch(url);
+  const res = await fetchViaProxy(url);
 
   if (!res.ok) {
     throw new Error(`Timedtext fetch failed: ${res.status}`);
