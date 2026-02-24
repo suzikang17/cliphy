@@ -3,6 +3,7 @@ import type { Summary } from "@cliphy/shared";
 interface QueueListProps {
   summaries: Summary[];
   onViewSummary: (id: string) => void;
+  onViewAll?: () => void;
 }
 
 function statusTag(status: Summary["status"]) {
@@ -28,7 +29,9 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export function QueueList({ summaries, onViewSummary }: QueueListProps) {
+const MAX_VISIBLE = 5;
+
+export function QueueList({ summaries, onViewSummary, onViewAll }: QueueListProps) {
   if (summaries.length === 0) {
     return (
       <div className="text-center py-4">
@@ -40,20 +43,26 @@ export function QueueList({ summaries, onViewSummary }: QueueListProps) {
     );
   }
 
+  const visible = summaries.slice(0, MAX_VISIBLE);
+  const remaining = summaries.length - MAX_VISIBLE;
+
   return (
     <ul className="space-y-2">
-      {summaries.map((s) => {
+      {visible.map((s) => {
         const isClickable = s.status === "completed";
         return (
           <li
             key={s.id}
             onClick={isClickable ? () => onViewSummary(s.id) : undefined}
-            className={`flex items-start gap-2 bg-white border-2 border-black rounded-lg px-3 py-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
-              isClickable
-                ? "cursor-pointer hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                : ""
+            className={`flex items-start gap-2 bg-white border-2 border-black rounded-lg px-3 py-2 shadow-brutal-sm ${
+              isClickable ? "cursor-pointer hover:shadow-brutal-pressed press-down" : ""
             }`}
           >
+            <img
+              src={`https://i.ytimg.com/vi/${s.videoId}/default.jpg`}
+              alt=""
+              className="w-12 h-9 rounded border border-gray-300 object-cover shrink-0"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-snug truncate">{s.videoTitle ?? s.videoId}</p>
               <div className="flex items-center gap-2 mt-0.5">
@@ -64,6 +73,16 @@ export function QueueList({ summaries, onViewSummary }: QueueListProps) {
           </li>
         );
       })}
+      {onViewAll && (
+        <li>
+          <button
+            onClick={onViewAll}
+            className="w-full text-xs font-bold text-gray-400 hover:text-black py-1.5 cursor-pointer bg-transparent border-0 transition-colors text-center"
+          >
+            {remaining > 0 ? `View all (${summaries.length})` : "View all"} &rarr;
+          </button>
+        </li>
+      )}
     </ul>
   );
 }

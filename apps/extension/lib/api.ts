@@ -65,3 +65,9 @@ export async function getSummaries() {
 export async function getUsage() {
   return request<UsageResponse>(API_ROUTES.USAGE.INFO);
 }
+
+export async function deleteQueueItem(id: string) {
+  return request<{ deleted: true }>(API_ROUTES.QUEUE.ITEM(id), {
+    method: "DELETE",
+  });
+}

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
-import { getQueue, getUsage } from "../../lib/api";
+import { deleteQueueItem, getQueue, getUsage } from "../../lib/api";
 import { getAccessToken, isAuthenticated } from "../../lib/auth";
 
 interface UserInfo {
@@ -21,6 +21,7 @@ export function App() {
   const [addError, setAddError] = useState<string | undefined>(undefined);
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -196,7 +197,7 @@ export function App() {
         </p>
         <button
           onClick={handleSignIn}
-          className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-bold cursor-pointer w-full"
+          className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
         >
           Sign in with Google
         </button>
@@ -206,20 +207,10 @@ export function App() {
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl m-0 font-extrabold">
-          <span className="text-indigo-500 text-xl">&#9654;</span> Cliphy
-        </h1>
-        <button
-          onClick={handleSignOut}
-          className="text-xs bg-transparent text-black border-2 border-black rounded-lg px-3 py-1.5 hover:bg-indigo-100 transition-colors cursor-pointer"
-        >
-          Sign out
-        </button>
-      </div>
-      <p className="mt-1 text-xs text-gray-500">{user.email}</p>
-
+    <div className="p-4 flex flex-col min-h-[400px]">
+      <h1 className="text-xl m-0 font-extrabold">
+        <span className="text-indigo-500 text-xl">&#9654;</span> Cliphy
+      </h1>
       {usage && (
         <div className="mt-4">
           <UsageBar usage={usage} />
@@ -239,20 +230,41 @@ export function App() {
       )}
 
       <div className="mt-4">
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-black mb-2">Queue</h2>
-        <QueueList summaries={summaries} onViewSummary={handleViewSummary} />
-      </div>
-
-      <div className="mt-4 text-center">
-        <button
-          onClick={() => {
-            const url = browser.runtime.getURL("/summaries.html");
-            browser.tabs.create({ url });
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">Queue</h2>
+          {summaries.some((s) => s.status === "failed") && (
+            <button
+              disabled={isClearing}
+              onClick={async () => {
+                setIsClearing(true);
+                const failed = summaries.filter((s) => s.status === "failed");
+                await Promise.allSettled(failed.map((s) => deleteQueueItem(s.id)));
+                setSummaries((prev) => prev.filter((s) => s.status !== "failed"));
+                setIsClearing(false);
+              }}
+              className="bg-transparent border-0 p-0 text-[10px] text-red-400 hover:text-red-600 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isClearing ? "Clearing..." : "Clear failed"}
+            </button>
+          )}
+        </div>
+        <QueueList
+          summaries={summaries}
+          onViewSummary={handleViewSummary}
+          onViewAll={() => {
+            browser.tabs.create({ url: browser.runtime.getURL("/summaries.html") });
             window.close();
           }}
-          className="bg-indigo-100 text-black border-2 border-black rounded-lg px-4 py-2 text-xs font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+        />
+      </div>
+
+      <div className="mt-auto pt-4 flex items-center justify-between text-xs text-gray-400">
+        <span>{user.email}</span>
+        <button
+          onClick={handleSignOut}
+          className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors"
         >
-          View all summaries &rarr;
+          Sign out
         </button>
       </div>
     </div>

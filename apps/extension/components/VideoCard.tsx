@@ -12,12 +12,23 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
   const isDisabled = isAdding || status === "queued" || status === "processing";
 
   return (
-    <div className="bg-white border-2 border-black rounded-lg p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-      <p className="text-sm font-bold leading-snug line-clamp-2">{video.title}</p>
-      <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-        {video.channel && <span>{video.channel}</span>}
-        {video.channel && video.duration && <span>&middot;</span>}
-        {video.duration && <span>{video.duration}</span>}
+    <div className="bg-white border-2 border-black rounded-lg p-3 shadow-brutal">
+      <div className="flex gap-3">
+        {video.videoId && (
+          <img
+            src={`https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`}
+            alt=""
+            className="w-20 h-auto rounded border-2 border-black object-cover shrink-0"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold leading-snug line-clamp-2">{video.title}</p>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+            {video.channel && <span>{video.channel}</span>}
+            {video.channel && video.duration && <span>&middot;</span>}
+            {video.duration && <span>{video.duration}</span>}
+          </div>
+        </div>
       </div>
       <button
         onClick={onAdd}
@@ -25,7 +36,7 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
         className={`mt-3 w-full py-2 text-sm ${
           isDisabled
             ? "bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-300 rounded-lg font-bold"
-            : "bg-indigo-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            : "bg-indigo-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
         }`}
       >
         {isAdding
