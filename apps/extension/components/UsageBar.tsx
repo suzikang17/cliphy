@@ -10,15 +10,17 @@ export function UsageBar({ usage }: UsageBarProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wide text-gray-600 mb-1">
+      <div className="flex items-center justify-between text-xs font-bold text-gray-600 mb-1">
         <span>
           {usage.used}/{usage.limit} summaries today
         </span>
-        <span className="capitalize border border-current px-1.5 py-0.5">{usage.plan} plan</span>
+        <span className="bg-indigo-100 border-2 border-black text-indigo-700 px-2 py-0.5 text-[10px] font-bold rounded capitalize">
+          {usage.plan} plan
+        </span>
       </div>
-      <div className="h-1.5 bg-gray-200 overflow-hidden">
+      <div className="h-2 bg-gray-200 border-2 border-black rounded overflow-hidden">
         <div
-          className={`h-full transition-all ${atLimit ? "bg-red-500" : "bg-blue-500"}`}
+          className={`h-full transition-all ${atLimit ? "bg-red-400" : "bg-indigo-500"}`}
           style={{ width: `${percent}%` }}
         />
       </div>

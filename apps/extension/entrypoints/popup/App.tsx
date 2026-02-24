@@ -177,8 +177,12 @@ export function App() {
 
   if (loading) {
     return (
-      <div className="p-4 text-center">
-        <p className="text-gray-600 text-xs uppercase tracking-wide">Loading...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.2s]" />
+          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.4s]" />
+        </div>
       </div>
     );
   }
@@ -186,13 +190,13 @@ export function App() {
   if (!user) {
     return (
       <div className="p-4">
-        <h1 className="text-xl m-0 font-black uppercase tracking-tight">Cliphy</h1>
+        <h1 className="text-xl font-extrabold m-0">Cliphy</h1>
         <p className="text-gray-600 mt-2 text-sm">
           Queue YouTube videos and get AI-powered summaries.
         </p>
         <button
           onClick={handleSignIn}
-          className="mt-4 px-5 py-2.5 text-sm bg-black text-white border-2 border-black cursor-pointer w-full hover:bg-white hover:text-black font-bold uppercase tracking-wide"
+          className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-bold cursor-pointer w-full"
         >
           Sign in with Google
         </button>
@@ -204,15 +208,17 @@ export function App() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl m-0 font-black uppercase tracking-tight">Cliphy</h1>
+        <h1 className="text-xl m-0 font-extrabold">
+          <span className="text-indigo-500 text-xl">&#9654;</span> Cliphy
+        </h1>
         <button
           onClick={handleSignOut}
-          className="px-3 py-1.5 text-xs bg-transparent text-black border-2 border-black cursor-pointer hover:bg-black hover:text-white"
+          className="text-xs bg-transparent text-black border-2 border-black rounded-lg px-3 py-1.5 hover:bg-indigo-100 transition-colors cursor-pointer"
         >
           Sign out
         </button>
       </div>
-      <p className="mt-1 text-xs text-gray-600">{user.email}</p>
+      <p className="mt-1 text-xs text-gray-500">{user.email}</p>
 
       {usage && (
         <div className="mt-4">
@@ -233,7 +239,7 @@ export function App() {
       )}
 
       <div className="mt-4">
-        <h2 className="text-xs font-black uppercase tracking-widest text-black mb-2">Queue</h2>
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-black mb-2">Queue</h2>
         <QueueList summaries={summaries} onViewSummary={handleViewSummary} />
       </div>
 
@@ -244,7 +250,7 @@ export function App() {
             browser.tabs.create({ url });
             window.close();
           }}
-          className="text-xs font-bold uppercase tracking-wide text-black hover:text-white hover:bg-black bg-transparent border-2 border-black px-4 py-2 cursor-pointer"
+          className="bg-indigo-100 text-black border-2 border-black rounded-lg px-4 py-2 text-xs font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
         >
           View all summaries &rarr;
         </button>

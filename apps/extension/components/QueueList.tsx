@@ -7,17 +7,13 @@ interface QueueListProps {
 
 function statusTag(status: Summary["status"]) {
   const styles: Record<Summary["status"], string> = {
-    completed: "border-green-700 text-green-700",
-    pending: "border-gray-500 text-gray-500",
-    processing: "border-blue-600 text-blue-600",
-    failed: "border-red-600 text-red-600",
+    completed: "bg-green-100 text-green-800",
+    pending: "bg-gray-100 text-gray-600",
+    processing: "bg-indigo-100 text-indigo-700",
+    failed: "bg-red-100 text-red-700",
   };
   return (
-    <span
-      className={`text-[10px] font-bold uppercase tracking-wide border px-1.5 py-0.5 ${styles[status]}`}
-    >
-      {status}
-    </span>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${styles[status]}`}>{status}</span>
   );
 }
 
@@ -36,28 +32,30 @@ export function QueueList({ summaries, onViewSummary }: QueueListProps) {
   if (summaries.length === 0) {
     return (
       <div className="text-center py-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wide font-bold">
-          No videos queued yet.
+        <p className="text-sm font-bold">No videos queued yet.</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Visit a YouTube video and click &quot;Add to Queue&quot;
         </p>
-        <p className="text-xs text-gray-400 mt-1">Visit a YouTube video and click "Add to Queue"</p>
       </div>
     );
   }
 
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-2">
       {summaries.map((s) => {
         const isClickable = s.status === "completed";
         return (
           <li
             key={s.id}
             onClick={isClickable ? () => onViewSummary(s.id) : undefined}
-            className={`flex items-start gap-2 border-2 border-black px-3 py-2 ${
-              isClickable ? "cursor-pointer hover:bg-gray-100" : ""
+            className={`flex items-start gap-2 bg-white border-2 border-black rounded-lg px-3 py-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
+              isClickable
+                ? "cursor-pointer hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                : ""
             }`}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold leading-snug truncate">{s.videoTitle ?? s.videoId}</p>
+              <p className="text-sm font-bold leading-snug truncate">{s.videoTitle ?? s.videoId}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 {statusTag(s.status)}
                 <span className="text-[10px] text-gray-400">{timeAgo(s.createdAt)}</span>
