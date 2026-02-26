@@ -1,4 +1,4 @@
-import type { VideoInfo } from "@cliphy/shared";
+import type { Summary, VideoInfo } from "@cliphy/shared";
 
 interface VideoCardProps {
   video: VideoInfo;
@@ -6,10 +6,22 @@ interface VideoCardProps {
   isAdding: boolean;
   status: "idle" | "queued" | "processing" | "error";
   error?: string;
+  existingStatus?: Summary["status"];
+  onViewExisting?: () => void;
 }
 
-export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardProps) {
-  const isDisabled = isAdding || status === "queued" || status === "processing";
+export function VideoCard({
+  video,
+  onAdd,
+  isAdding,
+  status,
+  error,
+  existingStatus,
+  onViewExisting,
+}: VideoCardProps) {
+  const isInQueue = existingStatus === "pending" || existingStatus === "processing";
+  const isSummarized = existingStatus === "completed";
+  const isDisabled = isAdding || status === "queued" || status === "processing" || isInQueue;
 
   return (
     <div className="bg-white border-2 border-black rounded-lg p-3 shadow-brutal">
@@ -30,23 +42,34 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
           </div>
         </div>
       </div>
-      <button
-        onClick={onAdd}
-        disabled={isDisabled}
-        className={`mt-3 w-full py-2 text-sm ${
-          isDisabled
-            ? "bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-300 rounded-lg font-bold"
-            : "bg-indigo-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
-        }`}
-      >
-        {isAdding
-          ? "Adding to queue..."
-          : status === "queued"
-            ? "Queued"
-            : status === "processing"
-              ? "Processing..."
-              : "Add to Queue"}
-      </button>
+      {isSummarized ? (
+        <button
+          onClick={onViewExisting}
+          className="mt-3 w-full py-2 text-sm bg-green-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+        >
+          View Summary
+        </button>
+      ) : (
+        <button
+          onClick={onAdd}
+          disabled={isDisabled}
+          className={`mt-3 w-full py-2 text-sm ${
+            isDisabled
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-300 rounded-lg font-bold"
+              : "bg-indigo-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+          }`}
+        >
+          {isAdding
+            ? "Adding to queue..."
+            : status === "queued" || isInQueue
+              ? existingStatus === "processing"
+                ? "Processing..."
+                : "Queued"
+              : status === "processing"
+                ? "Processing..."
+                : "Add to Queue"}
+        </button>
+      )}
       {status === "error" && error && <p className="text-red-600 text-xs mt-2">{error}</p>}
     </div>
   );

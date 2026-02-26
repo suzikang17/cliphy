@@ -386,6 +386,11 @@ export function App() {
             isAdding={isAdding}
             status={addStatus}
             error={addError}
+            existingStatus={summaries.find((s) => s.videoId === video.videoId)?.status}
+            onViewExisting={() => {
+              const match = summaries.find((s) => s.videoId === video.videoId);
+              if (match) handleViewSummary(match.id);
+            }}
           />
         </div>
       )}
