@@ -19,6 +19,7 @@ function toSummary(row: Record<string, unknown>): Summary {
     videoId: row.youtube_video_id as string,
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
+    videoChannel: (row.video_channel as string) ?? undefined,
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
@@ -104,7 +105,11 @@ export default defineBackground(() => {
 
           console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
 
-          addToQueue({ videoUrl: msg.videoUrl, videoTitle: msg.videoTitle })
+          addToQueue({
+            videoUrl: msg.videoUrl,
+            videoTitle: msg.videoTitle,
+            videoChannel: msg.videoChannel,
+          })
             .then((result) => {
               sendResponse({ success: true, summary: result.summary });
             })

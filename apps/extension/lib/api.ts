@@ -71,3 +71,9 @@ export async function deleteQueueItem(id: string) {
     method: "DELETE",
   });
 }
+
+export async function retryQueueItem(id: string) {
+  return request<{ summary: Summary }>(API_ROUTES.QUEUE.PROCESS(id), {
+    method: "POST",
+  });
+}

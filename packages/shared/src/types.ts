@@ -27,6 +27,7 @@ export interface Summary {
   videoId: string;
   videoTitle?: string;
   videoUrl?: string;
+  videoChannel?: string;
   status: SummaryStatus;
   summaryJson?: SummaryJson;
   errorMessage?: string;
@@ -46,6 +47,7 @@ export interface UsageInfo {
 export interface QueueAddRequest {
   videoUrl: string;
   videoTitle?: string;
+  videoChannel?: string;
   transcript?: string;
 }
 

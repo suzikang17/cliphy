@@ -16,6 +16,7 @@ function toSummary(row: Record<string, unknown>): Summary {
     videoId: row.youtube_video_id as string,
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
+    videoChannel: (row.video_channel as string) ?? undefined,
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
@@ -73,7 +74,7 @@ queueRoutes.get("/:id", async (c) => {
 queueRoutes.post("/", async (c) => {
   const userId = c.get("userId");
 
-  let body: { videoUrl?: string; videoTitle?: string; transcript?: string };
+  let body: { videoUrl?: string; videoTitle?: string; videoChannel?: string; transcript?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -133,6 +134,7 @@ queueRoutes.post("/", async (c) => {
       user_id: userId,
       youtube_video_id: videoId,
       video_title: body.videoTitle || null,
+      video_channel: body.videoChannel || null,
       video_url: body.videoUrl,
       status: "pending",
     })

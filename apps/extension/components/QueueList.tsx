@@ -3,7 +3,15 @@ import type { Summary } from "@cliphy/shared";
 interface QueueListProps {
   summaries: Summary[];
   onViewSummary: (id: string) => void;
+  onRemove: (id: string) => void;
+  onRetry: (id: string) => void;
   onViewAll?: () => void;
+}
+
+function ProcessingSpinner() {
+  return (
+    <div className="w-3.5 h-3.5 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin shrink-0" />
+  );
 }
 
 function statusTag(status: Summary["status"]) {
@@ -31,7 +39,13 @@ function timeAgo(dateStr: string): string {
 
 const MAX_VISIBLE = 5;
 
-export function QueueList({ summaries, onViewSummary, onViewAll }: QueueListProps) {
+export function QueueList({
+  summaries,
+  onViewSummary,
+  onRemove,
+  onRetry,
+  onViewAll,
+}: QueueListProps) {
   if (summaries.length === 0) {
     return (
       <div className="text-center py-4">
@@ -50,6 +64,8 @@ export function QueueList({ summaries, onViewSummary, onViewAll }: QueueListProp
     <ul className="space-y-2">
       {visible.map((s) => {
         const isClickable = s.status === "completed";
+        const isProcessing = s.status === "processing";
+        const isFailed = s.status === "failed";
         return (
           <li
             key={s.id}
@@ -65,11 +81,47 @@ export function QueueList({ summaries, onViewSummary, onViewAll }: QueueListProp
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-snug truncate">{s.videoTitle ?? s.videoId}</p>
+              {s.videoChannel && (
+                <p className="text-[10px] text-gray-400 truncate">{s.videoChannel}</p>
+              )}
               <div className="flex items-center gap-2 mt-0.5">
-                {statusTag(s.status)}
+                {isProcessing ? <ProcessingSpinner /> : statusTag(s.status)}
                 <span className="text-[10px] text-gray-400">{timeAgo(s.createdAt)}</span>
+                {isFailed && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRetry(s.id);
+                    }}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 p-0 cursor-pointer transition-colors"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             </div>
+            <button
+              disabled={isProcessing}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(s.id);
+              }}
+              className="shrink-0 w-5 h-5 flex items-center justify-center text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent border-0 p-0 cursor-pointer transition-colors self-center"
+              aria-label="Remove"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <line x1="1" y1="1" x2="9" y2="9" />
+                <line x1="9" y1="1" x2="1" y2="9" />
+              </svg>
+            </button>
           </li>
         );
       })}

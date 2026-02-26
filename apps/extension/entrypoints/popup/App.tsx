@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
-import { deleteQueueItem, getQueue, getUsage } from "../../lib/api";
+import { deleteQueueItem, getQueue, getUsage, retryQueueItem } from "../../lib/api";
 import { getAccessToken, isAuthenticated } from "../../lib/auth";
 
 interface UserInfo {
@@ -117,6 +117,7 @@ export function App() {
         type: "ADD_TO_QUEUE",
         videoUrl: video.url,
         videoTitle: video.title,
+        videoChannel: video.channel ?? undefined,
       })) as { success: boolean; error?: string };
       if (response?.success) {
         setAddStatus("queued");
@@ -174,6 +175,31 @@ export function App() {
     setAddStatus("idle");
     setSummaries([]);
     setUsage(null);
+  }
+
+  async function handleRemoveItem(id: string) {
+    setSummaries((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteQueueItem(id);
+    } catch {
+      fetchQueueAndUsage();
+    }
+  }
+
+  async function handleRetryItem(id: string) {
+    const original = summaries.find((s) => s.id === id);
+    setSummaries((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, status: "pending" as const, errorMessage: undefined } : s,
+      ),
+    );
+    try {
+      await retryQueueItem(id);
+    } catch {
+      if (original) {
+        setSummaries((prev) => prev.map((s) => (s.id === id ? original : s)));
+      }
+    }
   }
 
   if (loading) {
@@ -238,8 +264,11 @@ export function App() {
               onClick={async () => {
                 setIsClearing(true);
                 const failed = summaries.filter((s) => s.status === "failed");
-                await Promise.allSettled(failed.map((s) => deleteQueueItem(s.id)));
-                setSummaries((prev) => prev.filter((s) => s.status !== "failed"));
+                const results = await Promise.allSettled(failed.map((s) => deleteQueueItem(s.id)));
+                const deletedIds = new Set(
+                  failed.filter((_, i) => results[i].status === "fulfilled").map((s) => s.id),
+                );
+                setSummaries((prev) => prev.filter((s) => !deletedIds.has(s.id)));
                 setIsClearing(false);
               }}
               className="bg-transparent border-0 p-0 text-[10px] text-red-400 hover:text-red-600 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -251,6 +280,8 @@ export function App() {
         <QueueList
           summaries={summaries}
           onViewSummary={handleViewSummary}
+          onRemove={handleRemoveItem}
+          onRetry={handleRetryItem}
           onViewAll={() => {
             browser.tabs.create({ url: browser.runtime.getURL("/summaries.html") });
             window.close();
