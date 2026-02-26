@@ -20,6 +20,7 @@ function toSummary(row: Record<string, unknown>): Summary {
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
     videoChannel: (row.video_channel as string) ?? undefined,
+    videoDurationSeconds: (row.video_duration_seconds as number) ?? undefined,
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
@@ -109,6 +110,7 @@ export default defineBackground(() => {
             videoUrl: msg.videoUrl,
             videoTitle: msg.videoTitle,
             videoChannel: msg.videoChannel,
+            videoDurationSeconds: msg.videoDurationSeconds,
           })
             .then((result) => {
               sendResponse({ success: true, summary: result.summary });

@@ -1,4 +1,5 @@
 import type { UsageInfo } from "@cliphy/shared";
+import { formatTimeSaved } from "@cliphy/shared";
 
 interface UsageBarProps {
   usage: UsageInfo;
@@ -24,6 +25,11 @@ export function UsageBar({ usage }: UsageBarProps) {
           style={{ width: `${percent}%` }}
         />
       </div>
+      {usage.totalTimeSavedSeconds > 0 && (
+        <p className="text-[10px] text-gray-400 mt-1 text-right">
+          {formatTimeSaved(usage.totalTimeSavedSeconds)} of video saved
+        </p>
+      )}
     </div>
   );
 }

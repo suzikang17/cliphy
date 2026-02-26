@@ -1,4 +1,5 @@
 import type { Summary } from "@cliphy/shared";
+import { formatTimeSaved } from "@cliphy/shared";
 
 interface QueueListProps {
   summaries: Summary[];
@@ -86,6 +87,11 @@ export function QueueList({
               )}
               <div className="flex items-center gap-2 mt-0.5">
                 {isProcessing ? <ProcessingSpinner /> : statusTag(s.status)}
+                {isClickable && s.videoDurationSeconds != null && s.videoDurationSeconds > 0 && (
+                  <span className="text-[10px] text-gray-400">
+                    Saved {formatTimeSaved(s.videoDurationSeconds)}
+                  </span>
+                )}
                 <span className="text-[10px] text-gray-400">{timeAgo(s.createdAt)}</span>
                 {isFailed && (
                   <button

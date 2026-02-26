@@ -30,11 +30,26 @@ usageRoutes.get("/", async (c) => {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const used = user.daily_count_reset_at < today ? 0 : user.daily_summary_count;
 
+  // Total time saved: sum of video_duration_seconds for completed summaries
+  const { data: timeSaved } = await supabase
+    .from("summaries")
+    .select("video_duration_seconds")
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .is("deleted_at", null)
+    .not("video_duration_seconds", "is", null);
+
+  const totalTimeSavedSeconds = (timeSaved ?? []).reduce(
+    (sum, row) => sum + ((row.video_duration_seconds as number) ?? 0),
+    0,
+  );
+
   const usage: UsageInfo = {
     used,
     limit,
     plan,
     resetAt: user.daily_count_reset_at,
+    totalTimeSavedSeconds,
   };
 
   return c.json({ usage });

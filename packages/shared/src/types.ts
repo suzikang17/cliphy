@@ -28,6 +28,7 @@ export interface Summary {
   videoTitle?: string;
   videoUrl?: string;
   videoChannel?: string;
+  videoDurationSeconds?: number;
   status: SummaryStatus;
   summaryJson?: SummaryJson;
   errorMessage?: string;
@@ -40,6 +41,7 @@ export interface UsageInfo {
   limit: number;
   plan: PlanTier;
   resetAt: string;
+  totalTimeSavedSeconds: number;
 }
 
 // API request/response types
@@ -48,6 +50,7 @@ export interface QueueAddRequest {
   videoUrl: string;
   videoTitle?: string;
   videoChannel?: string;
+  videoDurationSeconds?: number;
   transcript?: string;
 }
 

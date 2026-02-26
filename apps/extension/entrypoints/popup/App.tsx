@@ -1,4 +1,5 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
+import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { UsageBar } from "../../components/UsageBar";
@@ -118,6 +119,9 @@ export function App() {
         videoUrl: video.url,
         videoTitle: video.title,
         videoChannel: video.channel ?? undefined,
+        videoDurationSeconds: video.duration
+          ? (parseDurationToSeconds(video.duration) ?? undefined)
+          : undefined,
       })) as { success: boolean; error?: string };
       if (response?.success) {
         setAddStatus("queued");

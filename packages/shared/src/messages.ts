@@ -27,6 +27,7 @@ export interface AddToQueueMessage {
   videoUrl: string;
   videoTitle?: string;
   videoChannel?: string;
+  videoDurationSeconds?: number;
 }
 
 // Popup → Background (auth)
