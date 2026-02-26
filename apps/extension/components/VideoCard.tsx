@@ -40,7 +40,7 @@ export function VideoCard({ video, onAdd, isAdding, status, error }: VideoCardPr
         }`}
       >
         {isAdding
-          ? "Adding..."
+          ? "Adding to queue..."
           : status === "queued"
             ? "Queued"
             : status === "processing"

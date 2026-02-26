@@ -53,6 +53,8 @@ Monorepo with pnpm workspaces:
 - Use Notion MCP tools to read/update tasks as you work
 - Mark tasks Done when acceptance criteria are met
 - Log architectural decisions in the Decisions Log
+- Services & Providers page: https://www.notion.so/313f59b611bb813583fcc4dde572ee58
+  - Update this page whenever a new service/provider is added or removed
 
 ## Workflow
 

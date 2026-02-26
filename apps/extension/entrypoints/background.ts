@@ -59,6 +59,13 @@ export default defineBackground(() => {
   // ── Realtime setup on startup ──────────────────────────────
   setupRealtime();
 
+  // ── Extension icon click: open side panel ────────────────
+  browser.action.onClicked.addListener(async (tab: Tabs.Tab) => {
+    if (tab.id) {
+      await browser.sidePanel.open({ tabId: tab.id });
+    }
+  });
+
   // ── Context menu ──────────────────────────────────────────
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({

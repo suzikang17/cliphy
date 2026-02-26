@@ -27,17 +27,6 @@ function statusTag(status: Summary["status"]) {
   );
 }
 
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 const MAX_VISIBLE = 5;
 
 export function QueueList({
@@ -78,7 +67,7 @@ export function QueueList({
             <img
               src={`https://i.ytimg.com/vi/${s.videoId}/default.jpg`}
               alt=""
-              className="w-12 h-9 rounded border border-gray-300 object-cover shrink-0"
+              className="w-20 h-14 rounded border border-gray-300 object-cover shrink-0"
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-snug truncate">{s.videoTitle ?? s.videoId}</p>
@@ -92,7 +81,6 @@ export function QueueList({
                     Saved {formatTimeSaved(s.videoDurationSeconds)}
                   </span>
                 )}
-                <span className="text-[10px] text-gray-400">{timeAgo(s.createdAt)}</span>
                 {isFailed && (
                   <button
                     onClick={(e) => {

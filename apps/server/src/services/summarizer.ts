@@ -35,6 +35,7 @@ export function parseSummaryResponse(text: string): SummaryJson {
   return {
     summary: obj.summary,
     keyPoints: obj.keyPoints as string[],
+    actionItems: Array.isArray(obj.actionItems) ? (obj.actionItems as string[]) : [],
     timestamps: obj.timestamps as string[],
   };
 }

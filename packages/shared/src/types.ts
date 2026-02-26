@@ -17,6 +17,7 @@ export interface User {
 export interface SummaryJson {
   summary: string;
   keyPoints: string[];
+  actionItems: string[];
   timestamps: string[];
 }
 

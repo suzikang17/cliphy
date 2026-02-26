@@ -33,6 +33,13 @@ function toMarkdown(summary: Summary): string {
     }
     lines.push("");
   }
+  if (json.actionItems?.length > 0) {
+    lines.push("## Action Items");
+    for (const item of json.actionItems) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+  }
   if (json.timestamps.length > 0) {
     lines.push("## Timestamps");
     for (const ts of json.timestamps) {
@@ -64,6 +71,13 @@ function toPlainText(summary: Summary): string {
     lines.push("Key Takeaways:");
     for (const point of json.keyPoints) {
       lines.push(`• ${point}`);
+    }
+    lines.push("");
+  }
+  if (json.actionItems?.length > 0) {
+    lines.push("Action Items:");
+    for (const item of json.actionItems) {
+      lines.push(`→ ${item}`);
     }
     lines.push("");
   }
@@ -140,6 +154,23 @@ export function SummaryDetail({ summary, onSeek }: SummaryDetailProps) {
                   <li key={i} className="flex gap-2 text-sm text-gray-800">
                     <span className="text-indigo-500 font-bold shrink-0">•</span>
                     <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Action Items */}
+          {json.actionItems?.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 m-0 mb-2">
+                Action Items
+              </h3>
+              <ul className="list-none p-0 m-0 space-y-1.5">
+                {json.actionItems.map((item, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-gray-800">
+                    <span className="text-green-600 font-bold shrink-0">→</span>
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>
