@@ -1,58 +1,28 @@
-import type { ExtensionMessage, Summary } from "@cliphy/shared";
+import type { ExtensionMessage } from "@cliphy/shared";
 import { extractVideoId } from "@cliphy/shared";
 import type { Menus, Tabs, Runtime } from "wxt/browser";
-import { signIn, signOut, isAuthenticated, getAccessToken } from "../lib/auth";
+import { signIn, signOut, isAuthenticated, getAccessToken, getUserIdFromToken } from "../lib/auth";
 import { addToQueue } from "../lib/api";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
-
-/** Decode a JWT payload without verification (just base64). */
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-  return JSON.parse(atob(base64));
-}
-
-/** Map a DB row (snake_case) from Realtime payload to a Summary (camelCase). */
-function toSummary(row: Record<string, unknown>): Summary {
-  return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    videoId: row.youtube_video_id as string,
-    videoTitle: (row.video_title as string) ?? undefined,
-    videoUrl: (row.video_url as string) ?? undefined,
-    videoChannel: (row.video_channel as string) ?? undefined,
-    videoDurationSeconds: (row.video_duration_seconds as number) ?? undefined,
-    status: row.status as Summary["status"],
-    summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
-    errorMessage: (row.error_message as string) ?? undefined,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
-  };
-}
 
 /** Start listening for Realtime changes if authenticated. */
 async function setupRealtime() {
   const token = await getAccessToken();
   if (!token) return;
 
-  try {
-    const payload = decodeJwtPayload(token);
-    const userId = payload.sub as string;
-    if (!userId) return;
+  const userId = getUserIdFromToken(token);
+  if (!userId) return;
 
-    startRealtimeSubscription(userId, (row) => {
-      const summary = toSummary(row);
-      browser.runtime
-        .sendMessage({
-          type: "SUMMARY_UPDATED",
-          summary,
-        } satisfies ExtensionMessage)
-        .catch(() => {
-          // No listeners — popup/sidepanel not open, that's fine
-        });
-    });
-  } catch {
-    // Invalid token or decode failure — skip Realtime
-  }
+  startRealtimeSubscription(userId, (summary) => {
+    browser.runtime
+      .sendMessage({
+        type: "SUMMARY_UPDATED",
+        summary,
+      } satisfies ExtensionMessage)
+      .catch(() => {
+        // No listeners — sidepanel not open, that's fine
+      });
+  });
 }
 
 export default defineBackground(() => {

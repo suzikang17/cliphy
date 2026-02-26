@@ -67,6 +67,17 @@ export async function isAuthenticated(): Promise<boolean> {
   return token !== null;
 }
 
+/** Decode the user ID (sub claim) from a JWT without verification. */
+export function getUserIdFromToken(token: string): string | null {
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    return (payload.sub as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await getRefreshToken();
   if (!refreshToken) return null;

@@ -1,12 +1,13 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import { parseDurationToSeconds } from "@cliphy/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
 import { deleteQueueItem, getQueue, getSummary, getUsage, retryQueueItem } from "../../lib/api";
-import { getAccessToken, isAuthenticated } from "../../lib/auth";
+import { getAccessToken, getUserIdFromToken, isAuthenticated } from "../../lib/auth";
+import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
 
 type View = "dashboard" | "detail";
 
@@ -39,52 +40,69 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const realtimeStarted = useRef(false);
+
   useEffect(() => {
     init();
   }, []);
 
-  // Listen for real-time summary updates from background script
+  // Direct Supabase realtime subscription (survives background service worker shutdown)
   useEffect(() => {
-    const listener = (message: unknown) => {
-      const msg = message as ExtensionMessage;
-      if (msg.type !== "SUMMARY_UPDATED") return;
+    if (!user || realtimeStarted.current) return;
 
-      const updated = msg.summary;
-      setSummaries((prev) => {
-        const idx = prev.findIndex((s) => s.id === updated.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      const userId = getUserIdFromToken(token);
+      if (!userId) return;
+
+      realtimeStarted.current = true;
+      startRealtimeSubscription(userId, (updated) => {
+        setSummaries((prev) => {
+          const idx = prev.findIndex((s) => s.id === updated.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
+          }
+          return [updated, ...prev];
+        });
+
+        if (updated.status === "completed" || updated.status === "failed") {
+          getUsage()
+            .then((res) => setUsage(res.usage))
+            .catch(() => {});
         }
-        return [updated, ...prev];
       });
+    })();
 
-      if (updated.status === "completed" || updated.status === "failed") {
-        getUsage()
-          .then((res) => setUsage(res.usage))
-          .catch(() => {});
-      }
+    return () => {
+      stopRealtimeSubscription();
+      realtimeStarted.current = false;
     };
+  }, [user]);
 
-    browser.runtime.onMessage.addListener(listener);
-    return () => browser.runtime.onMessage.removeListener(listener);
-  }, []);
-
-  // Re-detect video when the active tab navigates
+  // Listen for VIDEO_DETECTED from content script (has metadata after DOM loads)
+  // and re-detect on tab navigation
   useEffect(() => {
-    const onUpdated = (_tabId: number, changeInfo: { url?: string }) => {
-      if (changeInfo.url) {
-        detectVideo();
+    const onMessage = (message: unknown) => {
+      const msg = message as ExtensionMessage;
+      if (msg.type === "VIDEO_DETECTED" && msg.video?.videoId) {
+        setVideo(msg.video);
+        setAddStatus("idle");
       }
     };
-    const onActivated = () => {
-      detectVideo();
-    };
 
+    const onUpdated = (_tabId: number, changeInfo: { url?: string }) => {
+      if (changeInfo.url) detectVideo();
+    };
+    const onActivated = () => detectVideo();
+
+    browser.runtime.onMessage.addListener(onMessage);
     browser.tabs.onUpdated.addListener(onUpdated);
     browser.tabs.onActivated.addListener(onActivated);
     return () => {
+      browser.runtime.onMessage.removeListener(onMessage);
       browser.tabs.onUpdated.removeListener(onUpdated);
       browser.tabs.onActivated.removeListener(onActivated);
     };
@@ -161,6 +179,8 @@ export function App() {
   }
 
   async function handleSignOut() {
+    stopRealtimeSubscription();
+    realtimeStarted.current = false;
     await browser.runtime.sendMessage({ type: "SIGN_OUT" });
     setUser(null);
     setVideo(null);
