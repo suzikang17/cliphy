@@ -33,6 +33,7 @@ export function parseSummaryResponse(text: string): SummaryJson {
   }
 
   return {
+    description: typeof obj.description === "string" ? obj.description : "",
     summary: obj.summary,
     keyPoints: obj.keyPoints as string[],
     actionItems: Array.isArray(obj.actionItems) ? (obj.actionItems as string[]) : [],

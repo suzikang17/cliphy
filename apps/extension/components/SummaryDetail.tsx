@@ -22,6 +22,7 @@ function toMarkdown(summary: Summary): string {
   const lines: string[] = [];
   lines.push(`# ${summary.videoTitle || summary.videoId}`);
   if (summary.videoChannel) lines.push(`**${summary.videoChannel}**`);
+  if (json.description) lines.push(`*${json.description}*`);
   lines.push("");
   lines.push("## Summary");
   lines.push(json.summary);
@@ -63,6 +64,7 @@ function toPlainText(summary: Summary): string {
   const lines: string[] = [];
   lines.push(summary.videoTitle || summary.videoId);
   if (summary.videoChannel) lines.push(summary.videoChannel);
+  if (json.description) lines.push(json.description);
   lines.push("");
   lines.push("Summary:");
   lines.push(json.summary);
@@ -135,6 +137,11 @@ export function SummaryDetail({ summary, onSeek }: SummaryDetailProps) {
         <p className="text-gray-500 text-sm">No summary data available.</p>
       ) : (
         <>
+          {/* One-line description */}
+          {json.description && (
+            <p className="text-sm text-gray-500 italic mb-4 m-0">{json.description}</p>
+          )}
+
           {/* Summary / TL;DR */}
           <div className="bg-indigo-50 border-2 border-black rounded-lg p-3 mb-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-600 m-0 mb-1.5">
