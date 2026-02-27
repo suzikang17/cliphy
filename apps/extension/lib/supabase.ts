@@ -27,6 +27,7 @@ export function toSummary(row: Record<string, unknown>): Summary {
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
+    deletedAt: (row.deleted_at as string) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -35,10 +36,14 @@ export function toSummary(row: Record<string, unknown>): Summary {
 export function startRealtimeSubscription(
   userId: string,
   onChange: (summary: Summary) => void,
+  accessToken?: string,
 ): void {
   stopRealtimeSubscription();
 
   const supabase = getSupabaseClient();
+  if (accessToken) {
+    supabase.realtime.setAuth(accessToken);
+  }
   const filter = `user_id=eq.${userId}`;
   channel = supabase
     .channel("summaries-changes")

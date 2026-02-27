@@ -43,6 +43,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export async function getUser() {
+  return request<{ user: { email: string; plan: string } }>(API_ROUTES.AUTH.ME);
+}
+
 export async function addToQueue(body: QueueAddRequest) {
   return request<QueueAddResponse>(API_ROUTES.QUEUE.ADD, {
     method: "POST",
@@ -64,6 +68,12 @@ export async function getSummaries() {
 
 export async function getUsage() {
   return request<UsageResponse>(API_ROUTES.USAGE.INFO);
+}
+
+export async function deleteSummary(id: string) {
+  return request<{ deleted: true }>(API_ROUTES.SUMMARIES.ITEM(id), {
+    method: "DELETE",
+  });
 }
 
 export async function deleteQueueItem(id: string) {

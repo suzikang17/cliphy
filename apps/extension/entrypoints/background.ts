@@ -13,16 +13,20 @@ async function setupRealtime() {
   const userId = getUserIdFromToken(token);
   if (!userId) return;
 
-  startRealtimeSubscription(userId, (summary) => {
-    browser.runtime
-      .sendMessage({
-        type: "SUMMARY_UPDATED",
-        summary,
-      } satisfies ExtensionMessage)
-      .catch(() => {
-        // No listeners — sidepanel not open, that's fine
-      });
-  });
+  startRealtimeSubscription(
+    userId,
+    (summary) => {
+      browser.runtime
+        .sendMessage({
+          type: "SUMMARY_UPDATED",
+          summary,
+        } satisfies ExtensionMessage)
+        .catch(() => {
+          // No listeners — sidepanel not open, that's fine
+        });
+    },
+    token,
+  );
 }
 
 export default defineBackground(() => {

@@ -1,12 +1,20 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
-import { parseDurationToSeconds } from "@cliphy/shared";
+import { formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
-import { deleteQueueItem, getQueue, getSummary, getUsage, retryQueueItem } from "../../lib/api";
-import { getAccessToken, getUserIdFromToken, isAuthenticated } from "../../lib/auth";
+import {
+  deleteQueueItem,
+  deleteSummary,
+  getQueue,
+  getSummary,
+  getUsage,
+  getUser,
+  retryQueueItem,
+} from "../../lib/api";
+import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
 
 type View = "dashboard" | "detail";
@@ -57,23 +65,44 @@ export function App() {
       if (!userId) return;
 
       realtimeStarted.current = true;
-      startRealtimeSubscription(userId, (updated) => {
-        setSummaries((prev) => {
-          const idx = prev.findIndex((s) => s.id === updated.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
+      startRealtimeSubscription(
+        userId,
+        (updated) => {
+          // Soft-deleted summaries: remove from list, don't re-add
+          if (updated.deletedAt) {
+            setSummaries((prev) => prev.filter((s) => s.id !== updated.id));
+            return;
           }
-          return [updated, ...prev];
-        });
 
-        if (updated.status === "completed" || updated.status === "failed") {
-          getUsage()
-            .then((res) => setUsage(res.usage))
-            .catch(() => {});
-        }
-      });
+          const statusPriority: Record<string, number> = {
+            pending: 0,
+            processing: 1,
+            completed: 2,
+            failed: 2,
+          };
+          setSummaries((prev) => {
+            const idx = prev.findIndex((s) => s.id === updated.id);
+            if (idx >= 0) {
+              // Never downgrade status (realtime events can arrive out of order)
+              const current = prev[idx];
+              if ((statusPriority[updated.status] ?? 0) < (statusPriority[current.status] ?? 0)) {
+                return prev;
+              }
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            }
+            return [updated, ...prev];
+          });
+
+          if (updated.status === "completed" || updated.status === "failed") {
+            getUsage()
+              .then((res) => setUsage(res.usage))
+              .catch(() => {});
+          }
+        },
+        token,
+      );
     })();
 
     return () => {
@@ -123,29 +152,30 @@ export function App() {
 
   async function init() {
     try {
-      const authed = await isAuthenticated();
-      if (!authed) {
+      const token = await getAccessToken();
+      if (!token) {
         setLoading(false);
         return;
       }
 
-      const token = await getAccessToken();
-      if (token) await fetchUser(token);
-
       const params = new URLSearchParams(window.location.search);
       const summaryId = params.get("id");
 
-      const [queueRes, usageRes] = await Promise.all([getQueue(), getUsage()]);
+      const [, queueRes, usageRes, , summaryRes] = await Promise.all([
+        fetchUser(),
+        getQueue(),
+        getUsage(),
+        detectVideo(),
+        summaryId ? getSummary(summaryId) : null,
+      ]);
+
       setSummaries(queueRes.items);
       setUsage(usageRes.usage);
 
-      if (summaryId) {
-        const summaryRes = await getSummary(summaryId);
+      if (summaryRes) {
         setSelectedSummary(summaryRes.summary);
         setView("detail");
       }
-
-      await detectVideo();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -153,13 +183,8 @@ export function App() {
     }
   }
 
-  async function fetchUser(token: string) {
-    const apiUrl = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
-    const res = await fetch(`${apiUrl}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to load account");
-    const data = await res.json();
+  async function fetchUser() {
+    const data = await getUser();
     setUser({ email: data.user.email, plan: data.user.plan });
   }
 
@@ -266,9 +291,25 @@ export function App() {
   }
 
   async function handleRemoveItem(id: string) {
+    const item = summaries.find((s) => s.id === id);
     setSummaries((prev) => prev.filter((s) => s.id !== id));
     try {
-      await deleteQueueItem(id);
+      if (item?.status === "completed") {
+        await deleteSummary(id);
+      } else {
+        await deleteQueueItem(id);
+      }
+    } catch {
+      fetchQueueAndUsage();
+    }
+  }
+
+  async function handleDismissSummary(id: string) {
+    setSummaries((prev) => prev.filter((s) => s.id !== id));
+    setSelectedSummary(null);
+    setView("dashboard");
+    try {
+      await deleteSummary(id);
     } catch {
       fetchQueueAndUsage();
     }
@@ -366,37 +407,58 @@ export function App() {
             Pop out &#x2197;
           </button>
         </div>
-        <SummaryDetail summary={selectedSummary} onSeek={seekVideo} />
+        <SummaryDetail
+          summary={selectedSummary}
+          onSeek={seekVideo}
+          onDismiss={() => handleDismissSummary(selectedSummary.id)}
+        />
       </div>
     );
   }
 
   // Dashboard view
   return (
-    <div className="p-4 flex flex-col min-h-screen">
-      <h1 className="text-lg font-extrabold m-0">
-        <span className="text-indigo-500">&#9654;</span> Cliphy
-      </h1>
+    <div className="flex flex-col h-screen">
+      <div className="shrink-0 p-4 pb-0">
+        <h1 className="text-lg font-extrabold m-0 flex items-center gap-1.5">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-indigo-500 shrink-0"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          {usage ? `${formatTimeSaved(usage.totalTimeSavedSeconds)} saved` : "Cliphy"}
+        </h1>
 
-      {video && (
-        <div className="mt-3">
-          <VideoCard
-            video={video}
-            onAdd={handleAddToQueue}
-            isAdding={isAdding}
-            status={addStatus}
-            error={addError}
-            existingStatus={summaries.find((s) => s.videoId === video.videoId)?.status}
-            onViewExisting={() => {
-              const match = summaries.find((s) => s.videoId === video.videoId);
-              if (match) handleViewSummary(match.id);
-            }}
-          />
-        </div>
-      )}
+        {video && (
+          <div className="mt-3">
+            <VideoCard
+              video={video}
+              onAdd={handleAddToQueue}
+              isAdding={isAdding}
+              status={addStatus}
+              error={addError}
+              existingStatus={summaries.find((s) => s.videoId === video.videoId)?.status}
+              onViewExisting={() => {
+                const match = summaries.find((s) => s.videoId === video.videoId);
+                if (match) handleViewSummary(match.id);
+              }}
+            />
+          </div>
+        )}
 
-      <div className="mt-3">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Queue</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mt-3 mb-2">Queue</h2>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-2">
         <QueueList
           summaries={summaries}
           onViewSummary={handleViewSummary}
@@ -409,17 +471,22 @@ export function App() {
         />
       </div>
 
-      <div className="mt-auto pt-4 border-t border-gray-200">
+      <div className="shrink-0 p-4 pt-3 border-t border-gray-200">
         {usage && (
           <div className="mb-2">
             <UsageBar usage={usage} />
           </div>
         )}
         <div className="flex items-center justify-between text-xs text-gray-400">
-          <span>{user.email}</span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 capitalize shrink-0">
+              {user.plan}
+            </span>
+            <span className="truncate">{user.email}</span>
+          </div>
           <button
             onClick={handleSignOut}
-            className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors"
+            className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors shrink-0"
           >
             Sign out
           </button>

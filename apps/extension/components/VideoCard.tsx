@@ -45,9 +45,9 @@ export function VideoCard({
       {isSummarized ? (
         <button
           onClick={onViewExisting}
-          className="mt-3 w-full py-2 text-sm bg-green-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+          className="mt-3 w-full py-2 text-sm bg-green-600 text-white cursor-pointer border-2 border-black rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down flex items-center justify-center gap-1"
         >
-          View Summary
+          View Summary <span>&rarr;</span>
         </button>
       ) : (
         <button
