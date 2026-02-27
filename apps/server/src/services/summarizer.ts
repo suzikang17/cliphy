@@ -8,6 +8,18 @@ const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 2048;
 const TEMPERATURE = 0.3;
 
+const MAX_SUMMARY_LENGTH = 1000;
+const MAX_ITEM_LENGTH = 500;
+const MAX_ARRAY_ITEMS = 50;
+
+/** Filter to only string elements, truncate, and cap array length. */
+function sanitizeStringArray(arr: unknown[], maxItems = MAX_ARRAY_ITEMS): string[] {
+  return arr
+    .filter((item): item is string => typeof item === "string")
+    .slice(0, maxItems)
+    .map((s) => s.slice(0, MAX_ITEM_LENGTH));
+}
+
 /** Extract and validate JSON from Claude's response text. */
 export function parseSummaryResponse(text: string): SummaryJson {
   let cleaned = text.trim();
@@ -23,6 +35,10 @@ export function parseSummaryResponse(text: string): SummaryJson {
     throw new Error("Failed to parse summary response as JSON");
   }
 
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Failed to parse summary: expected a JSON object");
+  }
+
   const obj = parsed as Record<string, unknown>;
   if (
     typeof obj.summary !== "string" ||
@@ -33,10 +49,10 @@ export function parseSummaryResponse(text: string): SummaryJson {
   }
 
   return {
-    summary: obj.summary,
-    keyPoints: obj.keyPoints as string[],
-    actionItems: Array.isArray(obj.actionItems) ? (obj.actionItems as string[]) : [],
-    timestamps: obj.timestamps as string[],
+    summary: obj.summary.slice(0, MAX_SUMMARY_LENGTH),
+    keyPoints: sanitizeStringArray(obj.keyPoints),
+    actionItems: Array.isArray(obj.actionItems) ? sanitizeStringArray(obj.actionItems) : [],
+    timestamps: sanitizeStringArray(obj.timestamps),
   };
 }
 
