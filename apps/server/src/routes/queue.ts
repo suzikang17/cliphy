@@ -3,6 +3,7 @@ import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
 import { inngest } from "../lib/inngest.js";
+import { MAX_LENGTHS } from "../lib/validation.js";
 import { extractVideoId, PLAN_LIMITS } from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
 
@@ -95,6 +96,13 @@ queueRoutes.post("/", async (c) => {
   const videoId = extractVideoId(body.videoUrl);
   if (!videoId) {
     return c.json({ error: "Invalid YouTube URL" }, 400);
+  }
+
+  if (body.videoTitle && body.videoTitle.length > MAX_LENGTHS.videoTitle) {
+    return c.json({ error: `videoTitle exceeds ${MAX_LENGTHS.videoTitle} characters` }, 400);
+  }
+  if (body.videoChannel && body.videoChannel.length > MAX_LENGTHS.videoChannel) {
+    return c.json({ error: `videoChannel exceeds ${MAX_LENGTHS.videoChannel} characters` }, 400);
   }
 
   // Duplicate check: same user + same video + not failed

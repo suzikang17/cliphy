@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
+import { sanitizeSearchQuery } from "../lib/validation.js";
 import type { Summary } from "@cliphy/shared";
 
 export const summaryRoutes = new Hono<AppEnv>();
@@ -54,8 +55,13 @@ async function getUserPlan(userId: string): Promise<"free" | "pro"> {
 
 summaryRoutes.get("/search", async (c) => {
   const userId = c.get("userId");
-  const q = c.req.query("q")?.trim();
+  const rawQ = c.req.query("q")?.trim();
 
+  if (!rawQ) {
+    return c.json({ error: "Query parameter 'q' is required" }, 400);
+  }
+
+  const q = sanitizeSearchQuery(rawQ);
   if (!q) {
     return c.json({ error: "Query parameter 'q' is required" }, 400);
   }
