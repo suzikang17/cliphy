@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { secureHeaders } from "hono/secure-headers";
 import { serve } from "inngest/hono";
 import type { AppEnv } from "./env.js";
 import { inngest } from "./lib/inngest.js";
@@ -10,12 +11,25 @@ import { queueRoutes } from "./routes/queue.js";
 import { summaryRoutes } from "./routes/summaries.js";
 import { usageRoutes } from "./routes/usage.js";
 import { billingRoutes } from "./routes/billing.js";
-import { summarizeRoutes } from "./routes/summarize.js";
+
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 const app = new Hono<AppEnv>().basePath("/api");
 
 app.use("*", logger());
-app.use("*", cors());
+app.use("*", secureHeaders());
+app.use(
+  "*",
+  cors({
+    origin: ALLOWED_ORIGINS,
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
+  }),
+);
 
 app.on(
   ["GET", "PUT", "POST"],
@@ -33,7 +47,6 @@ app.route("/queue", queueRoutes);
 app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
-app.route("/summarize", summarizeRoutes);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
