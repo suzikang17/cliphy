@@ -142,12 +142,41 @@ async function fetchTimedText(track: CaptionTrack): Promise<string[]> {
   return segments;
 }
 
+// Zero-width and invisible Unicode characters used in prompt injection
+// eslint-disable-next-line no-misleading-character-class
+const ZERO_WIDTH_CHARS = /[\u200B\u200C\u200D\u2060\uFEFF]/g;
+
+// Prompt injection patterns — case-insensitive, matches common attack vectors
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?previous\s+instructions/gi,
+  /ignore\s+(all\s+)?above\s+instructions/gi,
+  /disregard\s+(all\s+)?previous/gi,
+  /you\s+are\s+now\s+/gi,
+  /new\s+instructions?:/gi,
+  /^system\s*:/gim,
+  /^assistant\s*:/gim,
+  /^user\s*:/gim,
+  /\[INST\]/gi,
+  /\[\/INST\]/gi,
+  /<\|im_start\|>/gi,
+  /<\|im_end\|>/gi,
+];
+
+/** Strip prompt injection patterns and invisible characters from transcript text. */
+function sanitizeTranscript(text: string): string {
+  let cleaned = text.replace(ZERO_WIDTH_CHARS, "");
+  for (const pattern of INJECTION_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
 export async function fetchTranscript(videoId: string): Promise<string> {
   const tracks = await fetchCaptionTracks(videoId);
   const track = pickTrack(tracks);
   const segments = await fetchTimedText(track);
 
-  const transcript = segments
+  let transcript = segments
     .map((s) => decodeHtmlEntities(s).replace(NON_SPEECH_PATTERN, "").trim())
     .filter((text) => text.length > 0)
     .join(" ")
@@ -159,8 +188,8 @@ export async function fetchTranscript(videoId: string): Promise<string> {
   }
 
   if (transcript.length > MAX_TRANSCRIPT_LENGTH) {
-    return transcript.slice(0, MAX_TRANSCRIPT_LENGTH);
+    transcript = transcript.slice(0, MAX_TRANSCRIPT_LENGTH);
   }
 
-  return transcript;
+  return sanitizeTranscript(transcript);
 }
