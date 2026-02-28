@@ -76,7 +76,7 @@ async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
   const data = (await res.json()) as PlayerResponse;
 
   console.log(
-    `[transcript] videoId=${videoId} status=${data.playabilityStatus?.status} hasCaptions=${!!data.captions} tracks=${data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0} proxy=${!!process.env.WEBSHARE_PROXY_USERNAME}`,
+    `[transcript] videoId=${videoId} status=${data.playabilityStatus?.status} hasCaptions=${!!data.captions} tracks=${data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0} proxy=${!!process.env.PROXY_URL}`,
   );
 
   if (data.playabilityStatus?.status === "ERROR") {
