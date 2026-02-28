@@ -11,6 +11,7 @@ import { queueRoutes } from "./routes/queue.js";
 import { summaryRoutes } from "./routes/summaries.js";
 import { usageRoutes } from "./routes/usage.js";
 import { billingRoutes } from "./routes/billing.js";
+import { privacyRoutes } from "./routes/privacy.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -47,6 +48,7 @@ app.route("/queue", queueRoutes);
 app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
+app.route("/privacy", privacyRoutes);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

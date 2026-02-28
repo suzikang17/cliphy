@@ -23,6 +23,7 @@ cat > .vercel/output/config.json << 'EOF'
 {
   "version": 3,
   "routes": [
+    { "src": "/privacy", "dest": "/api/privacy" },
     { "src": "/api/(.*)", "dest": "/api" }
   ]
 }
