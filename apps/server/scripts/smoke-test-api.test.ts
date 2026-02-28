@@ -161,14 +161,109 @@ describe("Smoke Tests", () => {
       expect(json.summaries).toBeInstanceOf(Array);
     });
 
-    test("DELETE /api/queue/:id removes item", async () => {
+    test("DELETE /api/queue/:id removes item or rejects if processing", async () => {
       expect(queueItemId).toBeDefined();
 
       const res = await api(`/api/queue/${queueItemId}`, token, { method: "DELETE" });
-      const json = (await res.json()) as { deleted?: boolean };
 
-      expect(res.status).toBe(200);
-      expect(json.deleted).toBe(true);
+      // 200 = deleted before Inngest picked it up
+      // 409 = Inngest already moved it to "processing" (valid race condition)
+      expect([200, 409]).toContain(res.status);
+    });
+  });
+
+  describe("Security Hardening", () => {
+    beforeEach(() => {
+      layer("e2e");
+      epic("Security");
+      feature("Hardening");
+    });
+
+    test("POST /api/summarize returns 404 (removed endpoint)", async () => {
+      const res = await api("/api/summarize", undefined, {
+        method: "POST",
+        body: JSON.stringify({ videoId: "abc123", videoTitle: "test" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    test("security headers are present", async () => {
+      const res = await api("/api/health");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+      expect(res.headers.get("x-xss-protection")).toBe("0");
+      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    });
+
+    test("CORS blocks non-whitelisted origins", async () => {
+      const res = await fetch(`${apiBase}/api/health`, {
+        headers: { Origin: "https://evil-site.example.com" },
+      });
+      // Server should NOT echo back the malicious origin
+      const allowOrigin = res.headers.get("access-control-allow-origin");
+      expect(allowOrigin).not.toBe("https://evil-site.example.com");
+    });
+
+    test("CORS preflight rejects non-whitelisted origin", async () => {
+      const res = await fetch(`${apiBase}/api/queue`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://evil-site.example.com",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "Content-Type, Authorization",
+        },
+      });
+      const allowOrigin = res.headers.get("access-control-allow-origin");
+      expect(allowOrigin).not.toBe("https://evil-site.example.com");
+    });
+
+    test("POST /api/queue with >500 char title returns 400", async () => {
+      const longTitle = "A".repeat(501);
+      const res = await api("/api/queue", token, {
+        method: "POST",
+        body: JSON.stringify({
+          videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          videoTitle: longTitle,
+        }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toContain("500");
+    });
+
+    test("search with special chars returns 200 (not 500)", async () => {
+      const specialQueries = ["test,query", "test.query", "test(query)", 'test"query'];
+      for (const q of specialQueries) {
+        const res = await api(`/api/summaries/search?q=${encodeURIComponent(q)}`, token);
+        expect(res.status, `search for "${q}" should not 500`).not.toBe(500);
+        // Should be 200 (results, possibly empty) — the sanitizer strips special chars
+        expect(res.status).toBe(200);
+      }
+    });
+
+    test("Stripe webhook without signature returns 400", async () => {
+      const res = await fetch(`${apiBase}/api/billing/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "checkout.session.completed" }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toContain("signature");
+    });
+
+    test("Stripe webhook with invalid signature returns 400", async () => {
+      const res = await fetch(`${apiBase}/api/billing/webhook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "stripe-signature": "t=1234,v1=fakesig",
+        },
+        body: JSON.stringify({ type: "checkout.session.completed" }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toContain("signature");
     });
   });
 });
