@@ -2,11 +2,22 @@ export type SummaryStatus = "pending" | "processing" | "completed" | "failed";
 
 export type PlanTier = "free" | "pro";
 
+export type SubscriptionStatus =
+  | "none"
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "canceled"
+  | "unpaid";
+
 export interface User {
   id: string;
   email: string;
   plan: PlanTier;
   stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  subscriptionStatus: SubscriptionStatus;
+  trialEndsAt?: string;
   dailySummaryCount: number;
   dailyCountResetAt: string;
   createdAt: string;
