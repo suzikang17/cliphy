@@ -3,6 +3,7 @@ import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
 import { sanitizeSearchQuery } from "../lib/validation.js";
+import { FREE_HISTORY_DAYS } from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
 
 export const summaryRoutes = new Hono<AppEnv>();
@@ -14,7 +15,6 @@ summaryRoutes.use("*", authMiddleware);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-const FREE_TIER_DAYS = 7;
 
 /** Map a DB row (snake_case) to a Summary object (camelCase). */
 function toSummary(row: Record<string, unknown>): Summary {
@@ -84,7 +84,7 @@ summaryRoutes.get("/search", async (c) => {
   // Free users: restrict to last 7 days
   if (plan === "free") {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - FREE_TIER_DAYS);
+    cutoff.setDate(cutoff.getDate() - FREE_HISTORY_DAYS);
     query = query.gte("created_at", cutoff.toISOString());
   }
 
@@ -123,7 +123,7 @@ summaryRoutes.get("/", async (c) => {
   // Free users: restrict to last 7 days
   if (plan === "free") {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - FREE_TIER_DAYS);
+    cutoff.setDate(cutoff.getDate() - FREE_HISTORY_DAYS);
     query = query.gte("created_at", cutoff.toISOString());
   }
 

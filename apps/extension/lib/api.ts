@@ -5,10 +5,28 @@ import type {
   SummaryResponse,
   UsageResponse,
   Summary,
+  ProRequiredResponse,
 } from "@cliphy/shared";
 import { getAccessToken, refreshAccessToken } from "./auth";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
+
+/**
+ * Custom error for 402 Pro Required responses.
+ * Carries the upgrade URL and feature name so UI can show contextual prompts.
+ */
+export class ProRequiredError extends Error {
+  readonly code = "pro_required" as const;
+  readonly feature: string;
+  readonly upgradeUrl: string;
+
+  constructor(body: ProRequiredResponse) {
+    super(body.error);
+    this.name = "ProRequiredError";
+    this.feature = body.feature;
+    this.upgradeUrl = body.upgrade_url;
+  }
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getAccessToken();
@@ -37,6 +55,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+
+    // 402: Pro feature required — throw specialized error
+    if (res.status === 402 && body.code === "pro_required") {
+      throw new ProRequiredError(body as ProRequiredResponse);
+    }
+
     throw new Error(body.error || `Request failed: ${res.status}`);
   }
 
@@ -51,6 +75,13 @@ export async function addToQueue(body: QueueAddRequest) {
   return request<QueueAddResponse>(API_ROUTES.QUEUE.ADD, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export async function addToQueueBatch(videos: Array<{ videoUrl: string }>) {
+  return request<{ summaries: Summary[]; added: number; skipped: number }>(API_ROUTES.QUEUE.BATCH, {
+    method: "POST",
+    body: JSON.stringify({ videos }),
   });
 }
 
@@ -83,7 +114,7 @@ export async function deleteQueueItem(id: string) {
 }
 
 export async function retryQueueItem(id: string) {
-  return request<{ summary: Summary }>(API_ROUTES.QUEUE.PROCESS(id), {
+  return request<{ summary: Summary }>(API_ROUTES.QUEUE.RETRY(id), {
     method: "POST",
   });
 }

@@ -1,8 +1,15 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
-import { formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
+import {
+  formatTimeSaved,
+  FREE_HISTORY_DAYS,
+  parseDurationToSeconds,
+  UPGRADE_URL,
+} from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
+import { ProBadge } from "../../components/ProBadge";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
+import { UpgradePrompt } from "../../components/UpgradePrompt";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
 import {
@@ -12,6 +19,7 @@ import {
   getSummary,
   getUsage,
   getUser,
+  ProRequiredError,
   retryQueueItem,
 } from "../../lib/api";
 import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
@@ -47,6 +55,7 @@ export function App() {
   const [addError, setAddError] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
 
   const realtimeStarted = useRef(false);
 
@@ -247,6 +256,7 @@ export function App() {
     if (!video?.videoId) return;
     setIsAdding(true);
     setAddError(undefined);
+    setUpgradePrompt(null);
     try {
       const response = (await browser.runtime.sendMessage({
         type: "ADD_TO_QUEUE",
@@ -256,17 +266,25 @@ export function App() {
         videoDurationSeconds: video.duration
           ? (parseDurationToSeconds(video.duration) ?? undefined)
           : undefined,
-      })) as { success: boolean; error?: string };
+      })) as { success: boolean; error?: string; code?: string; upgrade_url?: string };
       if (response?.success) {
         setAddStatus("queued");
         await fetchQueueAndUsage();
+      } else if (response?.code === "pro_required") {
+        setAddStatus("idle");
+        setUpgradePrompt(response.error ?? "This feature requires Pro");
       } else {
         setAddStatus("error");
         setAddError(response?.error ?? "Failed to add to queue");
       }
     } catch (err) {
-      setAddStatus("error");
-      setAddError(err instanceof Error ? err.message : "Failed to add to queue");
+      if (err instanceof ProRequiredError) {
+        setAddStatus("idle");
+        setUpgradePrompt(err.message);
+      } else {
+        setAddStatus("error");
+        setAddError(err instanceof Error ? err.message : "Failed to add to queue");
+      }
     } finally {
       setIsAdding(false);
     }
@@ -455,7 +473,18 @@ export function App() {
           </div>
         )}
 
-        <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mt-3 mb-2">Queue</h2>
+        {upgradePrompt && (
+          <div className="mt-3">
+            <UpgradePrompt message={upgradePrompt} onDismiss={() => setUpgradePrompt(null)} />
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 mt-3 mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 m-0">Queue</h2>
+          {user.plan === "free" && (
+            <span className="text-[9px] text-gray-400">(last {FREE_HISTORY_DAYS} days)</span>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-2">
@@ -479,9 +508,20 @@ export function App() {
         )}
         <div className="flex items-center justify-between text-xs text-gray-400">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 capitalize shrink-0">
-              {user.plan}
-            </span>
+            {user.plan === "pro" ? (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0">
+                Pro
+              </span>
+            ) : (
+              <a
+                href={UPGRADE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 no-underline"
+              >
+                <ProBadge />
+              </a>
+            )}
             <span className="truncate">{user.email}</span>
           </div>
           <button

@@ -288,7 +288,7 @@ describe("Queue", () => {
       story("Batch");
     });
 
-    it("returns 403 for non-pro users", async () => {
+    it("returns 402 with upgrade URL for non-pro users", async () => {
       const userChain = mockChain({
         data: { plan: "free", daily_summary_count: 0, daily_count_reset_at: "2026-02-20" },
       });
@@ -307,11 +307,21 @@ describe("Queue", () => {
         }),
       });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(402);
+      const json = await res.json();
+      expect(json.code).toBe("pro_required");
+      expect(json.feature).toBe("batch_queue");
+      expect(json.upgrade_url).toBeDefined();
     });
 
     it("returns 400 for more than 10 videos", async () => {
-      supabaseMock = mockChain({});
+      // requirePro middleware runs first and checks plan
+      const proChain = mockChain({ data: { plan: "pro" } });
+      supabaseMock = {
+        from: vi.fn().mockReturnValue(proChain),
+        rpc: vi.fn(),
+      } as unknown as ReturnType<typeof mockChain>;
+
       const app = await createApp();
       const videos = Array.from({ length: 11 }, (_, i) => ({
         videoUrl: `https://youtube.com/watch?v=dQw4w9WgXc${String.fromCharCode(65 + i)}`,
@@ -329,7 +339,13 @@ describe("Queue", () => {
     });
 
     it("returns 400 for empty videos array", async () => {
-      supabaseMock = mockChain({});
+      // requirePro middleware runs first and checks plan
+      const proChain = mockChain({ data: { plan: "pro" } });
+      supabaseMock = {
+        from: vi.fn().mockReturnValue(proChain),
+        rpc: vi.fn(),
+      } as unknown as ReturnType<typeof mockChain>;
+
       const app = await createApp();
       const res = await app.request("/queue/batch", {
         method: "POST",
@@ -441,7 +457,7 @@ describe("Queue", () => {
     });
   });
 
-  describe("POST /queue/:id/process", () => {
+  describe("POST /queue/:id/retry", () => {
     beforeEach(() => {
       vi.clearAllMocks();
       layer("unit");
@@ -478,7 +494,7 @@ describe("Queue", () => {
       } as unknown as ReturnType<typeof mockChain>;
 
       const app = await createApp();
-      const res = await app.request("/queue/sum-1/process", { method: "POST" });
+      const res = await app.request("/queue/sum-1/retry", { method: "POST" });
 
       expect(res.status).toBe(200);
       const json = await res.json();
@@ -492,7 +508,7 @@ describe("Queue", () => {
       } as unknown as ReturnType<typeof mockChain>;
 
       const app = await createApp();
-      const res = await app.request("/queue/nonexistent/process", { method: "POST" });
+      const res = await app.request("/queue/nonexistent/retry", { method: "POST" });
       expect(res.status).toBe(404);
     });
 
@@ -507,7 +523,7 @@ describe("Queue", () => {
       } as unknown as ReturnType<typeof mockChain>;
 
       const app = await createApp();
-      const res = await app.request("/queue/sum-1/process", { method: "POST" });
+      const res = await app.request("/queue/sum-1/retry", { method: "POST" });
       expect(res.status).toBe(409);
     });
   });

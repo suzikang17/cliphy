@@ -72,3 +72,11 @@ export interface ErrorResponse {
   error: string;
   code?: string;
 }
+
+/** Returned with 402 when a free user attempts a pro-only feature. */
+export interface ProRequiredResponse {
+  error: string;
+  code: "pro_required";
+  feature: string;
+  upgrade_url: string;
+}

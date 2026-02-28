@@ -1,5 +1,5 @@
 import type { Summary, SummaryStatus, UsageInfo } from "@cliphy/shared";
-import { formatTimeSaved } from "@cliphy/shared";
+import { formatTimeSaved, FREE_HISTORY_DAYS, UPGRADE_URL } from "@cliphy/shared";
 import { useEffect, useState } from "react";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
@@ -160,20 +160,38 @@ export function App() {
 
 function Header({ usage }: { usage: UsageInfo | null }) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <h1 className="text-2xl font-extrabold m-0">
-        <span className="text-indigo-500">&#9654;</span> Cliphy
-      </h1>
-      {usage && (
-        <div className="text-right">
-          <span className="text-xs font-bold text-gray-600">
-            {usage.used}/{usage.limit} summaries today
+    <div className="mb-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold m-0">
+          <span className="text-indigo-500">&#9654;</span> Cliphy
+        </h1>
+        {usage && (
+          <div className="text-right">
+            <span className="text-xs font-bold text-gray-600">
+              {usage.used}/{usage.limit} summaries today
+            </span>
+            {usage.totalTimeSavedSeconds > 0 && (
+              <p className="text-[10px] text-gray-400 m-0">
+                {formatTimeSaved(usage.totalTimeSavedSeconds)} saved
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {usage?.plan === "free" && (
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <span>
+            Showing last {FREE_HISTORY_DAYS} days.{" "}
+            <a
+              href={UPGRADE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-600 hover:text-amber-800 font-bold no-underline transition-colors"
+            >
+              Upgrade to Pro
+            </a>{" "}
+            for unlimited history.
           </span>
-          {usage.totalTimeSavedSeconds > 0 && (
-            <p className="text-[10px] text-gray-400 m-0">
-              {formatTimeSaved(usage.totalTimeSavedSeconds)} saved
-            </p>
-          )}
         </div>
       )}
     </div>

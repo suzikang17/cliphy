@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { requirePro } from "../middleware/require-pro.js";
 import { supabase } from "../lib/supabase.js";
 import { inngest } from "../lib/inngest.js";
 import { MAX_LENGTHS } from "../lib/validation.js";
-import { extractVideoId, PLAN_LIMITS } from "@cliphy/shared";
+import { extractVideoId, PLAN_LIMITS, PRO_FEATURES } from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -185,7 +186,7 @@ queueRoutes.post("/", async (c) => {
 });
 
 // POST /batch — Add multiple videos (Pro-only)
-queueRoutes.post("/batch", async (c) => {
+queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   const userId = c.get("userId");
 
   let body: { videos?: Array<{ videoUrl?: string }> };
@@ -203,7 +204,7 @@ queueRoutes.post("/batch", async (c) => {
     return c.json({ error: "Maximum 10 videos per batch" }, 400);
   }
 
-  // Check user plan — Pro only
+  // Fetch user data for rate limiting (plan already verified by requirePro)
   const { data: user, error: userError } = await supabase
     .from("users")
     .select("plan, daily_summary_count, daily_count_reset_at")
@@ -212,10 +213,6 @@ queueRoutes.post("/batch", async (c) => {
 
   if (userError || !user) {
     return c.json({ error: "User not found" }, 404);
-  }
-
-  if (user.plan !== "pro") {
-    return c.json({ error: "Batch queue is a Pro feature" }, 403);
   }
 
   // Validate all URLs first
@@ -332,8 +329,8 @@ queueRoutes.post("/batch", async (c) => {
   );
 });
 
-// POST /:id/process — Retry a queued item (fires Inngest event)
-queueRoutes.post("/:id/process", async (c) => {
+// POST /:id/retry — Retry a queued item (fires Inngest event)
+queueRoutes.post("/:id/retry", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
 
