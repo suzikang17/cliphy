@@ -18,8 +18,8 @@ export interface User {
   stripeSubscriptionId?: string;
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt?: string;
-  dailySummaryCount: number;
-  dailyCountResetAt: string;
+  monthlySummaryCount: number;
+  monthlyCountResetAt: string;
   createdAt: string;
   updatedAt: string;
 }
