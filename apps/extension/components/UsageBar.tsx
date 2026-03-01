@@ -13,7 +13,7 @@ export function UsageBar({ usage }: UsageBarProps) {
   return (
     <div className="flex items-center gap-2 text-xs font-bold">
       <span className={atLimit ? "text-red-500" : "text-gray-600"}>
-        {atLimit ? "No summaries left today" : `${remaining} summaries left today`}
+        {atLimit ? "No summaries left this month" : `${remaining} summaries left this month`}
       </span>
       {isFree && atLimit && (
         <a
@@ -34,7 +34,7 @@ export function UsageBar({ usage }: UsageBarProps) {
             rel="noopener noreferrer"
             className="text-amber-600 hover:text-amber-800 no-underline transition-colors"
           >
-            Get 100/day with Pro
+            Get 100/mo with Pro
           </a>
         </span>
       )}
