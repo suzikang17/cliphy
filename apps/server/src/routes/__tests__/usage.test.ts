@@ -62,7 +62,7 @@ describe("Billing", () => {
     it("returns usage info for free user", async () => {
       const today = new Date().toISOString().slice(0, 10);
       userMockResult = mockChain({
-        data: { plan: "free", daily_summary_count: 3, daily_count_reset_at: today },
+        data: { plan: "free", monthly_summary_count: 3, monthly_count_reset_at: today },
       });
       summariesMockResult = mockChain({ data: [] });
 
@@ -73,14 +73,14 @@ describe("Billing", () => {
       const json = await res.json();
       expect(json.usage.plan).toBe("free");
       expect(json.usage.used).toBe(3);
-      expect(json.usage.limit).toBe(5);
+      expect(json.usage.limit).toBe(10);
       expect(json.usage.totalTimeSavedSeconds).toBe(0);
     });
 
     it("returns usage info for pro user", async () => {
       const today = new Date().toISOString().slice(0, 10);
       userMockResult = mockChain({
-        data: { plan: "pro", daily_summary_count: 42, daily_count_reset_at: today },
+        data: { plan: "pro", monthly_summary_count: 42, monthly_count_reset_at: today },
       });
       summariesMockResult = mockChain({ data: [] });
 
@@ -96,7 +96,7 @@ describe("Billing", () => {
 
     it("resets count when reset date is in the past", async () => {
       userMockResult = mockChain({
-        data: { plan: "free", daily_summary_count: 5, daily_count_reset_at: "2026-02-19" },
+        data: { plan: "free", monthly_summary_count: 5, monthly_count_reset_at: "2026-01-15" },
       });
       summariesMockResult = mockChain({ data: [] });
 
@@ -105,13 +105,13 @@ describe("Billing", () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.usage.used).toBe(0); // reset because date is yesterday
+      expect(json.usage.used).toBe(0); // reset because date is from a previous month
     });
 
     it("includes total time saved from completed summaries", async () => {
       const today = new Date().toISOString().slice(0, 10);
       userMockResult = mockChain({
-        data: { plan: "free", daily_summary_count: 2, daily_count_reset_at: today },
+        data: { plan: "free", monthly_summary_count: 2, monthly_count_reset_at: today },
       });
       summariesMockResult = mockChain({
         data: [{ video_duration_seconds: 600 }, { video_duration_seconds: 1200 }],

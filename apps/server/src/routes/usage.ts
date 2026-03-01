@@ -15,7 +15,7 @@ usageRoutes.get("/", async (c) => {
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("plan, daily_summary_count, daily_count_reset_at")
+    .select("plan, monthly_summary_count, monthly_count_reset_at")
     .eq("id", userId)
     .single();
 
@@ -26,9 +26,11 @@ usageRoutes.get("/", async (c) => {
   const plan = (user.plan as "free" | "pro") ?? "free";
   const limit = PLAN_LIMITS[plan];
 
-  // If the reset date is before today, the count has effectively reset
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const used = user.daily_count_reset_at < today ? 0 : user.daily_summary_count;
+  // If the reset date is before the 1st of this month, the count has effectively reset
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  const monthStartStr = monthStart.toISOString().slice(0, 10);
+  const used = user.monthly_count_reset_at < monthStartStr ? 0 : user.monthly_summary_count;
 
   // Total time saved: sum of video_duration_seconds for completed summaries
   const { data: timeSaved } = await supabase
@@ -48,7 +50,7 @@ usageRoutes.get("/", async (c) => {
     used,
     limit,
     plan,
-    resetAt: user.daily_count_reset_at,
+    resetAt: user.monthly_count_reset_at,
     totalTimeSavedSeconds,
   };
 
