@@ -10,16 +10,27 @@ const html = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy — Cliphy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1a1a1a; line-height: 1.7; max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem; }
-    h1 { font-size: 2rem; margin-bottom: 0.25rem; }
-    .updated { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-    h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.5rem; }
-    p, li { font-size: 1rem; margin-bottom: 0.75rem; }
-    ul { padding-left: 1.5rem; }
-    a { color: #2563eb; }
-    .footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb; color: #666; font-size: 0.85rem; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; line-height: 1.8; max-width: 680px; margin: 0 auto; padding: 3rem 1.5rem; font-size: 15px; -webkit-font-smoothing: antialiased; }
+    h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .updated { color: #6b7280; font-size: 0.85rem; margin-bottom: 2.5rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; margin-top: 2.5rem; margin-bottom: 0.75rem; letter-spacing: -0.01em; }
+    p { margin-bottom: 1rem; color: #374151; }
+    li { margin-bottom: 0.5rem; color: #374151; }
+    ul { padding-left: 1.25rem; margin-bottom: 1rem; }
+    a { color: #4f46e5; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { font-weight: 600; color: #1a1a1a; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #1a1a1a; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { font-size: 0.85em; background: #f3f4f6; padding: 0.15em 0.35em; border-radius: 4px; }
+    .footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -28,70 +39,114 @@ const html = `<!DOCTYPE html>
 
   <p>Cliphy ("we", "us", "our") is a Chrome extension that summarizes YouTube videos using AI. This policy explains what data we collect, how we use it, and your rights.</p>
 
-  <h2>Data We Collect</h2>
+  <h2>1. Information We Collect</h2>
   <ul>
-    <li><strong>Email address</strong> — collected via Google OAuth for authentication.</li>
-    <li><strong>YouTube video metadata</strong> — video IDs, titles, and channels for videos you summarize.</li>
-    <li><strong>Usage data</strong> — summary counts and queue activity to enforce plan limits.</li>
-    <li><strong>Payment information</strong> — handled entirely by Stripe. We never see or store your card details.</li>
+    <li><strong>Account information</strong> — your email address, collected via Google OAuth when you sign in.</li>
+    <li><strong>YouTube video metadata</strong> — video ID, title, channel name, and duration for videos you explicitly choose to summarize.</li>
+    <li><strong>Video transcripts</strong> — retrieved temporarily to generate summaries. Transcripts are not stored permanently.</li>
+    <li><strong>Usage data</strong> — summary counts, queue activity, and timestamps to enforce plan limits and display time-saved metrics.</li>
+    <li><strong>Payment information</strong> — handled entirely by Stripe. We never see, receive, or store your card details.</li>
   </ul>
 
-  <h2>How We Use Your Data</h2>
+  <h2>2. How We Use Your Information</h2>
   <ul>
     <li>To authenticate you and manage your account.</li>
-    <li>To generate AI-powered video summaries.</li>
-    <li>To enforce usage limits and process payments.</li>
-    <li>To improve the service (aggregate, anonymized usage patterns only).</li>
+    <li>To generate AI-powered video summaries on your request.</li>
+    <li>To enforce usage limits and process subscription payments.</li>
+    <li>To improve the service using aggregate, anonymized usage patterns.</li>
   </ul>
 
-  <h2>AI Processing</h2>
-  <p>Video transcripts are sent to Anthropic's Claude API for summary generation. Anthropic does not use your data for model training. Transcripts are processed in real time and not stored by Anthropic after processing. See <a href="https://www.anthropic.com/privacy">Anthropic's privacy policy</a>.</p>
+  <h2>3. Browser Permissions</h2>
+  <p>Cliphy requests the following Chrome permissions. Each is used for a specific purpose:</p>
+  <table>
+    <tr><th>Permission</th><th>Why we need it</th></tr>
+    <tr><td><code>tabs</code></td><td>Detects when you navigate to a YouTube video so the extension can activate. Also used to send messages to the content script and open summary pop-out views.</td></tr>
+    <tr><td><code>storage</code></td><td>Stores your authentication token locally so you stay signed in.</td></tr>
+    <tr><td><code>identity</code></td><td>Facilitates Google OAuth sign-in.</td></tr>
+    <tr><td><code>contextMenus</code></td><td>Adds a right-click "Add to Cliphy" option on YouTube video pages.</td></tr>
+    <tr><td><code>sidePanel</code></td><td>Renders the extension's main interface as a Chrome side panel.</td></tr>
+  </table>
+  <p>Our only host permission is <code>https://www.youtube.com/*</code>. The content script runs exclusively on YouTube to detect video pages and read metadata. We do not access any other websites.</p>
 
-  <h2>What We Do NOT Do</h2>
+  <h2>4. AI Processing</h2>
+  <p>When you request a summary, the video transcript is sent to Anthropic's Claude API for processing. Anthropic processes transcripts in real time and does not retain them after generating the summary. Anthropic does not use your data for model training. See <a href="https://www.anthropic.com/privacy">Anthropic's privacy policy</a>.</p>
+
+  <h2>5. Third-Party Services</h2>
+  <p>We share data with the following service providers, solely to operate Cliphy:</p>
+  <table>
+    <tr><th>Provider</th><th>Purpose</th><th>Data shared</th></tr>
+    <tr><td><a href="https://www.anthropic.com/privacy">Anthropic</a></td><td>AI summary generation</td><td>Video transcripts (not retained)</td></tr>
+    <tr><td><a href="https://stripe.com/privacy">Stripe</a></td><td>Payment processing</td><td>Email, payment details (direct to Stripe)</td></tr>
+    <tr><td><a href="https://supabase.com/privacy">Supabase</a></td><td>Database &amp; authentication</td><td>Account data, summaries, usage data</td></tr>
+    <tr><td><a href="https://vercel.com/legal/privacy-policy">Vercel</a></td><td>API hosting</td><td>API requests (server logs)</td></tr>
+  </table>
+  <p>We do not sell, rent, or trade your personal information to any third party.</p>
+
+  <h2>6. What We Do Not Do</h2>
   <ul>
     <li>We do <strong>not</strong> sell your data.</li>
-    <li>We do <strong>not</strong> track your browsing beyond YouTube.</li>
-    <li>We do <strong>not</strong> store raw video transcripts permanently.</li>
-    <li>We do <strong>not</strong> share data with third parties, except Stripe (payments) and Anthropic (AI processing).</li>
+    <li>We do <strong>not</strong> track your browsing activity outside of YouTube.</li>
+    <li>We do <strong>not</strong> use cookies or tracking pixels in the extension.</li>
+    <li>We do <strong>not</strong> store raw video transcripts after summary generation.</li>
+    <li>We do <strong>not</strong> use your data for advertising or profiling.</li>
   </ul>
 
-  <h2>Third-Party Services</h2>
+  <h2>7. Data Retention</h2>
   <ul>
-    <li><strong>Stripe</strong> — payment processing (<a href="https://stripe.com/privacy">privacy policy</a>)</li>
-    <li><strong>Anthropic</strong> — AI summary generation (<a href="https://www.anthropic.com/privacy">privacy policy</a>)</li>
-    <li><strong>Supabase</strong> — database and authentication (<a href="https://supabase.com/privacy">privacy policy</a>)</li>
-    <li><strong>Vercel</strong> — hosting (<a href="https://vercel.com/legal/privacy-policy">privacy policy</a>)</li>
+    <li><strong>Free users:</strong> Summaries are retained for 7 days, then automatically deleted.</li>
+    <li><strong>Pro users:</strong> Summaries are retained for the duration of your subscription.</li>
+    <li><strong>Account data:</strong> Retained until you request deletion.</li>
+    <li><strong>Video transcripts:</strong> Not stored. Used only during real-time summary generation.</li>
   </ul>
 
-  <h2>Data Retention</h2>
+  <h2>8. Account Deletion</h2>
+  <p>You may request deletion of your account and all associated data at any time by emailing <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>. Upon receiving your request, we will:</p>
   <ul>
-    <li><strong>Free users:</strong> Summaries are retained for 7 days.</li>
-    <li><strong>Pro users:</strong> Summaries are retained indefinitely.</li>
-    <li>You can delete your data at any time by contacting us.</li>
+    <li>Delete your account and authentication records.</li>
+    <li>Delete all summaries and queue items.</li>
+    <li>Cancel any active subscription via Stripe.</li>
+    <li>Remove your data from our database within 30 days.</li>
   </ul>
+  <p>Some data may be retained in encrypted backups for up to 90 days before being permanently removed.</p>
 
-  <h2>Your Rights (GDPR)</h2>
-  <p>If you are in the European Economic Area, you have the right to:</p>
+  <h2>9. Data Security</h2>
+  <p>We use industry-standard security measures including:</p>
   <ul>
-    <li><strong>Access</strong> — request a copy of your personal data.</li>
-    <li><strong>Rectify</strong> — correct inaccurate data.</li>
-    <li><strong>Delete</strong> — request deletion of your data.</li>
-    <li><strong>Export</strong> — receive your data in a portable format.</li>
-    <li><strong>Object</strong> — object to data processing based on legitimate interest.</li>
+    <li>HTTPS encryption for all data in transit.</li>
+    <li>Encrypted database storage (Supabase with AES-256).</li>
+    <li>Short-lived authentication tokens stored in session-scoped browser storage.</li>
+    <li>Row-level security policies restricting data access to the owning user.</li>
   </ul>
-  <p>Our legal basis for processing: consent (when you sign up), contractual necessity (to provide the service), and legitimate interest (to improve the service).</p>
 
-  <h2>Data Security</h2>
-  <p>We use industry-standard measures including HTTPS encryption, secure token storage, and access controls. Authentication tokens are short-lived and stored in session-scoped browser storage.</p>
+  <h2>10. Data Location</h2>
+  <p>Your data is processed and stored on servers located in the United States. If you are located outside of the United States, your information is transferred to and processed in the US. By using Cliphy, you consent to this transfer.</p>
 
-  <h2>Children's Privacy</h2>
-  <p>Cliphy is not intended for use by children under 13. We do not knowingly collect data from children.</p>
+  <h2>11. Your Rights</h2>
+  <p>Regardless of where you are located, you have the right to:</p>
+  <ul>
+    <li><strong>Access</strong> — request a copy of the personal data we hold about you.</li>
+    <li><strong>Correction</strong> — request correction of inaccurate data.</li>
+    <li><strong>Deletion</strong> — request deletion of your personal data.</li>
+    <li><strong>Portability</strong> — receive your data in a machine-readable format.</li>
+    <li><strong>Objection</strong> — object to processing based on legitimate interest.</li>
+  </ul>
+  <p>To exercise any of these rights, email <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>. We will respond within 30 days.</p>
 
-  <h2>Changes to This Policy</h2>
-  <p>We may update this policy from time to time. We will notify you of significant changes via the extension or email.</p>
+  <h3>For European users (GDPR)</h3>
+  <p>Our legal bases for processing your data are: consent (when you sign up and authorize access), contractual necessity (to provide the service you requested), and legitimate interest (to improve the service). You have the right to lodge a complaint with your local data protection authority.</p>
 
-  <h2>Contact</h2>
-  <p>For privacy-related questions or data requests, email us at <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>.</p>
+  <h3>For California users (CCPA)</h3>
+  <p>Under the California Consumer Privacy Act, you have the right to know what personal information we collect, request its deletion, and opt out of its sale. We do not sell personal information. To make a request, email <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>.</p>
+
+  <h2>12. Children's Privacy</h2>
+  <p>Cliphy is not intended for use by children under 13 (or 16 in the EEA). We do not knowingly collect data from children. If you believe a child has provided us with personal data, please contact us and we will delete it.</p>
+
+  <h2>13. Changes to This Policy</h2>
+  <p>We may update this policy from time to time. If we make material changes, we will notify you via the extension or by email. Continued use of Cliphy after changes constitutes acceptance of the updated policy.</p>
+
+  <h2>14. Contact</h2>
+  <p>For privacy-related questions or data requests:</p>
+  <p><a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a></p>
 
   <div class="footer">
     <p>&copy; 2026 Cliphy. All rights reserved.</p>

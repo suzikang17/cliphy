@@ -1,18 +1,134 @@
 import { Hono } from "hono";
+import { html } from "hono/html";
 import type Stripe from "stripe";
-import { stripe } from "../services/stripe.js";
+import type { AppEnv } from "../env.js";
 import { supabase } from "../lib/supabase.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { createCheckoutSession, createPortalSession, stripe } from "../services/stripe.js";
 
-export const billingRoutes = new Hono();
+export const billingRoutes = new Hono<AppEnv>();
 
-billingRoutes.post("/checkout", async (c) => {
-  // TODO: Create Stripe checkout session
-  return c.json({ url: "" });
+// ── Authenticated routes ────────────────────────────────────
+
+billingRoutes.post("/checkout", authMiddleware, async (c) => {
+  const userId = c.get("userId");
+  const userEmail = c.get("userEmail");
+
+  // Look up existing Stripe customer
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("stripe_customer_id")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    return c.json({ error: "Failed to look up user" }, 500);
+  }
+
+  let customerId = user.stripe_customer_id as string | null;
+
+  // Create Stripe customer if none exists
+  if (!customerId) {
+    const customer = await stripe.customers.create({ email: userEmail, metadata: { userId } });
+    customerId = customer.id;
+    await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", userId);
+  }
+
+  const url = await createCheckoutSession(customerId, userId);
+  return c.json({ url });
 });
 
-billingRoutes.post("/portal", async (c) => {
-  // TODO: Create Stripe billing portal session
-  return c.json({ url: "" });
+billingRoutes.post("/portal", authMiddleware, async (c) => {
+  const userId = c.get("userId");
+
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("stripe_customer_id")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    return c.json({ error: "Failed to look up user" }, 500);
+  }
+
+  if (!user.stripe_customer_id) {
+    return c.json({ error: "No subscription to manage" }, 400);
+  }
+
+  const url = await createPortalSession(user.stripe_customer_id as string);
+  return c.json({ url });
+});
+
+// ── Success / Cancel pages ──────────────────────────────────
+
+billingRoutes.get("/success", (c) => {
+  return c.html(
+    html`<!doctype html>
+      <html>
+        <head>
+          <title>Cliphy Pro</title>
+          <style>
+            body {
+              font-family: system-ui, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: #f8f9fa;
+            }
+            .card {
+              text-align: center;
+              padding: 3rem;
+              background: white;
+              border-radius: 12px;
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>You're on Pro!</h1>
+            <p>You can close this tab.</p>
+          </div>
+        </body>
+      </html>`,
+  );
+});
+
+billingRoutes.get("/cancel", (c) => {
+  return c.html(
+    html`<!doctype html>
+      <html>
+        <head>
+          <title>Cliphy</title>
+          <style>
+            body {
+              font-family: system-ui, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: #f8f9fa;
+            }
+            .card {
+              text-align: center;
+              padding: 3rem;
+              background: white;
+              border-radius: 12px;
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Checkout cancelled</h1>
+            <p>You can close this tab.</p>
+          </div>
+        </body>
+      </html>`,
+  );
 });
 
 // ── Webhook helpers ──────────────────────────────────────────
