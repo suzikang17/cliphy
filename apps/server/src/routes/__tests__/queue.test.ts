@@ -290,7 +290,7 @@ describe("Queue", () => {
 
     it("returns 402 with upgrade URL for non-pro users", async () => {
       const userChain = mockChain({
-        data: { plan: "free", daily_summary_count: 0, daily_count_reset_at: "2026-02-20" },
+        data: { plan: "free", monthly_summary_count: 0, monthly_count_reset_at: "2026-02-20" },
       });
 
       supabaseMock = {

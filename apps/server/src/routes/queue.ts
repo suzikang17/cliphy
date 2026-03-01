@@ -126,7 +126,7 @@ queueRoutes.post("/", async (c) => {
   const plan = (user?.plan as "free" | "pro") ?? "free";
   const limit = PLAN_LIMITS[plan];
 
-  const { data: allowed } = await supabase.rpc("increment_daily_count", {
+  const { data: allowed } = await supabase.rpc("increment_monthly_count", {
     p_user_id: userId,
     p_limit: limit,
   });
@@ -134,7 +134,7 @@ queueRoutes.post("/", async (c) => {
   if (!allowed) {
     return c.json(
       {
-        error: "Daily summary limit reached",
+        error: "Monthly summary limit reached",
         code: "RATE_LIMITED",
         limit,
         plan,
@@ -207,7 +207,7 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   // Fetch user data for rate limiting (plan already verified by requirePro)
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("plan, daily_summary_count, daily_count_reset_at")
+    .select("plan, monthly_summary_count, monthly_count_reset_at")
     .eq("id", userId)
     .single();
 
@@ -259,15 +259,19 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
 
   // Rate limit check — calculate remaining capacity and cap the batch
   const limit = PLAN_LIMITS.pro;
-  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  const monthStartStr = monthStart.toISOString().slice(0, 10);
   const currentUsed =
-    (user.daily_count_reset_at as string) < today ? 0 : (user.daily_summary_count as number);
+    (user.monthly_count_reset_at as string) < monthStartStr
+      ? 0
+      : (user.monthly_summary_count as number);
   const remaining = limit - currentUsed;
 
   if (remaining <= 0) {
     return c.json(
       {
-        error: "Daily summary limit reached",
+        error: "Monthly summary limit reached",
         code: "RATE_LIMITED",
         limit,
         plan: "pro",
@@ -284,8 +288,8 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   await supabase
     .from("users")
     .update({
-      daily_summary_count: currentUsed + cappedInsert.length,
-      daily_count_reset_at: today,
+      monthly_summary_count: currentUsed + cappedInsert.length,
+      monthly_count_reset_at: new Date().toISOString().slice(0, 10),
     })
     .eq("id", userId);
 
