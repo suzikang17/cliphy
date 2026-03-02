@@ -220,7 +220,11 @@ export function App() {
     if (response?.success) {
       await init();
     } else {
-      setError(response?.error ?? "Sign in failed");
+      const msg = response?.error ?? "Sign in failed";
+      const cancelled = /cancelled|canceled|not approve/i.test(msg);
+      setError(
+        cancelled ? "Sign in unsuccessful. Please try again with your Google account." : msg,
+      );
       setLoading(false);
     }
   }
