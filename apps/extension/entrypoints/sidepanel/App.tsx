@@ -13,6 +13,7 @@ import { UpgradePrompt } from "../../components/UpgradePrompt";
 import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
 import {
+  AuthError,
   deleteQueueItem,
   deleteSummary,
   getQueue,
@@ -186,6 +187,7 @@ export function App() {
         setView("detail");
       }
     } catch (err) {
+      if (err instanceof Error && err.message === "SESSION_EXPIRED") return;
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
@@ -193,8 +195,19 @@ export function App() {
   }
 
   async function fetchUser() {
-    const data = await getUser();
-    setUser({ email: data.user.email, plan: data.user.plan });
+    try {
+      const data = await getUser();
+      setUser({ email: data.user.email, plan: data.user.plan });
+    } catch (err) {
+      if (err instanceof AuthError) {
+        // Truly expired session — clear and treat as unauthenticated
+        await browser.runtime.sendMessage({ type: "SIGN_OUT" });
+        setUser(null);
+        throw new Error("SESSION_EXPIRED", { cause: err });
+      }
+      // Network/server errors — don't sign out, let UI show the error
+      throw err;
+    }
   }
 
   async function handleSignIn() {

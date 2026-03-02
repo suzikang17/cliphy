@@ -7,9 +7,20 @@ import type {
   Summary,
   ProRequiredResponse,
 } from "@cliphy/shared";
-import { getAccessToken, refreshAccessToken } from "./auth";
+import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
+
+/**
+ * Thrown when the server returns 401 after a refresh attempt has already been tried.
+ * Indicates the session is truly expired and the user should re-authenticate.
+ */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
 
 /**
  * Custom error for 402 Pro Required responses.
@@ -29,7 +40,12 @@ export class ProRequiredError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getAccessToken();
+  let token = await getAccessToken();
+
+  // Proactively refresh if token is expired or about to expire
+  if (token && isTokenExpired(token)) {
+    token = await refreshAccessToken();
+  }
 
   const doFetch = async (authToken: string | null) => {
     const res = await fetch(`${API_URL}${path}`, {
@@ -45,7 +61,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   let res = await doFetch(token);
 
-  // If 401, try refreshing the token once
+  // If 401 despite proactive check, try refreshing once more
   if (res.status === 401 && token) {
     const newToken = await refreshAccessToken();
     if (newToken) {
@@ -55,6 +71,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+
+    // 401 after refresh attempt — session is truly expired
+    if (res.status === 401) {
+      throw new AuthError(body.error || "Session expired");
+    }
 
     // 402: Pro feature required — throw specialized error
     if (res.status === 402 && body.code === "pro_required") {

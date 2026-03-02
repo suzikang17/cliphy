@@ -79,27 +79,31 @@ export default defineBackground(() => {
           return false; // No async response needed
 
         case "ADD_TO_QUEUE": {
-          const authed = isAuthenticated();
-          if (!authed) {
-            sendResponse({ success: false, error: "Not authenticated" });
-            return true;
-          }
+          (async () => {
+            const authed = await isAuthenticated();
+            if (!authed) {
+              sendResponse({ success: false, error: "Not authenticated" });
+              return;
+            }
 
-          console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
+            console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
 
-          addToQueue({
-            videoUrl: msg.videoUrl,
-            videoTitle: msg.videoTitle,
-            videoChannel: msg.videoChannel,
-            videoDurationSeconds: msg.videoDurationSeconds,
-          })
-            .then((result) => {
+            try {
+              const result = await addToQueue({
+                videoUrl: msg.videoUrl,
+                videoTitle: msg.videoTitle,
+                videoChannel: msg.videoChannel,
+                videoDurationSeconds: msg.videoDurationSeconds,
+              });
               sendResponse({ success: true, summary: result.summary });
-            })
-            .catch((err: Error) => {
+            } catch (err) {
               console.error("[Cliphy] addToQueue failed:", err);
-              sendResponse({ success: false, error: err.message });
-            });
+              sendResponse({
+                success: false,
+                error: err instanceof Error ? err.message : "Unknown error",
+              });
+            }
+          })();
           return true;
         }
 

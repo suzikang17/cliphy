@@ -143,7 +143,7 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 
 ### Privacy Policy URL
 
-`https://cliphy.app/api/privacy` (or `https://cliphy.app/privacy` once the rewrite is working)
+`https://cliphy.vercel.app/privacy`
 
 ---
 

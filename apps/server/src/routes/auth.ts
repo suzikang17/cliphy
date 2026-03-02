@@ -10,7 +10,7 @@ authRoutes.get("/me", authMiddleware, async (c) => {
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("id, email, plan, daily_summary_count, daily_count_reset_at, created_at")
+    .select("id, email, plan, monthly_summary_count, monthly_count_reset_at, created_at")
     .eq("id", userId)
     .single();
 
