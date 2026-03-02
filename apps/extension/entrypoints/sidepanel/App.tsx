@@ -188,7 +188,8 @@ export function App() {
       }
     } catch (err) {
       if (err instanceof Error && err.message === "SESSION_EXPIRED") return;
-      setError(err instanceof Error ? err.message : "Failed to load");
+      console.error("[Cliphy] init failed:", err);
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -221,9 +222,12 @@ export function App() {
       await init();
     } else {
       const msg = response?.error ?? "Sign in failed";
+      console.error("[Cliphy] sign-in failed:", msg);
       const cancelled = /cancelled|canceled|not approve/i.test(msg);
       setError(
-        cancelled ? "Sign in unsuccessful. Please try again with your Google account." : msg,
+        cancelled
+          ? "Sign in unsuccessful. Please try again with your Google account."
+          : "Something went wrong. Please try again.",
       );
       setLoading(false);
     }
@@ -291,16 +295,18 @@ export function App() {
         setAddStatus("idle");
         setUpgradePrompt(response.error ?? "This feature requires Pro");
       } else {
+        console.error("[Cliphy] add-to-queue failed:", response?.error);
         setAddStatus("error");
-        setAddError(response?.error ?? "Failed to add to queue");
+        setAddError("Unable to add video. Please try again.");
       }
     } catch (err) {
       if (err instanceof ProRequiredError) {
         setAddStatus("idle");
         setUpgradePrompt(err.message);
       } else {
+        console.error("[Cliphy] add-to-queue error:", err);
         setAddStatus("error");
-        setAddError(err instanceof Error ? err.message : "Failed to add to queue");
+        setAddError("Unable to add video. Please try again.");
       }
     } finally {
       setIsAdding(false);
