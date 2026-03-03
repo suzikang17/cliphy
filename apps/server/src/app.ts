@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { serve } from "inngest/hono";
@@ -52,6 +53,10 @@ app.route("/billing", billingRoutes);
 app.route("/privacy", privacyRoutes);
 
 app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return err.getResponse();
+  }
+  console.error(err);
   Sentry.captureException(err);
   return c.json({ error: "Internal server error" }, 500);
 });
