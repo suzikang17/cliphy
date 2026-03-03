@@ -63,7 +63,9 @@ export default defineBackground(() => {
     try {
       await addToQueue({ videoUrl: url });
     } catch (err) {
-      sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
+      if (!(err instanceof RateLimitError) && !(err instanceof ProRequiredError)) {
+        sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
+      }
       console.error("[Cliphy] Context menu queue failed:", err);
     }
   });
