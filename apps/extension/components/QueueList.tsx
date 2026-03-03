@@ -36,7 +36,7 @@ export function QueueList({
     return (
       <div className="text-center py-4">
         <p className="text-sm font-bold">No videos queued yet.</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-(--color-text-faint) mt-1">
           Visit a YouTube video and click &quot;Add to Queue&quot;
         </p>
       </div>
@@ -56,7 +56,7 @@ export function QueueList({
           <li
             key={s.id}
             onClick={isClickable ? () => onViewSummary(s.id) : undefined}
-            className={`flex items-start gap-2 bg-white border-2 border-black rounded-lg px-3 py-2 shadow-brutal-sm ${
+            className={`flex items-start gap-2 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg px-3 py-2 shadow-brutal-sm ${
               isClickable ? "cursor-pointer hover:shadow-brutal-pressed press-down" : ""
             }`}
           >
@@ -64,7 +64,7 @@ export function QueueList({
               <img
                 src={`https://i.ytimg.com/vi/${s.videoId}/default.jpg`}
                 alt=""
-                className={`w-[88px] h-[50px] rounded border border-gray-300 object-cover ${isProcessing ? "brightness-50" : ""}`}
+                className={`w-[88px] h-[50px] rounded border border-(--color-border-muted) object-cover ${isProcessing ? "brightness-50" : ""}`}
               />
               {isProcessing && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -76,7 +76,7 @@ export function QueueList({
               <p className="text-sm font-bold leading-snug line-clamp-2">
                 {s.videoTitle ?? s.videoId}
               </p>
-              <div className="flex items-center gap-1.5 text-[10px] text-gray-400 truncate">
+              <div className="flex items-center gap-1.5 text-[10px] text-(--color-text-faint) truncate">
                 {s.videoChannel && <span>{s.videoChannel}</span>}
                 {s.videoChannel && s.videoDurationSeconds != null && s.videoDurationSeconds > 0 && (
                   <span>&middot;</span>
@@ -96,7 +96,7 @@ export function QueueList({
                     e.stopPropagation();
                     onRetry(s.id);
                   }}
-                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 p-0 cursor-pointer transition-colors mt-0.5"
+                  className="text-[10px] font-bold text-neon-600 hover:text-neon-800 bg-transparent border-0 p-0 cursor-pointer transition-colors mt-0.5"
                 >
                   Retry
                 </button>
@@ -109,20 +109,22 @@ export function QueueList({
                   e.stopPropagation();
                   onRemove(s.id);
                 }}
-                className="w-5 h-5 flex items-center justify-center text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent border-0 p-0 cursor-pointer transition-colors"
+                className="w-5 h-5 flex items-center justify-center text-(--color-text-faint) hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed bg-transparent border-0 p-0 cursor-pointer transition-colors"
                 aria-label="Remove"
               >
                 <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 10 10"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <line x1="1" y1="1" x2="9" y2="9" />
-                  <line x1="9" y1="1" x2="1" y2="9" />
+                  <polyline points="21 8 21 21 3 21 3 8" />
+                  <rect x="1" y="3" width="22" height="5" />
+                  <line x1="10" y1="12" x2="14" y2="12" />
                 </svg>
               </button>
               {isClickable && (
@@ -141,7 +143,7 @@ export function QueueList({
                 </svg>
               )}
               {isProcessing && (
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-neon-200 border-t-neon-600 animate-spin" />
               )}
               {isFailed && (
                 <svg
@@ -167,7 +169,7 @@ export function QueueList({
         <li>
           <button
             onClick={() => setPage((p) => p + 1)}
-            className="w-full text-xs font-bold text-indigo-600 hover:text-indigo-800 py-1.5 cursor-pointer bg-transparent border-0 transition-colors text-center"
+            className="w-full text-xs font-bold text-neon-600 hover:text-neon-800 py-1.5 cursor-pointer bg-transparent border-0 transition-colors text-center"
           >
             Show more ({summaries.length - visible.length} remaining)
           </button>
@@ -177,7 +179,7 @@ export function QueueList({
         <li>
           <button
             onClick={onViewAll}
-            className="w-full text-xs font-bold text-gray-400 hover:text-black py-1.5 cursor-pointer bg-transparent border-0 transition-colors text-center"
+            className="w-full text-xs font-bold text-(--color-text-faint) hover:text-(--color-text) py-1.5 cursor-pointer bg-transparent border-0 transition-colors text-center"
           >
             View all &rarr;
           </button>

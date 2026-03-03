@@ -8,6 +8,7 @@ import { UsageBar } from "../../components/UsageBar";
 import { VideoCard } from "../../components/VideoCard";
 import {
   AuthError,
+  createPortal,
   deleteQueueItem,
   deleteSummary,
   getQueue,
@@ -113,6 +114,22 @@ export function App() {
       stopRealtimeSubscription();
       realtimeStarted.current = false;
     };
+  }, [user]);
+
+  async function handleUpgraded() {
+    await fetchUser().catch(() => {});
+    const res = await getUsage().catch(() => null);
+    if (res) setUsage(res.usage);
+  }
+
+  // Re-fetch user + usage when sidepanel becomes visible
+  useEffect(() => {
+    if (!user) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") handleUpgraded();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [user]);
 
   // Listen for VIDEO_DETECTED from content script (has metadata after DOM loads)
@@ -368,29 +385,34 @@ export function App() {
 
   // Sticky top bar (shared across all views)
   const topBar = (
-    <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 shrink-0 flex items-center justify-between">
+    <div className="sticky top-0 z-10 bg-(--color-surface) border-b border-(--color-border-soft) px-4 py-3 shrink-0 flex items-center justify-between">
       <div className="flex items-center gap-2">
         {view === "detail" && (
           <button
             onClick={handleBack}
-            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+            className="text-sm font-bold text-neon-600 hover:text-neon-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
           >
             &larr;
           </button>
         )}
         <h1 className="text-lg font-extrabold m-0 flex items-center gap-1.5">
-          <span className="text-indigo-500">&#9654;</span>
+          <span className="text-neon-500">&#9654;</span>
           Cliphy
         </h1>
       </div>
-      {view === "detail" && selectedSummary && (
-        <button
-          onClick={() => handlePopOut(selectedSummary.id)}
-          className="text-xs text-gray-400 hover:text-black bg-transparent border-0 cursor-pointer p-0 transition-colors"
-        >
-          Pop out &#x2197;
-        </button>
-      )}
+      <button
+        onClick={() => {
+          if (view === "detail" && selectedSummary) {
+            handlePopOut(selectedSummary.id);
+          } else {
+            const url = browser.runtime.getURL("/summaries.html");
+            browser.tabs.create({ url });
+          }
+        }}
+        className="text-xs text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer p-0 transition-colors"
+      >
+        Pop out &#x2197;
+      </button>
     </div>
   );
 
@@ -401,9 +423,9 @@ export function App() {
         {topBar}
         <div className="flex-1 flex items-center justify-center">
           <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.2s]" />
-            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.4s]" />
+            <div className="w-2 h-2 rounded-full bg-neon-600 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-neon-600 animate-pulse [animation-delay:0.2s]" />
+            <div className="w-2 h-2 rounded-full bg-neon-600 animate-pulse [animation-delay:0.4s]" />
           </div>
         </div>
       </div>
@@ -416,12 +438,12 @@ export function App() {
       <div className="flex flex-col h-screen">
         {topBar}
         <div className="p-4">
-          <p className="text-gray-600 mt-2 text-sm">
+          <p className="text-(--color-text-secondary) mt-2 text-sm">
             Queue YouTube videos and get AI-powered summaries.
           </p>
           <button
             onClick={handleSignIn}
-            className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
+            className="mt-4 px-5 py-2.5 text-sm bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
           >
             Sign in with Google
           </button>
@@ -437,7 +459,7 @@ export function App() {
       <div className="flex flex-col h-screen">
         {topBar}
         <div className="p-4">
-          <div className="bg-red-50 border-2 border-black rounded-lg p-3">
+          <div className="bg-(--color-error-surface) border-2 border-(--color-border-hard) rounded-lg p-3">
             <p className="text-sm text-red-700 font-bold m-0">{error}</p>
             <button
               onClick={() => {
@@ -445,7 +467,7 @@ export function App() {
                 setLoading(true);
                 init();
               }}
-              className="mt-2 text-xs font-bold px-3 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer"
+              className="mt-2 text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer"
             >
               Retry
             </button>
@@ -488,7 +510,7 @@ export function App() {
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-indigo-500 shrink-0"
+              className="text-neon-500 shrink-0"
             >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
@@ -518,14 +540,22 @@ export function App() {
 
         {upgradePrompt && (
           <div className="mb-3">
-            <UpgradePrompt message={upgradePrompt} onDismiss={() => setUpgradePrompt(null)} />
+            <UpgradePrompt
+              message={upgradePrompt}
+              onDismiss={() => setUpgradePrompt(null)}
+              onUpgraded={handleUpgraded}
+            />
           </div>
         )}
 
         <div className="flex items-center gap-1.5 mb-2">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 m-0">Queue</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wide text-(--color-text-muted) m-0">
+            Queue
+          </h2>
           {user.plan === "free" && (
-            <span className="text-[9px] text-gray-400">(last {FREE_HISTORY_DAYS} days)</span>
+            <span className="text-[9px] text-(--color-text-faint)">
+              (last {FREE_HISTORY_DAYS} days)
+            </span>
           )}
         </div>
       </div>
@@ -543,24 +573,34 @@ export function App() {
         />
       </div>
 
-      <div className="shrink-0 p-4 pt-3 border-t border-gray-200">
+      <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
         {usage && (
           <div className="mb-3">
-            <UsageBar usage={usage} />
+            <UsageBar usage={usage} onUpgraded={handleUpgraded} />
           </div>
         )}
-        <div className="flex items-center justify-between text-xs text-gray-400">
+        <div className="flex items-center justify-between text-xs text-(--color-text-faint)">
           <div className="flex items-center gap-1.5 min-w-0">
             {user.plan === "pro" && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0">
-                Pro
-              </span>
+              <button
+                onClick={async () => {
+                  try {
+                    const { url } = await createPortal();
+                    await browser.tabs.create({ url });
+                  } catch {
+                    // silently fail
+                  }
+                }}
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0 border-0 cursor-pointer hover:bg-indigo-200 transition-colors"
+              >
+                Pro &#x2197;
+              </button>
             )}
             <span className="truncate">{user.email}</span>
           </div>
           <button
             onClick={handleSignOut}
-            className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors shrink-0 ml-2"
+            className="bg-transparent border-0 p-0 text-xs text-(--color-text-faint) hover:text-(--color-text) cursor-pointer transition-colors shrink-0 ml-2"
           >
             Sign out
           </button>

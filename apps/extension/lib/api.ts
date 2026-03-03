@@ -145,3 +145,9 @@ export async function createCheckout() {
     method: "POST",
   });
 }
+
+export async function createPortal() {
+  return request<{ url: string }>(API_ROUTES.BILLING.PORTAL, {
+    method: "POST",
+  });
+}

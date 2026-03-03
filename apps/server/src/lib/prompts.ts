@@ -7,7 +7,7 @@ Always respond with valid JSON matching this exact schema:
   "summary": "string (MAX 2 sentences. Brief TL;DR only. Must be under 50 words.)",
   "keyPoints": ["string (5-10 key takeaways as bullet points)"],
   "actionItems": ["string (Only if the video is instructional/how-to. 3-5 specific, practical things the viewer should do. Empty array [] for entertainment, commentary, news, documentaries, etc.)"],
-  "timestamps": ["string (topic changes in format 'M:SS - Topic description'. Use exact times from the transcript, to the second — do NOT round to the nearest 15s or 30s.)"]
+  "timestamps": ["string (topic changes in format 'M:SS - Topic description'. The transcript includes [M:SS] markers — use those exact times. Do NOT round or estimate.)"]
 }
 
 Respond ONLY with the JSON object. No markdown, no code fences, no extra text.`;

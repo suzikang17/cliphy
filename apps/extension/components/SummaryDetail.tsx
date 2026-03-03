@@ -103,8 +103,8 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
     const el = document.getElementById(id);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
-    el.classList.add("ring-2", "ring-indigo-400", "ring-offset-2");
-    setTimeout(() => el.classList.remove("ring-2", "ring-indigo-400", "ring-offset-2"), 800);
+    el.classList.add("ring-2", "ring-neon-400", "ring-offset-2");
+    setTimeout(() => el.classList.remove("ring-2", "ring-neon-400", "ring-offset-2"), 800);
   }
 
   async function handleCopy(format: "markdown" | "text") {
@@ -125,13 +125,13 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
         <img
           src={`https://i.ytimg.com/vi/${summary.videoId}/mqdefault.jpg`}
           alt=""
-          className="w-24 h-auto rounded-lg border-2 border-black object-cover shrink-0"
+          className="w-24 h-auto rounded-lg border-2 border-(--color-border-hard) object-cover shrink-0"
         />
         <div className="min-w-0">
           <h2 className="text-base font-extrabold leading-snug m-0">
             {summary.videoTitle || summary.videoId}
           </h2>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
+          <div className="flex items-center gap-1.5 text-xs text-(--color-text-muted) mt-1">
             {summary.videoChannel && <span>{summary.videoChannel}</span>}
             {summary.videoChannel && summary.videoDurationSeconds && <span>&middot;</span>}
             {summary.videoDurationSeconds != null && summary.videoDurationSeconds > 0 && (
@@ -142,7 +142,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
       </div>
 
       {!json ? (
-        <p className="text-gray-500 text-sm">No summary data available.</p>
+        <p className="text-(--color-text-muted) text-sm">No summary data available.</p>
       ) : (
         <>
           {/* Inline TOC */}
@@ -150,7 +150,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
             <a
               href="#tldr"
               onClick={(e) => scrollToSection(e, "tldr")}
-              className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 no-underline hover:bg-indigo-100 transition-colors"
+              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-accent-surface) text-neon-600 no-underline hover:bg-neon-100 dark:hover:bg-neon-900 transition-colors"
             >
               TLDR
             </a>
@@ -158,7 +158,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
               <a
                 href="#key-takeaways"
                 onClick={(e) => scrollToSection(e, "key-takeaways")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 no-underline hover:bg-gray-200 transition-colors"
+                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
               >
                 Key Takeaways
               </a>
@@ -167,7 +167,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
               <a
                 href="#action-items"
                 onClick={(e) => scrollToSection(e, "action-items")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 no-underline hover:bg-gray-200 transition-colors"
+                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
               >
                 Action Items
               </a>
@@ -176,7 +176,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
               <a
                 href="#timestamps"
                 onClick={(e) => scrollToSection(e, "timestamps")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 no-underline hover:bg-gray-200 transition-colors"
+                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
               >
                 Timestamps
               </a>
@@ -184,23 +184,26 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
           </div>
 
           {/* Summary / TL;DR */}
-          <div id="tldr" className="bg-indigo-50 rounded-lg p-3 mb-4 transition-all duration-300">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-600 m-0 mb-1.5">
+          <div
+            id="tldr"
+            className="bg-(--color-accent-surface) rounded-lg p-3 mb-4 transition-all duration-300"
+          >
+            <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0 mb-1.5">
               TLDR
             </h3>
-            <p className="text-sm text-gray-800 leading-relaxed m-0">{json.summary}</p>
+            <p className="text-sm text-(--color-text-body) leading-relaxed m-0">{json.summary}</p>
           </div>
 
           {/* Key Points */}
           {json.keyPoints.length > 0 && (
             <div id="key-takeaways" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 inline-block px-2 py-0.5 rounded m-0 mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
                 Key Takeaways
               </h3>
               <ul className="list-none p-0 m-0 space-y-1.5">
                 {json.keyPoints.map((point, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-gray-800">
-                    <span className="text-indigo-500 font-bold shrink-0">•</span>
+                  <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                    <span className="text-neon-500 font-bold shrink-0">•</span>
                     <span>{point}</span>
                   </li>
                 ))}
@@ -211,12 +214,12 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
           {/* Action Items */}
           {json.actionItems?.length > 0 && (
             <div id="action-items" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 inline-block px-2 py-0.5 rounded m-0 mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
                 Action Items
               </h3>
               <ul className="list-none p-0 m-0 space-y-1.5">
                 {json.actionItems.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-gray-800">
+                  <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
                     <span className="text-green-600 font-bold shrink-0">→</span>
                     <span>{item}</span>
                   </li>
@@ -228,7 +231,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
           {/* Timestamps */}
           {json.timestamps.length > 0 && (
             <div id="timestamps" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 inline-block px-2 py-0.5 rounded m-0 mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
                 Timestamps
               </h3>
               <ul className="list-none p-0 m-0 space-y-1">
@@ -240,7 +243,7 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
                         {onSeek ? (
                           <button
                             onClick={() => onSeek(parsed.seconds)}
-                            className="w-10 text-right text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer p-0 font-mono text-xs font-bold shrink-0 transition-colors"
+                            className="w-14 text-right text-neon-600 hover:text-neon-800 bg-transparent border-0 cursor-pointer p-0 font-mono text-xs font-bold shrink-0 transition-colors"
                           >
                             {parsed.time}
                           </button>
@@ -249,17 +252,17 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
                             href={`https://youtube.com/watch?v=${summary.videoId}&t=${parsed.seconds}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-10 text-right text-indigo-600 hover:text-indigo-800 font-mono text-xs font-bold shrink-0 no-underline transition-colors inline-block"
+                            className="w-14 text-right text-neon-600 hover:text-neon-800 font-mono text-xs font-bold shrink-0 no-underline transition-colors inline-block"
                           >
                             {parsed.time}
                           </a>
                         )}
-                        <span className="text-gray-700">{parsed.label}</span>
+                        <span className="text-(--color-text-body)">{parsed.label}</span>
                       </li>
                     );
                   }
                   return (
-                    <li key={i} className="text-sm text-gray-800">
+                    <li key={i} className="text-sm text-(--color-text-body)">
                       {ts}
                     </li>
                   );
@@ -269,23 +272,23 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
           )}
 
           {/* Export buttons */}
-          <div className="flex gap-2 pt-2 border-t border-gray-200">
+          <div className="flex gap-2 pt-2 border-t border-(--color-border-soft)">
             <button
               onClick={() => handleCopy("markdown")}
-              className="text-xs font-bold px-3 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
+              className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
             >
               {copied === "markdown" ? "Copied!" : "Copy Markdown"}
             </button>
             <button
               onClick={() => handleCopy("text")}
-              className="text-xs font-bold px-3 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
+              className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
             >
               {copied === "text" ? "Copied!" : "Copy Text"}
             </button>
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="ml-auto text-xs px-2 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all text-gray-400 hover:text-red-500"
+                className="ml-auto text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-red-500"
                 title="Dismiss summary"
               >
                 <svg

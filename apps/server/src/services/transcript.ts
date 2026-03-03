@@ -96,8 +96,25 @@ function pickTrack(tracks: CaptionTrack[]): CaptionTrack {
   return tracks.find((t) => t.languageCode === "en") ?? tracks[0];
 }
 
+interface TimedSegment {
+  timeMs: number;
+  text: string;
+}
+
+/** Format milliseconds as M:SS or H:MM:SS. */
+function formatTimestamp(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 /** Fetch and parse timedtext XML (srv3 format: <p> tags with <s> children). */
-async function fetchTimedText(track: CaptionTrack): Promise<string[]> {
+async function fetchTimedText(track: CaptionTrack): Promise<TimedSegment[]> {
   const url = `${track.baseUrl}&fmt=srv1`;
   const res = await fetchViaProxy(url);
 
@@ -110,20 +127,21 @@ async function fetchTimedText(track: CaptionTrack): Promise<string[]> {
   // YouTube returns srv3 regardless of fmt param.
   // srv3 format: <p t="ms" d="ms"><s>text</s><s>text</s></p>
   // Also handle srv1 format: <text start="s" dur="s">text</text>
-  const segments: string[] = [];
+  const segments: TimedSegment[] = [];
 
   // Try srv3 format first (<p> with <s> children)
   const pTags = xml.match(/<p [^>]*>[\s\S]*?<\/p>/g);
   if (pTags) {
     for (const p of pTags) {
+      const timeMatch = p.match(/t="(\d+)"/);
+      const timeMs = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const sTags = p.match(/<s[^>]*>([\s\S]*?)<\/s>/g);
       if (sTags) {
         const text = sTags.map((s) => s.replace(/<\/?s[^>]*>/g, "")).join("");
-        if (text.trim()) segments.push(text.trim());
+        if (text.trim()) segments.push({ timeMs, text: text.trim() });
       } else {
-        // <p> without <s> children — text is directly inside
         const inner = p.replace(/<\/?p[^>]*>/g, "").trim();
-        if (inner) segments.push(inner);
+        if (inner) segments.push({ timeMs, text: inner });
       }
     }
   }
@@ -133,8 +151,10 @@ async function fetchTimedText(track: CaptionTrack): Promise<string[]> {
     const textTags = xml.match(/<text[^>]*>([\s\S]*?)<\/text>/g);
     if (textTags) {
       for (const tag of textTags) {
+        const startMatch = tag.match(/start="([\d.]+)"/);
+        const timeMs = startMatch ? Math.floor(parseFloat(startMatch[1]) * 1000) : 0;
         const inner = tag.replace(/<\/?text[^>]*>/g, "").trim();
-        if (inner) segments.push(inner);
+        if (inner) segments.push({ timeMs, text: inner });
       }
     }
   }
@@ -176,12 +196,24 @@ export async function fetchTranscript(videoId: string): Promise<string> {
   const track = pickTrack(tracks);
   const segments = await fetchTimedText(track);
 
-  let transcript = segments
-    .map((s) => decodeHtmlEntities(s).replace(NON_SPEECH_PATTERN, "").trim())
-    .filter((text) => text.length > 0)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Group segments into ~30s chunks to add periodic timestamps without bloating the text
+  const CHUNK_INTERVAL_MS = 30_000;
+  const lines: string[] = [];
+  let lastTimestamp = -CHUNK_INTERVAL_MS; // force first timestamp
+
+  for (const seg of segments) {
+    const text = decodeHtmlEntities(seg.text).replace(NON_SPEECH_PATTERN, "").trim();
+    if (text.length === 0) continue;
+
+    if (seg.timeMs - lastTimestamp >= CHUNK_INTERVAL_MS) {
+      lines.push(`\n[${formatTimestamp(seg.timeMs)}] ${text}`);
+      lastTimestamp = seg.timeMs;
+    } else {
+      lines.push(text);
+    }
+  }
+
+  let transcript = lines.join(" ").replace(/\s+/g, " ").trim();
 
   if (transcript.length === 0) {
     throw new TranscriptNotAvailableError("Transcript is empty after cleaning.");
