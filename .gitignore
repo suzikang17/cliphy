@@ -14,3 +14,7 @@ dist/
 api/
 allure-results/
 allure-report/
+
+# Promptfoo
+apps/server/eval/results/*.json
+apps/server/eval/output/

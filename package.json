@@ -13,7 +13,9 @@
     "test:unit": "vitest --exclude '**/smoke-test-*'",
     "test:smoke": "vitest run --reporter=verbose --reporter=./apps/server/scripts/github-summary-reporter.ts --reporter=allure-vitest/reporter apps/server/scripts/smoke-test-api.test.ts",
     "eval": "tsx apps/server/eval/run-eval.ts",
-    "eval:add": "tsx apps/server/eval/run-eval.ts --save --url"
+    "eval:add": "tsx apps/server/eval/run-eval.ts --save --url",
+    "eval:tune": "tsx apps/server/eval/tune.ts",
+    "eval:tune:view": "cd apps/server && npx promptfoo view"
   },
   "packageManager": "pnpm@10.11.1",
   "engines": {
