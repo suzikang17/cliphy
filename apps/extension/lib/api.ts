@@ -9,6 +9,7 @@ import type {
   ProRequiredResponse,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
+import { Sentry } from "./sentry";
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
 
@@ -100,6 +101,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (err instanceof TypeError) {
       throw new Error("You're offline. Check your connection and try again.", { cause: err });
     }
+    Sentry.captureException(err);
     throw err;
   }
 
@@ -132,6 +134,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     // 429: Rate limited — throw specialized error
     if (res.status === 429 && body.code === "RATE_LIMITED") {
       throw new RateLimitError(body as { error: string; limit: number; plan: string });
+    }
+
+    // Report 5xx and other unexpected status codes to Sentry
+    if (res.status >= 500) {
+      Sentry.captureException(new Error(body.error || `Request failed: ${res.status}`), {
+        extra: { status: res.status, path },
+      });
     }
 
     throw new Error(body.error || `Request failed: ${res.status}`);
