@@ -3,15 +3,15 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-(--color-surface-raised) ${className}`} />;
 }
 
-/** Skeleton for a summary card in a list. */
+/** Skeleton for a compact summary card in a list. */
 export function SummaryCardSkeleton() {
   return (
     <div className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm">
-      <div className="flex gap-3">
-        <Skeleton className="w-12 h-9 shrink-0 rounded border-2 border-(--color-border-soft)" />
+      <div className="flex items-start gap-3">
+        <Skeleton className="w-28 h-16 shrink-0 rounded border-2 border-(--color-border-soft)" />
         <div className="flex-1 space-y-2">
           <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="h-3 w-2/5" />
         </div>
       </div>
     </div>

@@ -51,6 +51,51 @@ export function parseDurationToSeconds(duration: string): number | null {
   return null;
 }
 
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** Format an ISO date string as a relative date: "Just now", "5m ago", "3h ago", "Yesterday", "Tue", "Mar 1". */
+export function relativeDate(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+
+  // Check if yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  // Within 7 days: day name
+  if (diffMs < 7 * 86400000) return DAY_NAMES[date.getDay()];
+
+  // Same year: "Mar 1"
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+  }
+
+  // Different year: "Mar 1, 2025"
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
 /** Format a duration in seconds to a human-readable string (e.g. "12m", "1h 23m", "45s"). */
 export function formatTimeSaved(totalSeconds: number): string {
   if (totalSeconds < 60) return `${totalSeconds}s`;
