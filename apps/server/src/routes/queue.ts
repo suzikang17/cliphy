@@ -5,7 +5,12 @@ import { requirePro } from "../middleware/require-pro.js";
 import { supabase } from "../lib/supabase.js";
 import { inngest } from "../lib/inngest.js";
 import { MAX_LENGTHS } from "../lib/validation.js";
-import { extractVideoId, PLAN_LIMITS, PRO_FEATURES } from "@cliphy/shared";
+import {
+  extractVideoId,
+  MAX_VIDEO_DURATION_SECONDS,
+  PLAN_LIMITS,
+  PRO_FEATURES,
+} from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -104,6 +109,12 @@ queueRoutes.post("/", async (c) => {
   }
   if (body.videoChannel && body.videoChannel.length > MAX_LENGTHS.videoChannel) {
     return c.json({ error: `videoChannel exceeds ${MAX_LENGTHS.videoChannel} characters` }, 400);
+  }
+  if (body.videoDurationSeconds && body.videoDurationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+    return c.json(
+      { error: "Video is too long (max 3 hours). Try a shorter video.", code: "VIDEO_TOO_LONG" },
+      400,
+    );
   }
 
   // Duplicate check: same user + same video + not failed

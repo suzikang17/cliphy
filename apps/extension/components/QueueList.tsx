@@ -90,6 +90,11 @@ export function QueueList({
                 )}
                 <span>{timeAgo(s.createdAt)}</span>
               </div>
+              {isFailed && s.errorMessage && (
+                <p className="text-[10px] text-red-500 leading-tight mt-0.5 mb-0">
+                  {s.errorMessage}
+                </p>
+              )}
               {isFailed && (
                 <button
                   onClick={(e) => {

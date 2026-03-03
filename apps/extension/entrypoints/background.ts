@@ -2,7 +2,7 @@ import type { ExtensionMessage } from "@cliphy/shared";
 import { extractVideoId } from "@cliphy/shared";
 import type { Menus, Tabs, Runtime } from "wxt/browser";
 import { signIn, signOut, isAuthenticated, getAccessToken, getUserIdFromToken } from "../lib/auth";
-import { addToQueue } from "../lib/api";
+import { addToQueue, RateLimitError, ProRequiredError } from "../lib/api";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
 
 /** Start listening for Realtime changes if authenticated. */
@@ -98,10 +98,27 @@ export default defineBackground(() => {
               sendResponse({ success: true, summary: result.summary });
             } catch (err) {
               console.error("[Cliphy] addToQueue failed:", err);
-              sendResponse({
-                success: false,
-                error: err instanceof Error ? err.message : "Unknown error",
-              });
+              if (err instanceof RateLimitError) {
+                sendResponse({
+                  success: false,
+                  error: err.message,
+                  code: "rate_limited",
+                  limit: err.limit,
+                  plan: err.plan,
+                });
+              } else if (err instanceof ProRequiredError) {
+                sendResponse({
+                  success: false,
+                  error: err.message,
+                  code: "pro_required",
+                  upgrade_url: err.upgradeUrl,
+                });
+              } else {
+                sendResponse({
+                  success: false,
+                  error: err instanceof Error ? err.message : "Unknown error",
+                });
+              }
             }
           })();
           return true;

@@ -23,6 +23,23 @@ export class AuthError extends Error {
 }
 
 /**
+ * Thrown when the server returns 429 with a RATE_LIMITED code.
+ * Carries the limit and plan so UI can show a specific message.
+ */
+export class RateLimitError extends Error {
+  readonly code = "rate_limited" as const;
+  readonly limit: number;
+  readonly plan: string;
+
+  constructor(body: { error: string; limit: number; plan: string }) {
+    super(body.error);
+    this.name = "RateLimitError";
+    this.limit = body.limit;
+    this.plan = body.plan;
+  }
+}
+
+/**
  * Custom error for 402 Pro Required responses.
  * Carries the upgrade URL and feature name so UI can show contextual prompts.
  */
@@ -59,7 +76,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return res;
   };
 
-  let res = await doFetch(token);
+  let res: Response;
+  try {
+    res = await doFetch(token);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error("You're offline. Check your connection and try again.", { cause: err });
+    }
+    throw err;
+  }
 
   // If 401 despite proactive check, try refreshing once more
   if (res.status === 401 && token) {
@@ -80,6 +105,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     // 402: Pro feature required — throw specialized error
     if (res.status === 402 && body.code === "pro_required") {
       throw new ProRequiredError(body as ProRequiredResponse);
+    }
+
+    // 429: Rate limited — throw specialized error
+    if (res.status === 429 && body.code === "RATE_LIMITED") {
+      throw new RateLimitError(body as { error: string; limit: number; plan: string });
     }
 
     throw new Error(body.error || `Request failed: ${res.status}`);

@@ -30,6 +30,8 @@ export interface SummaryJson {
   keyPoints: string[];
   actionItems: string[];
   timestamps: string[];
+  /** True if the transcript was too long and was truncated before summarization */
+  truncated?: boolean;
 }
 
 /** Unified queue + result row from the `summaries` table */

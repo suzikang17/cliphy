@@ -1,3 +1,4 @@
+import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
 import { NonRetriableError } from "inngest";
 import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
@@ -25,13 +26,15 @@ export const summarizeVideo = inngest.createFunction(
     };
 
     // Step 1: Mark as processing and fetch transcript server-side
-    const transcript = await step.run("fetch-transcript", async () => {
+    const { text: transcript, truncated } = await step.run("fetch-transcript", async () => {
       await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
 
       try {
-        const text = await fetchTranscript(videoId);
-        console.log(`[summarize-video] Transcript fetched for ${videoId}: ${text.length} chars`);
-        return text;
+        const result = await fetchTranscript(videoId);
+        console.log(
+          `[summarize-video] Transcript fetched for ${videoId}: ${result.text.length} chars${result.truncated ? " (truncated)" : ""}`,
+        );
+        return result;
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {
           await supabase
@@ -46,7 +49,30 @@ export const summarizeVideo = inngest.createFunction(
 
     // Step 2: Generate summary via Claude
     const summaryJson = await step.run("generate-summary", async () => {
-      return await summarizeTranscript(transcript, videoTitle || "Untitled Video");
+      try {
+        const result = await summarizeTranscript(transcript, videoTitle || "Untitled Video");
+        if (truncated) {
+          result.truncated = true;
+        }
+        return result;
+      } catch (err) {
+        // Transient Anthropic errors — let Inngest retry with backoff
+        if (err instanceof APIConnectionError) {
+          throw err;
+        }
+        if (
+          err instanceof APIError &&
+          (err.status === 429 || err.status === 500 || err.status === 503)
+        ) {
+          throw err;
+        }
+        // JSON parse failures from our parser — non-retryable
+        if (err instanceof Error && err.message.startsWith("Failed to parse summary")) {
+          throw new NonRetriableError("Failed to generate summary. Please try again.");
+        }
+        // Unknown errors — let Inngest retry
+        throw err;
+      }
     });
 
     // Step 3: Save result

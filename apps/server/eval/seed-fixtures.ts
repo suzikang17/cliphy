@@ -46,7 +46,7 @@ async function main() {
   for (const video of VIDEOS) {
     process.stdout.write(`  ${video.title}... `);
     try {
-      const transcript = await fetchTranscript(video.videoId);
+      const { text: transcript } = await fetchTranscript(video.videoId);
       const path = saveFixture({ ...video, transcript });
       console.log(`OK (${transcript.length} chars) → ${path}`);
       success++;

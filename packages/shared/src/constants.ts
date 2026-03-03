@@ -8,6 +8,9 @@ export const PLAN_LIMITS: Record<PlanTier, number> = {
 /** Number of days of history visible to free users. */
 export const FREE_HISTORY_DAYS = 7;
 
+/** Maximum video duration in seconds (3 hours). Videos longer than this are rejected. */
+export const MAX_VIDEO_DURATION_SECONDS = 3 * 60 * 60;
+
 /** Stripe payment link / upgrade page URL. */
 export const UPGRADE_URL = "https://cliphy.app/pricing";
 

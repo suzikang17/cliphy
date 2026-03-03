@@ -186,7 +186,7 @@ async function runOneOff(url: string, save: boolean) {
 
   let transcript: string;
   try {
-    transcript = await fetchTranscript(videoId);
+    transcript = (await fetchTranscript(videoId)).text;
   } catch (err) {
     console.error(`\nFailed to fetch transcript: ${err instanceof Error ? err.message : err}`);
     process.exit(1);

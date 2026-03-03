@@ -1,4 +1,5 @@
 import type { Summary, VideoInfo } from "@cliphy/shared";
+import { MAX_VIDEO_DURATION_SECONDS, parseDurationToSeconds } from "@cliphy/shared";
 
 interface VideoCardProps {
   video: VideoInfo;
@@ -21,7 +22,10 @@ export function VideoCard({
 }: VideoCardProps) {
   const isInQueue = existingStatus === "pending" || existingStatus === "processing";
   const isSummarized = existingStatus === "completed";
-  const isDisabled = isAdding || status === "queued" || status === "processing" || isInQueue;
+  const durationSeconds = video.duration ? (parseDurationToSeconds(video.duration) ?? 0) : 0;
+  const isTooLong = durationSeconds > MAX_VIDEO_DURATION_SECONDS;
+  const isDisabled =
+    isAdding || status === "queued" || status === "processing" || isInQueue || isTooLong;
 
   return (
     <div className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal">
@@ -40,6 +44,11 @@ export function VideoCard({
             {video.channel && video.duration && <span>&middot;</span>}
             {video.duration && <span>{video.duration}</span>}
           </div>
+          {isTooLong && (
+            <p className="text-[10px] text-red-500 mt-1 mb-0">
+              Too long to summarize (max 3 hours)
+            </p>
+          )}
         </div>
       </div>
       {isSummarized ? (
@@ -61,13 +70,15 @@ export function VideoCard({
         >
           {isAdding
             ? "Adding to queue..."
-            : status === "queued" || isInQueue
-              ? existingStatus === "processing"
-                ? "Processing..."
-                : "Queued"
-              : status === "processing"
-                ? "Processing..."
-                : "Add to Queue"}
+            : isTooLong
+              ? "Too Long"
+              : status === "queued" || isInQueue
+                ? existingStatus === "processing"
+                  ? "Processing..."
+                  : "Queued"
+                : status === "processing"
+                  ? "Processing..."
+                  : "Add to Queue"}
         </button>
       )}
       {status === "error" && error && <p className="text-red-600 text-xs mt-2">{error}</p>}

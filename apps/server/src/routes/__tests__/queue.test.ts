@@ -67,7 +67,7 @@ vi.mock("../../middleware/auth.js", () => ({
 }));
 
 vi.mock("../../services/transcript.js", () => ({
-  fetchTranscript: vi.fn().mockResolvedValue("fake transcript text"),
+  fetchTranscript: vi.fn().mockResolvedValue({ text: "fake transcript text", truncated: false }),
   TranscriptNotAvailableError: class extends Error {},
 }));
 
@@ -228,6 +228,23 @@ describe("Queue", () => {
       });
 
       expect(res.status).toBe(400);
+    });
+
+    it("returns 400 for video exceeding max duration", async () => {
+      supabaseMock = mockChain({});
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          videoDurationSeconds: 3 * 60 * 60 + 1, // 3 hours + 1 second
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.code).toBe("VIDEO_TOO_LONG");
     });
 
     it("returns 409 for duplicate video", async () => {

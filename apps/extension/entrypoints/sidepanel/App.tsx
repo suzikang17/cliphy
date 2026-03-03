@@ -298,17 +298,31 @@ export function App() {
         videoDurationSeconds: video.duration
           ? (parseDurationToSeconds(video.duration) ?? undefined)
           : undefined,
-      })) as { success: boolean; error?: string; code?: string; upgrade_url?: string };
+      })) as {
+        success: boolean;
+        error?: string;
+        code?: string;
+        upgrade_url?: string;
+        limit?: number;
+        plan?: string;
+      };
       if (response?.success) {
         setAddStatus("queued");
         await fetchQueueAndUsage();
       } else if (response?.code === "pro_required") {
         setAddStatus("idle");
         setUpgradePrompt(response.error ?? "This feature requires Pro");
+      } else if (response?.code === "rate_limited") {
+        setAddStatus("idle");
+        const limit = response.limit ?? 5;
+        const plan = response.plan ?? "free";
+        setUpgradePrompt(
+          `Monthly limit reached (${limit}/${limit} summaries on ${plan} plan). Upgrade for more.`,
+        );
       } else {
         console.error("[Cliphy] add-to-queue failed:", response?.error);
         setAddStatus("error");
-        setAddError("Unable to add video. Please try again.");
+        setAddError(response?.error || "Unable to add video. Please try again.");
       }
     } catch (err) {
       if (err instanceof ProRequiredError) {

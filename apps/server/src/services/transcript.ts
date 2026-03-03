@@ -213,20 +213,28 @@ export function assembleTranscript(segments: TimedSegment[]): string {
   return lines.join(" ").replace(/\s+/g, " ").trim();
 }
 
-export async function fetchTranscript(videoId: string): Promise<string> {
+export interface TranscriptResult {
+  text: string;
+  truncated: boolean;
+}
+
+export async function fetchTranscript(videoId: string): Promise<TranscriptResult> {
   const tracks = await fetchCaptionTracks(videoId);
   const track = pickTrack(tracks);
   const segments = await fetchTimedText(track);
 
-  let transcript = assembleTranscript(segments);
+  const transcript = assembleTranscript(segments);
 
   if (transcript.length === 0) {
     throw new TranscriptNotAvailableError("Transcript is empty after cleaning.");
   }
 
-  if (transcript.length > MAX_TRANSCRIPT_LENGTH) {
-    transcript = transcript.slice(0, MAX_TRANSCRIPT_LENGTH);
+  let truncated = false;
+  let text = transcript;
+  if (text.length > MAX_TRANSCRIPT_LENGTH) {
+    text = text.slice(0, MAX_TRANSCRIPT_LENGTH);
+    truncated = true;
   }
 
-  return sanitizeTranscript(transcript);
+  return { text: sanitizeTranscript(text), truncated };
 }

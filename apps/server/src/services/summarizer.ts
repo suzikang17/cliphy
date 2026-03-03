@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { SummaryJson } from "@cliphy/shared";
 import { SUMMARY_SYSTEM_PROMPT, SUMMARY_USER_PROMPT } from "../lib/prompts.js";
 
-const anthropic = new Anthropic();
+const anthropic = new Anthropic({ timeout: 120_000 });
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 2048;

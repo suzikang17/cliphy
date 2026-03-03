@@ -145,6 +145,14 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
         <p className="text-(--color-text-muted) text-sm">No summary data available.</p>
       ) : (
         <>
+          {/* Truncation warning */}
+          {json.truncated && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700 dark:text-amber-400">
+              This summary is based on a partial transcript. The video was too long to process in
+              full.
+            </div>
+          )}
+
           {/* Inline TOC */}
           <div className="flex flex-wrap gap-1.5 mb-4">
             <a
