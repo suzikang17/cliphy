@@ -1,9 +1,12 @@
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
 import { NonRetriableError } from "inngest";
 import { inngest } from "../lib/inngest.js";
+import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
 import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
 import { summarizeTranscript } from "../services/summarizer.js";
+
+const log = logger.child({ fn: "summarize-video" });
 
 export const summarizeVideo = inngest.createFunction(
   {
@@ -31,9 +34,11 @@ export const summarizeVideo = inngest.createFunction(
 
       try {
         const result = await fetchTranscript(videoId);
-        console.log(
-          `[summarize-video] Transcript fetched for ${videoId}: ${result.text.length} chars${result.truncated ? " (truncated)" : ""}`,
-        );
+        log.info("Transcript fetched", {
+          videoId,
+          chars: result.text.length,
+          truncated: result.truncated,
+        });
         return result;
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {

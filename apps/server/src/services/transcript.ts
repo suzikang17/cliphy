@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger.js";
 import { fetchViaProxy } from "../lib/proxy.js";
 
 const MAX_TRANSCRIPT_LENGTH = 100_000;
@@ -51,6 +52,7 @@ interface CaptionTrack {
 
 interface PlayerResponse {
   playabilityStatus?: { status: string };
+  videoDetails?: { title?: string; lengthSeconds?: string };
   captions?: {
     playerCaptionsTracklistRenderer?: {
       captionTracks?: CaptionTrack[];
@@ -58,8 +60,14 @@ interface PlayerResponse {
   };
 }
 
+interface PlayerResult {
+  tracks: CaptionTrack[];
+  title: string | null;
+  durationSeconds: number | null;
+}
+
 /** Fetch caption tracks via InnerTube Player API (ANDROID client, no auth needed). */
-async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
+async function fetchCaptionTracks(videoId: string): Promise<PlayerResult> {
   const res = await fetchViaProxy(INNERTUBE_PLAYER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -75,9 +83,13 @@ async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
 
   const data = (await res.json()) as PlayerResponse;
 
-  console.log(
-    `[transcript] videoId=${videoId} status=${data.playabilityStatus?.status} hasCaptions=${!!data.captions} tracks=${data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0} proxy=${!!process.env.PROXY_URL}`,
-  );
+  logger.info("Caption tracks fetched", {
+    videoId,
+    status: data.playabilityStatus?.status,
+    hasCaptions: !!data.captions,
+    tracks: data.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length ?? 0,
+    proxy: !!process.env.PROXY_URL,
+  });
 
   if (data.playabilityStatus?.status === "ERROR") {
     throw new TranscriptNotAvailableError("This video is unavailable or private.");
@@ -88,7 +100,13 @@ async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
     throw new TranscriptNotAvailableError("This video doesn't have captions available.");
   }
 
-  return tracks;
+  const durationSeconds = data.videoDetails?.lengthSeconds
+    ? parseInt(data.videoDetails.lengthSeconds, 10)
+    : null;
+
+  const title = data.videoDetails?.title ?? null;
+
+  return { tracks, title, durationSeconds };
 }
 
 /** Pick the best caption track: prefer English, fallback to first available. */
@@ -216,10 +234,12 @@ export function assembleTranscript(segments: TimedSegment[]): string {
 export interface TranscriptResult {
   text: string;
   truncated: boolean;
+  title: string | null;
+  durationSeconds: number | null;
 }
 
 export async function fetchTranscript(videoId: string): Promise<TranscriptResult> {
-  const tracks = await fetchCaptionTracks(videoId);
+  const { tracks, title, durationSeconds } = await fetchCaptionTracks(videoId);
   const track = pickTrack(tracks);
   const segments = await fetchTimedText(track);
 
@@ -236,5 +256,5 @@ export async function fetchTranscript(videoId: string): Promise<TranscriptResult
     truncated = true;
   }
 
-  return { text: sanitizeTranscript(text), truncated };
+  return { text: sanitizeTranscript(text), truncated, title, durationSeconds };
 }

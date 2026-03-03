@@ -2,9 +2,12 @@ import { Hono } from "hono";
 import { html } from "hono/html";
 import type Stripe from "stripe";
 import type { AppEnv } from "../env.js";
+import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { createCheckoutSession, createPortalSession, stripe } from "../services/stripe.js";
+
+const log = logger.child({ route: "billing" });
 
 export const billingRoutes = new Hono<AppEnv>();
 
@@ -22,7 +25,7 @@ billingRoutes.post("/checkout", authMiddleware, async (c) => {
     .single();
 
   if (error) {
-    console.error(`Checkout: user lookup failed for ${userId}:`, error.message);
+    log.error("User lookup failed", new Error(error.message), { userId });
     return c.json({ error: "Failed to look up user" }, 500);
   }
 
@@ -40,7 +43,7 @@ billingRoutes.post("/checkout", authMiddleware, async (c) => {
     return c.json({ url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(`Checkout: Stripe error for ${userId}:`, message);
+    log.error("Stripe checkout error", new Error(message), { userId });
     return c.json({ error: "Failed to create checkout session" }, 500);
   }
 });
@@ -163,7 +166,9 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     .eq("stripe_customer_id", customerId);
 
   if (error) {
-    console.error(`Failed to sync subscription ${subscription.id}: ${error.message}`);
+    log.error("Subscription sync failed", new Error(error.message), {
+      subscriptionId: subscription.id,
+    });
   }
 }
 
@@ -205,11 +210,11 @@ billingRoutes.post("/webhook", async (c) => {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(`Webhook signature verification failed: ${message}`);
+    log.error("Webhook signature verification failed", new Error(message));
     return c.json({ error: "Invalid signature" }, 400);
   }
 
-  console.log(`Stripe webhook received: ${event.type}`);
+  log.info("Webhook received", { type: event.type });
 
   switch (event.type) {
     case "checkout.session.completed":
@@ -223,7 +228,7 @@ billingRoutes.post("/webhook", async (c) => {
       break;
 
     default:
-      console.log(`Unhandled event type: ${event.type}`);
+      log.warn("Unhandled webhook event", { type: event.type });
   }
 
   return c.json({ received: true });

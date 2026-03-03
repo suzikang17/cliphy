@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import { logger } from "hono/logger";
+import { logger as honoLogger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { serve } from "inngest/hono";
 import type { AppEnv } from "./env.js";
 import { inngest } from "./lib/inngest.js";
+import { logger } from "./lib/logger.js";
 import { Sentry } from "./lib/sentry.js";
 import { summarizeVideo } from "./functions/summarize-video.js";
 import { authRoutes } from "./routes/auth.js";
@@ -22,7 +23,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
 
 const app = new Hono<AppEnv>().basePath("/api");
 
-app.use("*", logger());
+app.use("*", honoLogger());
 app.use("*", secureHeaders());
 app.use(
   "*",
@@ -56,7 +57,7 @@ app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return err.getResponse();
   }
-  console.error(err);
+  logger.error("Unhandled error", err);
   Sentry.captureException(err);
   return c.json({ error: "Internal server error" }, 500);
 });
