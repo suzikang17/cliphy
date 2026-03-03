@@ -62,6 +62,10 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
+app.get("/debug-sentry", () => {
+  throw new Error("Sentry test error — safe to delete this route");
+});
+
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 export default app;
