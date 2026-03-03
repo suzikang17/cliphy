@@ -184,7 +184,7 @@ function Header({ usage }: { usage: UsageInfo | null }) {
           <span>
             Showing last {FREE_HISTORY_DAYS} days.{" "}
             <button
-              onClick={openCheckout}
+              onClick={() => openCheckout()}
               className="text-amber-600 hover:text-amber-800 font-bold bg-transparent border-0 p-0 cursor-pointer transition-colors"
             >
               Upgrade to Pro

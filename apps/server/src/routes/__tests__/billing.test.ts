@@ -122,6 +122,18 @@ describe("Billing", () => {
       const json = await res.json();
       expect(json.error).toMatch(/look up user/i);
     });
+
+    it("returns 500 when Stripe call fails", async () => {
+      supabaseMock = mockChain({ data: { stripe_customer_id: "cus_existing" } });
+      mockCreateCheckoutSession.mockRejectedValueOnce(new Error("Invalid URL"));
+
+      const app = await createApp();
+      const res = await app.request("/billing/checkout", { method: "POST" });
+
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json.error).toMatch(/checkout session/i);
+    });
   });
 
   describe("POST /billing/portal", () => {
