@@ -1,6 +1,7 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import { formatTimeSaved, FREE_HISTORY_DAYS, parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
+import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { UpgradePrompt } from "../../components/UpgradePrompt";
@@ -19,6 +20,7 @@ import {
   retryQueueItem,
 } from "../../lib/api";
 import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
+import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
 
 type View = "dashboard" | "detail";
@@ -52,6 +54,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const realtimeStarted = useRef(false);
 
@@ -196,6 +199,11 @@ export function App() {
       if (summaryRes) {
         setSelectedSummary(summaryRes.summary);
         setView("detail");
+      }
+
+      const onboarded = await storageGet<boolean>("onboarding_completed");
+      if (!onboarded) {
+        setShowOnboarding(true);
       }
     } catch (err) {
       if (err instanceof Error && err.message === "SESSION_EXPIRED") return;
@@ -446,18 +454,39 @@ export function App() {
     );
   }
 
-  // Not authenticated
+  // Not authenticated — welcome screen
   if (!user) {
     return (
       <div className="flex flex-col h-screen">
         {topBar}
         <div className="p-4">
-          <p className="text-(--color-text-secondary) mt-2 text-sm">
-            Queue YouTube videos and get AI-powered summaries.
-          </p>
+          <div className="text-center mb-4 mt-2">
+            <h2 className="text-xl font-extrabold m-0">
+              <span className="text-neon-500">&#9654;</span> Cliphy
+            </h2>
+            <p className="text-sm text-(--color-text-muted) m-0 mt-1">
+              YouTube summaries in seconds
+            </p>
+          </div>
+
+          <div className="space-y-2 mb-6">
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="text-base">&#128203;</span>
+              <span>Queue any video</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="text-base">&#9889;</span>
+              <span>AI summary in ~30s</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="text-base">&#127919;</span>
+              <span>Key points &amp; timestamps</span>
+            </div>
+          </div>
+
           <button
             onClick={handleSignIn}
-            className="mt-4 px-5 py-2.5 text-sm bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
+            className="px-5 py-2.5 text-sm bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
           >
             Sign in with Google
           </button>
@@ -487,6 +516,21 @@ export function App() {
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Post-sign-in onboarding
+  if (showOnboarding) {
+    return (
+      <div className="flex flex-col h-screen">
+        {topBar}
+        <Onboarding
+          onComplete={async () => {
+            await storageSet("onboarding_completed", true);
+            setShowOnboarding(false);
+          }}
+        />
       </div>
     );
   }
