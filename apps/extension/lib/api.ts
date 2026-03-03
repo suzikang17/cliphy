@@ -3,6 +3,7 @@ import type {
   QueueAddRequest,
   QueueAddResponse,
   SummaryResponse,
+  TagsResponse,
   UsageResponse,
   Summary,
   ProRequiredResponse,
@@ -53,6 +54,22 @@ export class ProRequiredError extends Error {
     this.name = "ProRequiredError";
     this.feature = body.feature;
     this.upgradeUrl = body.upgrade_url;
+  }
+}
+
+/**
+ * Thrown when a free user exceeds their unique tag limit.
+ */
+export class TagLimitError extends Error {
+  readonly code = "TAG_LIMIT" as const;
+  readonly limit: number;
+  readonly plan: string;
+
+  constructor(body: { error: string; limit: number; plan: string }) {
+    super(body.error);
+    this.name = "TagLimitError";
+    this.limit = body.limit;
+    this.plan = body.plan;
   }
 }
 
@@ -107,6 +124,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       throw new ProRequiredError(body as ProRequiredResponse);
     }
 
+    // 403: Tag limit reached — throw specialized error
+    if (res.status === 403 && body.code === "TAG_LIMIT") {
+      throw new TagLimitError(body as { error: string; limit: number; plan: string });
+    }
+
     // 429: Rate limited — throw specialized error
     if (res.status === 429 && body.code === "RATE_LIMITED") {
       throw new RateLimitError(body as { error: string; limit: number; plan: string });
@@ -144,8 +166,11 @@ export async function getSummary(id: string) {
   return request<SummaryResponse>(API_ROUTES.SUMMARIES.ITEM(id));
 }
 
-export async function getSummaries() {
-  return request<{ summaries: Summary[] }>(API_ROUTES.SUMMARIES.LIST);
+export async function getSummaries(tag?: string) {
+  const url = tag
+    ? `${API_ROUTES.SUMMARIES.LIST}?tag=${encodeURIComponent(tag)}`
+    : API_ROUTES.SUMMARIES.LIST;
+  return request<{ summaries: Summary[] }>(url);
 }
 
 export async function getUsage() {
@@ -168,6 +193,17 @@ export async function retryQueueItem(id: string) {
   return request<{ summary: Summary }>(API_ROUTES.QUEUE.RETRY(id), {
     method: "POST",
   });
+}
+
+export async function updateSummaryTags(id: string, tags: string[]) {
+  return request<TagsResponse>(API_ROUTES.SUMMARIES.TAGS(id), {
+    method: "PATCH",
+    body: JSON.stringify({ tags }),
+  });
+}
+
+export async function getAllTags() {
+  return request<TagsResponse>(API_ROUTES.TAGS.LIST);
 }
 
 export async function createCheckout() {

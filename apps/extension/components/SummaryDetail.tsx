@@ -1,9 +1,12 @@
 import type { Summary } from "@cliphy/shared";
-import { formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
-import { useState } from "react";
+import { formatTimeSaved, parseDurationToSeconds, TAG_MAX_LENGTH } from "@cliphy/shared";
+import { useRef, useState } from "react";
 
 interface SummaryDetailProps {
   summary: Summary;
+  allTags?: string[];
+  tagLimitReached?: boolean;
+  onTagsChange?: (tags: string[]) => void;
   onSeek?: (seconds: number) => void;
   onDismiss?: () => void;
 }
@@ -92,9 +95,115 @@ function toPlainText(summary: Summary): string {
   return lines.join("\n");
 }
 
+function TagEditor({
+  tags,
+  allTags,
+  tagLimitReached,
+  onChange,
+}: {
+  tags: string[];
+  allTags: string[];
+  tagLimitReached: boolean;
+  onChange: (tags: string[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleAdd() {
+    const tag = input.toLowerCase().trim();
+    if (!tag || tag.length > TAG_MAX_LENGTH || tags.includes(tag)) {
+      setInput("");
+      setAdding(false);
+      return;
+    }
+    onChange([...tags, tag]);
+    setInput("");
+    setAdding(false);
+  }
+
+  function handleRemove(tag: string) {
+    onChange(tags.filter((t) => t !== tag));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAdd();
+    } else if (e.key === "Escape") {
+      setInput("");
+      setAdding(false);
+    }
+  }
+
+  // Filter suggestions: tags the user has used before but aren't on this summary
+  const suggestions = allTags.filter((t) => !tags.includes(t));
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mb-4">
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-100 text-neon-700 border border-neon-300 dark:bg-neon-900/30 dark:text-neon-400 dark:border-neon-700"
+        >
+          {tag}
+          <button
+            onClick={() => handleRemove(tag)}
+            className="bg-transparent border-0 p-0 cursor-pointer text-neon-500 hover:text-red-500 transition-colors leading-none"
+            title={`Remove "${tag}"`}
+          >
+            &times;
+          </button>
+        </span>
+      ))}
+      {adding ? (
+        <div className="inline-flex items-center">
+          <input
+            ref={inputRef}
+            type="text"
+            list="tag-suggestions"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleAdd}
+            maxLength={TAG_MAX_LENGTH}
+            placeholder="tag name"
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-neon-300 bg-(--color-surface) text-(--color-text) outline-none w-24"
+            autoFocus
+          />
+          <datalist id="tag-suggestions">
+            {suggestions.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
+      ) : tagLimitReached ? (
+        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+          Upgrade for more tags
+        </span>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors"
+          title="Add tag"
+        >
+          + tag
+        </button>
+      )}
+    </div>
+  );
+}
+
 type CopyState = "idle" | "markdown" | "text";
 
-export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps) {
+export function SummaryDetail({
+  summary,
+  allTags,
+  tagLimitReached,
+  onTagsChange,
+  onSeek,
+  onDismiss,
+}: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
   const json = summary.summaryJson;
 
@@ -140,6 +249,16 @@ export function SummaryDetail({ summary, onSeek, onDismiss }: SummaryDetailProps
           </div>
         </div>
       </div>
+
+      {/* Tags */}
+      {onTagsChange && (
+        <TagEditor
+          tags={summary.tags}
+          allTags={allTags ?? []}
+          tagLimitReached={tagLimitReached ?? false}
+          onChange={onTagsChange}
+        />
+      )}
 
       {!json ? (
         <p className="text-(--color-text-muted) text-sm">No summary data available.</p>

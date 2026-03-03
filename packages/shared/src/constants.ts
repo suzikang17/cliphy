@@ -11,6 +11,15 @@ export const FREE_HISTORY_DAYS = 7;
 /** Maximum video duration in seconds (3 hours). Videos longer than this are rejected. */
 export const MAX_VIDEO_DURATION_SECONDS = 3 * 60 * 60;
 
+/** Maximum number of tags per summary. */
+export const MAX_TAGS_PER_SUMMARY = 10;
+
+/** Maximum unique tags across all summaries for free users. */
+export const MAX_FREE_UNIQUE_TAGS = 3;
+
+/** Maximum character length for a single tag. */
+export const TAG_MAX_LENGTH = 30;
+
 /** Stripe payment link / upgrade page URL. */
 export const UPGRADE_URL = "https://cliphy.app/pricing";
 
@@ -41,7 +50,11 @@ export const API_ROUTES = {
   SUMMARIES: {
     LIST: "/api/summaries",
     ITEM: (id: string) => `/api/summaries/${id}`,
+    TAGS: (id: string) => `/api/summaries/${id}/tags`,
     SEARCH: "/api/summaries/search",
+  },
+  TAGS: {
+    LIST: "/api/summaries/tags",
   },
   USAGE: {
     INFO: "/api/usage",

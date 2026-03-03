@@ -46,6 +46,7 @@ export interface Summary {
   status: SummaryStatus;
   summaryJson?: SummaryJson;
   errorMessage?: string;
+  tags: string[];
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +85,10 @@ export interface UsageResponse {
 export interface ErrorResponse {
   error: string;
   code?: string;
+}
+
+export interface TagsResponse {
+  tags: string[];
 }
 
 /** Returned with 402 when a free user attempts a pro-only feature. */

@@ -1,9 +1,15 @@
 import type { Summary, SummaryStatus, UsageInfo } from "@cliphy/shared";
-import { formatTimeSaved, FREE_HISTORY_DAYS } from "@cliphy/shared";
+import { formatTimeSaved, FREE_HISTORY_DAYS, MAX_FREE_UNIQUE_TAGS } from "@cliphy/shared";
 import { useEffect, useState } from "react";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
-import { getSummaries, getUsage } from "../../lib/api";
+import {
+  getAllTags,
+  getSummaries,
+  getUsage,
+  TagLimitError,
+  updateSummaryTags,
+} from "../../lib/api";
 import { openCheckout } from "../../lib/checkout";
 import { isAuthenticated } from "../../lib/auth";
 
@@ -38,6 +44,8 @@ export function App() {
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [selectedSummary, setSelectedSummary] = useState<Summary | null>(null);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [filterTag, setFilterTag] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +66,14 @@ export function App() {
       setSummaries(summariesRes.summaries);
       setUsage(usageRes.usage);
 
+      // Tags fetch is non-fatal — page works without autocomplete
+      try {
+        const tagsRes = await getAllTags();
+        setAllTags(tagsRes.tags);
+      } catch {
+        // Tags endpoint may not be deployed yet
+      }
+
       const deepLinkId = parseSummaryIdFromHash();
       if (deepLinkId) {
         const match = summariesRes.summaries.find((s) => s.id === deepLinkId);
@@ -70,6 +86,41 @@ export function App() {
       setError(err instanceof Error ? err.message : "Failed to load summaries");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSummaries(tag?: string | null) {
+    const res = await getSummaries(tag ?? undefined);
+    setSummaries(res.summaries);
+  }
+
+  async function handleFilterTag(tag: string | null) {
+    setFilterTag(tag);
+    try {
+      await fetchSummaries(tag);
+    } catch {
+      // silently fail — list stays as-is
+    }
+  }
+
+  async function handleTagsChange(summaryId: string, newTags: string[]) {
+    try {
+      const res = await updateSummaryTags(summaryId, newTags);
+      // Update local state
+      setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: res.tags } : s)));
+      if (selectedSummary?.id === summaryId) {
+        setSelectedSummary((prev) => (prev ? { ...prev, tags: res.tags } : prev));
+      }
+      // Refresh allTags for autocomplete
+      const tagsRes = await getAllTags();
+      setAllTags(tagsRes.tags);
+    } catch (err) {
+      if (err instanceof TagLimitError) {
+        // Refresh tags to get accurate count, but don't throw
+        const tagsRes = await getAllTags();
+        setAllTags(tagsRes.tags);
+      }
+      throw err;
     }
   }
 
@@ -145,7 +196,12 @@ export function App() {
         >
           &larr; All summaries
         </button>
-        <SummaryDetail summary={selectedSummary} />
+        <SummaryDetail
+          summary={selectedSummary}
+          allTags={allTags}
+          tagLimitReached={usage?.plan === "free" && allTags.length >= MAX_FREE_UNIQUE_TAGS}
+          onTagsChange={(tags) => handleTagsChange(selectedSummary.id, tags)}
+        />
       </div>
     );
   }
@@ -153,13 +209,23 @@ export function App() {
   // List view
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
-      <Header usage={usage} />
+      <Header usage={usage} allTags={allTags} filterTag={filterTag} onFilterTag={handleFilterTag} />
       <CardList summaries={summaries} onSelect={handleSelectSummary} />
     </div>
   );
 }
 
-function Header({ usage }: { usage: UsageInfo | null }) {
+function Header({
+  usage,
+  allTags,
+  filterTag,
+  onFilterTag,
+}: {
+  usage: UsageInfo | null;
+  allTags?: string[];
+  filterTag?: string | null;
+  onFilterTag?: (tag: string | null) => void;
+}) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between">
@@ -179,6 +245,22 @@ function Header({ usage }: { usage: UsageInfo | null }) {
           </div>
         )}
       </div>
+      {allTags && allTags.length > 0 && onFilterTag && (
+        <div className="mt-2 flex items-center gap-2">
+          <select
+            value={filterTag ?? ""}
+            onChange={(e) => onFilterTag(e.target.value || null)}
+            className="text-xs font-bold px-2 py-1 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) cursor-pointer"
+          >
+            <option value="">All tags</option>
+            {allTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {usage?.plan === "free" && (
         <div className="mt-2 flex items-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
           <span>
@@ -238,6 +320,18 @@ function CardList({
               </div>
               {s.videoChannel && (
                 <p className="text-[10px] text-(--color-text-faint) mt-0.5 m-0">{s.videoChannel}</p>
+              )}
+              {s.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {s.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-neon-100 text-neon-700 border border-neon-300 dark:bg-neon-900/30 dark:text-neon-400 dark:border-neon-700 font-bold"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               )}
               {s.summaryJson?.summary && (
                 <p className="text-xs text-(--color-text-muted) mt-1 m-0 line-clamp-2">

@@ -3,7 +3,12 @@ import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
 import { sanitizeSearchQuery } from "../lib/validation.js";
-import { FREE_HISTORY_DAYS } from "@cliphy/shared";
+import {
+  FREE_HISTORY_DAYS,
+  MAX_TAGS_PER_SUMMARY,
+  MAX_FREE_UNIQUE_TAGS,
+  TAG_MAX_LENGTH,
+} from "@cliphy/shared";
 import type { Summary } from "@cliphy/shared";
 
 export const summaryRoutes = new Hono<AppEnv>();
@@ -29,6 +34,7 @@ function toSummary(row: Record<string, unknown>): Summary {
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
+    tags: (row.tags as string[]) ?? [],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -102,6 +108,108 @@ summaryRoutes.get("/search", async (c) => {
   });
 });
 
+// ── GET /tags — List user's unique tags ───────────────────────
+
+summaryRoutes.get("/tags", async (c) => {
+  const userId = c.get("userId");
+
+  const { data: rows, error } = await supabase
+    .from("summaries")
+    .select("tags")
+    .eq("user_id", userId)
+    .is("deleted_at", null);
+
+  if (error) {
+    return c.json({ error: "Failed to fetch tags" }, 500);
+  }
+
+  const tagSet = new Set<string>();
+  for (const row of rows ?? []) {
+    for (const tag of (row.tags as string[]) ?? []) {
+      tagSet.add(tag);
+    }
+  }
+  return c.json({ tags: [...tagSet].sort() });
+});
+
+// ── PATCH /:id/tags — Update tags on a summary ──────────────
+
+summaryRoutes.patch("/:id/tags", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const body = await c.req.json<{ tags: unknown }>();
+
+  // Validate tags is an array of strings
+  if (!Array.isArray(body.tags) || !body.tags.every((t) => typeof t === "string")) {
+    return c.json({ error: "tags must be an array of strings" }, 400);
+  }
+
+  // Normalize: lowercase, trim, dedupe, filter empty
+  const tags = [...new Set(body.tags.map((t: string) => t.toLowerCase().trim()).filter(Boolean))];
+
+  // Validate individual tags
+  if (tags.length > MAX_TAGS_PER_SUMMARY) {
+    return c.json({ error: `Maximum ${MAX_TAGS_PER_SUMMARY} tags per summary` }, 400);
+  }
+  for (const tag of tags) {
+    if (tag.length > TAG_MAX_LENGTH) {
+      return c.json({ error: `Tag "${tag}" exceeds ${TAG_MAX_LENGTH} characters` }, 400);
+    }
+  }
+
+  // Check free user unique tag limit
+  const plan = await getUserPlan(userId);
+  if (plan === "free") {
+    // Get all existing unique tags for this user (excluding the current summary)
+    const { data: rows } = await supabase
+      .from("summaries")
+      .select("tags")
+      .eq("user_id", userId)
+      .neq("id", id)
+      .is("deleted_at", null);
+
+    const existingTags = new Set<string>();
+    for (const row of rows ?? []) {
+      for (const tag of (row.tags as string[]) ?? []) {
+        existingTags.add(tag);
+      }
+    }
+
+    // Count how many new unique tags this would introduce
+    const newUnique = tags.filter((t) => !existingTags.has(t));
+    const totalUnique = existingTags.size + newUnique.length;
+
+    if (totalUnique > MAX_FREE_UNIQUE_TAGS) {
+      return c.json(
+        {
+          error: `Free plan is limited to ${MAX_FREE_UNIQUE_TAGS} unique tags. Upgrade to Pro for unlimited tags.`,
+          code: "TAG_LIMIT",
+          limit: MAX_FREE_UNIQUE_TAGS,
+          plan: "free",
+        },
+        403,
+      );
+    }
+  }
+
+  // Update the summary's tags
+  const { data, error } = await supabase
+    .from("summaries")
+    .update({ tags })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .select("tags")
+    .single();
+
+  if (error || !data) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  return c.json({ tags: (data.tags as string[]) ?? [] });
+});
+
 // ── GET / — Paginated list of user's summaries ───────────────
 
 summaryRoutes.get("/", async (c) => {
@@ -109,6 +217,7 @@ summaryRoutes.get("/", async (c) => {
   const limit = clampLimit(c.req.query("limit"));
   const offset = parseOffset(c.req.query("offset"));
   const statusFilter = c.req.query("status") ?? "completed";
+  const tagFilter = c.req.query("tag");
   const plan = await getUserPlan(userId);
 
   let query = supabase
@@ -119,6 +228,11 @@ summaryRoutes.get("/", async (c) => {
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
+
+  // Tag filter
+  if (tagFilter) {
+    query = query.contains("tags", [tagFilter]);
+  }
 
   // Free users: restrict to last 7 days
   if (plan === "free") {
