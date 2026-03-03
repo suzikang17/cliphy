@@ -469,18 +469,33 @@ export function App() {
             </p>
           </div>
 
-          <div className="space-y-2 mb-6">
-            <div className="flex items-center gap-2.5 text-sm">
-              <span className="text-base">&#128203;</span>
-              <span>Queue any video</span>
+          <div className="space-y-2.5 mb-6">
+            <div className="bg-(--color-accent-surface) rounded-lg p-3 flex items-start gap-3">
+              <span className="text-lg shrink-0">&#128203;</span>
+              <div>
+                <p className="text-sm font-bold m-0">Queue any video</p>
+                <p className="text-xs text-(--color-text-muted) m-0 mt-0.5">
+                  Add videos while you browse
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5 text-sm">
-              <span className="text-base">&#9889;</span>
-              <span>AI summary in ~30s</span>
+            <div className="bg-(--color-surface-raised) rounded-lg p-3 flex items-start gap-3">
+              <span className="text-lg shrink-0">&#9889;</span>
+              <div>
+                <p className="text-sm font-bold m-0">AI summary in ~30s</p>
+                <p className="text-xs text-(--color-text-muted) m-0 mt-0.5">
+                  Skip the fluff, get the insights
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5 text-sm">
-              <span className="text-base">&#127919;</span>
-              <span>Key points &amp; timestamps</span>
+            <div className="bg-(--color-surface-raised) rounded-lg p-3 flex items-start gap-3">
+              <span className="text-lg shrink-0">&#127919;</span>
+              <div>
+                <p className="text-sm font-bold m-0">Key points &amp; timestamps</p>
+                <p className="text-xs text-(--color-text-muted) m-0 mt-0.5">
+                  Jump to what matters most
+                </p>
+              </div>
             </div>
           </div>
 
@@ -520,21 +535,6 @@ export function App() {
     );
   }
 
-  // Post-sign-in onboarding
-  if (showOnboarding) {
-    return (
-      <div className="flex flex-col h-screen">
-        {topBar}
-        <Onboarding
-          onComplete={async () => {
-            await storageSet("onboarding_completed", true);
-            setShowOnboarding(false);
-          }}
-        />
-      </div>
-    );
-  }
-
   // Detail view
   if (view === "detail" && selectedSummary) {
     return (
@@ -555,6 +555,15 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       {topBar}
+
+      {showOnboarding && (
+        <Onboarding
+          onComplete={async () => {
+            await storageSet("onboarding_completed", true);
+            setShowOnboarding(false);
+          }}
+        />
+      )}
 
       <div className="shrink-0 px-4 pt-3 pb-0">
         {usage && usage.totalTimeSavedSeconds > 0 && (
