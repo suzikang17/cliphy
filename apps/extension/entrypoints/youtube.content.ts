@@ -15,8 +15,23 @@ export default defineContentScript({
         document.querySelector<HTMLAnchorElement>("#owner a");
       const channel = channelEl?.textContent?.trim() ?? null;
 
-      const durationEl = document.querySelector("span.ytp-time-duration");
-      const duration = durationEl?.textContent?.trim() ?? null;
+      // Read duration from structured data meta tag — immune to ad playback.
+      // The player's .ytp-time-duration shows ad length when ads are playing.
+      const durationMeta = document.querySelector<HTMLMetaElement>('meta[itemprop="duration"]');
+      let duration: string | null = null;
+      if (durationMeta?.content) {
+        // Convert ISO 8601 "PT12M34S" → "12:34", "PT1H2M3S" → "1:02:03"
+        const match = durationMeta.content.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (match) {
+          const h = parseInt(match[1] ?? "0", 10);
+          const m = parseInt(match[2] ?? "0", 10);
+          const s = parseInt(match[3] ?? "0", 10);
+          duration =
+            h > 0
+              ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+              : `${m}:${String(s).padStart(2, "0")}`;
+        }
+      }
 
       return { videoId, title, url, channel, duration };
     }

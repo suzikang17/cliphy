@@ -73,7 +73,7 @@ describe("Billing", () => {
       const json = await res.json();
       expect(json.usage.plan).toBe("free");
       expect(json.usage.used).toBe(3);
-      expect(json.usage.limit).toBe(10);
+      expect(json.usage.limit).toBe(5);
       expect(json.usage.totalTimeSavedSeconds).toBe(0);
     });
 

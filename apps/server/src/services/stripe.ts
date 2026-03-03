@@ -10,8 +10,8 @@ export async function createCheckoutSession(customerId: string, userId: string):
     client_reference_id: userId,
     mode: "subscription",
     line_items: [{ price: process.env.STRIPE_PRICE_ID_PRO!, quantity: 1 }],
-    success_url: `${process.env.API_URL}/billing/success`,
-    cancel_url: `${process.env.API_URL}/billing/cancel`,
+    success_url: `${process.env.API_URL}/api/billing/success`,
+    cancel_url: `${process.env.API_URL}/api/billing/cancel`,
   });
   return session.url!;
 }
@@ -19,7 +19,7 @@ export async function createCheckoutSession(customerId: string, userId: string):
 export async function createPortalSession(customerId: string): Promise<string> {
   const session = await stripe.billingPortal.sessions.create({
     customer: customerId,
-    return_url: `${process.env.API_URL}/billing`,
+    return_url: `${process.env.API_URL}/api/billing/success`,
   });
   return session.url;
 }

@@ -1,9 +1,10 @@
 import type { Summary, SummaryStatus, UsageInfo } from "@cliphy/shared";
-import { formatTimeSaved, FREE_HISTORY_DAYS, UPGRADE_URL } from "@cliphy/shared";
+import { formatTimeSaved, FREE_HISTORY_DAYS } from "@cliphy/shared";
 import { useEffect, useState } from "react";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import { getSummaries, getUsage } from "../../lib/api";
+import { openCheckout } from "../../lib/checkout";
 import { isAuthenticated } from "../../lib/auth";
 
 type View = "list" | "detail";
@@ -182,14 +183,12 @@ function Header({ usage }: { usage: UsageInfo | null }) {
         <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <span>
             Showing last {FREE_HISTORY_DAYS} days.{" "}
-            <a
-              href={UPGRADE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-amber-600 hover:text-amber-800 font-bold no-underline transition-colors"
+            <button
+              onClick={openCheckout}
+              className="text-amber-600 hover:text-amber-800 font-bold bg-transparent border-0 p-0 cursor-pointer transition-colors"
             >
               Upgrade to Pro
-            </a>{" "}
+            </button>{" "}
             for unlimited history.
           </span>
         </div>
@@ -226,9 +225,9 @@ function CardList({
         >
           <div className="flex items-start gap-3">
             <img
-              src={`https://i.ytimg.com/vi/${s.videoId}/default.jpg`}
+              src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
               alt=""
-              className="w-16 h-12 rounded border-2 border-black object-cover shrink-0"
+              className="w-44 h-24 rounded-lg border-2 border-black object-cover shrink-0"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">

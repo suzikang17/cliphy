@@ -139,3 +139,9 @@ export async function retryQueueItem(id: string) {
     method: "POST",
   });
 }
+
+export async function createCheckout() {
+  return request<{ url: string }>(API_ROUTES.BILLING.CHECKOUT, {
+    method: "POST",
+  });
+}

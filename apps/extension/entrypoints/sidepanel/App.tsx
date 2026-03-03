@@ -1,12 +1,6 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
-import {
-  formatTimeSaved,
-  FREE_HISTORY_DAYS,
-  parseDurationToSeconds,
-  UPGRADE_URL,
-} from "@cliphy/shared";
+import { formatTimeSaved, FREE_HISTORY_DAYS, parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
-import { ProBadge } from "../../components/ProBadge";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { UpgradePrompt } from "../../components/UpgradePrompt";
@@ -372,14 +366,45 @@ export function App() {
     }
   }
 
+  // Sticky top bar (shared across all views)
+  const topBar = (
+    <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 shrink-0 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {view === "detail" && (
+          <button
+            onClick={handleBack}
+            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+          >
+            &larr;
+          </button>
+        )}
+        <h1 className="text-lg font-extrabold m-0 flex items-center gap-1.5">
+          <span className="text-indigo-500">&#9654;</span>
+          Cliphy
+        </h1>
+      </div>
+      {view === "detail" && selectedSummary && (
+        <button
+          onClick={() => handlePopOut(selectedSummary.id)}
+          className="text-xs text-gray-400 hover:text-black bg-transparent border-0 cursor-pointer p-0 transition-colors"
+        >
+          Pop out &#x2197;
+        </button>
+      )}
+    </div>
+  );
+
   // Loading
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[300px]">
-        <div className="flex gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.2s]" />
-          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.4s]" />
+      <div className="flex flex-col h-screen">
+        {topBar}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.2s]" />
+            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse [animation-delay:0.4s]" />
+          </div>
         </div>
       </div>
     );
@@ -388,20 +413,20 @@ export function App() {
   // Not authenticated
   if (!user) {
     return (
-      <div className="p-4">
-        <h1 className="text-lg font-extrabold m-0">
-          <span className="text-indigo-500">&#9654;</span> Cliphy
-        </h1>
-        <p className="text-gray-600 mt-2 text-sm">
-          Queue YouTube videos and get AI-powered summaries.
-        </p>
-        <button
-          onClick={handleSignIn}
-          className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
-        >
-          Sign in with Google
-        </button>
-        {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
+      <div className="flex flex-col h-screen">
+        {topBar}
+        <div className="p-4">
+          <p className="text-gray-600 mt-2 text-sm">
+            Queue YouTube videos and get AI-powered summaries.
+          </p>
+          <button
+            onClick={handleSignIn}
+            className="mt-4 px-5 py-2.5 text-sm bg-indigo-600 text-white border-2 border-black rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
+          >
+            Sign in with Google
+          </button>
+          {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
+        </div>
       </div>
     );
   }
@@ -409,22 +434,22 @@ export function App() {
   // Error
   if (error) {
     return (
-      <div className="p-4">
-        <h1 className="text-lg font-extrabold m-0">
-          <span className="text-indigo-500">&#9654;</span> Cliphy
-        </h1>
-        <div className="mt-4 bg-red-50 border-2 border-black rounded-lg p-3">
-          <p className="text-sm text-red-700 font-bold m-0">{error}</p>
-          <button
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              init();
-            }}
-            className="mt-2 text-xs font-bold px-3 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer"
-          >
-            Retry
-          </button>
+      <div className="flex flex-col h-screen">
+        {topBar}
+        <div className="p-4">
+          <div className="bg-red-50 border-2 border-black rounded-lg p-3">
+            <p className="text-sm text-red-700 font-bold m-0">{error}</p>
+            <button
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                init();
+              }}
+              className="mt-2 text-xs font-bold px-3 py-1.5 bg-white border-2 border-black rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -433,26 +458,15 @@ export function App() {
   // Detail view
   if (view === "detail" && selectedSummary) {
     return (
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={handleBack}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
-          >
-            &larr; Back
-          </button>
-          <button
-            onClick={() => handlePopOut(selectedSummary.id)}
-            className="text-xs text-gray-400 hover:text-black bg-transparent border-0 cursor-pointer p-0 transition-colors"
-          >
-            Pop out &#x2197;
-          </button>
+      <div className="flex flex-col h-screen">
+        {topBar}
+        <div className="flex-1 overflow-y-auto p-4">
+          <SummaryDetail
+            summary={selectedSummary}
+            onSeek={seekVideo}
+            onDismiss={() => handleDismissSummary(selectedSummary.id)}
+          />
         </div>
-        <SummaryDetail
-          summary={selectedSummary}
-          onSeek={seekVideo}
-          onDismiss={() => handleDismissSummary(selectedSummary.id)}
-        />
       </div>
     );
   }
@@ -460,27 +474,33 @@ export function App() {
   // Dashboard view
   return (
     <div className="flex flex-col h-screen">
-      <div className="shrink-0 p-4 pb-0">
-        <h1 className="text-lg font-extrabold m-0 flex items-center gap-1.5">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-indigo-500 shrink-0"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          {usage ? `${formatTimeSaved(usage.totalTimeSavedSeconds)} saved` : "Cliphy"}
-        </h1>
+      {topBar}
+
+      <div className="shrink-0 px-4 pt-3 pb-0">
+        {usage && usage.totalTimeSavedSeconds > 0 && (
+          <div className="flex items-center gap-1.5 mb-3">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-indigo-500 shrink-0"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="text-sm font-extrabold">
+              {formatTimeSaved(usage.totalTimeSavedSeconds)} saved
+            </span>
+          </div>
+        )}
 
         {video && (
-          <div className="mt-3">
+          <div className="mb-3">
             <VideoCard
               video={video}
               onAdd={handleAddToQueue}
@@ -497,12 +517,12 @@ export function App() {
         )}
 
         {upgradePrompt && (
-          <div className="mt-3">
+          <div className="mb-3">
             <UpgradePrompt message={upgradePrompt} onDismiss={() => setUpgradePrompt(null)} />
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 mt-3 mb-2">
+        <div className="flex items-center gap-1.5 mb-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 m-0">Queue</h2>
           {user.plan === "free" && (
             <span className="text-[9px] text-gray-400">(last {FREE_HISTORY_DAYS} days)</span>
@@ -525,31 +545,22 @@ export function App() {
 
       <div className="shrink-0 p-4 pt-3 border-t border-gray-200">
         {usage && (
-          <div className="mb-2">
+          <div className="mb-3">
             <UsageBar usage={usage} />
           </div>
         )}
         <div className="flex items-center justify-between text-xs text-gray-400">
           <div className="flex items-center gap-1.5 min-w-0">
-            {user.plan === "pro" ? (
+            {user.plan === "pro" && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0">
                 Pro
               </span>
-            ) : (
-              <a
-                href={UPGRADE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 no-underline"
-              >
-                <ProBadge />
-              </a>
             )}
             <span className="truncate">{user.email}</span>
           </div>
           <button
             onClick={handleSignOut}
-            className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors shrink-0"
+            className="bg-transparent border-0 p-0 text-xs text-gray-400 hover:text-black cursor-pointer transition-colors shrink-0 ml-2"
           >
             Sign out
           </button>

@@ -1,7 +1,7 @@
 import type { PlanTier } from "./types.js";
 
 export const PLAN_LIMITS: Record<PlanTier, number> = {
-  free: 10,
+  free: 5,
   pro: 100,
 };
 

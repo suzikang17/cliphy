@@ -61,14 +61,15 @@ Monorepo with pnpm workspaces:
 ### Session flow
 
 1. Pull task from Notion Task Board at start of session
-2. Build → verify it works → commit and push
-3. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
-4. When making a tech choice, check what's industry standard before committing to it
-5. Switch tools early if something's wrong — don't accumulate tech debt on stubs
-6. Commit after each logical chunk, not at the end
-7. Update task status in Notion when done (set Date Completed, add Notes)
-8. Create follow-up tasks in Notion when new work is discovered
-9. Log devlog entry at end of session (what got done, decisions, issues hit)
+2. Set task status to **In Progress** in Notion when starting work
+3. Build → verify it works → commit and push
+4. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
+5. When making a tech choice, check what's industry standard before committing to it
+6. Switch tools early if something's wrong — don't accumulate tech debt on stubs
+7. Commit after each logical chunk, not at the end
+8. Mark task **Done** in Notion when finished (set Date Completed, add Notes, check off checklist items)
+9. Create follow-up tasks in Notion when new work is discovered
+10. Log devlog entry at end of session (what got done, decisions, issues hit)
 
 ### Sequencing
 

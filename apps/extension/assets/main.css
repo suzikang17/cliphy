@@ -1,6 +1,8 @@
 @import "tailwindcss";
+@import "@fontsource-variable/dm-sans";
 
 @theme {
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --shadow-brutal: 4px 4px 0px 0px rgba(0, 0, 0, 1);
   --shadow-brutal-sm: 3px 3px 0px 0px rgba(0, 0, 0, 1);
   --shadow-brutal-hover: 2px 2px 0px 0px rgba(0, 0, 0, 1);

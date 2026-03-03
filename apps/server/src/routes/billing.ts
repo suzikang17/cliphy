@@ -22,20 +22,27 @@ billingRoutes.post("/checkout", authMiddleware, async (c) => {
     .single();
 
   if (error) {
+    console.error(`Checkout: user lookup failed for ${userId}:`, error.message);
     return c.json({ error: "Failed to look up user" }, 500);
   }
 
-  let customerId = user.stripe_customer_id as string | null;
+  try {
+    let customerId = user.stripe_customer_id as string | null;
 
-  // Create Stripe customer if none exists
-  if (!customerId) {
-    const customer = await stripe.customers.create({ email: userEmail, metadata: { userId } });
-    customerId = customer.id;
-    await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", userId);
+    // Create Stripe customer if none exists
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: userEmail, metadata: { userId } });
+      customerId = customer.id;
+      await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", userId);
+    }
+
+    const url = await createCheckoutSession(customerId, userId);
+    return c.json({ url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(`Checkout: Stripe error for ${userId}:`, message);
+    return c.json({ error: "Failed to create checkout session" }, 500);
   }
-
-  const url = await createCheckoutSession(customerId, userId);
-  return c.json({ url });
 });
 
 billingRoutes.post("/portal", authMiddleware, async (c) => {
