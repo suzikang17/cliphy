@@ -53,12 +53,13 @@ app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
 app.route("/privacy", privacyRoutes);
 
-app.onError((err, c) => {
+app.onError(async (err, c) => {
   if (err instanceof HTTPException) {
     return err.getResponse();
   }
   logger.error("Unhandled error", err);
   Sentry.captureException(err);
+  await Sentry.flush(2000);
   return c.json({ error: "Internal server error" }, 500);
 });
 
