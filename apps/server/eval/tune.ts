@@ -1,22 +1,24 @@
 import { execSync } from "node:child_process";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { generateReportFromFile } from "./report.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const resultsJson = resolve(__dirname, "results/latest.json");
 
 const args = process.argv.slice(2);
 const judgeIdx = args.indexOf("--judge");
-let judgeFlag = "";
+let judgeModel = "";
 
 if (judgeIdx !== -1) {
   const model = args[judgeIdx + 1];
   args.splice(judgeIdx, 2);
   if (model === "opus") {
-    judgeFlag = "--grader anthropic:messages:claude-opus-4-6";
+    judgeModel = "anthropic:messages:claude-opus-4-6";
   } else if (model === "sonnet") {
-    judgeFlag = "--grader anthropic:messages:claude-sonnet-4-6";
+    judgeModel = "anthropic:messages:claude-sonnet-4-6";
   } else {
-    judgeFlag = `--grader anthropic:messages:${model}`;
+    judgeModel = `anthropic:messages:${model}`;
   }
 }
 
@@ -30,5 +32,20 @@ if (categoryIdx !== -1) {
 
 const passthrough = args.join(" ");
 const cmd =
-  `npx promptfoo eval -c eval/promptfooconfig.ts --env-file ../../.env ${judgeFlag} ${filterFlag} ${passthrough}`.trim();
-execSync(cmd, { stdio: "inherit", cwd: `${__dirname}/..` });
+  `npx promptfoo eval -c eval/promptfooconfig.ts --env-file ../../.env -o ${resultsJson} ${filterFlag} ${passthrough}`.trim();
+
+// Set judge model via env var (--grader CLI flag causes Promptfoo serialization bug)
+const env = { ...process.env };
+if (judgeModel) {
+  env.EVAL_JUDGE_MODEL = judgeModel;
+}
+
+try {
+  execSync(cmd, { stdio: "inherit", cwd: `${__dirname}/..`, env });
+} catch {
+  // Promptfoo exits non-zero when tests fail — that's expected
+}
+
+// Generate HTML report from the JSON output
+const htmlPath = generateReportFromFile(resultsJson);
+console.log(`\nReport: ${htmlPath}`);

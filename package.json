@@ -15,6 +15,7 @@
     "eval": "tsx apps/server/eval/run-eval.ts",
     "eval:add": "tsx apps/server/eval/run-eval.ts --save --url",
     "eval:tune": "tsx apps/server/eval/tune.ts",
+    "eval:report": "tsx apps/server/eval/report.ts",
     "eval:tune:view": "cd apps/server && npx promptfoo view"
   },
   "packageManager": "pnpm@10.11.1",

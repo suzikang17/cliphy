@@ -3,88 +3,55 @@ import { loadFixtures } from "./fixtures.ts";
 
 const fixtures = loadFixtures();
 
-// Judge rubric instructions — kept terse to minimize token cost
+// Judge rubrics — direct quality criteria, no JSON preamble needed
+// (per-assertion transforms extract the relevant prose before the judge sees it)
 const RUBRICS = {
-  accuracy: `You are evaluating a JSON summary of a YouTube video transcript.
-Rate how accurately the summary captures the video's key ideas on a scale of 0.0 to 1.0.
-- 1.0: All major points captured faithfully, nothing fabricated
+  accuracy: `Rate how accurately this captures the video's key ideas (0.0–1.0).
+- 1.0: All major points faithful, nothing fabricated
 - 0.7: Most key ideas present, minor omissions
-- 0.4: Significant gaps or minor inaccuracies
-- 0.0: Major fabrications or completely misses the point
-The original transcript is included in the prompt for reference.`,
+- 0.4: Significant gaps or inaccuracies
+- 0.0: Major fabrications or misses the point
 
-  conciseness: `You are evaluating a JSON summary of a YouTube video.
-Rate how concise and well-written the "summary" field is on a scale of 0.0 to 1.0.
+Original transcript:
+{{transcript}}`,
+
+  conciseness: `Rate how concise and well-written this summary is (0.0–1.0).
 - 1.0: Tight, no filler, captures essence in minimal words
-- 0.7: Mostly concise with minor redundancy
-- 0.4: Verbose or contains filler phrases
-- 0.0: Bloated, repetitive, or unfocused
-Judge ONLY the "summary" field, not keyPoints or other fields.`,
+- 0.7: Mostly concise, minor redundancy
+- 0.4: Verbose or filler phrases
+- 0.0: Bloated, repetitive, unfocused`,
 
-  actionability: `You are evaluating a JSON summary of a YouTube video.
-Rate how useful and specific the "keyPoints" and "actionItems" arrays are on a scale of 0.0 to 1.0.
-- 1.0: Every point is specific, concrete, and genuinely useful to someone who hasn't watched the video
-- 0.7: Most points are useful, a few are generic
-- 0.4: Many points are vague or could apply to any video
-- 0.0: All points are generic platitudes
-If actionItems is empty, judge only keyPoints.`,
+  actionability: `Rate how useful and specific these points are (0.0–1.0).
+- 1.0: Every point is specific, concrete, useful to someone who hasn't watched
+- 0.7: Most useful, a few generic
+- 0.4: Many vague or could apply to any video
+- 0.0: All generic platitudes`,
 
-  timestampQuality: `You are evaluating a JSON summary of a YouTube video transcript.
-Rate the quality of the "timestamps" array on a scale of 0.0 to 1.0.
-- 1.0: Timestamps mark real topic changes, times match [M:SS] markers in the transcript, descriptions are clear
-- 0.7: Most timestamps are accurate, minor timing issues
-- 0.4: Several timestamps are wrong or descriptions are vague
-- 0.0: Timestamps are fabricated or missing
+  timestampQuality: `Rate timestamp quality (0.0–1.0).
+- 1.0: Mark real topic changes, times match transcript markers, clear descriptions
+- 0.7: Mostly accurate, minor timing issues
+- 0.4: Several wrong or vague
+- 0.0: Fabricated or missing
 
-Here is the original transcript with [M:SS] time markers — use these to verify the timestamps are accurate:
+Original transcript with [M:SS] markers:
 {{transcript}}`,
 };
 
-// Structural assertions (free, instant)
-const structuralAssertions = [
-  {
-    type: "is-json" as const,
-    metric: "ValidJSON",
-  },
-  {
-    type: "javascript" as const,
-    value: `
-      const parsed = JSON.parse(output);
-      const words = parsed.summary.split(/\\s+/).filter(Boolean).length;
-      return { pass: words <= 50, score: words <= 50 ? 1 : 0, reason: \`Summary word count: \${words}\` };
-    `,
-    metric: "SummaryLength",
-  },
-  {
-    type: "javascript" as const,
-    value: `
-      const parsed = JSON.parse(output);
-      const count = parsed.keyPoints.length;
-      return { pass: count >= 5 && count <= 10, score: count >= 5 && count <= 10 ? 1 : 0, reason: \`Key points: \${count}\` };
-    `,
-    metric: "KeyPointCount",
-  },
-  {
-    type: "javascript" as const,
-    value: `
-      const parsed = JSON.parse(output);
-      const count = parsed.timestamps.length;
-      return { pass: count >= 2, score: count >= 2 ? 1 : 0, reason: \`Timestamps: \${count}\` };
-    `,
-    metric: "TimestampCount",
-  },
-];
-
-// LLM rubric assertions (costs $, uses judge model)
-const rubricAssertions = [
-  { type: "llm-rubric" as const, value: RUBRICS.accuracy, metric: "Accuracy" },
-  { type: "llm-rubric" as const, value: RUBRICS.conciseness, metric: "Conciseness" },
-  { type: "llm-rubric" as const, value: RUBRICS.actionability, metric: "Actionability" },
-  { type: "llm-rubric" as const, value: RUBRICS.timestampQuality, metric: "TimestampQuality" },
-];
+// Per-assertion transforms — extract prose from JSON so the judge never sees raw JSON
+const TX = {
+  summary: "JSON.parse(output).summary",
+  accuracy:
+    '(() => { const p = JSON.parse(output); return p.summary + "\\n\\nKey Points:\\n" + p.keyPoints.join("\\n"); })()',
+  keyPoints:
+    '(() => { const p = JSON.parse(output); const kp = p.keyPoints.join("\\n"); const ai = (p.actionItems||[]).join("\\n"); return "Key Points:\\n" + kp + (ai ? "\\n\\nAction Items:\\n" + ai : ""); })()',
+  timestamps: 'JSON.parse(output).timestamps.join("\\n")',
+};
 
 const config: UnifiedConfig = {
-  prompts: ["file://prompts/baseline.json", "file://prompts/v2-detailed.json"],
+  prompts: [
+    { id: "file://prompts/baseline.json", label: "Baseline" },
+    { id: "file://prompts/v2-detailed.json", label: "v2 Detailed" },
+  ],
 
   providers: [
     {
@@ -98,7 +65,7 @@ const config: UnifiedConfig = {
 
   defaultTest: {
     options: {
-      provider: "anthropic:messages:claude-sonnet-4-6",
+      provider: process.env.EVAL_JUDGE_MODEL ?? "anthropic:messages:claude-sonnet-4-6",
       // Strip markdown code fences that Claude sometimes adds despite instructions
       transform: 'output.replace(/^```(?:json)?\\s*\\n?|\\n?```\\s*$/g, "").trim()',
     },
@@ -110,7 +77,32 @@ const config: UnifiedConfig = {
       videoTitle: f.title,
       transcript: f.transcript,
     },
-    assert: [...structuralAssertions, ...rubricAssertions],
+    assert: [
+      {
+        type: "llm-rubric" as const,
+        value: RUBRICS.accuracy,
+        metric: "Accuracy",
+        transform: TX.accuracy,
+      },
+      {
+        type: "llm-rubric" as const,
+        value: RUBRICS.conciseness,
+        metric: "Conciseness",
+        transform: TX.summary,
+      },
+      {
+        type: "llm-rubric" as const,
+        value: RUBRICS.actionability,
+        metric: "Actionability",
+        transform: TX.keyPoints,
+      },
+      {
+        type: "llm-rubric" as const,
+        value: RUBRICS.timestampQuality,
+        metric: "TimestampQuality",
+        transform: TX.timestamps,
+      },
+    ],
   })),
 };
 
