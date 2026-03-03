@@ -31,7 +31,7 @@ export class TranscriptNotAvailableError extends Error {
   }
 }
 
-function decodeHtmlEntities(text: string): string {
+export function decodeHtmlEntities(text: string): string {
   // Run twice to handle double-encoded entities (e.g. &amp;#39; → &#39; → ')
   const decode = (s: string) =>
     s.replace(ENTITY_PATTERN, (match) => {
@@ -96,13 +96,13 @@ function pickTrack(tracks: CaptionTrack[]): CaptionTrack {
   return tracks.find((t) => t.languageCode === "en") ?? tracks[0];
 }
 
-interface TimedSegment {
+export interface TimedSegment {
   timeMs: number;
   text: string;
 }
 
 /** Format milliseconds as M:SS or H:MM:SS. */
-function formatTimestamp(ms: number): string {
+export function formatTimestamp(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -113,20 +113,8 @@ function formatTimestamp(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-/** Fetch and parse timedtext XML (srv3 format: <p> tags with <s> children). */
-async function fetchTimedText(track: CaptionTrack): Promise<TimedSegment[]> {
-  const url = `${track.baseUrl}&fmt=srv1`;
-  const res = await fetchViaProxy(url);
-
-  if (!res.ok) {
-    throw new Error(`Timedtext fetch failed: ${res.status}`);
-  }
-
-  const xml = await res.text();
-
-  // YouTube returns srv3 regardless of fmt param.
-  // srv3 format: <p t="ms" d="ms"><s>text</s><s>text</s></p>
-  // Also handle srv1 format: <text start="s" dur="s">text</text>
+/** Parse timedtext XML into timed segments (srv3 or srv1 format). */
+export function parseTimedTextXml(xml: string): TimedSegment[] {
   const segments: TimedSegment[] = [];
 
   // Try srv3 format first (<p> with <s> children)
@@ -162,6 +150,19 @@ async function fetchTimedText(track: CaptionTrack): Promise<TimedSegment[]> {
   return segments;
 }
 
+/** Fetch and parse timedtext XML (srv3 format: <p> tags with <s> children). */
+async function fetchTimedText(track: CaptionTrack): Promise<TimedSegment[]> {
+  const url = `${track.baseUrl}&fmt=srv1`;
+  const res = await fetchViaProxy(url);
+
+  if (!res.ok) {
+    throw new Error(`Timedtext fetch failed: ${res.status}`);
+  }
+
+  const xml = await res.text();
+  return parseTimedTextXml(xml);
+}
+
 // Zero-width and invisible Unicode characters used in prompt injection
 // eslint-disable-next-line no-misleading-character-class
 const ZERO_WIDTH_CHARS = /[\u200B\u200C\u200D\u2060\uFEFF]/g;
@@ -183,7 +184,7 @@ const INJECTION_PATTERNS = [
 ];
 
 /** Strip prompt injection patterns and invisible characters from transcript text. */
-function sanitizeTranscript(text: string): string {
+export function sanitizeTranscript(text: string): string {
   let cleaned = text.replace(ZERO_WIDTH_CHARS, "");
   for (const pattern of INJECTION_PATTERNS) {
     cleaned = cleaned.replace(pattern, "");
@@ -191,12 +192,8 @@ function sanitizeTranscript(text: string): string {
   return cleaned.replace(/\s+/g, " ").trim();
 }
 
-export async function fetchTranscript(videoId: string): Promise<string> {
-  const tracks = await fetchCaptionTracks(videoId);
-  const track = pickTrack(tracks);
-  const segments = await fetchTimedText(track);
-
-  // Group segments into ~30s chunks to add periodic timestamps without bloating the text
+/** Assemble timed segments into a transcript string with periodic [M:SS] markers. */
+export function assembleTranscript(segments: TimedSegment[]): string {
   const CHUNK_INTERVAL_MS = 30_000;
   const lines: string[] = [];
   let lastTimestamp = -CHUNK_INTERVAL_MS; // force first timestamp
@@ -213,7 +210,15 @@ export async function fetchTranscript(videoId: string): Promise<string> {
     }
   }
 
-  let transcript = lines.join(" ").replace(/\s+/g, " ").trim();
+  return lines.join(" ").replace(/\s+/g, " ").trim();
+}
+
+export async function fetchTranscript(videoId: string): Promise<string> {
+  const tracks = await fetchCaptionTracks(videoId);
+  const track = pickTrack(tracks);
+  const segments = await fetchTimedText(track);
+
+  let transcript = assembleTranscript(segments);
 
   if (transcript.length === 0) {
     throw new TranscriptNotAvailableError("Transcript is empty after cleaning.");
