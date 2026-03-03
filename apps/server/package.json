@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@cliphy/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "@sentry/node": "^10.42.0",
     "@supabase/supabase-js": "^2.47.0",
     "hono": "^4.6.0",
     "inngest": "^3.52.3",

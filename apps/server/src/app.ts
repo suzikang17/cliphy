@@ -5,6 +5,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { serve } from "inngest/hono";
 import type { AppEnv } from "./env.js";
 import { inngest } from "./lib/inngest.js";
+import { Sentry } from "./lib/sentry.js";
 import { summarizeVideo } from "./functions/summarize-video.js";
 import { authRoutes } from "./routes/auth.js";
 import { queueRoutes } from "./routes/queue.js";
@@ -49,6 +50,11 @@ app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
 app.route("/privacy", privacyRoutes);
+
+app.onError((err, c) => {
+  Sentry.captureException(err);
+  return c.json({ error: "Internal server error" }, 500);
+});
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
