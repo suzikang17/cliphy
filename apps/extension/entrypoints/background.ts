@@ -4,6 +4,9 @@ import type { Menus, Tabs, Runtime } from "wxt/browser";
 import { signIn, signOut, isAuthenticated, getAccessToken, getUserIdFromToken } from "../lib/auth";
 import { addToQueue, RateLimitError, ProRequiredError } from "../lib/api";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
+import { createBackgroundClient } from "../lib/sentry";
+
+const sentryScope = createBackgroundClient();
 
 /** Start listening for Realtime changes if authenticated. */
 async function setupRealtime() {
@@ -60,6 +63,7 @@ export default defineBackground(() => {
     try {
       await addToQueue({ videoUrl: url });
     } catch (err) {
+      sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
       console.error("[Cliphy] Context menu queue failed:", err);
     }
   });
@@ -114,6 +118,8 @@ export default defineBackground(() => {
                   upgrade_url: err.upgradeUrl,
                 });
               } else {
+                // Unexpected error — report to Sentry
+                sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
                 sendResponse({
                   success: false,
                   error: err instanceof Error ? err.message : "Unknown error",
