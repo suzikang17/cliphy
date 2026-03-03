@@ -2,6 +2,7 @@ import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
 import { NonRetriableError } from "inngest";
 import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
+import { Sentry } from "../lib/sentry.js";
 import { supabase } from "../lib/supabase.js";
 import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
 import { summarizeTranscript } from "../services/summarizer.js";
@@ -14,6 +15,15 @@ export const summarizeVideo = inngest.createFunction(
     onFailure: async ({ event }) => {
       const { summaryId } = event.data.event.data as { summaryId: string };
       const errorMessage = event.data.error.message || "Failed to generate summary";
+
+      Sentry.captureException(new Error(errorMessage), {
+        extra: {
+          summaryId,
+          videoId: (event.data.event.data as { videoId?: string }).videoId,
+        },
+        tags: { component: "inngest" },
+      });
+
       await supabase
         .from("summaries")
         .update({ status: "failed", error_message: errorMessage })
