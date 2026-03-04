@@ -11,6 +11,7 @@ const TEMPERATURE = 0.3;
 const MAX_SUMMARY_LENGTH = 1000;
 const MAX_ITEM_LENGTH = 500;
 const MAX_ARRAY_ITEMS = 50;
+const MAX_SECTION_TITLE_LENGTH = 100;
 
 /** Filter to only string elements, truncate, and cap array length. */
 function sanitizeStringArray(arr: unknown[], maxItems = MAX_ARRAY_ITEMS): string[] {
@@ -48,12 +49,40 @@ export function parseSummaryResponse(text: string): SummaryJson {
     throw new Error("Failed to parse summary: missing required fields");
   }
 
-  return {
+  const result: SummaryJson = {
     summary: obj.summary.slice(0, MAX_SUMMARY_LENGTH),
     keyPoints: sanitizeStringArray(obj.keyPoints),
-    actionItems: Array.isArray(obj.actionItems) ? sanitizeStringArray(obj.actionItems) : [],
     timestamps: sanitizeStringArray(obj.timestamps),
   };
+
+  // Parse contextSection if present and valid
+  if (
+    obj.contextSection &&
+    typeof obj.contextSection === "object" &&
+    !Array.isArray(obj.contextSection)
+  ) {
+    const cs = obj.contextSection as Record<string, unknown>;
+    if (typeof cs.title === "string" && typeof cs.icon === "string" && Array.isArray(cs.items)) {
+      const items = sanitizeStringArray(cs.items);
+      if (items.length > 0) {
+        result.contextSection = {
+          title: cs.title.slice(0, MAX_SECTION_TITLE_LENGTH),
+          icon: cs.icon.slice(0, 4),
+          items,
+        };
+      }
+    }
+  }
+
+  // Backward compat: preserve actionItems from legacy responses
+  if (Array.isArray(obj.actionItems)) {
+    const items = sanitizeStringArray(obj.actionItems);
+    if (items.length > 0) {
+      result.actionItems = items;
+    }
+  }
+
+  return result;
 }
 
 export async function summarizeTranscript(

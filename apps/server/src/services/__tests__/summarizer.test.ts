@@ -63,5 +63,80 @@ describe("Video Processing", () => {
       expect(result.summary.length).toBe(1000);
       expect(result.keyPoints[0].length).toBe(500);
     });
+
+    const base = {
+      summary: "A summary",
+      keyPoints: ["Point 1"],
+      timestamps: ["0:00 - Intro"],
+    };
+
+    it("parses response with contextSection", () => {
+      const input = JSON.stringify({
+        ...base,
+        contextSection: {
+          title: "Recipe",
+          icon: "🍳",
+          items: ["Step 1", "Step 2"],
+        },
+      });
+      const result = parseSummaryResponse(input);
+      expect(result.contextSection).toEqual({
+        title: "Recipe",
+        icon: "🍳",
+        items: ["Step 1", "Step 2"],
+      });
+      expect(result.actionItems).toBeUndefined();
+    });
+
+    it("parses response with null contextSection", () => {
+      const input = JSON.stringify({ ...base, contextSection: null });
+      const result = parseSummaryResponse(input);
+      expect(result.contextSection).toBeUndefined();
+    });
+
+    it("parses legacy response with actionItems (backward compat)", () => {
+      const input = JSON.stringify({
+        ...base,
+        actionItems: ["Do this", "Do that"],
+      });
+      const result = parseSummaryResponse(input);
+      expect(result.actionItems).toEqual(["Do this", "Do that"]);
+      expect(result.contextSection).toBeUndefined();
+    });
+
+    it("sanitizes contextSection items", () => {
+      const input = JSON.stringify({
+        ...base,
+        contextSection: {
+          title: "Steps",
+          icon: "🔧",
+          items: ["Valid", 123, null, "Also valid"],
+        },
+      });
+      const result = parseSummaryResponse(input);
+      expect(result.contextSection!.items).toEqual(["Valid", "Also valid"]);
+    });
+
+    it("truncates long contextSection title", () => {
+      const input = JSON.stringify({
+        ...base,
+        contextSection: {
+          title: "A".repeat(200),
+          icon: "🔧",
+          items: ["Step 1"],
+        },
+      });
+      const result = parseSummaryResponse(input);
+      expect(result.contextSection!.title.length).toBeLessThanOrEqual(100);
+    });
+
+    it("rejects contextSection with missing fields", () => {
+      const input = JSON.stringify({
+        ...base,
+        contextSection: { title: "Steps" }, // missing icon and items
+      });
+      const result = parseSummaryResponse(input);
+      expect(result.contextSection).toBeUndefined();
+    });
   });
 });
