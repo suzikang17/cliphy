@@ -27,11 +27,17 @@ Original transcript:
 - 0.4: Many vague or could apply to any video
 - 0.0: All generic platitudes`,
 
-  timestampQuality: `Rate timestamp quality (0.0–1.0).
-- 1.0: Mark real topic changes, times match transcript markers, clear descriptions
-- 0.7: Mostly accurate, minor timing issues
-- 0.4: Several wrong or vague
-- 0.0: Fabricated or missing
+  timestampDetail: `Rate how descriptive and useful these timestamp labels are (0.0–1.0).
+- 1.0: Each label clearly describes the topic/segment, specific enough to navigate by
+- 0.7: Most labels are descriptive, a few are vague
+- 0.4: Many labels are generic ("next section") or too brief to be useful
+- 0.0: Labels are missing, meaningless, or all identical`,
+
+  timestampAccuracy: `Rate how accurately these timestamps match real topic transitions (0.0–1.0).
+- 1.0: Times align with [M:SS] markers in the transcript, each marks a real topic change
+- 0.7: Most times are close, minor drift
+- 0.4: Several times are wrong or don't correspond to topic changes
+- 0.0: Times are fabricated or completely off
 
 Original transcript with [M:SS] markers:
 {{transcript}}`,
@@ -43,7 +49,7 @@ const TX = {
   accuracy:
     '(() => { const p = JSON.parse(output); return p.summary + "\\n\\nKey Points:\\n" + p.keyPoints.join("\\n"); })()',
   keyPoints:
-    '(() => { const p = JSON.parse(output); const kp = p.keyPoints.join("\\n"); const ai = (p.actionItems||[]).join("\\n"); return "Key Points:\\n" + kp + (ai ? "\\n\\nAction Items:\\n" + ai : ""); })()',
+    '(() => { const p = JSON.parse(output); const kp = p.keyPoints.join("\\n"); const cs = p.contextSection; const csText = cs ? "\\n\\n" + cs.title + ":\\n" + cs.items.join("\\n") : ""; return "Key Points:\\n" + kp + csText; })()',
   timestamps: 'JSON.parse(output).timestamps.join("\\n")',
 };
 
@@ -98,8 +104,14 @@ const config: UnifiedConfig = {
       },
       {
         type: "llm-rubric" as const,
-        value: RUBRICS.timestampQuality,
-        metric: "TimestampQuality",
+        value: RUBRICS.timestampDetail,
+        metric: "TimestampDetail",
+        transform: TX.timestamps,
+      },
+      {
+        type: "llm-rubric" as const,
+        value: RUBRICS.timestampAccuracy,
+        metric: "TimestampAccuracy",
         transform: TX.timestamps,
       },
     ],
