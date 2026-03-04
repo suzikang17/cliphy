@@ -24,11 +24,20 @@ export interface User {
   updatedAt: string;
 }
 
+/** AI-chosen section that adapts to video content (e.g. Recipe, Steps, Action Items) */
+export interface ContextSection {
+  title: string;
+  icon: string;
+  items: string[];
+}
+
 /** Shape of the AI-generated summary stored as JSONB in summaries.summary_json */
 export interface SummaryJson {
   summary: string;
   keyPoints: string[];
-  actionItems: string[];
+  /** @deprecated Use contextSection instead. Kept for backward compat with existing summaries. */
+  actionItems?: string[];
+  contextSection?: ContextSection;
   timestamps: string[];
   /** True if the transcript was too long and was truncated before summarization */
   truncated?: boolean;
