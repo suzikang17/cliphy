@@ -1,4 +1,4 @@
-import type { Summary } from "@cliphy/shared";
+import type { ContextSection, Summary } from "@cliphy/shared";
 import { formatTimeSaved, parseDurationToSeconds, TAG_MAX_LENGTH } from "@cliphy/shared";
 import { useRef, useState } from "react";
 
@@ -20,6 +20,15 @@ function extractTimestamp(text: string): { time: string; seconds: number; label:
   return { time, seconds, label: match[2].trim() || time };
 }
 
+/** Resolve contextSection from new or legacy format */
+function resolveContextSection(json: NonNullable<Summary["summaryJson"]>): ContextSection | null {
+  if (json.contextSection) return json.contextSection;
+  if (json.actionItems && json.actionItems.length > 0) {
+    return { title: "Action Items", icon: "→", items: json.actionItems };
+  }
+  return null;
+}
+
 function toMarkdown(summary: Summary): string {
   const json = summary.summaryJson;
   if (!json) return "";
@@ -37,9 +46,10 @@ function toMarkdown(summary: Summary): string {
     }
     lines.push("");
   }
-  if (json.actionItems?.length > 0) {
-    lines.push("## Action Items");
-    for (const item of json.actionItems) {
+  const ctxMd = resolveContextSection(json);
+  if (ctxMd) {
+    lines.push(`## ${ctxMd.title}`);
+    for (const item of ctxMd.items) {
       lines.push(`- ${item}`);
     }
     lines.push("");
@@ -78,10 +88,11 @@ function toPlainText(summary: Summary): string {
     }
     lines.push("");
   }
-  if (json.actionItems?.length > 0) {
-    lines.push("Action Items:");
-    for (const item of json.actionItems) {
-      lines.push(`→ ${item}`);
+  const ctxPt = resolveContextSection(json);
+  if (ctxPt) {
+    lines.push(`${ctxPt.title}:`);
+    for (const item of ctxPt.items) {
+      lines.push(`${ctxPt.icon} ${item}`);
     }
     lines.push("");
   }
@@ -194,6 +205,58 @@ function TagEditor({
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API can fail in extension contexts
+    }
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 p-0 cursor-pointer transition-colors"
+      title="Copy section"
+    >
+      {copied ? (
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-green-600"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 type CopyState = "idle" | "markdown" | "text";
 
 export function SummaryDetail({
@@ -230,18 +293,41 @@ export function SummaryDetail({
   return (
     <div>
       {/* Video metadata */}
-      <div className="flex gap-3 mb-4">
-        <img
-          src={`https://i.ytimg.com/vi/${summary.videoId}/mqdefault.jpg`}
-          alt=""
-          className="w-24 h-auto rounded-lg border-2 border-(--color-border-hard) object-cover shrink-0"
-        />
+      <div className="flex items-start gap-3 mb-4">
+        <a
+          href={`https://youtube.com/watch?v=${summary.videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0"
+        >
+          <img
+            src={`https://i.ytimg.com/vi/${summary.videoId}/mqdefault.jpg`}
+            alt=""
+            className="w-28 h-auto rounded-lg border-2 border-(--color-border-hard) object-cover hover:shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
+          />
+        </a>
         <div className="min-w-0">
-          <h2 className="text-base font-extrabold leading-snug m-0">
-            {summary.videoTitle || summary.videoId}
-          </h2>
+          <a
+            href={`https://youtube.com/watch?v=${summary.videoId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="no-underline text-(--color-text)"
+          >
+            <h2 className="text-sm font-extrabold leading-snug m-0 hover:text-neon-600 transition-colors">
+              {summary.videoTitle || summary.videoId}
+            </h2>
+          </a>
           <div className="flex items-center gap-1.5 text-xs text-(--color-text-muted) mt-1">
-            {summary.videoChannel && <span>{summary.videoChannel}</span>}
+            {summary.videoChannel && (
+              <a
+                href={`https://youtube.com/results?search_query=${encodeURIComponent(summary.videoChannel)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-(--color-text-muted) hover:text-neon-600 no-underline transition-colors"
+              >
+                {summary.videoChannel}
+              </a>
+            )}
             {summary.videoChannel && summary.videoDurationSeconds && <span>&middot;</span>}
             {summary.videoDurationSeconds != null && summary.videoDurationSeconds > 0 && (
               <span>{formatTimeSaved(summary.videoDurationSeconds)}</span>
@@ -277,7 +363,7 @@ export function SummaryDetail({
             <a
               href="#tldr"
               onClick={(e) => scrollToSection(e, "tldr")}
-              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-accent-surface) text-neon-600 no-underline hover:bg-neon-100 dark:hover:bg-neon-900 transition-colors"
+              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
             >
               TLDR
             </a>
@@ -290,15 +376,6 @@ export function SummaryDetail({
                 Key Takeaways
               </a>
             )}
-            {json.actionItems?.length > 0 && (
-              <a
-                href="#action-items"
-                onClick={(e) => scrollToSection(e, "action-items")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
-              >
-                Action Items
-              </a>
-            )}
             {json.timestamps.length > 0 && (
               <a
                 href="#timestamps"
@@ -308,6 +385,18 @@ export function SummaryDetail({
                 Timestamps
               </a>
             )}
+            {(() => {
+              const ctx = resolveContextSection(json);
+              return ctx ? (
+                <a
+                  href="#context-section"
+                  onClick={(e) => scrollToSection(e, "context-section")}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
+                >
+                  {ctx.title}
+                </a>
+              ) : null;
+            })()}
           </div>
 
           {/* Summary / TL;DR */}
@@ -315,18 +404,24 @@ export function SummaryDetail({
             id="tldr"
             className="bg-(--color-accent-surface) rounded-lg p-3 mb-4 transition-all duration-300"
           >
-            <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0 mb-1.5">
-              TLDR
-            </h3>
-            <p className="text-sm text-(--color-text-body) leading-relaxed m-0">{json.summary}</p>
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">TLDR</h3>
+              <CopyButton text={json.summary} />
+            </div>
+            <p className="text-sm text-(--color-text-body) leading-relaxed m-0 italic">
+              {json.summary}
+            </p>
           </div>
 
           {/* Key Points */}
           {json.keyPoints.length > 0 && (
             <div id="key-takeaways" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
-                Key Takeaways
-              </h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
+                  Key Takeaways
+                </h3>
+                <CopyButton text={json.keyPoints.map((p) => `• ${p}`).join("\n")} />
+              </div>
               <ul className="list-none p-0 m-0 space-y-1.5">
                 {json.keyPoints.map((point, i) => (
                   <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
@@ -338,29 +433,15 @@ export function SummaryDetail({
             </div>
           )}
 
-          {/* Action Items */}
-          {json.actionItems?.length > 0 && (
-            <div id="action-items" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
-                Action Items
-              </h3>
-              <ul className="list-none p-0 m-0 space-y-1.5">
-                {json.actionItems.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
-                    <span className="text-green-600 font-bold shrink-0">→</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* Timestamps */}
           {json.timestamps.length > 0 && (
             <div id="timestamps" className="mb-4 rounded-lg transition-all duration-300">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0 mb-2">
-                Timestamps
-              </h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
+                  Timestamps
+                </h3>
+                <CopyButton text={json.timestamps.join("\n")} />
+              </div>
               <ul className="list-none p-0 m-0 space-y-1">
                 {json.timestamps.map((ts, i) => {
                   const parsed = extractTimestamp(ts);
@@ -397,6 +478,29 @@ export function SummaryDetail({
               </ul>
             </div>
           )}
+
+          {/* Context Section (Action Items or dynamic) */}
+          {(() => {
+            const ctx = resolveContextSection(json);
+            return ctx ? (
+              <div id="context-section" className="mb-4 rounded-lg transition-all duration-300">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
+                    {ctx.icon} {ctx.title}
+                  </h3>
+                  <CopyButton text={ctx.items.map((i) => `${ctx.icon} ${i}`).join("\n")} />
+                </div>
+                <ul className="list-none p-0 m-0 space-y-1.5">
+                  {ctx.items.map((item, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                      <span className="text-green-600 font-bold shrink-0">{ctx.icon}</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null;
+          })()}
 
           {/* Export buttons */}
           <div className="flex gap-2 pt-2 border-t border-(--color-border-soft)">
