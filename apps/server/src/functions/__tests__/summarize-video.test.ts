@@ -90,13 +90,13 @@ const sampleSummary: {
   summary: string;
   keyPoints: string[];
   timestamps: string[];
-  actionItems: string[];
+  contextSection?: { title: string; icon: string; items: string[] };
   truncated?: boolean;
 } = {
   summary: "A summary",
   keyPoints: ["Point 1"],
   timestamps: ["0:00 - Intro"],
-  actionItems: [],
+  contextSection: { title: "Steps", icon: "🔧", items: ["Do this"] },
 };
 
 function makeAPIError(status: number, message: string): APIError {
