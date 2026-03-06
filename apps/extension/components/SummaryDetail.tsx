@@ -36,11 +36,11 @@ function toMarkdown(summary: Summary): string {
   lines.push(`# ${summary.videoTitle || summary.videoId}`);
   if (summary.videoChannel) lines.push(`**${summary.videoChannel}**`);
   lines.push("");
-  lines.push("## Summary");
+  lines.push("## TL;DR");
   lines.push(json.summary);
   lines.push("");
   if (json.keyPoints.length > 0) {
-    lines.push("## Key Takeaways");
+    lines.push("## Highlights");
     for (const point of json.keyPoints) {
       lines.push(`- ${point}`);
     }
@@ -55,7 +55,7 @@ function toMarkdown(summary: Summary): string {
     lines.push("");
   }
   if (json.timestamps.length > 0) {
-    lines.push("## Timestamps");
+    lines.push("## Jump To");
     for (const ts of json.timestamps) {
       const parsed = extractTimestamp(ts);
       if (parsed && summary.videoId) {
@@ -78,11 +78,11 @@ function toPlainText(summary: Summary): string {
   lines.push(summary.videoTitle || summary.videoId);
   if (summary.videoChannel) lines.push(summary.videoChannel);
   lines.push("");
-  lines.push("Summary:");
+  lines.push("TL;DR:");
   lines.push(json.summary);
   lines.push("");
   if (json.keyPoints.length > 0) {
-    lines.push("Key Takeaways:");
+    lines.push("Highlights:");
     for (const point of json.keyPoints) {
       lines.push(`• ${point}`);
     }
@@ -92,12 +92,12 @@ function toPlainText(summary: Summary): string {
   if (ctxPt) {
     lines.push(`${ctxPt.title}:`);
     for (const item of ctxPt.items) {
-      lines.push(`${ctxPt.icon} ${item}`);
+      lines.push(`• ${item}`);
     }
     lines.push("");
   }
   if (json.timestamps.length > 0) {
-    lines.push("Timestamps:");
+    lines.push("Jump To:");
     for (const ts of json.timestamps) {
       lines.push(`• ${ts}`);
     }
@@ -155,7 +155,7 @@ function TagEditor({
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-100 text-neon-700 border border-neon-300 dark:bg-neon-900/30 dark:text-neon-400 dark:border-neon-700"
+          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft)"
         >
           {tag}
           <button
@@ -234,7 +234,7 @@ function CopyButton({ text }: { text: string }) {
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-green-600"
+          className="text-neon-600"
         >
           <polyline points="20 6 9 17 4 12" />
         </svg>
@@ -365,24 +365,24 @@ export function SummaryDetail({
               onClick={(e) => scrollToSection(e, "tldr")}
               className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
             >
-              TLDR
+              TL;DR
             </a>
             {json.keyPoints.length > 0 && (
               <a
-                href="#key-takeaways"
-                onClick={(e) => scrollToSection(e, "key-takeaways")}
+                href="#highlights"
+                onClick={(e) => scrollToSection(e, "highlights")}
                 className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
               >
-                Key Takeaways
+                Highlights
               </a>
             )}
             {json.timestamps.length > 0 && (
               <a
-                href="#timestamps"
-                onClick={(e) => scrollToSection(e, "timestamps")}
+                href="#jump-to"
+                onClick={(e) => scrollToSection(e, "jump-to")}
                 className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
               >
-                Timestamps
+                Jump To
               </a>
             )}
             {(() => {
@@ -399,13 +399,13 @@ export function SummaryDetail({
             })()}
           </div>
 
-          {/* Summary / TL;DR */}
+          {/* TL;DR */}
           <div
             id="tldr"
-            className="bg-(--color-accent-surface) rounded-lg p-3 mb-4 transition-all duration-300"
+            className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">TLDR</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">TL;DR</h3>
               <CopyButton text={json.summary} />
             </div>
             <p className="text-sm text-(--color-text-body) leading-relaxed m-0 italic">
@@ -415,10 +415,13 @@ export function SummaryDetail({
 
           {/* Key Points */}
           {json.keyPoints.length > 0 && (
-            <div id="key-takeaways" className="mb-4 rounded-lg transition-all duration-300">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
-                  Key Takeaways
+            <div
+              id="highlights"
+              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                  Highlights
                 </h3>
                 <CopyButton text={json.keyPoints.map((p) => `• ${p}`).join("\n")} />
               </div>
@@ -433,12 +436,15 @@ export function SummaryDetail({
             </div>
           )}
 
-          {/* Timestamps */}
+          {/* Jump To */}
           {json.timestamps.length > 0 && (
-            <div id="timestamps" className="mb-4 rounded-lg transition-all duration-300">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
-                  Timestamps
+            <div
+              id="jump-to"
+              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                  Jump To
                 </h3>
                 <CopyButton text={json.timestamps.join("\n")} />
               </div>
@@ -483,17 +489,20 @@ export function SummaryDetail({
           {(() => {
             const ctx = resolveContextSection(json);
             return ctx ? (
-              <div id="context-section" className="mb-4 rounded-lg transition-all duration-300">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 bg-(--color-accent-surface) inline-block px-2 py-0.5 rounded m-0">
-                    {ctx.icon} {ctx.title}
+              <div
+                id="context-section"
+                className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                    {ctx.title}
                   </h3>
-                  <CopyButton text={ctx.items.map((i) => `${ctx.icon} ${i}`).join("\n")} />
+                  <CopyButton text={ctx.items.map((i) => `• ${i}`).join("\n")} />
                 </div>
                 <ul className="list-none p-0 m-0 space-y-1.5">
                   {ctx.items.map((item, i) => (
                     <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
-                      <span className="text-green-600 font-bold shrink-0">{ctx.icon}</span>
+                      <span className="text-neon-500 font-bold shrink-0">•</span>
                       <span>{item}</span>
                     </li>
                   ))}

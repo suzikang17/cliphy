@@ -1,12 +1,11 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
-import { formatTimeSaved, FREE_HISTORY_DAYS, parseDurationToSeconds } from "@cliphy/shared";
+import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { UpgradePrompt } from "../../components/UpgradePrompt";
 import { UsageBar } from "../../components/UsageBar";
-import { VideoCard } from "../../components/VideoCard";
 import {
   AuthError,
   createPortal,
@@ -25,14 +24,31 @@ import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/s
 
 type View = "dashboard" | "detail";
 
-async function seekVideo(seconds: number) {
+async function seekVideo(seconds: number, videoId?: string) {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      await browser.tabs.sendMessage(tab.id, { type: "SEEK_VIDEO", seconds });
+    if (!tab?.id) return;
+
+    // If on a different video (or not on YouTube), navigate to the right one
+    const isOnVideo = tab.url?.includes(`youtube.com/watch`) && tab.url.includes(`v=${videoId}`);
+    if (videoId && !isOnVideo) {
+      await browser.tabs.update(tab.id, {
+        url: `https://www.youtube.com/watch?v=${videoId}&t=${seconds}`,
+      });
+      return;
     }
+
+    await browser.tabs.sendMessage(tab.id, { type: "SEEK_VIDEO", seconds });
   } catch {
-    // Content script not available
+    // Content script not available — open the video in the current tab
+    if (videoId) {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await browser.tabs.update(tab.id, {
+          url: `https://www.youtube.com/watch?v=${videoId}&t=${seconds}`,
+        });
+      }
+    }
   }
 }
 
@@ -48,6 +64,9 @@ export function App() {
   const [selectedSummary, setSelectedSummary] = useState<Summary | null>(null);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [video, setVideo] = useState<VideoInfo | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const dismissedVideoRef = useRef<string | null>(null);
+  const [loadingVideoId, setLoadingVideoId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "queued" | "processing" | "error">("idle");
   const [addError, setAddError] = useState<string | undefined>(undefined);
@@ -55,8 +74,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const realtimeStarted = useRef(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     init();
@@ -135,19 +156,48 @@ export function App() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [user]);
 
+  // Close user menu on click outside
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showUserMenu]);
+
   // Listen for VIDEO_DETECTED from content script (has metadata after DOM loads)
   // and re-detect on tab navigation
   useEffect(() => {
     const onMessage = (message: unknown) => {
       const msg = message as ExtensionMessage;
       if (msg.type === "VIDEO_DETECTED" && msg.video?.videoId) {
-        setVideo(msg.video);
+        if (msg.video.videoId !== dismissedVideoRef.current) {
+          dismissedVideoRef.current = null;
+        }
+        // Only show the card once we have a title (initial message has empty title)
+        if (msg.video.title) {
+          setVideo(msg.video);
+          setVideoLoading(false);
+          setLoadingVideoId(null);
+        } else {
+          setVideo(null);
+          setVideoLoading(true);
+          setLoadingVideoId(msg.video.videoId);
+        }
         setAddStatus("idle");
       }
     };
 
     const onUpdated = (_tabId: number, changeInfo: { url?: string }) => {
-      if (changeInfo.url) detectVideo();
+      if (changeInfo.url) {
+        // Clear stale video card — content script will send fresh VIDEO_DETECTED
+        setVideo(null);
+        setVideoLoading(changeInfo.url.includes("youtube.com/watch"));
+        setAddStatus("idle");
+      }
     };
     const onActivated = () => detectVideo();
 
@@ -267,18 +317,22 @@ export function App() {
     try {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (tab?.id && tab.url?.includes("youtube.com/watch")) {
+        setVideoLoading(true);
         const info = (await browser.tabs.sendMessage(tab.id, {
           type: "GET_VIDEO_INFO",
         })) as VideoInfo;
         if (info?.videoId) {
           setVideo(info);
+          setVideoLoading(false);
           setAddStatus("idle");
           return;
         }
       }
       setVideo(null);
+      setVideoLoading(false);
     } catch {
       setVideo(null);
+      setVideoLoading(false);
     }
   }
 
@@ -359,13 +413,12 @@ export function App() {
     setView("dashboard");
   }
 
-  function handlePopOut(id: string) {
-    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}`);
-    browser.tabs.create({ url });
-  }
-
   async function handleRemoveItem(id: string) {
     const item = summaries.find((s) => s.id === id);
+    // If removing the current video's summary, dismiss so it doesn't reappear as "Add to Queue"
+    if (item && video && item.videoId === video.videoId) {
+      dismissedVideoRef.current = video.videoId;
+    }
     setSummaries((prev) => prev.filter((s) => s.id !== id));
     try {
       if (item?.status === "completed") {
@@ -405,36 +458,69 @@ export function App() {
     }
   }
 
-  // Sticky top bar (shared across all views)
   const topBar = (
-    <div className="sticky top-0 z-10 bg-(--color-surface) border-b border-(--color-border-soft) px-4 py-3 shrink-0 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {view === "detail" && (
+    <div className="sticky top-0 z-10 bg-(--color-surface) border-b border-(--color-border-soft) px-4 py-2 shrink-0 flex items-center justify-between">
+      <div>
+        {view === "detail" ? (
           <button
             onClick={handleBack}
-            className="text-sm font-bold text-neon-600 hover:text-neon-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+            className="text-xs font-bold text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 px-2.5 py-1 border-2 border-(--color-border-hard) rounded-md shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
           >
-            &larr;
+            &larr; Back
           </button>
+        ) : (
+          <span
+            className={`text-lg font-extrabold ${user?.plan === "pro" ? "text-neon-600" : "text-(--color-text)"}`}
+          >
+            Queue
+            {user?.plan === "pro" && <span className="ml-1 text-sm">✦</span>}
+          </span>
         )}
-        <h1 className="text-lg font-extrabold m-0 flex items-center gap-1.5">
-          <span className="text-neon-500">&#9654;</span>
-          Cliphy
-        </h1>
       </div>
-      <button
-        onClick={() => {
-          if (view === "detail" && selectedSummary) {
-            handlePopOut(selectedSummary.id);
-          } else {
-            const url = browser.runtime.getURL("/summaries.html");
-            browser.tabs.create({ url });
-          }
-        }}
-        className="text-xs text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer p-0 transition-colors"
-      >
-        Pop out &#x2197;
-      </button>
+      {user && (
+        <div className="relative" ref={userMenuRef}>
+          <button
+            onClick={() => setShowUserMenu((v) => !v)}
+            className="text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors truncate max-w-[160px]"
+          >
+            {user.email} &#9662;
+          </button>
+          {showUserMenu && (
+            <div className="absolute right-0 top-full mt-1 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20 min-w-[160px]">
+              {user.plan === "pro" && (
+                <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 border-b border-(--color-border-soft) mb-1">
+                  Pro Plan
+                </div>
+              )}
+              {user.plan === "pro" && (
+                <button
+                  onClick={async () => {
+                    setShowUserMenu(false);
+                    try {
+                      const { url } = await createPortal();
+                      await browser.tabs.create({ url });
+                    } catch {
+                      // silently fail
+                    }
+                  }}
+                  className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
+                >
+                  Manage subscription
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  handleSignOut();
+                }}
+                className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -543,7 +629,7 @@ export function App() {
         <div className="flex-1 overflow-y-auto p-4">
           <SummaryDetail
             summary={selectedSummary}
-            onSeek={seekVideo}
+            onSeek={(seconds) => seekVideo(seconds, selectedSummary.videoId)}
             onDismiss={() => handleDismissSummary(selectedSummary.id)}
           />
         </div>
@@ -566,45 +652,6 @@ export function App() {
       )}
 
       <div className="shrink-0 px-4 pt-3 pb-0">
-        {usage && usage.totalTimeSavedSeconds > 0 && (
-          <div className="flex items-center gap-1.5 mb-3">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-neon-500 shrink-0"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span className="text-sm font-extrabold">
-              {formatTimeSaved(usage.totalTimeSavedSeconds)} saved
-            </span>
-          </div>
-        )}
-
-        {video && (
-          <div className="mb-3">
-            <VideoCard
-              video={video}
-              onAdd={handleAddToQueue}
-              isAdding={isAdding}
-              status={addStatus}
-              error={addError}
-              existingStatus={summaries.find((s) => s.videoId === video.videoId)?.status}
-              onViewExisting={() => {
-                const match = summaries.find((s) => s.videoId === video.videoId);
-                if (match) handleViewSummary(match.id);
-              }}
-            />
-          </div>
-        )}
-
         {upgradePrompt && (
           <div className="mb-3">
             <UpgradePrompt
@@ -614,64 +661,43 @@ export function App() {
             />
           </div>
         )}
-
-        <div className="flex items-center gap-1.5 mb-2">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-(--color-text-muted) m-0">
-            Queue
-          </h2>
-          {user.plan === "free" && (
-            <span className="text-[9px] text-(--color-text-faint)">
-              (last {FREE_HISTORY_DAYS} days)
-            </span>
-          )}
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-2">
         <QueueList
           summaries={summaries}
+          currentVideo={video && dismissedVideoRef.current !== video.videoId ? video : null}
+          videoLoading={videoLoading}
+          loadingVideoId={loadingVideoId}
+          onAddToQueue={handleAddToQueue}
+          isAdding={isAdding}
+          addStatus={addStatus}
+          addError={addError}
           onViewSummary={handleViewSummary}
           onRemove={handleRemoveItem}
           onRetry={handleRetryItem}
-          onViewAll={() => {
-            const url = browser.runtime.getURL("/summaries.html");
-            browser.tabs.create({ url });
-          }}
         />
       </div>
 
       <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
         {usage && (
-          <div className="mb-3">
-            <UsageBar usage={usage} onUpgraded={handleUpgraded} />
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <UsageBar usage={usage} onUpgraded={handleUpgraded} />
+              </div>
+              <button
+                onClick={() => {
+                  const url = browser.runtime.getURL("/summaries.html");
+                  browser.tabs.create({ url });
+                }}
+                className="text-xs font-bold text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 border-2 border-(--color-border-hard) rounded-md px-3 py-1 shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all shrink-0"
+              >
+                View all
+              </button>
+            </div>
           </div>
         )}
-        <div className="flex items-center justify-between text-xs text-(--color-text-faint)">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {user.plan === "pro" && (
-              <button
-                onClick={async () => {
-                  try {
-                    const { url } = await createPortal();
-                    await browser.tabs.create({ url });
-                  } catch {
-                    // silently fail
-                  }
-                }}
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0 border-0 cursor-pointer hover:bg-indigo-200 transition-colors"
-              >
-                Pro &#x2197;
-              </button>
-            )}
-            <span className="truncate">{user.email}</span>
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="bg-transparent border-0 p-0 text-xs text-(--color-text-faint) hover:text-(--color-text) cursor-pointer transition-colors shrink-0 ml-2"
-          >
-            Sign out
-          </button>
-        </div>
       </div>
     </div>
   );

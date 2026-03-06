@@ -14,7 +14,6 @@ import {
   getAllTags,
   getSummaries,
   getUsage,
-  TagLimitError,
   updateSummaryTags,
 } from "../../lib/api";
 import { openCheckout } from "../../lib/checkout";
@@ -82,30 +81,46 @@ export function App() {
     }
   }
 
-  async function handleFilterTag(tag: string | null) {
+  function handleFilterTag(tag: string | null) {
     setFilterTag(tag);
-    try {
-      const res = await getSummaries(tag ?? undefined);
-      setSummaries(res.summaries);
-    } catch {
-      // silently fail — list stays as-is
-    }
   }
 
   async function handleTagsChange(summaryId: string, newTags: string[]) {
+    // Optimistic update — reflect immediately in UI
+    const rollback = summaries.find((s) => s.id === summaryId)?.tags;
+    setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: newTags } : s)));
+    if (selectedSummary?.id === summaryId) {
+      setSelectedSummary((prev) => (prev ? { ...prev, tags: newTags } : prev));
+    }
+    // Derive allTags locally so filter dropdown updates instantly
+    setAllTags((prev) => {
+      const all = new Set(prev);
+      for (const t of newTags) all.add(t);
+      return [...all].sort();
+    });
+
     try {
-      const res = await updateSummaryTags(summaryId, newTags);
+      const [res] = await Promise.all([
+        updateSummaryTags(summaryId, newTags),
+        getAllTags().then((r) => setAllTags(r.tags)),
+      ]);
+      // Reconcile with server response
       setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: res.tags } : s)));
       if (selectedSummary?.id === summaryId) {
         setSelectedSummary((prev) => (prev ? { ...prev, tags: res.tags } : prev));
       }
-      const tagsRes = await getAllTags();
-      setAllTags(tagsRes.tags);
     } catch (err) {
-      if (err instanceof TagLimitError) {
-        const tagsRes = await getAllTags();
-        setAllTags(tagsRes.tags);
+      // Rollback on failure
+      if (rollback !== undefined) {
+        setSummaries((prev) =>
+          prev.map((s) => (s.id === summaryId ? { ...s, tags: rollback } : s)),
+        );
+        if (selectedSummary?.id === summaryId) {
+          setSelectedSummary((prev) => (prev ? { ...prev, tags: rollback } : prev));
+        }
       }
+      const tagsRes = await getAllTags().catch(() => null);
+      if (tagsRes) setAllTags(tagsRes.tags);
       throw err;
     }
   }
@@ -143,9 +158,13 @@ export function App() {
     }
   }
 
-  // Client-side search + sort
+  // Client-side search + tag filter + sort
   const displayedSummaries = useMemo(() => {
     let result = summaries;
+
+    if (filterTag) {
+      result = result.filter((s) => s.tags.includes(filterTag));
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -161,7 +180,7 @@ export function App() {
     }
 
     return result;
-  }, [summaries, searchQuery, sortOrder]);
+  }, [summaries, searchQuery, sortOrder, filterTag]);
 
   // Loading
   if (loading) {
@@ -268,7 +287,7 @@ function Header({ usage }: { usage: UsageInfo | null }) {
     <div className="mb-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold m-0">
-          <span className="text-neon-500">&#9654;</span> Cliphy
+          <span className="text-neon-500">&#9654;</span> Cliphub
         </h1>
         {usage && (
           <div className="text-right">
@@ -517,7 +536,7 @@ function SummaryCard({
             {s.tags.map((tag) => (
               <span
                 key={tag}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-neon-100 text-neon-700 border border-neon-300 dark:bg-neon-900/30 dark:text-neon-400 dark:border-neon-700 font-bold"
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft) font-bold"
               >
                 {tag}
               </span>
