@@ -5,6 +5,40 @@ export default defineContentScript({
   matches: ["https://www.youtube.com/*"],
 
   main() {
+    function formatDuration(totalSeconds: number): string {
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      return h > 0
+        ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+        : `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    function getDuration(): string | null {
+      // Prefer video element duration (updates on SPA nav), but not during ads
+      const isAd = !!document.querySelector(".ad-showing");
+      if (!isAd) {
+        const videoEl = document.querySelector("video");
+        if (videoEl && isFinite(videoEl.duration) && videoEl.duration > 0) {
+          return formatDuration(Math.floor(videoEl.duration));
+        }
+      }
+
+      // Fallback: structured data meta tag (works on initial load, stale on SPA nav)
+      const durationMeta = document.querySelector<HTMLMetaElement>('meta[itemprop="duration"]');
+      if (durationMeta?.content) {
+        const match = durationMeta.content.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (match) {
+          const h = parseInt(match[1] ?? "0", 10);
+          const m = parseInt(match[2] ?? "0", 10);
+          const s = parseInt(match[3] ?? "0", 10);
+          return formatDuration(h * 3600 + m * 60 + s);
+        }
+      }
+
+      return null;
+    }
+
     function getVideoInfo(): VideoInfo {
       const url = window.location.href;
       const videoId = new URL(url).searchParams.get("v");
@@ -15,23 +49,7 @@ export default defineContentScript({
         document.querySelector<HTMLAnchorElement>("#owner a");
       const channel = channelEl?.textContent?.trim() ?? null;
 
-      // Read duration from structured data meta tag — immune to ad playback.
-      // The player's .ytp-time-duration shows ad length when ads are playing.
-      const durationMeta = document.querySelector<HTMLMetaElement>('meta[itemprop="duration"]');
-      let duration: string | null = null;
-      if (durationMeta?.content) {
-        // Convert ISO 8601 "PT12M34S" → "12:34", "PT1H2M3S" → "1:02:03"
-        const match = durationMeta.content.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-        if (match) {
-          const h = parseInt(match[1] ?? "0", 10);
-          const m = parseInt(match[2] ?? "0", 10);
-          const s = parseInt(match[3] ?? "0", 10);
-          duration =
-            h > 0
-              ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-              : `${m}:${String(s).padStart(2, "0")}`;
-        }
-      }
+      const duration = getDuration();
 
       return { videoId, title, url, channel, duration };
     }
@@ -73,14 +91,36 @@ export default defineContentScript({
       },
     );
 
-    // Detect SPA navigation (YouTube fires this on page transitions)
+    // Detect SPA navigation (YouTube fires this on page transitions).
+    // On SPA nav, the URL updates instantly but DOM metadata (title, channel,
+    // duration meta tag) still reflects the previous video. The <video> element
+    // duration updates once the new video loads.
     document.addEventListener("yt-navigate-finish", () => {
-      if (isVideoPage()) {
-        // Small delay to let DOM update with new video's metadata
-        setTimeout(() => {
-          notifyBackground(getVideoInfo());
-        }, 500);
-      }
+      if (!isVideoPage()) return;
+
+      const oldTitle = document.title;
+
+      // Send immediately — videoId/URL are correct but null out channel/duration
+      // which are still stale from the previous video
+      const videoId = new URL(window.location.href).searchParams.get("v");
+      notifyBackground({
+        videoId,
+        title: "",
+        url: window.location.href,
+        channel: null,
+        duration: null,
+      });
+
+      // Poll until YouTube updates the DOM (title change = reliable signal)
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (document.title !== oldTitle || attempts >= 12) {
+          clearInterval(poll);
+          // Extra delay for video element to load (duration source)
+          setTimeout(() => notifyBackground(getVideoInfo()), 500);
+        }
+      }, 500);
     });
 
     // Also detect initial page load if already on a video

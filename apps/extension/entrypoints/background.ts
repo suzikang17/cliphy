@@ -62,7 +62,16 @@ export default defineBackground(() => {
 
     try {
       await addToQueue({ videoUrl: url });
+      // Flash green "+" badge for 2s on success
+      await browser.action.setBadgeBackgroundColor({ color: "#e6007e" });
+      await browser.action.setBadgeText({ text: "+" });
+      setTimeout(() => browser.action.setBadgeText({ text: "" }), 2000);
     } catch (err) {
+      // Flash red "!" badge for 3s on error
+      await browser.action.setBadgeBackgroundColor({ color: "#dc2626" });
+      await browser.action.setBadgeText({ text: "!" });
+      setTimeout(() => browser.action.setBadgeText({ text: "" }), 3000);
+
       if (!(err instanceof RateLimitError) && !(err instanceof ProRequiredError)) {
         sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
       }
