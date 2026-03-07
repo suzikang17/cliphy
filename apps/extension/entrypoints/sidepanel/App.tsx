@@ -481,12 +481,7 @@ export function App() {
             </button>
           </>
         ) : (
-          <span
-            className={`text-lg font-extrabold ${user?.plan === "pro" ? "text-neon-600" : "text-(--color-text)"}`}
-          >
-            Queue
-            {user?.plan === "pro" && <span className="ml-1 text-sm">✦</span>}
-          </span>
+          <span className="text-lg font-extrabold text-(--color-text)">Queue</span>
         )}
       </div>
       {user && (
@@ -699,7 +694,7 @@ export function App() {
         {usage && usage.plan === "free" && !upgradePrompt && (
           <button
             onClick={() => openCheckout(handleUpgraded)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-transparent text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/40 press-down cursor-pointer transition-all"
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all"
           >
             ✦ Unlock 100 summaries/month with Pro
           </button>

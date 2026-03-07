@@ -104,7 +104,7 @@ billingRoutes.get("/success", (c) => {
           <title>Cliphy Pro</title>
           <style>
             body {
-              font-family: "DM Sans", system-ui, sans-serif;
+              font-family: "SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -142,10 +142,9 @@ billingRoutes.get("/success", (c) => {
         </head>
         <body>
           <div class="card">
-            <h1>You're on Pro! 🎉</h1>
+            <h1>Successfully upgraded to Cliphy Pro 🎉</h1>
             <p class="thank-you">
-              Seriously, thank you for supporting Cliphy. It means a lot — this project is built
-              with love, and your support keeps it going.
+              Cliphy was built with lots of love and support from peeps like you, so thank you &lt;3
             </p>
             <p class="close-hint">You can close this tab and start using Pro features.</p>
           </div>

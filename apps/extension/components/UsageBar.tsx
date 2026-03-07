@@ -21,6 +21,19 @@ export function UsageBar({ usage, onUpgraded }: UsageBarProps) {
         <span>
           {usage.used} / {usage.limit} used
         </span>
+        <span>&middot;</span>
+        {isFree ? (
+          <button
+            onClick={() => openCheckout(onUpgraded)}
+            className="bg-transparent border-0 p-0 font-bold text-xs text-neon-600 dark:text-neon-400 cursor-pointer hover:text-neon-800 dark:hover:text-neon-200 transition-colors"
+          >
+            Upgrade
+          </button>
+        ) : (
+          <span className="px-1.5 py-0.5 rounded bg-neon-600 text-white text-[10px] leading-none tracking-wide uppercase">
+            Pro
+          </span>
+        )}
         {usage.totalTimeSavedSeconds > 0 && (
           <>
             <span>&middot;</span>
@@ -40,17 +53,6 @@ export function UsageBar({ usage, onUpgraded }: UsageBarProps) {
             </svg>
             <span>{formatTimeSaved(usage.totalTimeSavedSeconds)} saved</span>
           </>
-        )}
-        <span>&middot;</span>
-        {isFree ? (
-          <button
-            onClick={() => openCheckout(onUpgraded)}
-            className="bg-transparent border-0 p-0 font-bold text-xs text-neon-600 dark:text-neon-400 cursor-pointer hover:text-neon-800 dark:hover:text-neon-200 transition-colors"
-          >
-            Upgrade
-          </button>
-        ) : (
-          <span className="text-neon-600 dark:text-neon-400">PRO</span>
         )}
       </span>
     </div>
