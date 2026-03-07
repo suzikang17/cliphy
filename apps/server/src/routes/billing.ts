@@ -104,27 +104,50 @@ billingRoutes.get("/success", (c) => {
           <title>Cliphy Pro</title>
           <style>
             body {
-              font-family: system-ui, sans-serif;
+              font-family: "DM Sans", system-ui, sans-serif;
               display: flex;
               align-items: center;
               justify-content: center;
               min-height: 100vh;
               margin: 0;
-              background: #f8f9fa;
+              background: #fff0f6;
             }
             .card {
               text-align: center;
-              padding: 3rem;
+              padding: 3rem 3.5rem;
               background: white;
+              border: 2px solid #000;
               border-radius: 12px;
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+              box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+              max-width: 400px;
+            }
+            h1 {
+              font-size: 1.5rem;
+              font-weight: 700;
+              margin: 0 0 0.5rem;
+              color: #111827;
+            }
+            .thank-you {
+              color: #a25e84;
+              font-size: 1rem;
+              margin: 0 0 1rem;
+              line-height: 1.5;
+            }
+            .close-hint {
+              color: #6b7280;
+              font-size: 0.85rem;
+              margin: 0;
             }
           </style>
         </head>
         <body>
           <div class="card">
-            <h1>You're on Pro!</h1>
-            <p>You can close this tab.</p>
+            <h1>You're on Pro! 🎉</h1>
+            <p class="thank-you">
+              Seriously, thank you for supporting Cliphy. It means a lot — this project is built
+              with love, and your support keeps it going.
+            </p>
+            <p class="close-hint">You can close this tab and start using Pro features.</p>
           </div>
         </body>
       </html>`,
