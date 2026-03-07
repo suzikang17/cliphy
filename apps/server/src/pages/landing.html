@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -17,23 +17,18 @@
         box-sizing: border-box;
       }
       body {
-        font-family:
-          "Inter",
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          Roboto,
-          sans-serif;
-        color: #1a1a1a;
-        line-height: 1.8;
+        font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+        color: #111827;
+        line-height: 1.7;
         max-width: 960px;
         margin: 0 auto;
         padding: 3rem 1.5rem;
         font-size: 15px;
         -webkit-font-smoothing: antialiased;
+        background: #ffffff;
       }
       a {
-        color: #4f46e5;
+        color: #a25e84;
         text-decoration: none;
       }
       a:hover {
@@ -41,11 +36,7 @@
       }
       p {
         margin-bottom: 1rem;
-        color: #374151;
-      }
-      strong {
-        font-weight: 600;
-        color: #1a1a1a;
+        color: #1f2937;
       }
 
       /* Hero */
@@ -54,38 +45,42 @@
         padding: 3rem 0 4rem;
       }
       .hero h1 {
-        font-size: 2.5rem;
+        font-size: 2.75rem;
         font-weight: 700;
         letter-spacing: -0.03em;
         margin-bottom: 0.5rem;
+        color: #111827;
       }
       .hero .tagline {
-        font-size: 1.25rem;
+        font-size: 1.2rem;
         font-weight: 500;
-        color: #4f46e5;
-        margin-bottom: 1rem;
+        color: #a25e84;
+        margin-bottom: 1.25rem;
       }
       .hero .description {
         font-size: 1.05rem;
         color: #4b5563;
-        max-width: 560px;
-        margin: 0 auto 2rem;
+        max-width: 540px;
+        margin: 0 auto 2.5rem;
         line-height: 1.7;
       }
       .cta-button {
         display: inline-block;
-        background: #4f46e5;
-        color: #fff;
+        background: #fff0f6;
+        color: #111827;
         font-family: inherit;
         font-size: 1rem;
         font-weight: 600;
-        padding: 0.85rem 2rem;
-        border-radius: 0.5rem;
+        padding: 0.85rem 2.25rem;
+        border: 2px solid #000;
+        border-radius: 12px;
         text-decoration: none;
-        transition: background 0.15s ease;
+        box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+        transition: all 0.1s ease;
       }
       .cta-button:hover {
-        background: #4338ca;
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1);
         text-decoration: none;
       }
 
@@ -96,50 +91,56 @@
         letter-spacing: -0.02em;
         text-align: center;
         margin-bottom: 2rem;
+        color: #111827;
       }
 
       /* How It Works */
       .how-it-works {
         padding: 3rem 0;
-        border-top: 1px solid #e5e7eb;
       }
       .steps {
         display: flex;
-        gap: 2rem;
+        gap: 1.5rem;
       }
       .step {
         flex: 1;
         text-align: center;
+        border: 2px solid #000;
+        border-radius: 12px;
+        padding: 1.75rem 1.25rem;
+        box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+        background: #ffffff;
       }
       .step-number {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 2.5rem;
-        height: 2.5rem;
-        background: #eef2ff;
-        color: #4f46e5;
+        width: 2.25rem;
+        height: 2.25rem;
+        background: #fff0f6;
+        color: #a25e84;
         font-weight: 700;
-        font-size: 1rem;
+        font-size: 0.95rem;
         border-radius: 50%;
-        margin-bottom: 1rem;
+        border: 2px solid #000;
+        margin-bottom: 0.75rem;
       }
       .step h3 {
         font-size: 1.05rem;
         font-weight: 600;
         margin-bottom: 0.5rem;
-        letter-spacing: -0.01em;
+        color: #111827;
       }
       .step p {
         font-size: 0.9rem;
         color: #6b7280;
         line-height: 1.6;
+        margin-bottom: 0;
       }
 
       /* Pricing */
       .pricing {
         padding: 3rem 0;
-        border-top: 1px solid #e5e7eb;
       }
       .pricing-cards {
         display: flex;
@@ -149,64 +150,89 @@
       .pricing-card {
         flex: 1;
         max-width: 380px;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.75rem;
+        border: 2px solid #000;
+        border-radius: 12px;
         padding: 2rem;
+        box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+        background: #ffffff;
       }
       .pricing-card.pro {
-        border-color: #4f46e5;
-        border-width: 2px;
-        background: #fafafe;
+        background: #fff0f6;
       }
       .pricing-card h3 {
         font-size: 1.25rem;
         font-weight: 700;
         margin-bottom: 0.25rem;
+        color: #111827;
       }
       .pricing-card .price {
-        font-size: 1.1rem;
-        color: #6b7280;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #111827;
         margin-bottom: 1.25rem;
       }
       .pricing-card .price span {
-        font-size: 0.85rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #6b7280;
       }
       .pricing-card ul {
         list-style: none;
         padding: 0;
       }
       .pricing-card li {
-        padding: 0.4rem 0;
-        color: #374151;
+        padding: 0.35rem 0;
+        color: #1f2937;
         font-size: 0.95rem;
       }
       .pricing-card li::before {
         content: "\2713";
-        color: #4f46e5;
-        font-weight: 600;
+        color: #a25e84;
+        font-weight: 700;
         margin-right: 0.5rem;
+      }
+      .pro-badge {
+        display: inline-block;
+        background: #f5e1ed;
+        color: #834a6b;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-left: 0.5rem;
+        vertical-align: middle;
       }
 
       /* Refund */
       .refund {
         padding: 3rem 0;
-        border-top: 1px solid #e5e7eb;
+      }
+      .refund-card {
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 2rem;
+        background: #f9fafb;
       }
       .refund h2 {
-        font-size: 1.25rem;
+        font-size: 1.15rem;
         font-weight: 600;
-        letter-spacing: -0.01em;
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
+        color: #111827;
       }
       .refund p {
+        color: #4b5563;
         max-width: 720px;
+        margin-bottom: 0;
+        line-height: 1.7;
       }
 
       /* Footer */
       .footer {
         margin-top: 3rem;
         padding-top: 1.5rem;
-        border-top: 1px solid #e5e7eb;
+        border-top: 2px solid #e5e7eb;
         color: #9ca3af;
         font-size: 0.8rem;
         display: flex;
@@ -224,7 +250,7 @@
         color: #6b7280;
       }
       .footer a:hover {
-        color: #4f46e5;
+        color: #a25e84;
       }
 
       /* Responsive */
@@ -234,7 +260,7 @@
         }
         .steps {
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 1.25rem;
         }
         .pricing-cards {
           flex-direction: column;
@@ -307,8 +333,8 @@
           </ul>
         </div>
         <div class="pricing-card pro">
-          <h3>Pro</h3>
-          <p class="price">$4 <span>/ month</span></p>
+          <h3>Pro <span class="pro-badge">PRO</span></h3>
+          <p class="price">$7 <span>/ month</span></p>
           <ul>
             <li>100 summaries / month</li>
             <li>Unlimited history</li>
@@ -323,13 +349,15 @@
 
     <!-- Refund & Cancellation -->
     <section class="refund">
-      <h2>Refund &amp; Cancellation Policy</h2>
-      <p>
-        Cancel your Pro subscription anytime from the extension. Cancellation takes effect at the
-        end of your current billing period &mdash; you'll keep Pro access until then. No refunds for
-        partial billing periods. If you believe you were charged in error, contact us and we'll make
-        it right.
-      </p>
+      <div class="refund-card">
+        <h2>Refund &amp; Cancellation Policy</h2>
+        <p>
+          Cancel your Pro subscription anytime from the extension. Cancellation takes effect at the
+          end of your current billing period &mdash; you'll keep Pro access until then. No refunds
+          for partial billing periods. If you believe you were charged in error, contact us and
+          we'll make it right.
+        </p>
+      </div>
     </section>
 
     <!-- Footer -->
