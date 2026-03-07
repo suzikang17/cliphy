@@ -225,7 +225,7 @@ describe("Billing", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("text/html");
       const body = await res.text();
-      expect(body).toContain("You're on Pro!");
+      expect(body).toContain("Successfully upgraded to Cliphy Pro");
     });
   });
 

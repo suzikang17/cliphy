@@ -49,13 +49,13 @@ function mockChain(result: { data?: unknown; error?: unknown } = {}) {
   return chain;
 }
 
-let fromMock: ReturnType<typeof vi.fn>;
+let fromMock: ReturnType<typeof vi.fn> & ((...args: unknown[]) => ReturnType<typeof mockChain>);
 
 vi.mock("../../lib/supabase.js", () => {
-  fromMock = vi.fn().mockReturnValue(mockChain({}));
+  fromMock = vi.fn(() => mockChain({})) as typeof fromMock;
   return {
     supabase: {
-      from: (...args: unknown[]) => fromMock(...args),
+      from: fromMock,
       rpc: vi.fn().mockReturnValue(mockChain({})),
       auth: {
         getUser: vi.fn().mockResolvedValue({

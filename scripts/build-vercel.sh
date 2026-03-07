@@ -18,17 +18,18 @@ cat > .vercel/output/functions/api/index.func/.vc-config.json << 'EOF'
 }
 EOF
 
-# Output config with rewrites
+# Output config — only API rewrite needed
 cat > .vercel/output/config.json << 'EOF'
 {
   "version": 3,
   "routes": [
-    { "src": "/privacy", "dest": "/api" },
-    { "src": "/terms", "dest": "/api" },
     { "src": "/api/(.*)", "dest": "/api" }
   ]
 }
 EOF
 
-# Empty static dir (required)
-mkdir -p .vercel/output/static
+# Static pages
+mkdir -p .vercel/output/static/terms .vercel/output/static/privacy
+cp apps/server/src/pages/landing.html .vercel/output/static/index.html
+cp apps/server/src/pages/terms.html .vercel/output/static/terms/index.html
+cp apps/server/src/pages/privacy.html .vercel/output/static/privacy/index.html
