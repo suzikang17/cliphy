@@ -69,6 +69,18 @@ vi.mock("../../lib/inngest.js", () => ({
   },
 }));
 
+const mockSentryCapture = vi.fn();
+const mockSentryMessage = vi.fn();
+const mockSentryFlush = vi.fn().mockResolvedValue(true);
+
+vi.mock("../../lib/sentry.js", () => ({
+  Sentry: {
+    captureException: (...args: unknown[]) => mockSentryCapture(...args),
+    captureMessage: (...args: unknown[]) => mockSentryMessage(...args),
+    flush: (...args: unknown[]) => mockSentryFlush(...args),
+  },
+}));
+
 // ── Helpers ───────────────────────────────────────────────────
 
 /** step.run mock that just executes the callback */
@@ -309,6 +321,71 @@ describe("summarize-video", () => {
 
       expect(updateChain.update).toHaveBeenCalled();
       expect(updateChain.eq).toHaveBeenCalled();
+    });
+
+    it("captures to Sentry and flushes for unexpected errors", async () => {
+      const updateChain = mockChain();
+      fromResults = [updateChain];
+
+      await import("../summarize-video.js");
+      expect(capturedConfig).not.toBeNull();
+
+      await capturedConfig!.onFailure({
+        event: {
+          data: {
+            event: { data: { summaryId: "sum-789", videoId: "abc123" } },
+            error: { message: "Claude API failed" },
+          },
+        },
+      });
+
+      expect(mockSentryCapture).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Claude API failed" }),
+        expect.objectContaining({
+          extra: expect.objectContaining({ summaryId: "sum-789" }),
+          tags: expect.objectContaining({
+            component: "inngest",
+            error_category: "unknown",
+          }),
+          fingerprint: ["summarize-video", "unknown"],
+        }),
+      );
+      // Critical: Sentry.flush must be called for Vercel serverless
+      expect(mockSentryFlush).toHaveBeenCalledWith(2000);
+    });
+
+    it("logs 'no captions' as info message, not exception", async () => {
+      const updateChain = mockChain();
+      fromResults = [updateChain];
+
+      await import("../summarize-video.js");
+      expect(capturedConfig).not.toBeNull();
+
+      await capturedConfig!.onFailure({
+        event: {
+          data: {
+            event: { data: { summaryId: "sum-nc", videoId: "noCapVid" } },
+            error: { message: "No captions available for this video" },
+          },
+        },
+      });
+
+      // Should NOT fire as an exception (no alert)
+      expect(mockSentryCapture).not.toHaveBeenCalled();
+
+      // Should log as info-level message with video ID for tracking
+      expect(mockSentryMessage).toHaveBeenCalledWith(
+        "No captions: noCapVid",
+        expect.objectContaining({
+          level: "info",
+          extra: expect.objectContaining({ videoId: "noCapVid" }),
+          tags: expect.objectContaining({ error_category: "no_captions" }),
+        }),
+      );
+
+      // Should still flush and update the DB
+      expect(mockSentryFlush).toHaveBeenCalledWith(2000);
+      expect(updateChain.update).toHaveBeenCalled();
     });
   });
 });

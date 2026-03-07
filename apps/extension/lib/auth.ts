@@ -79,7 +79,13 @@ export async function signOut(): Promise<void> {
 
 export async function isAuthenticated(): Promise<boolean> {
   const token = await getAccessToken();
-  return token !== null;
+  if (!token) return false;
+  // If expired, try refreshing — still authenticated if refresh succeeds
+  if (isTokenExpired(token)) {
+    const refreshed = await refreshAccessToken();
+    return refreshed !== null;
+  }
+  return true;
 }
 
 /** Check if a JWT is expired (or will expire within bufferSeconds). */
@@ -127,6 +133,10 @@ async function doRefresh(): Promise<string | null> {
   }
 
   const data = await res.json();
+  if (!data.access_token || !data.refresh_token) {
+    await clearTokens();
+    return null;
+  }
   await setTokens(data.access_token, data.refresh_token);
   return data.access_token;
 }

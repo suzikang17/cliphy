@@ -6,7 +6,7 @@ import type { AppEnv } from "../../env.js";
 
 function mockChain(result: { data?: unknown; error?: unknown } = {}) {
   const chain: Record<string, unknown> = {};
-  const methods = ["from", "select", "update", "eq", "single"];
+  const methods = ["from", "select", "update", "eq", "is", "single"];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
@@ -53,6 +53,7 @@ vi.mock("../../services/stripe.js", () => ({
   stripe: {
     customers: {
       create: (...args: unknown[]) => mockCustomersCreate(...args),
+      del: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -88,7 +89,8 @@ describe("Billing", () => {
 
     it("creates Stripe customer when none exists, then creates checkout session", async () => {
       const selectChain = mockChain({ data: { stripe_customer_id: null } });
-      const updateChain = mockChain({ error: null });
+      // Race-safe update returns the updated row (non-null means we won the race)
+      const updateChain = mockChain({ data: { stripe_customer_id: "cus_new123" } });
 
       let callCount = 0;
       supabaseMock = {
@@ -110,6 +112,32 @@ describe("Billing", () => {
         metadata: { userId: "test-user-id" },
       });
       expect(mockCreateCheckoutSession).toHaveBeenCalledWith("cus_new123", "test-user-id");
+    });
+
+    it("handles customer race condition by using existing customer", async () => {
+      const selectChain = mockChain({ data: { stripe_customer_id: null } });
+      // Race-safe update returns null (another request already set it)
+      const updateChain = mockChain({ data: null });
+      // Re-fetch gets the existing customer
+      const refetchChain = mockChain({ data: { stripe_customer_id: "cus_winner" } });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return selectChain;
+          if (callCount === 2) return updateChain;
+          if (callCount === 3) return refetchChain;
+          return mockChain({});
+        }),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/billing/checkout", { method: "POST" });
+
+      expect(res.status).toBe(200);
+      // Should use the winner's customer ID, not the one we created
+      expect(mockCreateCheckoutSession).toHaveBeenCalledWith("cus_winner", "test-user-id");
     });
 
     it("returns 500 when user lookup fails", async () => {
@@ -173,6 +201,18 @@ describe("Billing", () => {
       expect(res.status).toBe(500);
       const json = await res.json();
       expect(json.error).toMatch(/look up user/i);
+    });
+
+    it("returns 500 when Stripe portal session creation fails", async () => {
+      supabaseMock = mockChain({ data: { stripe_customer_id: "cus_existing" } });
+      mockCreatePortalSession.mockRejectedValueOnce(new Error("Portal not configured"));
+
+      const app = await createApp();
+      const res = await app.request("/billing/portal", { method: "POST" });
+
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json.error).toMatch(/portal session/i);
     });
   });
 

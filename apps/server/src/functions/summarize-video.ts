@@ -9,20 +9,46 @@ import { summarizeTranscript } from "../services/summarizer.js";
 
 const log = logger.child({ fn: "summarize-video" });
 
+function classifyError(message: string): string {
+  if (/rate.?limit|429/i.test(message)) return "rate_limit";
+  if (/timeout|ECONNREFUSED|connection/i.test(message)) return "network";
+  if (/parse|json/i.test(message)) return "parse_failure";
+  if (/500|503|overloaded|internal/i.test(message)) return "upstream";
+  return "unknown";
+}
+
 export const summarizeVideo = inngest.createFunction(
   {
     id: "summarize-video",
     onFailure: async ({ event }) => {
       const { summaryId } = event.data.event.data as { summaryId: string };
+      const videoId = (event.data.event.data as { videoId?: string }).videoId;
       const errorMessage = event.data.error.message || "Failed to generate summary";
 
-      Sentry.captureException(new Error(errorMessage), {
-        extra: {
-          summaryId,
-          videoId: (event.data.event.data as { videoId?: string }).videoId,
-        },
-        tags: { component: "inngest" },
-      });
+      // Classify errors for Sentry grouping
+      const isExpected = /no captions|transcript.*not available|subtitles.*disabled/i.test(
+        errorMessage,
+      );
+
+      if (isExpected) {
+        // Track expected failures without alerting
+        Sentry.captureMessage(`No captions: ${videoId}`, {
+          level: "info",
+          extra: { summaryId, videoId, errorMessage },
+          tags: { component: "inngest", error_category: "no_captions" },
+          fingerprint: ["summarize-video", "no_captions"],
+        });
+      } else {
+        Sentry.captureException(new Error(errorMessage), {
+          extra: { summaryId, videoId },
+          tags: {
+            component: "inngest",
+            error_category: classifyError(errorMessage),
+          },
+          fingerprint: ["summarize-video", classifyError(errorMessage)],
+        });
+      }
+      await Sentry.flush(2000);
 
       await supabase
         .from("summaries")

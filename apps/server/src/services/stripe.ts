@@ -13,7 +13,8 @@ export async function createCheckoutSession(customerId: string, userId: string):
     success_url: `${process.env.API_URL}/api/billing/success`,
     cancel_url: `${process.env.API_URL}/api/billing/cancel`,
   });
-  return session.url!;
+  if (!session.url) throw new Error("Stripe did not return a checkout URL");
+  return session.url;
 }
 
 export async function createPortalSession(customerId: string): Promise<string> {

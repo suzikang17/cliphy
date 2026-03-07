@@ -21,6 +21,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .map((o) => o.trim())
   .filter(Boolean);
 
+if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== "development") {
+  throw new Error("ALLOWED_ORIGINS must be set in non-development environments");
+}
+
 const app = new Hono<AppEnv>().basePath("/api");
 
 app.use("*", honoLogger());

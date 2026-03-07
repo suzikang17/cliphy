@@ -3,6 +3,7 @@ import { html } from "hono/html";
 import type Stripe from "stripe";
 import type { AppEnv } from "../env.js";
 import { logger } from "../lib/logger.js";
+import { Sentry } from "../lib/sentry.js";
 import { supabase } from "../lib/supabase.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { createCheckoutSession, createPortalSession, stripe } from "../services/stripe.js";
@@ -32,11 +33,29 @@ billingRoutes.post("/checkout", authMiddleware, async (c) => {
   try {
     let customerId = user.stripe_customer_id as string | null;
 
-    // Create Stripe customer if none exists
+    // Create Stripe customer if none exists (race-safe: only update if still null)
     if (!customerId) {
       const customer = await stripe.customers.create({ email: userEmail, metadata: { userId } });
       customerId = customer.id;
-      await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", userId);
+      const { data: updated } = await supabase
+        .from("users")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", userId)
+        .is("stripe_customer_id", null)
+        .select("stripe_customer_id")
+        .single();
+
+      if (!updated) {
+        // Another request already set the customer — use the existing one
+        const { data: existing } = await supabase
+          .from("users")
+          .select("stripe_customer_id")
+          .eq("id", userId)
+          .single();
+        customerId = existing?.stripe_customer_id as string;
+        // Clean up the orphan Stripe customer
+        await stripe.customers.del(customer.id).catch(() => {});
+      }
     }
 
     const url = await createCheckoutSession(customerId, userId);
@@ -65,8 +84,14 @@ billingRoutes.post("/portal", authMiddleware, async (c) => {
     return c.json({ error: "No subscription to manage" }, 400);
   }
 
-  const url = await createPortalSession(user.stripe_customer_id as string);
-  return c.json({ url });
+  try {
+    const url = await createPortalSession(user.stripe_customer_id as string);
+    return c.json({ url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error("Stripe portal error", new Error(message), { userId });
+    return c.json({ error: "Failed to create portal session" }, 500);
+  }
 });
 
 // ── Success / Cancel pages ──────────────────────────────────
@@ -153,7 +178,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
-  const { error } = await supabase
+  const { data: rows, error } = await supabase
     .from("users")
     .update({
       plan: planFromStatus(subscription.status),
@@ -163,12 +188,21 @@ async function syncSubscription(subscription: Stripe.Subscription) {
         ? new Date(subscription.trial_end * 1000).toISOString()
         : null,
     })
-    .eq("stripe_customer_id", customerId);
+    .eq("stripe_customer_id", customerId)
+    .select("id");
 
   if (error) {
-    log.error("Subscription sync failed", new Error(error.message), {
-      subscriptionId: subscription.id,
+    const err = new Error(`Subscription sync failed: ${error.message}`);
+    Sentry.captureException(err, { extra: { subscriptionId: subscription.id } });
+    throw err;
+  }
+
+  if (!rows || rows.length === 0) {
+    const err = new Error(`syncSubscription matched 0 rows for customer ${customerId}`);
+    Sentry.captureException(err, {
+      extra: { customerId, subscriptionId: subscription.id, status: subscription.status },
     });
+    throw err;
   }
 }
 
@@ -183,7 +217,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Link Stripe customer to our user if client_reference_id was set
   if (userId) {
-    await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", userId);
+    const { error } = await supabase
+      .from("users")
+      .update({ stripe_customer_id: customerId })
+      .eq("id", userId);
+    if (error) {
+      const err = new Error(`Checkout customer link failed: ${error.message}`);
+      Sentry.captureException(err, { extra: { userId, customerId } });
+      throw err;
+    }
   }
 
   // Fetch full subscription and sync
@@ -216,19 +258,28 @@ billingRoutes.post("/webhook", async (c) => {
 
   log.info("Webhook received", { type: event.type });
 
-  switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-      break;
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
 
-    case "customer.subscription.created":
-    case "customer.subscription.updated":
-    case "customer.subscription.deleted":
-      await syncSubscription(event.data.object as Stripe.Subscription);
-      break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+        await syncSubscription(event.data.object as Stripe.Subscription);
+        break;
 
-    default:
-      log.warn("Unhandled webhook event", { type: event.type });
+      default:
+        log.warn("Unhandled webhook event", { type: event.type });
+    }
+  } catch (err) {
+    log.error("Webhook handler failed", err instanceof Error ? err : new Error(String(err)), {
+      type: event.type,
+    });
+    Sentry.captureException(err, { extra: { eventType: event.type } });
+    await Sentry.flush(2000);
+    return c.json({ error: "Webhook handler failed" }, 500);
   }
 
   return c.json({ received: true });

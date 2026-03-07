@@ -247,6 +247,66 @@ describe("Queue", () => {
       expect(json.code).toBe("VIDEO_TOO_LONG");
     });
 
+    it("returns 400 for negative video duration", async () => {
+      supabaseMock = mockChain({});
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          videoDurationSeconds: -1,
+        }),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("accepts zero duration as valid", async () => {
+      const dupChain = mockChain({ data: null });
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true });
+      const row = {
+        id: "sum-1",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+        video_duration_seconds: 0,
+        status: "pending",
+        summary_json: null,
+        error_message: null,
+        created_at: "2026-02-20T10:00:00Z",
+        updated_at: "2026-02-20T10:00:00Z",
+      };
+      const insertChain = mockChain({ data: row });
+      const posChain = mockChain({ data: null, count: 0 });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return insertChain;
+          if (callCount === 4) return posChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockReturnValue(rpcChain),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          videoDurationSeconds: 0,
+        }),
+      });
+
+      expect(res.status).toBe(201);
+    });
+
     it("returns 409 for duplicate video", async () => {
       const dupChain = mockChain({ data: { id: "existing", status: "pending" } });
 
@@ -265,6 +325,91 @@ describe("Queue", () => {
       expect(res.status).toBe(409);
       const json = await res.json();
       expect(json.code).toBe("DUPLICATE");
+    });
+
+    it("duplicate check includes deleted_at filter", async () => {
+      // The duplicate check should filter out soft-deleted rows,
+      // so a deleted completed video should not block re-adding
+      const dupChain = mockChain({ data: null }); // no non-deleted duplicate
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true });
+      const row = {
+        id: "sum-new",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+        status: "pending",
+        summary_json: null,
+        error_message: null,
+        created_at: "2026-02-20T10:00:00Z",
+        updated_at: "2026-02-20T10:00:00Z",
+      };
+      const insertChain = mockChain({ data: row });
+      const posChain = mockChain({ data: null, count: 0 });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return insertChain;
+          if (callCount === 4) return posChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockReturnValue(rpcChain),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+      });
+
+      expect(res.status).toBe(201);
+
+      // Verify the duplicate check chain called .is() for deleted_at filter
+      expect(dupChain.is).toHaveBeenCalled();
+    });
+
+    it("rolls back rate limit counter when insert fails", async () => {
+      const dupChain = mockChain({ data: null });
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true }); // rate limit allowed
+      const insertChain = mockChain({ data: null, error: { message: "insert failed" } });
+      const decrementChain = mockChain({});
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return insertChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockImplementation((fnName: string) => {
+          if (fnName === "increment_monthly_count") return rpcChain;
+          if (fnName === "decrement_monthly_count") return decrementChain;
+          return mockChain({});
+        }),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+      });
+
+      expect(res.status).toBe(500);
+
+      // Verify decrement was called to rollback the rate limit
+      expect(supabaseMock.rpc as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        "decrement_monthly_count",
+        { p_user_id: "test-user-id" },
+      );
     });
 
     it("returns 429 when rate limited", async () => {
@@ -542,6 +687,79 @@ describe("Queue", () => {
       const app = await createApp();
       const res = await app.request("/queue/sum-1/retry", { method: "POST" });
       expect(res.status).toBe(409);
+    });
+
+    it("checks rate limit when retrying a failed item", async () => {
+      severity("critical");
+      const fetchChain = mockChain({
+        data: {
+          id: "sum-1",
+          status: "failed",
+          user_id: "test-user-id",
+          youtube_video_id: "dQw4w9WgXcQ",
+          video_title: null,
+          video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          summary_json: null,
+          error_message: "Previous error",
+          created_at: "2026-02-20T10:00:00Z",
+          updated_at: "2026-02-20T10:00:00Z",
+        },
+      });
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: false }); // rate limited
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return fetchChain;
+          if (callCount === 2) return planChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockReturnValue(rpcChain),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue/sum-1/retry", { method: "POST" });
+
+      expect(res.status).toBe(429);
+      const json = await res.json();
+      expect(json.code).toBe("RATE_LIMITED");
+    });
+
+    it("skips rate limit check when retrying a pending item", async () => {
+      const fetchChain = mockChain({
+        data: {
+          id: "sum-1",
+          status: "pending",
+          user_id: "test-user-id",
+          youtube_video_id: "dQw4w9WgXcQ",
+          video_title: null,
+          video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          summary_json: null,
+          error_message: null,
+          created_at: "2026-02-20T10:00:00Z",
+          updated_at: "2026-02-20T10:00:00Z",
+        },
+      });
+      const updateChain = mockChain({ data: { id: "sum-1" } });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return fetchChain;
+          return updateChain;
+        }),
+        rpc: vi.fn(),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue/sum-1/retry", { method: "POST" });
+
+      expect(res.status).toBe(200);
+      // rpc should NOT have been called — pending retry doesn't check rate limit
+      expect(supabaseMock.rpc).not.toHaveBeenCalled();
     });
   });
 });

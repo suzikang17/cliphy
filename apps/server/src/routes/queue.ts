@@ -11,28 +11,7 @@ import {
   PLAN_LIMITS,
   PRO_FEATURES,
 } from "@cliphy/shared";
-import type { Summary } from "@cliphy/shared";
-
-// ─── Helpers ───────────────────────────────────────────────
-
-/** Map a DB row (snake_case) to a Summary object (camelCase). */
-function toSummary(row: Record<string, unknown>): Summary {
-  return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    videoId: row.youtube_video_id as string,
-    videoTitle: (row.video_title as string) ?? undefined,
-    videoUrl: (row.video_url as string) ?? undefined,
-    videoChannel: (row.video_channel as string) ?? undefined,
-    videoDurationSeconds: (row.video_duration_seconds as number) ?? undefined,
-    status: row.status as Summary["status"],
-    summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
-    errorMessage: (row.error_message as string) ?? undefined,
-    tags: (row.tags as string[]) ?? [],
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
-  };
-}
+import { toSummary } from "../lib/mappers.js";
 
 // ─── Routes ────────────────────────────────────────────────
 
@@ -111,20 +90,24 @@ queueRoutes.post("/", async (c) => {
   if (body.videoChannel && body.videoChannel.length > MAX_LENGTHS.videoChannel) {
     return c.json({ error: `videoChannel exceeds ${MAX_LENGTHS.videoChannel} characters` }, 400);
   }
-  if (body.videoDurationSeconds && body.videoDurationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+  if (
+    typeof body.videoDurationSeconds === "number" &&
+    (body.videoDurationSeconds < 0 || body.videoDurationSeconds > MAX_VIDEO_DURATION_SECONDS)
+  ) {
     return c.json(
       { error: "Video is too long (max 3 hours). Try a shorter video.", code: "VIDEO_TOO_LONG" },
       400,
     );
   }
 
-  // Duplicate check: same user + same video + not failed
+  // Duplicate check: same user + same video + not failed + not deleted
   const { data: existing } = await supabase
     .from("summaries")
     .select("id, status")
     .eq("user_id", userId)
     .eq("youtube_video_id", videoId)
     .neq("status", "failed")
+    .is("deleted_at", null)
     .limit(1)
     .maybeSingle();
 
@@ -171,6 +154,8 @@ queueRoutes.post("/", async (c) => {
     .single();
 
   if (insertError || !row) {
+    // Rollback the rate limit increment since the insert failed
+    await supabase.rpc("decrement_monthly_count", { p_user_id: userId });
     return c.json({ error: "Failed to add to queue" }, 500);
   }
 
@@ -216,17 +201,6 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     return c.json({ error: "Maximum 10 videos per batch" }, 400);
   }
 
-  // Fetch user data for rate limiting (plan already verified by requirePro)
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("plan, monthly_summary_count, monthly_count_reset_at")
-    .eq("id", userId)
-    .single();
-
-  if (userError || !user) {
-    return c.json({ error: "User not found" }, 404);
-  }
-
   // Validate all URLs first
   const parsed: Array<{ videoId: string; videoUrl: string }> = [];
   for (const video of body.videos) {
@@ -256,7 +230,8 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     .select("youtube_video_id")
     .eq("user_id", userId)
     .in("youtube_video_id", videoIds)
-    .neq("status", "failed");
+    .neq("status", "failed")
+    .is("deleted_at", null);
 
   const existingSet = new Set((existingRows ?? []).map((r) => r.youtube_video_id as string));
 
@@ -269,18 +244,17 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     });
   }
 
-  // Rate limit check — calculate remaining capacity and cap the batch
+  // Rate limit check — atomic batch increment via DB function
   const limit = PLAN_LIMITS.pro;
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  const monthStartStr = monthStart.toISOString().slice(0, 10);
-  const currentUsed =
-    (user.monthly_count_reset_at as string) < monthStartStr
-      ? 0
-      : (user.monthly_summary_count as number);
-  const remaining = limit - currentUsed;
+  const { data: allowed } = await supabase.rpc("increment_monthly_count_batch", {
+    p_user_id: userId,
+    p_limit: limit,
+    p_count: toInsert.length,
+  });
 
-  if (remaining <= 0) {
+  const allowedCount = (allowed as number) ?? 0;
+
+  if (allowedCount <= 0) {
     return c.json(
       {
         error: "Monthly summary limit reached",
@@ -292,18 +266,9 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     );
   }
 
-  // Cap to remaining capacity
-  const cappedInsert = toInsert.slice(0, remaining);
+  // Cap to what the rate limiter allowed
+  const cappedInsert = toInsert.slice(0, allowedCount);
   const rateLimited = cappedInsert.length < toInsert.length;
-
-  // Increment usage count for the items we're about to insert
-  await supabase
-    .from("users")
-    .update({
-      monthly_summary_count: currentUsed + cappedInsert.length,
-      monthly_count_reset_at: new Date().toISOString().slice(0, 10),
-    })
-    .eq("id", userId);
 
   // Bulk insert
   const { data: rows, error: insertError } = await supabase
@@ -319,6 +284,11 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     .select("*");
 
   if (insertError || !rows) {
+    // Rollback the rate limit increment since the insert failed
+    await supabase.rpc("decrement_monthly_count_batch", {
+      p_user_id: userId,
+      p_count: cappedInsert.length,
+    });
     return c.json({ error: "Failed to add videos to queue" }, 500);
   }
 
@@ -363,6 +333,25 @@ queueRoutes.post("/:id/retry", async (c) => {
 
   if (row.status !== "pending" && row.status !== "failed") {
     return c.json({ error: "Item must be in pending or failed state to retry" }, 409);
+  }
+
+  // Rate limit check for retries of failed items (pending retries don't consume a new slot)
+  if (row.status === "failed") {
+    const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
+    const plan = (user?.plan as "free" | "pro") ?? "free";
+    const limit = PLAN_LIMITS[plan];
+
+    const { data: allowed } = await supabase.rpc("increment_monthly_count", {
+      p_user_id: userId,
+      p_limit: limit,
+    });
+
+    if (!allowed) {
+      return c.json(
+        { error: "Monthly summary limit reached", code: "RATE_LIMITED", limit, plan },
+        429,
+      );
+    }
   }
 
   // Reset to pending before re-firing

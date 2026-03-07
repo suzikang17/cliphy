@@ -1,6 +1,7 @@
 import { initSentry } from "./lib/sentry.js";
 initSentry();
 
+import "./lib/env.js";
 import { Hono } from "hono";
 import { getRequestListener } from "@hono/node-server";
 import app from "./app.js";

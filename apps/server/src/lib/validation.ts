@@ -8,11 +8,11 @@ export const MAX_LENGTHS = {
 /**
  * Sanitize a search query before interpolation into a PostgREST `.or()` filter.
  * Strips characters that have special meaning in PostgREST filter syntax
- * (commas, dots, parens) and enforces a length limit.
+ * and enforces a length limit.
  */
 export function sanitizeSearchQuery(q: string): string {
   return q
-    .replace(/[,.()"'\\]/g, "")
+    .replace(/[,.()"'\\%_*[\]{}:]/g, "")
     .trim()
     .slice(0, MAX_LENGTHS.searchQuery);
 }

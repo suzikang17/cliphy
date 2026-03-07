@@ -9,7 +9,7 @@ import {
   MAX_FREE_UNIQUE_TAGS,
   TAG_MAX_LENGTH,
 } from "@cliphy/shared";
-import type { Summary } from "@cliphy/shared";
+import { toSummary } from "../lib/mappers.js";
 
 export const summaryRoutes = new Hono<AppEnv>();
 
@@ -20,25 +20,6 @@ summaryRoutes.use("*", authMiddleware);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-
-/** Map a DB row (snake_case) to a Summary object (camelCase). */
-function toSummary(row: Record<string, unknown>): Summary {
-  return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    videoId: row.youtube_video_id as string,
-    videoTitle: (row.video_title as string) ?? undefined,
-    videoUrl: (row.video_url as string) ?? undefined,
-    videoChannel: (row.video_channel as string) ?? undefined,
-    videoDurationSeconds: (row.video_duration_seconds as number) ?? undefined,
-    status: row.status as Summary["status"],
-    summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
-    errorMessage: (row.error_message as string) ?? undefined,
-    tags: (row.tags as string[]) ?? [],
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
-  };
-}
 
 function clampLimit(raw: string | undefined): number {
   const n = Number(raw) || DEFAULT_LIMIT;
