@@ -65,7 +65,9 @@
         line-height: 1.7;
       }
       .cta-button {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
         background: #fff0f6;
         color: #111827;
         font-family: inherit;
@@ -77,6 +79,11 @@
         text-decoration: none;
         box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
         transition: all 0.1s ease;
+      }
+      .cta-button svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
       }
       .cta-button:hover {
         transform: translate(2px, 2px);
@@ -285,10 +292,39 @@
       <h1>Cliphy</h1>
       <p class="tagline">AI-powered YouTube video summaries</p>
       <p class="description">
-        Add any YouTube video to your queue and get a concise, structured summary powered by Claude
-        AI. Save hours of watching time.
+        Queue up YouTube videos and get concise, structured AI summaries &mdash; no ads, no waiting.
+        Come back to your summaries whenever you're ready.
       </p>
-      <a href="#" class="cta-button">Install from Chrome Web Store</a>
+      <a href="#" class="cta-button"
+        ><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="22" fill="#fff" />
+          <path d="M24 2a22 22 0 0 0-19.05 11h13.81l5.24-9.08A22 22 0 0 0 24 2z" fill="#EA4335" />
+          <path d="M4.95 13A22 22 0 0 0 13 42.05l5.24-9.08-6.76-11.7z" fill="#FBBC05" />
+          <path
+            d="M24 46a22 22 0 0 0 19.05-11H29.24l-5.24 9.08A22 22 0 0 0 24 46z"
+            fill="#34A853"
+            transform="rotate(120 24 24)"
+          />
+          <path
+            d="M13 42.05A22 22 0 0 0 43.05 13H32.52l-6.76 11.7z"
+            fill="#4285F4"
+            transform="rotate(120 24 24)"
+          />
+          <path
+            d="M43.05 35A22 22 0 0 0 35 5.95l-5.24 9.08 6.76 11.7z"
+            fill="#EA4335"
+            transform="rotate(120 24 24)"
+          />
+          <path
+            d="M35 5.95A22 22 0 0 0 4.95 35h10.53l6.76-11.7z"
+            fill="#34A853"
+            transform="rotate(120 24 24)"
+          />
+          <circle cx="24" cy="24" r="10" fill="#fff" />
+          <circle cx="24" cy="24" r="8" fill="#4285F4" />
+        </svg>
+        Install from Chrome Web Store</a
+      >
     </section>
 
     <!-- How It Works -->
@@ -297,18 +333,18 @@
       <div class="steps">
         <div class="step">
           <div class="step-number">1</div>
-          <h3>Add a video</h3>
+          <h3>Queue your videos</h3>
           <p>
-            Browse YouTube normally. Click the Cliphy button or right-click any video to add it to
-            your queue.
+            Browse YouTube normally. Add videos to your queue with one click &mdash; queue as many
+            as you want and come back later.
           </p>
         </div>
         <div class="step">
           <div class="step-number">2</div>
-          <h3>AI summarizes it</h3>
+          <h3>AI summarizes them</h3>
           <p>
-            Claude AI reads the transcript and generates a structured summary with key points,
-            timestamps, and tags.
+            Claude AI reads the transcript and generates structured summaries with key points and
+            tags. Skip the ads and filler.
           </p>
         </div>
         <div class="step">
