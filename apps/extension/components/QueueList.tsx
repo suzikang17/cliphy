@@ -26,7 +26,10 @@ interface QueueListProps {
   isAdding: boolean;
   addStatus: "idle" | "queued" | "processing" | "error";
   addError?: string;
+  atLimit?: boolean;
+  onUpgrade?: () => void;
   onViewSummary: (id: string) => void;
+  onOpenSummary: (id: string) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
 }
@@ -42,7 +45,10 @@ export function QueueList({
   isAdding,
   addStatus,
   addError,
+  atLimit,
+  onUpgrade,
   onViewSummary,
+  onOpenSummary,
   onRemove,
   onRetry,
 }: QueueListProps) {
@@ -98,6 +104,7 @@ export function QueueList({
             summary={matchedSummary}
             video={currentVideo}
             onViewSummary={onViewSummary}
+            onOpenSummary={onOpenSummary}
             onRemove={onRemove}
             onRetry={onRetry}
           />
@@ -108,6 +115,8 @@ export function QueueList({
             isAdding={isAdding}
             addStatus={addStatus}
             addError={addError}
+            atLimit={atLimit}
+            onUpgrade={onUpgrade}
           />
         ))}
       {visible.map((s) => (
@@ -115,6 +124,7 @@ export function QueueList({
           key={s.id}
           summary={s}
           onViewSummary={onViewSummary}
+          onOpenSummary={onOpenSummary}
           onRemove={onRemove}
           onRetry={onRetry}
         />
@@ -128,11 +138,13 @@ export function QueueList({
 function QueueItem({
   summary: s,
   onViewSummary,
+  onOpenSummary,
   onRemove,
   onRetry,
 }: {
   summary: Summary;
   onViewSummary: (id: string) => void;
+  onOpenSummary: (id: string) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
@@ -193,20 +205,30 @@ function QueueItem({
       <div className="shrink-0 flex flex-col items-center gap-1 self-stretch justify-between">
         <div>
           {isClickable && (
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-neon-600"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSummary(s.id);
+              }}
+              className="bg-transparent border-0 p-0 cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all"
+              aria-label="Open in new tab"
             >
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-neon-600 opacity-50 hover:opacity-100 transition-all"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
           )}
           {isProcessing && (
             <div className="w-3.5 h-3.5 rounded-full border-2 border-neon-200 border-t-neon-600 animate-spin" />
@@ -261,12 +283,14 @@ function CurrentMatchedItem({
   summary: s,
   video,
   onViewSummary,
+  onOpenSummary,
   onRemove,
   onRetry,
 }: {
   summary: Summary;
   video: VideoInfo;
   onViewSummary: (id: string) => void;
+  onOpenSummary: (id: string) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
@@ -304,23 +328,59 @@ function CurrentMatchedItem({
         </div>
       </div>
       {isCompleted ? (
-        <button
-          onClick={() => onViewSummary(s.id)}
-          className="mt-3 w-full py-2 text-sm text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 cursor-pointer border-2 border-(--color-border-hard) rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down flex items-center justify-center gap-1"
-        >
-          View Summary <span>&rarr;</span>
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => onViewSummary(s.id)}
+            className="flex-1 py-2 text-sm text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 cursor-pointer border-2 border-(--color-border-hard) rounded-full font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down active:translate-x-[3px] active:translate-y-[3px] active:shadow-none flex items-center justify-center gap-1"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            View Summary
+          </button>
+          <button
+            onClick={() => onOpenSummary(s.id)}
+            className="py-2 px-3 bg-(--color-surface) cursor-pointer border-2 border-(--color-border-hard) rounded-full shadow-brutal-sm hover:shadow-brutal-pressed press-down active:translate-x-[3px] active:translate-y-[3px] active:shadow-none flex items-center justify-center"
+            aria-label="Open in new tab"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neon-600"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </button>
+        </div>
       ) : isFailed ? (
         <div className="mt-3 flex gap-2">
           <button
             onClick={() => onRetry(s.id)}
-            className="flex-1 py-2 text-sm bg-neon-600 text-white cursor-pointer border-2 border-(--color-border-hard) rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+            className="flex-1 py-2 text-sm bg-neon-600 text-white cursor-pointer border-2 border-(--color-border-hard) rounded-full font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
           >
             Retry
           </button>
           <button
             onClick={() => onRemove(s.id)}
-            className="py-2 px-3 text-sm bg-(--color-surface-raised) text-(--color-text-faint) cursor-pointer border-2 border-(--color-border-muted) rounded-lg font-bold hover:text-red-500 transition-colors"
+            className="py-2 px-3 text-sm bg-(--color-surface-raised) text-(--color-text-faint) cursor-pointer border-2 border-(--color-border-muted) rounded-full font-bold hover:text-red-500 transition-colors"
           >
             Remove
           </button>
@@ -328,7 +388,7 @@ function CurrentMatchedItem({
       ) : (
         <button
           disabled
-          className="mt-3 w-full py-2 text-sm bg-(--color-surface-raised) text-(--color-text-faint) cursor-not-allowed border-2 border-(--color-border-muted) rounded-lg font-bold"
+          className="mt-3 w-full py-2 text-sm bg-(--color-surface-raised) text-(--color-text-faint) cursor-not-allowed border-2 border-(--color-border-muted) rounded-full font-bold"
         >
           {s.status === "processing" ? "Processing..." : "Queued"}
         </button>
@@ -344,12 +404,16 @@ function CurrentVideoItem({
   isAdding,
   addStatus,
   addError,
+  atLimit,
+  onUpgrade,
 }: {
   video: VideoInfo;
   onAdd: () => void;
   isAdding: boolean;
   addStatus: "idle" | "queued" | "processing" | "error";
   addError?: string;
+  atLimit?: boolean;
+  onUpgrade?: () => void;
 }) {
   const durationSeconds = video.duration ? (parseDurationToSeconds(video.duration) ?? 0) : 0;
   const isTooLong = durationSeconds > MAX_VIDEO_DURATION_SECONDS;
@@ -379,25 +443,34 @@ function CurrentVideoItem({
           )}
         </div>
       </div>
-      <button
-        onClick={onAdd}
-        disabled={isDisabled}
-        className={`mt-3 w-full py-2 text-sm ${
-          isDisabled
-            ? "bg-(--color-surface-raised) text-(--color-text-faint) cursor-not-allowed border-2 border-(--color-border-muted) rounded-lg font-bold"
-            : "text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 cursor-pointer border-2 border-(--color-border-hard) rounded-lg font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
-        }`}
-      >
-        {isAdding
-          ? "Adding to queue..."
-          : isTooLong
-            ? "Too Long"
-            : addStatus === "queued"
-              ? "Queued"
-              : addStatus === "processing"
-                ? "Processing..."
-                : "Add to Queue"}
-      </button>
+      {atLimit && onUpgrade ? (
+        <button
+          onClick={onUpgrade}
+          className="mt-3 w-full py-2 text-sm text-neon-800 bg-neon-100 dark:bg-transparent dark:text-neon-400 cursor-pointer border-2 border-(--color-border-hard) rounded-full font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+        >
+          ✦ Unlock with Pro
+        </button>
+      ) : (
+        <button
+          onClick={onAdd}
+          disabled={isDisabled}
+          className={`mt-3 w-full py-2 text-sm ${
+            isDisabled
+              ? "bg-(--color-surface-raised) text-(--color-text-faint) cursor-not-allowed border-2 border-(--color-border-muted) rounded-full font-bold"
+              : "text-neon-800 bg-neon-100 dark:bg-transparent dark:text-neon-400 cursor-pointer border-2 border-(--color-border-hard) rounded-full font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+          }`}
+        >
+          {isAdding
+            ? "Adding to queue..."
+            : isTooLong
+              ? "Too Long"
+              : addStatus === "queued"
+                ? "Queued"
+                : addStatus === "processing"
+                  ? "Processing..."
+                  : "Add to Queue"}
+        </button>
+      )}
       {addStatus === "error" && addError && <p className="text-red-600 text-xs mt-2">{addError}</p>}
     </li>
   );

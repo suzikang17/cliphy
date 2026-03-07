@@ -3,7 +3,7 @@ import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
-import { SummaryDetail } from "../../components/SummaryDetail";
+import { SummaryDetail, ExportBar, toMarkdown, toPlainText } from "../../components/SummaryDetail";
 import { UpgradePrompt } from "../../components/UpgradePrompt";
 import { UsageBar } from "../../components/UsageBar";
 import {
@@ -19,6 +19,7 @@ import {
   retryQueueItem,
 } from "../../lib/api";
 import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
+import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
 
@@ -75,6 +76,8 @@ export function App() {
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [copyMarkdown, setCopyMarkdown] = useState(false);
+  const [copied, setCopied] = useState<"idle" | "copied">("idle");
 
   const realtimeStarted = useRef(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -401,11 +404,16 @@ export function App() {
   }
 
   function handleViewSummary(id: string) {
-    const match = summaries.find((s) => s.id === id);
-    if (match) {
-      setSelectedSummary(match);
+    const s = summaries.find((s) => s.id === id);
+    if (s) {
+      setSelectedSummary(s);
       setView("detail");
     }
+  }
+
+  function handleOpenSummary(id: string) {
+    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}`);
+    browser.tabs.create({ url });
   }
 
   function handleBack() {
@@ -458,16 +466,20 @@ export function App() {
     }
   }
 
+  const currentVideo = video && dismissedVideoRef.current !== video.videoId ? video : null;
+
   const topBar = (
     <div className="sticky top-0 z-10 bg-(--color-surface) border-b border-(--color-border-soft) px-4 py-2 shrink-0 flex items-center justify-between">
-      <div>
+      <div className="flex items-center gap-2">
         {view === "detail" ? (
-          <button
-            onClick={handleBack}
-            className="text-xs font-bold text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 px-2.5 py-1 border-2 border-(--color-border-hard) rounded-md shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
-          >
-            &larr; Back
-          </button>
+          <>
+            <button
+              onClick={handleBack}
+              className="text-xs font-bold text-(--color-text) bg-(--color-surface) dark:bg-(--color-surface) px-2.5 py-1 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 press-down cursor-pointer transition-all"
+            >
+              &larr; Back
+            </button>
+          </>
         ) : (
           <span
             className={`text-lg font-extrabold ${user?.plan === "pro" ? "text-neon-600" : "text-(--color-text)"}`}
@@ -486,9 +498,9 @@ export function App() {
             {user.email} &#9662;
           </button>
           {showUserMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20 min-w-[160px]">
+            <div className="absolute right-0 top-full mt-1 w-fit bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20">
               {user.plan === "pro" && (
-                <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 border-b border-(--color-border-soft) mb-1">
+                <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 text-left border-b border-(--color-border-soft) mb-1">
                   Pro Plan
                 </div>
               )}
@@ -505,7 +517,7 @@ export function App() {
                   }}
                   className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
                 >
-                  Manage subscription
+                  Billing
                 </button>
               )}
               <button
@@ -623,6 +635,17 @@ export function App() {
 
   // Detail view
   if (view === "detail" && selectedSummary) {
+    async function handleCopyAll() {
+      const content = copyMarkdown ? toMarkdown(selectedSummary!) : toPlainText(selectedSummary!);
+      try {
+        await navigator.clipboard.writeText(content);
+        setCopied("copied");
+        setTimeout(() => setCopied("idle"), 2000);
+      } catch {
+        // Clipboard API can fail in extension contexts
+      }
+    }
+
     return (
       <div className="flex flex-col h-screen">
         {topBar}
@@ -630,6 +653,18 @@ export function App() {
           <SummaryDetail
             summary={selectedSummary}
             onSeek={(seconds) => seekVideo(seconds, selectedSummary.videoId)}
+            onDismiss={() => handleDismissSummary(selectedSummary.id)}
+            onOpenInTab={() => handleOpenSummary(selectedSummary.id)}
+            pinned
+            copyAsMarkdown={copyMarkdown}
+          />
+        </div>
+        <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
+          <ExportBar
+            copied={copied}
+            copyMarkdown={copyMarkdown}
+            setCopyMarkdown={setCopyMarkdown}
+            onCopy={handleCopyAll}
             onDismiss={() => handleDismissSummary(selectedSummary.id)}
           />
         </div>
@@ -661,19 +696,30 @@ export function App() {
             />
           </div>
         )}
+        {usage && usage.plan === "free" && !upgradePrompt && (
+          <button
+            onClick={() => openCheckout(handleUpgraded)}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-transparent text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/40 press-down cursor-pointer transition-all"
+          >
+            ✦ Unlock 100 summaries/month with Pro
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-2">
         <QueueList
           summaries={summaries}
-          currentVideo={video && dismissedVideoRef.current !== video.videoId ? video : null}
+          currentVideo={currentVideo}
           videoLoading={videoLoading}
           loadingVideoId={loadingVideoId}
           onAddToQueue={handleAddToQueue}
           isAdding={isAdding}
           addStatus={addStatus}
           addError={addError}
+          atLimit={usage ? usage.used >= usage.limit : false}
+          onUpgrade={() => openCheckout(handleUpgraded)}
           onViewSummary={handleViewSummary}
+          onOpenSummary={handleOpenSummary}
           onRemove={handleRemoveItem}
           onRetry={handleRetryItem}
         />
@@ -691,7 +737,7 @@ export function App() {
                   const url = browser.runtime.getURL("/summaries.html");
                   browser.tabs.create({ url });
                 }}
-                className="text-xs font-bold text-neon-800 bg-neon-100 dark:bg-neon-900 dark:text-neon-200 border-2 border-(--color-border-hard) rounded-md px-3 py-1 shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all shrink-0"
+                className="text-xs font-bold text-neon-900 bg-neon-200 dark:bg-transparent dark:text-neon-400 border-2 border-(--color-border-hard) rounded-full px-3 py-1 shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all shrink-0"
               >
                 View all
               </button>

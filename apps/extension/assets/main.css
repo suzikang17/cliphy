@@ -21,14 +21,14 @@
   --color-accent-surface: #fff0f6;
   --color-warn-surface: #fffbeb;
   --color-error-surface: #fef2f2;
-  --color-neon-100: #ffe0ee;
-  --color-neon-200: #ffb8d9;
-  --color-neon-400: #ff69b4;
-  --color-neon-500: #ff45a0;
-  --color-neon-600: #e6007e;
-  --color-neon-700: #b8005f;
-  --color-neon-800: #8a0047;
-  --color-neon-900: #2e0018;
+  --color-neon-100: #f5e1ed;
+  --color-neon-200: #e8c0d8;
+  --color-neon-400: #d898b8;
+  --color-neon-500: #cf8aaf;
+  --color-neon-600: #c0769e;
+  --color-neon-700: #a25e84;
+  --color-neon-800: #834a6b;
+  --color-neon-900: #2e1520;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -9,7 +9,15 @@ interface SummaryDetailProps {
   onTagsChange?: (tags: string[]) => void;
   onSeek?: (seconds: number) => void;
   onDismiss?: () => void;
+  /** Open summary in a new tab (popout) */
+  onOpenInTab?: () => void;
+  /** When true, export bar is not rendered inline — use ExportBar separately */
+  pinned?: boolean;
+  /** External markdown toggle (used when pinned) */
+  copyAsMarkdown?: boolean;
 }
+
+export { ExportBar, toMarkdown, toPlainText };
 
 function extractTimestamp(text: string): { time: string; seconds: number; label: string } | null {
   const match = text.match(/^[[(\s]*(\d{1,2}:\d{2}(?::\d{2})?)[)\]\s]*[-\u2013\u2014:\s]*(.*)/);
@@ -151,11 +159,11 @@ function TagEditor({
   const suggestions = allTags.filter((t) => !tags.includes(t));
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 mb-4">
+    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft)"
+          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft)"
         >
           {tag}
           <button
@@ -168,25 +176,43 @@ function TagEditor({
         </span>
       ))}
       {adding ? (
-        <div className="inline-flex items-center">
+        <div className="relative inline-flex flex-col">
           <input
             ref={inputRef}
             type="text"
-            list="tag-suggestions"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            onBlur={handleAdd}
+            onBlur={() => {
+              setTimeout(() => handleAdd(), 150);
+            }}
             maxLength={TAG_MAX_LENGTH}
             placeholder="tag name"
-            className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-neon-300 bg-(--color-surface) text-(--color-text) outline-none w-24"
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-neon-400 bg-(--color-surface) text-(--color-text) outline-none w-24"
             autoFocus
           />
-          <datalist id="tag-suggestions">
-            {suggestions.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
+          {(() => {
+            const q = input.toLowerCase().trim();
+            const filtered = suggestions.filter((t) => !q || t.includes(q));
+            return filtered.length > 0 ? (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 min-w-[120px]">
+                {filtered.map((t) => (
+                  <button
+                    key={t}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onChange([...tags, t]);
+                      setInput("");
+                      setAdding(false);
+                    }}
+                    className="w-full text-left text-[11px] font-bold px-3 py-1.5 bg-transparent border-0 cursor-pointer text-(--color-text-secondary) hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            ) : null;
+          })()}
         </div>
       ) : tagLimitReached ? (
         <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
@@ -195,7 +221,7 @@ function TagEditor({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors"
+          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors"
           title="Add tag"
         >
           + tag
@@ -205,12 +231,75 @@ function TagEditor({
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+function ExportBar({
+  copied,
+  copyMarkdown,
+  setCopyMarkdown,
+  onCopy,
+  onDismiss,
+}: {
+  copied: CopyState;
+  copyMarkdown: boolean;
+  setCopyMarkdown: (v: boolean) => void;
+  onCopy: () => void;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={onCopy}
+        className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 press-down cursor-pointer transition-all"
+      >
+        {copied === "copied" ? "Copied!" : "Copy All"}
+      </button>
+      <label className="flex items-center gap-1.5 text-[11px] text-(--color-text-secondary) cursor-pointer select-none -mb-0.5">
+        <input
+          type="checkbox"
+          checked={copyMarkdown}
+          onChange={(e) => setCopyMarkdown(e.target.checked)}
+          className="accent-neon-600 cursor-pointer"
+        />
+        Markdown
+      </label>
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          className="ml-auto text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-red-50 dark:hover:bg-red-950/30 press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-red-500"
+          title="Dismiss summary"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CopyButton({
+  text,
+  markdownText,
+  useMarkdown,
+}: {
+  text: string;
+  markdownText?: string;
+  useMarkdown?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(useMarkdown && markdownText ? markdownText : text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -221,7 +310,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 p-0 cursor-pointer transition-colors"
+      className="text-(--color-text-faint) hover:text-neon-600 bg-transparent hover:bg-neon-100 dark:hover:bg-neon-900/30 border-0 p-1 -m-1 rounded cursor-pointer transition-all"
       title="Copy section"
     >
       {copied ? (
@@ -257,7 +346,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-type CopyState = "idle" | "markdown" | "text";
+type CopyState = "idle" | "copied";
 
 export function SummaryDetail({
   summary,
@@ -266,8 +355,13 @@ export function SummaryDetail({
   onTagsChange,
   onSeek,
   onDismiss,
+  onOpenInTab,
+  pinned,
+  copyAsMarkdown,
 }: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
+  const [localCopyMarkdown, setLocalCopyMarkdown] = useState(false);
+  const copyMarkdown = pinned ? (copyAsMarkdown ?? false) : localCopyMarkdown;
   const json = summary.summaryJson;
 
   function scrollToSection(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
@@ -279,11 +373,11 @@ export function SummaryDetail({
     setTimeout(() => el.classList.remove("ring-2", "ring-neon-400", "ring-offset-2"), 800);
   }
 
-  async function handleCopy(format: "markdown" | "text") {
-    const content = format === "markdown" ? toMarkdown(summary) : toPlainText(summary);
+  async function handleCopy() {
+    const content = copyMarkdown ? toMarkdown(summary) : toPlainText(summary);
     try {
       await navigator.clipboard.writeText(content);
-      setCopied(format);
+      setCopied("copied");
       setTimeout(() => setCopied("idle"), 2000);
     } catch {
       // Clipboard API can fail in extension contexts
@@ -332,19 +426,44 @@ export function SummaryDetail({
             {summary.videoDurationSeconds != null && summary.videoDurationSeconds > 0 && (
               <span>{formatTimeSaved(summary.videoDurationSeconds)}</span>
             )}
+            {onOpenInTab && (
+              <>
+                <span>&middot;</span>
+                <button
+                  onClick={onOpenInTab}
+                  className="inline-flex items-center gap-1 text-xs text-(--color-text-muted) hover:text-neon-600 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                  title="View in Cliphub"
+                >
+                  View in Cliphub
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
+          {/* Tags */}
+          {onTagsChange && (
+            <TagEditor
+              tags={summary.tags}
+              allTags={allTags ?? []}
+              tagLimitReached={tagLimitReached ?? false}
+              onChange={onTagsChange}
+            />
+          )}
         </div>
       </div>
-
-      {/* Tags */}
-      {onTagsChange && (
-        <TagEditor
-          tags={summary.tags}
-          allTags={allTags ?? []}
-          tagLimitReached={tagLimitReached ?? false}
-          onChange={onTagsChange}
-        />
-      )}
 
       {!json ? (
         <p className="text-(--color-text-muted) text-sm">No summary data available.</p>
@@ -363,7 +482,7 @@ export function SummaryDetail({
             <a
               href="#tldr"
               onClick={(e) => scrollToSection(e, "tldr")}
-              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
+              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
             >
               TL;DR
             </a>
@@ -371,7 +490,7 @@ export function SummaryDetail({
               <a
                 href="#highlights"
                 onClick={(e) => scrollToSection(e, "highlights")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
+                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
               >
                 Highlights
               </a>
@@ -380,7 +499,7 @@ export function SummaryDetail({
               <a
                 href="#jump-to"
                 onClick={(e) => scrollToSection(e, "jump-to")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
+                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
               >
                 Jump To
               </a>
@@ -391,7 +510,7 @@ export function SummaryDetail({
                 <a
                   href="#context-section"
                   onClick={(e) => scrollToSection(e, "context-section")}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-(--color-border-soft) transition-colors"
+                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
                 >
                   {ctx.title}
                 </a>
@@ -402,11 +521,15 @@ export function SummaryDetail({
           {/* TL;DR */}
           <div
             id="tldr"
-            className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+            className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
           >
             <div className="flex items-center justify-between mb-1.5">
               <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">TL;DR</h3>
-              <CopyButton text={json.summary} />
+              <CopyButton
+                text={json.summary}
+                markdownText={`> ${json.summary}`}
+                useMarkdown={copyMarkdown}
+              />
             </div>
             <p className="text-sm text-(--color-text-body) leading-relaxed m-0 italic">
               {json.summary}
@@ -417,13 +540,17 @@ export function SummaryDetail({
           {json.keyPoints.length > 0 && (
             <div
               id="highlights"
-              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
             >
               <div className="flex items-center justify-between mb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
                   Highlights
                 </h3>
-                <CopyButton text={json.keyPoints.map((p) => `• ${p}`).join("\n")} />
+                <CopyButton
+                  text={json.keyPoints.map((p) => `• ${p}`).join("\n")}
+                  markdownText={json.keyPoints.map((p) => `- ${p}`).join("\n")}
+                  useMarkdown={copyMarkdown}
+                />
               </div>
               <ul className="list-none p-0 m-0 space-y-1.5">
                 {json.keyPoints.map((point, i) => (
@@ -440,13 +567,17 @@ export function SummaryDetail({
           {json.timestamps.length > 0 && (
             <div
               id="jump-to"
-              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
             >
               <div className="flex items-center justify-between mb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
                   Jump To
                 </h3>
-                <CopyButton text={json.timestamps.join("\n")} />
+                <CopyButton
+                  text={json.timestamps.join("\n")}
+                  markdownText={json.timestamps.map((t) => `- ${t}`).join("\n")}
+                  useMarkdown={copyMarkdown}
+                />
               </div>
               <ul className="list-none p-0 m-0 space-y-1">
                 {json.timestamps.map((ts, i) => {
@@ -491,13 +622,17 @@ export function SummaryDetail({
             return ctx ? (
               <div
                 id="context-section"
-                className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 transition-all duration-300"
+                className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
                     {ctx.title}
                   </h3>
-                  <CopyButton text={ctx.items.map((i) => `• ${i}`).join("\n")} />
+                  <CopyButton
+                    text={ctx.items.map((i) => `• ${i}`).join("\n")}
+                    markdownText={ctx.items.map((i) => `- ${i}`).join("\n")}
+                    useMarkdown={copyMarkdown}
+                  />
                 </div>
                 <ul className="list-none p-0 m-0 space-y-1.5">
                   {ctx.items.map((item, i) => (
@@ -511,42 +646,18 @@ export function SummaryDetail({
             ) : null;
           })()}
 
-          {/* Export buttons */}
-          <div className="flex gap-2 pt-2 border-t border-(--color-border-soft)">
-            <button
-              onClick={() => handleCopy("markdown")}
-              className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
-            >
-              {copied === "markdown" ? "Copied!" : "Copy Markdown"}
-            </button>
-            <button
-              onClick={() => handleCopy("text")}
-              className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
-            >
-              {copied === "text" ? "Copied!" : "Copy Text"}
-            </button>
-            {onDismiss && (
-              <button
-                onClick={onDismiss}
-                className="ml-auto text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-red-500"
-                title="Dismiss summary"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
-            )}
-          </div>
+          {/* Export buttons — rendered externally when pinned=true */}
+          {!pinned && (
+            <div className="pt-2 border-t border-(--color-border-soft)">
+              <ExportBar
+                copied={copied}
+                copyMarkdown={localCopyMarkdown}
+                setCopyMarkdown={setLocalCopyMarkdown}
+                onCopy={handleCopy}
+                onDismiss={onDismiss}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

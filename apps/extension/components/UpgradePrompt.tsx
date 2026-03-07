@@ -22,13 +22,13 @@ export function UpgradePrompt({ message, onDismiss, onUpgraded }: UpgradePromptP
   }
 
   return (
-    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border-2 border-amber-200 dark:border-amber-800 rounded-lg p-3">
+    <div className="bg-neon-100 dark:bg-neon-900/40 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm p-3">
       <p className="text-sm text-(--color-text-body) font-medium m-0 leading-snug">{message}</p>
       <div className="flex items-center gap-2 mt-2.5">
         <button
           onClick={handleUpgrade}
           disabled={loading}
-          className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer no-underline transition-all disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-neon-600 dark:bg-transparent text-white dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer no-underline transition-all disabled:opacity-50"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
             <path d="M8 1l2.35 4.76 5.26.77-3.8 3.7.9 5.24L8 13.07l-4.71 2.4.9-5.24-3.8-3.7 5.26-.77z" />

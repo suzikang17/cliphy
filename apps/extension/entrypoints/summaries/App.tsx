@@ -4,9 +4,8 @@ import {
   FREE_HISTORY_DAYS,
   MAX_FREE_UNIQUE_TAGS,
   relativeDate,
-  TAG_MAX_LENGTH,
 } from "@cliphy/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import {
@@ -141,6 +140,7 @@ export function App() {
     setSelectedSummary(summary);
     setView("detail");
     window.location.hash = `#/summary/${summary.id}`;
+    window.scrollTo(0, 0);
   }
 
   function handleBack() {
@@ -257,13 +257,16 @@ export function App() {
   // List view
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
-      <Header usage={usage} />
-      <Toolbar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+      <Header
+        usage={usage}
         allTags={allTags}
         filterTag={filterTag}
         onFilterTag={handleFilterTag}
+        onClearAll={clearFilters}
+      />
+      <Toolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         sortOrder={sortOrder}
         onSortChange={setSortOrder}
       />
@@ -273,6 +276,7 @@ export function App() {
         hasFilters={hasFilters}
         onClearFilters={clearFilters}
         filterTag={filterTag}
+        onFilterTag={handleFilterTag}
         onSelect={handleSelectSummary}
         onDelete={handleDelete}
         allTags={allTags}
@@ -282,24 +286,32 @@ export function App() {
   );
 }
 
-function Header({ usage }: { usage: UsageInfo | null }) {
+function Header({
+  usage,
+  allTags,
+  filterTag,
+  onFilterTag,
+  onClearAll,
+}: {
+  usage: UsageInfo | null;
+  allTags?: string[];
+  filterTag?: string | null;
+  onFilterTag?: (tag: string | null) => void;
+  onClearAll?: () => void;
+}) {
+  const hasActiveFilter = !!filterTag;
   return (
     <div className="mb-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold m-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1
+          onClick={hasActiveFilter ? onClearAll : undefined}
+          className={`text-2xl font-extrabold m-0 shrink-0 ${hasActiveFilter ? "cursor-pointer hover:text-neon-600 transition-colors" : ""}`}
+          title={hasActiveFilter ? "Clear all filters" : undefined}
+        >
           <span className="text-neon-500">&#9654;</span> Cliphub
         </h1>
-        {usage && (
-          <div className="text-right">
-            <span className="text-xs font-bold text-(--color-text-secondary)">
-              {usage.used}/{usage.limit} this month
-            </span>
-            {usage.totalTimeSavedSeconds > 0 && (
-              <p className="text-[10px] text-(--color-text-faint) m-0">
-                {formatTimeSaved(usage.totalTimeSavedSeconds)} saved
-              </p>
-            )}
-          </div>
+        {allTags && allTags.length > 0 && onFilterTag && (
+          <TagChips tags={allTags} filterTag={filterTag ?? null} onFilterTag={onFilterTag} inline />
         )}
       </div>
       {usage?.plan === "free" && (
@@ -323,17 +335,11 @@ function Header({ usage }: { usage: UsageInfo | null }) {
 function Toolbar({
   searchQuery,
   onSearchChange,
-  allTags,
-  filterTag,
-  onFilterTag,
   sortOrder,
   onSortChange,
 }: {
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  allTags: string[];
-  filterTag: string | null;
-  onFilterTag: (tag: string | null) => void;
   sortOrder: SortOrder;
   onSortChange: (s: SortOrder) => void;
 }) {
@@ -359,31 +365,76 @@ function Toolbar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search summaries..."
-          className="w-full text-xs font-bold pl-8 pr-3 py-1.5 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) placeholder:text-(--color-text-faint) outline-none focus:border-neon-500 transition-colors"
+          className="w-full text-xs font-bold pl-8 pr-3 py-1.5 rounded-full border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) placeholder:text-(--color-text-faint) outline-none focus:border-neon-500 transition-colors"
         />
       </div>
-      {allTags.length > 0 && (
-        <select
-          value={filterTag ?? ""}
-          onChange={(e) => onFilterTag(e.target.value || null)}
-          className="text-xs font-bold px-2 py-1.5 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) cursor-pointer"
+      <select
+        value={sortOrder}
+        onChange={(e) => onSortChange(e.target.value as SortOrder)}
+        className="text-xs font-bold px-3 py-1.5 rounded-full border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) cursor-pointer"
+      >
+        <option value="newest">Newest</option>
+        <option value="oldest">Oldest</option>
+      </select>
+    </div>
+  );
+}
+
+const MAX_VISIBLE_TAGS = 8;
+
+function TagChips({
+  tags,
+  filterTag,
+  onFilterTag,
+  inline,
+}: {
+  tags: string[];
+  filterTag: string | null;
+  onFilterTag: (tag: string | null) => void;
+  inline?: boolean;
+}) {
+  const visible = tags.slice(0, MAX_VISIBLE_TAGS);
+  const overflow = tags.slice(MAX_VISIBLE_TAGS);
+  // If the active filter is in overflow, always show it in visible chips
+  const activeInOverflow = filterTag && overflow.includes(filterTag);
+
+  const chipClass = (tag: string) =>
+    `text-[10px] font-bold px-2 py-0.5 rounded-full border-2 cursor-pointer transition-all ${
+      filterTag === tag
+        ? "bg-(--color-surface) text-neon-600 border-neon-400 dark:text-neon-300 dark:border-neon-600 shadow-none translate-x-[2px] translate-y-[2px]"
+        : "bg-(--color-surface) text-(--color-text-secondary) border-(--color-border-hard) shadow-brutal-sm hover:shadow-brutal-pressed press-down hover:border-neon-300 hover:text-neon-600"
+    }`;
+
+  return (
+    <div className={`flex flex-wrap gap-1.5 ${inline ? "" : "mb-4"}`}>
+      {activeInOverflow && (
+        <button onClick={() => onFilterTag(null)} className={chipClass(filterTag)}>
+          {filterTag}
+        </button>
+      )}
+      {visible.map((tag) => (
+        <button
+          key={tag}
+          onClick={() => onFilterTag(filterTag === tag ? null : tag)}
+          className={chipClass(tag)}
         >
-          <option value="">All tags</option>
-          {allTags.map((tag) => (
+          {tag}
+        </button>
+      ))}
+      {overflow.length > 0 && (
+        <select
+          value={filterTag && overflow.includes(filterTag) ? filterTag : ""}
+          onChange={(e) => onFilterTag(e.target.value || null)}
+          className="text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text-secondary) shadow-brutal-sm cursor-pointer"
+        >
+          <option value="">+{overflow.length} more</option>
+          {overflow.map((tag) => (
             <option key={tag} value={tag}>
               {tag}
             </option>
           ))}
         </select>
       )}
-      <select
-        value={sortOrder}
-        onChange={(e) => onSortChange(e.target.value as SortOrder)}
-        className="text-xs font-bold px-2 py-1.5 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text) cursor-pointer"
-      >
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-      </select>
     </div>
   );
 }
@@ -394,6 +445,7 @@ function CardList({
   hasFilters,
   onClearFilters,
   filterTag,
+  onFilterTag,
   onSelect,
   onDelete,
   allTags,
@@ -404,6 +456,7 @@ function CardList({
   hasFilters: boolean;
   onClearFilters: () => void;
   filterTag: string | null;
+  onFilterTag: (tag: string | null) => void;
   onSelect: (s: Summary) => void;
   onDelete: (id: string) => void;
   allTags: string[];
@@ -448,6 +501,8 @@ function CardList({
           onDelete={onDelete}
           allTags={allTags}
           onTagsChange={onTagsChange}
+          filterTag={filterTag}
+          onFilterTag={onFilterTag}
         />
       ))}
     </div>
@@ -460,16 +515,31 @@ function SummaryCard({
   onDelete,
   allTags,
   onTagsChange,
+  filterTag,
+  onFilterTag,
 }: {
   summary: Summary;
   onSelect: (s: Summary) => void;
   onDelete: (id: string) => void;
   allTags: string[];
   onTagsChange: (id: string, tags: string[]) => Promise<void>;
+  filterTag: string | null;
+  onFilterTag: (tag: string | null) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [addingTag, setAddingTag] = useState(false);
-  const [tagInput, setTagInput] = useState("");
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showTagPicker) return;
+    const onClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowTagPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showTagPicker]);
 
   function handleDeleteClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -481,32 +551,10 @@ function SummaryCard({
     }
   }
 
-  function handleTagAdd() {
-    const tag = tagInput.toLowerCase().trim();
-    if (!tag || tag.length > TAG_MAX_LENGTH || s.tags.includes(tag)) {
-      setTagInput("");
-      setAddingTag(false);
-      return;
-    }
-    onTagsChange(s.id, [...s.tags, tag]).catch(() => {});
-    setTagInput("");
-    setAddingTag(false);
-  }
-
-  function handleTagKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleTagAdd();
-    } else if (e.key === "Escape") {
-      setTagInput("");
-      setAddingTag(false);
-    }
-  }
-
   return (
     <div
       onClick={() => onSelect(s)}
-      className="group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all"
+      className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""}`}
     >
       <div className="flex items-start gap-3">
         <img
@@ -536,45 +584,71 @@ function SummaryCard({
             {s.tags.map((tag) => (
               <span
                 key={tag}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft) font-bold"
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border-2 bg-(--color-surface-raised) text-(--color-text-secondary) border-(--color-border-soft)"
               >
-                {tag}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFilterTag(filterTag === tag ? null : tag);
+                  }}
+                  className="bg-transparent border-0 p-0 cursor-pointer text-inherit hover:text-neon-600 transition-colors"
+                >
+                  {tag}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTagsChange(
+                      s.id,
+                      s.tags.filter((t) => t !== tag),
+                    ).catch(() => {});
+                  }}
+                  className="bg-transparent border-0 p-0 cursor-pointer text-neon-500 hover:text-red-500 transition-colors leading-none"
+                  title={`Remove "${tag}"`}
+                >
+                  &times;
+                </button>
               </span>
             ))}
-            {addingTag ? (
-              <div className="inline-flex items-center" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="text"
-                  list={`tags-${s.id}`}
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={handleTagAdd}
-                  maxLength={TAG_MAX_LENGTH}
-                  placeholder="tag name"
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-neon-300 bg-(--color-surface) text-(--color-text) outline-none w-24"
-                  autoFocus
-                />
-                <datalist id={`tags-${s.id}`}>
-                  {allTags
-                    .filter((t) => !s.tags.includes(t))
-                    .map((t) => (
-                      <option key={t} value={t} />
-                    ))}
-                </datalist>
-              </div>
-            ) : (
+            <div className="relative inline-flex" ref={pickerRef}>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setAddingTag(true);
+                  setShowTagPicker((v) => !v);
                 }}
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors opacity-0 group-hover:opacity-100"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors opacity-0 group-hover:opacity-100"
                 title="Add tag"
               >
                 + tag
               </button>
-            )}
+              {showTagPicker && (
+                <div
+                  className="absolute top-full left-0 mt-1 z-50 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 min-w-[120px]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {allTags.filter((t) => !s.tags.includes(t)).length > 0 ? (
+                    allTags
+                      .filter((t) => !s.tags.includes(t))
+                      .map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            onTagsChange(s.id, [...s.tags, t]).catch(() => {});
+                            setShowTagPicker(false);
+                          }}
+                          className="w-full text-left text-[11px] font-bold px-3 py-1.5 bg-transparent border-0 cursor-pointer text-(--color-text-secondary) hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors"
+                        >
+                          {t}
+                        </button>
+                      ))
+                  ) : (
+                    <span className="block text-[11px] text-(--color-text-faint) px-3 py-1.5">
+                      No more tags
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
