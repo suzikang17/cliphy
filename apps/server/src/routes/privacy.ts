@@ -79,6 +79,7 @@ const html = `<!DOCTYPE html>
     <tr><td><a href="https://stripe.com/privacy">Stripe</a></td><td>Payment processing</td><td>Email, payment details (direct to Stripe)</td></tr>
     <tr><td><a href="https://supabase.com/privacy">Supabase</a></td><td>Database &amp; authentication</td><td>Account data, summaries, usage data</td></tr>
     <tr><td><a href="https://vercel.com/legal/privacy-policy">Vercel</a></td><td>API hosting</td><td>API requests (server logs)</td></tr>
+    <tr><td><a href="https://sentry.io/privacy/">Sentry</a></td><td>Error monitoring</td><td>Error reports, stack traces (no personal data)</td></tr>
   </table>
   <p>We do not sell, rent, or trade your personal information to any third party.</p>
 
@@ -100,7 +101,7 @@ const html = `<!DOCTYPE html>
   </ul>
 
   <h2>8. Account Deletion</h2>
-  <p>You may request deletion of your account and all associated data at any time by emailing <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>. Upon receiving your request, we will:</p>
+  <p>You may request deletion of your account and all associated data at any time by emailing <a href="mailto:cliphy.ai+privacy@gmail.com">cliphy.ai+privacy@gmail.com</a>. Upon receiving your request, we will:</p>
   <ul>
     <li>Delete your account and authentication records.</li>
     <li>Delete all summaries and queue items.</li>
@@ -130,13 +131,13 @@ const html = `<!DOCTYPE html>
     <li><strong>Portability</strong> — receive your data in a machine-readable format.</li>
     <li><strong>Objection</strong> — object to processing based on legitimate interest.</li>
   </ul>
-  <p>To exercise any of these rights, email <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>. We will respond within 30 days.</p>
+  <p>To exercise any of these rights, email <a href="mailto:cliphy.ai+privacy@gmail.com">cliphy.ai+privacy@gmail.com</a>. We will respond within 30 days.</p>
 
   <h3>For European users (GDPR)</h3>
   <p>Our legal bases for processing your data are: consent (when you sign up and authorize access), contractual necessity (to provide the service you requested), and legitimate interest (to improve the service). You have the right to lodge a complaint with your local data protection authority.</p>
 
   <h3>For California users (CCPA)</h3>
-  <p>Under the California Consumer Privacy Act, you have the right to know what personal information we collect, request its deletion, and opt out of its sale. We do not sell personal information. To make a request, email <a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a>.</p>
+  <p>Under the California Consumer Privacy Act, you have the right to know what personal information we collect, request its deletion, and opt out of its sale. We do not sell personal information. To make a request, email <a href="mailto:cliphy.ai+privacy@gmail.com">cliphy.ai+privacy@gmail.com</a>.</p>
 
   <h2>12. Children's Privacy</h2>
   <p>Cliphy is not intended for use by children under 13 (or 16 in the EEA). We do not knowingly collect data from children. If you believe a child has provided us with personal data, please contact us and we will delete it.</p>
@@ -146,7 +147,7 @@ const html = `<!DOCTYPE html>
 
   <h2>14. Contact</h2>
   <p>For privacy-related questions or data requests:</p>
-  <p><a href="mailto:privacy@cliphy.app">privacy@cliphy.app</a></p>
+  <p><a href="mailto:cliphy.ai+privacy@gmail.com">cliphy.ai+privacy@gmail.com</a></p>
 
   <div class="footer">
     <p>&copy; 2026 Cliphy. All rights reserved.</p>
