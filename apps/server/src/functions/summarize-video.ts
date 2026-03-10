@@ -10,6 +10,7 @@ import { summarizeTranscript } from "../services/summarizer.js";
 const log = logger.child({ fn: "summarize-video" });
 
 function classifyError(message: string): string {
+  if (/credit.?balance|billing|insufficient.?funds/i.test(message)) return "billing";
   if (/rate.?limit|429/i.test(message)) return "rate_limit";
   if (/timeout|ECONNREFUSED|connection/i.test(message)) return "network";
   if (/parse|json/i.test(message)) return "parse_failure";
@@ -30,7 +31,17 @@ export const summarizeVideo = inngest.createFunction(
         errorMessage,
       );
 
-      if (isExpected) {
+      const errorCategory = classifyError(errorMessage);
+
+      if (errorCategory === "billing") {
+        // P0: AI service is down for all users
+        Sentry.captureException(new Error(errorMessage), {
+          level: "fatal",
+          extra: { summaryId, videoId },
+          tags: { component: "inngest", error_category: "billing", severity: "p0" },
+          fingerprint: ["summarize-video", "billing"],
+        });
+      } else if (isExpected) {
         // Track expected failures without alerting
         Sentry.captureMessage(`No captions: ${videoId}`, {
           level: "info",
@@ -43,9 +54,9 @@ export const summarizeVideo = inngest.createFunction(
           extra: { summaryId, videoId },
           tags: {
             component: "inngest",
-            error_category: classifyError(errorMessage),
+            error_category: errorCategory,
           },
-          fingerprint: ["summarize-video", classifyError(errorMessage)],
+          fingerprint: ["summarize-video", errorCategory],
         });
       }
       await Sentry.flush(2000);
