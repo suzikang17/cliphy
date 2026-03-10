@@ -17,6 +17,7 @@ function mockChain(result: { data?: unknown; error?: unknown } = {}) {
 
 let fromCallCount = 0;
 let fromResults: ReturnType<typeof mockChain>[];
+const mockRpc = vi.fn().mockResolvedValue({ data: true, error: null });
 
 vi.mock("../../lib/supabase.js", () => ({
   supabase: new Proxy(
@@ -28,6 +29,7 @@ vi.mock("../../lib/supabase.js", () => ({
             const result = fromResults[fromCallCount++] ?? mockChain({});
             return result;
           };
+        if (prop === "rpc") return mockRpc;
         return undefined;
       },
     },
@@ -320,9 +322,10 @@ describe("summarize-video", () => {
   });
 
   describe("onFailure handler", () => {
-    it("updates summary status to failed with error message", async () => {
+    it("updates summary status to failed and rolls back usage count", async () => {
+      const selectChain = mockChain({ data: { user_id: "user-abc" } });
       const updateChain = mockChain();
-      fromResults = [updateChain];
+      fromResults = [selectChain, updateChain];
 
       // Import to trigger createFunction and capture config
       await import("../summarize-video.js");
@@ -339,11 +342,14 @@ describe("summarize-video", () => {
 
       expect(updateChain.update).toHaveBeenCalled();
       expect(updateChain.eq).toHaveBeenCalled();
+      // Should rollback usage count
+      expect(mockRpc).toHaveBeenCalledWith("decrement_monthly_count", { p_user_id: "user-abc" });
     });
 
     it("captures to Sentry and flushes for unexpected errors", async () => {
+      const selectChain = mockChain({ data: { user_id: "user-abc" } });
       const updateChain = mockChain();
-      fromResults = [updateChain];
+      fromResults = [selectChain, updateChain];
 
       await import("../summarize-video.js");
       expect(capturedConfig).not.toBeNull();
@@ -373,8 +379,9 @@ describe("summarize-video", () => {
     });
 
     it("reports billing errors as fatal/p0 in Sentry", async () => {
+      const selectChain = mockChain({ data: { user_id: "user-abc" } });
       const updateChain = mockChain();
-      fromResults = [updateChain];
+      fromResults = [selectChain, updateChain];
 
       await import("../summarize-video.js");
       expect(capturedConfig).not.toBeNull();
@@ -404,8 +411,9 @@ describe("summarize-video", () => {
     });
 
     it("logs 'no captions' as info message, not exception", async () => {
+      const selectChain = mockChain({ data: { user_id: "user-abc" } });
       const updateChain = mockChain();
-      fromResults = [updateChain];
+      fromResults = [selectChain, updateChain];
 
       await import("../summarize-video.js");
       expect(capturedConfig).not.toBeNull();

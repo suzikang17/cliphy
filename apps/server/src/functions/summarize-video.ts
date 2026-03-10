@@ -61,10 +61,22 @@ export const summarizeVideo = inngest.createFunction(
       }
       await Sentry.flush(2000);
 
+      // Look up user_id from the summary row to rollback usage count
+      const { data: summary } = await supabase
+        .from("summaries")
+        .select("user_id")
+        .eq("id", summaryId)
+        .single();
+
       await supabase
         .from("summaries")
         .update({ status: "failed", error_message: errorMessage })
         .eq("id", summaryId);
+
+      // Rollback usage count — failed summaries shouldn't count against the user
+      if (summary?.user_id) {
+        await supabase.rpc("decrement_monthly_count", { p_user_id: summary.user_id });
+      }
     },
   },
   { event: "video/summarize.requested" },
