@@ -6,35 +6,37 @@ import { fetchTranscript } from "../src/services/transcript.js";
 import { saveFixture } from "./fixtures.js";
 
 const VIDEOS = [
-  { videoId: "jNQXAC9IVRw", title: "Me at the zoo", category: "short" },
-  { videoId: "8jPQjjsBbIc", title: "Fireship - 100 seconds of code", category: "tutorial" },
-  { videoId: "dQw4w9WgXcQ", title: "Rick Astley - Never Gonna Give You Up", category: "music" },
-  { videoId: "hY7m5jjJ9mM", title: "CSS in 100 Seconds", category: "tutorial" },
   {
-    videoId: "iG9CE55wbtY",
-    title: "Do schools kill creativity? - Ken Robinson TED",
+    videoId: "_Q4XT82yd-Q",
+    title:
+      "The Most Effective Weight Training, Cardio & Nutrition for Women | Dr. Lauren Colenso-Semple",
+    category: "long",
+  },
+  {
+    videoId: "0d3VPmXiz-Y",
+    title: "Kash Patel, Into Iran, & A Missing Leg | The Tim Dillon Show #485",
+    category: "long",
+  },
+  {
+    videoId: "8jPQjjsBbIc",
+    title: "How to stay calm when you know you'll be stressed | Daniel Levitin TED",
     category: "lecture",
   },
-  { videoId: "UF8uR6Z6KLc", title: "Steve Jobs Stanford Commencement", category: "lecture" },
+  { videoId: "dQw4w9WgXcQ", title: "Rick Astley - Never Gonna Give You Up", category: "music" },
   {
-    videoId: "MnrJzXM7a6o",
-    title: "How The Economic Machine Works - Ray Dalio",
+    videoId: "wBlIaazbQ2U",
+    title: "Epic Gardening - Growing Potatoes 8 Ways",
     category: "explainer",
   },
   {
-    videoId: "arj7oStGLkU",
-    title: "Tim Urban: Inside the mind of a master procrastinator TED",
+    videoId: "MnrJzXM7a6o",
+    title: "Steve Jobs introduces iPhone at Macworld 2007",
     category: "lecture",
   },
   {
-    videoId: "rfscVS0vtbw",
-    title: "Python Tutorial for Beginners (first 100k chars)",
-    category: "long",
-  },
-  {
-    videoId: "PkZNo7MFNFg",
-    title: "JavaScript Tutorial for Beginners (first 100k chars)",
-    category: "long",
+    videoId: "yWaYdGQqxQU",
+    title: "How to Make 3-Ingredient Stovetop Macaroni and Cheese",
+    category: "cooking",
   },
 ];
 
@@ -46,9 +48,9 @@ async function main() {
   for (const video of VIDEOS) {
     process.stdout.write(`  ${video.title}... `);
     try {
-      const { text: transcript } = await fetchTranscript(video.videoId);
-      const path = saveFixture({ ...video, transcript });
-      console.log(`OK (${transcript.length} chars) → ${path}`);
+      const { text: transcript, durationSeconds } = await fetchTranscript(video.videoId);
+      const path = saveFixture({ ...video, durationSeconds, transcript });
+      console.log(`OK (${transcript.length} chars, ${durationSeconds ?? "?"}s) → ${path}`);
       success++;
     } catch (err) {
       console.log(`FAIL: ${err instanceof Error ? err.message : err}`);

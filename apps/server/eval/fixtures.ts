@@ -9,6 +9,7 @@ export interface Fixture {
   videoId: string;
   title: string;
   category: string;
+  durationSeconds?: number | null;
   transcript: string;
 }
 
