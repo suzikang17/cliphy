@@ -107,6 +107,12 @@ export const summarizeVideo = inngest.createFunction(
         ) {
           throw err;
         }
+        // Billing / auth errors from Anthropic — non-retryable
+        if (err instanceof APIError && (err.status === 400 || err.status === 401)) {
+          throw new NonRetriableError(
+            "AI service temporarily unavailable. Please try again later.",
+          );
+        }
         // JSON parse failures from our parser — non-retryable
         if (err instanceof Error && err.message.startsWith("Failed to parse summary")) {
           throw new NonRetriableError("Failed to generate summary. Please try again.");
