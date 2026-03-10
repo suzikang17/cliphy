@@ -79,6 +79,7 @@ export function App() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [copyMarkdown, setCopyMarkdown] = useState(false);
   const [copied, setCopied] = useState<"idle" | "copied">("idle");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const realtimeStarted = useRef(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,12 @@ export function App() {
     await fetchUser().catch(() => {});
     const res = await getUsage().catch(() => null);
     if (res) setUsage(res.usage);
+  }
+
+  async function handleCheckout() {
+    setCheckoutLoading(true);
+    await openCheckout(handleUpgraded);
+    setCheckoutLoading(false);
   }
 
   // Re-fetch user + usage when sidepanel becomes visible
@@ -694,10 +701,11 @@ export function App() {
         )}
         {usage && usage.plan === "free" && !upgradePrompt && (
           <button
-            onClick={() => openCheckout(handleUpgraded)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all"
+            onClick={handleCheckout}
+            disabled={checkoutLoading}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            ✦ Unlock 100 summaries/month with Pro
+            {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
           </button>
         )}
       </div>
@@ -713,7 +721,7 @@ export function App() {
           addStatus={addStatus}
           addError={addError}
           atLimit={usage ? usage.used >= usage.limit : false}
-          onUpgrade={() => openCheckout(handleUpgraded)}
+          onUpgrade={handleCheckout}
           onViewSummary={handleViewSummary}
           onOpenSummary={handleOpenSummary}
           onRemove={handleRemoveItem}
@@ -726,7 +734,11 @@ export function App() {
           <div>
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <UsageBar usage={usage} onUpgraded={handleUpgraded} />
+                <UsageBar
+                  usage={usage}
+                  onUpgrade={handleCheckout}
+                  upgradeLoading={checkoutLoading}
+                />
               </div>
               <button
                 onClick={() => {

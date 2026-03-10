@@ -1,13 +1,13 @@
 import type { UsageInfo } from "@cliphy/shared";
 import { formatTimeSaved } from "@cliphy/shared";
-import { openCheckout } from "../lib/checkout";
 
 interface UsageBarProps {
   usage: UsageInfo;
-  onUpgraded?: () => void;
+  onUpgrade?: () => void;
+  upgradeLoading?: boolean;
 }
 
-export function UsageBar({ usage, onUpgraded }: UsageBarProps) {
+export function UsageBar({ usage, onUpgrade, upgradeLoading }: UsageBarProps) {
   const isFree = usage.plan === "free";
   const pct = usage.limit > 0 ? Math.min((usage.used / usage.limit) * 100, 100) : 0;
 
@@ -24,10 +24,11 @@ export function UsageBar({ usage, onUpgraded }: UsageBarProps) {
         <span>&middot;</span>
         {isFree ? (
           <button
-            onClick={() => openCheckout(onUpgraded)}
-            className="bg-transparent border-0 p-0 font-bold text-xs text-neon-600 dark:text-neon-400 cursor-pointer hover:text-neon-800 dark:hover:text-neon-200 transition-colors"
+            onClick={onUpgrade}
+            disabled={upgradeLoading}
+            className="bg-transparent border-0 p-0 font-bold text-xs text-neon-600 dark:text-neon-400 cursor-pointer hover:text-neon-800 dark:hover:text-neon-200 transition-colors disabled:opacity-50"
           >
-            Upgrade
+            {upgradeLoading ? "Opening..." : "Upgrade"}
           </button>
         ) : (
           <span className="px-1.5 py-0.5 rounded bg-neon-600 text-white text-[10px] leading-none tracking-wide uppercase">
