@@ -245,8 +245,10 @@ describe("summarize-video", () => {
       expect((err as InstanceType<typeof APIError>).status).toBe(503);
     });
 
-    it("does NOT retry 400 bad request (let Inngest default handle)", async () => {
-      mockSummarizeTranscript.mockRejectedValue(makeAPIError(400, "Bad request"));
+    it("wraps 400 billing error as NonRetriableError with friendly message", async () => {
+      mockSummarizeTranscript.mockRejectedValue(
+        makeAPIError(400, "Your credit balance is too low"),
+      );
 
       const { summarizeVideo } = await import("../summarize-video.js");
       const step = makeStep();
@@ -254,9 +256,25 @@ describe("summarize-video", () => {
       const err = await (summarizeVideo as unknown as AnyFn)({ event: defaultEvent, step }).catch(
         (e: unknown) => e,
       );
-      // 400 is not in our retryable list, so it falls through to the default rethrow
-      expect(err).toBeInstanceOf(APIError);
-      expect((err as InstanceType<typeof APIError>).status).toBe(400);
+      expect(err).toBeInstanceOf(NonRetriableError);
+      expect((err as Error).message).toBe(
+        "AI service temporarily unavailable. Please try again later.",
+      );
+    });
+
+    it("wraps 401 auth error as NonRetriableError with friendly message", async () => {
+      mockSummarizeTranscript.mockRejectedValue(makeAPIError(401, "Invalid API key"));
+
+      const { summarizeVideo } = await import("../summarize-video.js");
+      const step = makeStep();
+
+      const err = await (summarizeVideo as unknown as AnyFn)({ event: defaultEvent, step }).catch(
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(NonRetriableError);
+      expect((err as Error).message).toBe(
+        "AI service temporarily unavailable. Please try again later.",
+      );
     });
 
     it("wraps JSON parse failures as NonRetriableError", async () => {
@@ -351,6 +369,37 @@ describe("summarize-video", () => {
         }),
       );
       // Critical: Sentry.flush must be called for Vercel serverless
+      expect(mockSentryFlush).toHaveBeenCalledWith(2000);
+    });
+
+    it("reports billing errors as fatal/p0 in Sentry", async () => {
+      const updateChain = mockChain();
+      fromResults = [updateChain];
+
+      await import("../summarize-video.js");
+      expect(capturedConfig).not.toBeNull();
+
+      await capturedConfig!.onFailure({
+        event: {
+          data: {
+            event: { data: { summaryId: "sum-billing", videoId: "vid123" } },
+            error: { message: "Your credit balance is too low" },
+          },
+        },
+      });
+
+      expect(mockSentryCapture).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Your credit balance is too low" }),
+        expect.objectContaining({
+          level: "fatal",
+          tags: expect.objectContaining({
+            component: "inngest",
+            error_category: "billing",
+            severity: "p0",
+          }),
+          fingerprint: ["summarize-video", "billing"],
+        }),
+      );
       expect(mockSentryFlush).toHaveBeenCalledWith(2000);
     });
 

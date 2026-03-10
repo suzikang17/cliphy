@@ -13,6 +13,13 @@ describe("CORS integration", () => {
 
   function buildApp(allowedOrigins: string[]) {
     const app = new Hono();
+    app.use("*", async (c, next) => {
+      const origin = c.req.header("Origin");
+      if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+      return next();
+    });
     app.use(
       "*",
       cors({
@@ -37,16 +44,14 @@ describe("CORS integration", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("chrome-extension://abc123");
   });
 
-  it("denies requests from unknown origin", async () => {
+  it("rejects requests from unknown origin with 403", async () => {
     const app = buildApp(["chrome-extension://abc123"]);
 
     const res = await app.request("/health", {
       headers: { Origin: "https://evil.com" },
     });
 
-    expect(res.status).toBe(200); // Hono still serves the response
-    const allowOrigin = res.headers.get("access-control-allow-origin");
-    expect(allowOrigin).not.toBe("https://evil.com");
+    expect(res.status).toBe(403);
   });
 
   it("handles preflight OPTIONS with allowed origin", async () => {
@@ -96,7 +101,7 @@ describe("CORS integration", () => {
       .split(",")
       .map((o) => o.trim())
       .filter(Boolean);
-    const nodeEnv = "production";
+    const nodeEnv = process.env.NODE_ENV ?? "development";
 
     // This mirrors the check in app.ts
     if (origins.length === 0 && nodeEnv !== "development") {

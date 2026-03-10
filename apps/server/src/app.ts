@@ -28,6 +28,13 @@ const app = new Hono<AppEnv>().basePath("/api");
 
 app.use("*", honoLogger());
 app.use("*", secureHeaders());
+app.use("*", async (c, next) => {
+  const origin = c.req.header("Origin");
+  if (origin && ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  return next();
+});
 app.use(
   "*",
   cors({
