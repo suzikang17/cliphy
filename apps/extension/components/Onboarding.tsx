@@ -18,7 +18,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <span className="w-6 h-6 rounded-full bg-neon-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
               2
             </span>
-            Click "Add to Queue"
+            Click "Summarize Video"
           </li>
           <li className="flex items-center gap-3 text-sm">
             <span className="w-6 h-6 rounded-full bg-neon-600 text-white text-xs font-bold flex items-center justify-center shrink-0">

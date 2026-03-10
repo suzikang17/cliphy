@@ -238,7 +238,7 @@ describe("Queue", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-          videoDurationSeconds: 3 * 60 * 60 + 1, // 3 hours + 1 second
+          videoDurationSeconds: 4 * 60 * 60 + 1, // 4 hours + 1 second
         }),
       });
 

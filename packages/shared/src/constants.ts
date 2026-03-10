@@ -8,8 +8,8 @@ export const PLAN_LIMITS: Record<PlanTier, number> = {
 /** Number of days of history visible to free users. */
 export const FREE_HISTORY_DAYS = 7;
 
-/** Maximum video duration in seconds (3 hours). Videos longer than this are rejected. */
-export const MAX_VIDEO_DURATION_SECONDS = 3 * 60 * 60;
+/** Maximum video duration in seconds (4 hours). Videos longer than this are rejected. */
+export const MAX_VIDEO_DURATION_SECONDS = 4 * 60 * 60;
 
 /** Maximum number of tags per summary. */
 export const MAX_TAGS_PER_SUMMARY = 10;

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Cliphy Logo — White background, scaled up to fill space -->
+
+  <!-- Background -->
+  <rect x="16" y="16" width="480" height="480" rx="80" ry="80" fill="#ffffff"/>
+
+  <!-- === WINGS === -->
+
+  <!-- Left upper wing -->
+  <path d="M245,195
+           Q172,118 85,108
+           Q32,103 26,168
+           Q20,238 92,270
+           Q145,290 245,280"
+        fill="#a770d8" stroke="#111827" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- Right upper wing -->
+  <path d="M267,195
+           Q340,118 427,108
+           Q480,103 486,168
+           Q492,238 420,270
+           Q367,290 267,280"
+        fill="#a770d8" stroke="#111827" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- Left lower wing -->
+  <path d="M245,302
+           Q226,372 165,390
+           Q100,405 90,360
+           Q82,318 140,300
+           L245,292"
+        fill="#a770d8" stroke="#111827" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Right lower wing -->
+  <path d="M267,302
+           Q286,372 347,390
+           Q412,405 422,360
+           Q430,318 372,300
+           L267,292"
+        fill="#a770d8" stroke="#111827" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- === PENCIL BODY === -->
+
+  <ellipse cx="256" cy="148" rx="12" ry="12" fill="#f0a0b0" stroke="#111827" stroke-width="3"/>
+  <rect x="244" y="157" width="24" height="15" rx="2" fill="#c0c0c0" stroke="#111827" stroke-width="2.5"/>
+  <rect x="245" y="172" width="22" height="220" rx="3" fill="#fdd835" stroke="#111827" stroke-width="3"/>
+  <polygon points="245,392 267,392 256,430" fill="#f5c16c" stroke="#111827" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="251,418 261,418 256,432" fill="#2d1a24"/>
+
+  <!-- === ANTENNAE === -->
+
+  <path d="M247,158 Q210,82 168,62" stroke="#111827" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M265,158 Q302,82 344,62" stroke="#111827" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M247,158 Q210,82 168,62" stroke="#a770d8" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M265,158 Q302,82 344,62" stroke="#a770d8" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <circle cx="168" cy="62" r="8" fill="#a770d8" stroke="#111827" stroke-width="3"/>
+  <circle cx="344" cy="62" r="8" fill="#a770d8" stroke="#111827" stroke-width="3"/>
+</svg>

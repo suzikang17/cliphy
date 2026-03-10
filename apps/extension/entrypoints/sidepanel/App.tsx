@@ -1,6 +1,7 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
+import { Logo } from "../../components/Logo";
 import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
 import { SummaryDetail, ExportBar, toMarkdown, toPlainText } from "../../components/SummaryDetail";
@@ -554,8 +555,8 @@ export function App() {
         {topBar}
         <div className="p-4">
           <div className="text-center mb-4 mt-2">
-            <h2 className="text-xl font-extrabold m-0">
-              <span className="text-neon-500">&#9654;</span> Cliphy
+            <h2 className="text-xl font-extrabold m-0 flex items-center justify-center gap-1.5">
+              <Logo size={28} /> Cliphy
             </h2>
             <p className="text-sm text-(--color-text-muted) m-0 mt-1">
               YouTube summaries in seconds

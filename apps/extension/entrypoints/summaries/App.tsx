@@ -6,6 +6,7 @@ import {
   relativeDate,
 } from "@cliphy/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Logo } from "../../components/Logo";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import {
@@ -282,40 +283,8 @@ export function App() {
         allTags={allTags}
         onTagsChange={handleTagsChange}
       />
-    </div>
-  );
-}
-
-function Header({
-  usage,
-  allTags,
-  filterTag,
-  onFilterTag,
-  onClearAll,
-}: {
-  usage: UsageInfo | null;
-  allTags?: string[];
-  filterTag?: string | null;
-  onFilterTag?: (tag: string | null) => void;
-  onClearAll?: () => void;
-}) {
-  const hasActiveFilter = !!filterTag;
-  return (
-    <div className="mb-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1
-          onClick={hasActiveFilter ? onClearAll : undefined}
-          className={`text-2xl font-extrabold m-0 shrink-0 ${hasActiveFilter ? "cursor-pointer hover:text-neon-600 transition-colors" : ""}`}
-          title={hasActiveFilter ? "Clear all filters" : undefined}
-        >
-          <span className="text-neon-500">&#9654;</span> Cliphub
-        </h1>
-        {allTags && allTags.length > 0 && onFilterTag && (
-          <TagChips tags={allTags} filterTag={filterTag ?? null} onFilterTag={onFilterTag} inline />
-        )}
-      </div>
       {usage?.plan === "free" && (
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
+        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
           <span>
             Showing last {FREE_HISTORY_DAYS} days.{" "}
             <button
@@ -326,6 +295,39 @@ function Header({
             </button>{" "}
             for unlimited history.
           </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Header({
+  allTags,
+  filterTag,
+  onFilterTag,
+  onClearAll,
+}: {
+  usage?: UsageInfo | null;
+  allTags?: string[];
+  filterTag?: string | null;
+  onFilterTag?: (tag: string | null) => void;
+  onClearAll?: () => void;
+}) {
+  const hasActiveFilter = !!filterTag;
+  return (
+    <div className="mb-4">
+      <h1
+        onClick={hasActiveFilter ? onClearAll : undefined}
+        className={`text-2xl font-extrabold m-0 text-center ${hasActiveFilter ? "cursor-pointer hover:text-neon-600 transition-colors" : ""}`}
+        title={hasActiveFilter ? "Clear all filters" : undefined}
+      >
+        <span className="inline-flex items-center justify-center gap-1.5">
+          <Logo size={28} /> Cliphub
+        </span>
+      </h1>
+      {allTags && allTags.length > 0 && onFilterTag && (
+        <div className="mt-2 flex justify-center">
+          <TagChips tags={allTags} filterTag={filterTag ?? null} onFilterTag={onFilterTag} inline />
         </div>
       )}
     </div>

@@ -95,7 +95,7 @@ queueRoutes.post("/", async (c) => {
     (body.videoDurationSeconds < 0 || body.videoDurationSeconds > MAX_VIDEO_DURATION_SECONDS)
   ) {
     return c.json(
-      { error: "Video is too long (max 3 hours). Try a shorter video.", code: "VIDEO_TOO_LONG" },
+      { error: "Video is too long (max 4 hours). Try a shorter video.", code: "VIDEO_TOO_LONG" },
       400,
     );
   }

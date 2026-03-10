@@ -128,7 +128,7 @@ billingRoutes.get("/success", (c) => {
               color: #111827;
             }
             .thank-you {
-              color: #a25e84;
+              color: #7a3fb0;
               font-size: 1rem;
               margin: 0 0 1rem;
               line-height: 1.5;

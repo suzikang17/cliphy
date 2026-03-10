@@ -86,7 +86,7 @@ export function QueueList({
         <p className="text-2xl mb-2">🎬</p>
         <p className="text-sm font-bold">No videos queued yet</p>
         <p className="text-xs text-(--color-text-faint) mt-1">
-          Visit a YouTube video and click &quot;Add to Queue&quot;
+          Visit a YouTube video and click &quot;Summarize Video&quot;
         </p>
       </div>
     );
@@ -438,7 +438,7 @@ function CurrentVideoItem({
           </div>
           {isTooLong && (
             <p className="text-[10px] text-red-500 mt-1 mb-0">
-              Too long to summarize (max 3 hours)
+              Too long to summarize (max 4 hours)
             </p>
           )}
         </div>
@@ -461,14 +461,14 @@ function CurrentVideoItem({
           }`}
         >
           {isAdding
-            ? "Adding to queue..."
+            ? "Adding..."
             : isTooLong
               ? "Too Long"
               : addStatus === "queued"
                 ? "Queued"
                 : addStatus === "processing"
                   ? "Processing..."
-                  : "Add to Queue"}
+                  : "Summarize Video"}
         </button>
       )}
       {addStatus === "error" && addError && <p className="text-red-600 text-xs mt-2">{addError}</p>}
@@ -476,8 +476,23 @@ function CurrentVideoItem({
   );
 }
 
-/** Skeleton placeholder while video info loads */
+/** Skeleton placeholder while video info loads, with a reload hint after timeout */
 function SkeletonCard({ videoId }: { videoId?: string | null }) {
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setStale(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (stale) {
+    return (
+      <li className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm text-center">
+        <p className="text-sm font-bold">Couldn&apos;t detect video</p>
+        <p className="text-xs text-(--color-text-faint) mt-1">Try refreshing the YouTube tab</p>
+      </li>
+    );
+  }
+
   return (
     <li className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal animate-pulse">
       <div className="flex gap-3">
