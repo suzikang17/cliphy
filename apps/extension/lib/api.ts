@@ -7,6 +7,8 @@ import type {
   UsageResponse,
   Summary,
   ProRequiredResponse,
+  AutoTagSuggestion,
+  BulkAutoTagResponse,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -213,6 +215,19 @@ export async function updateSummaryTags(id: string, tags: string[]) {
 
 export async function getAllTags() {
   return request<TagsResponse>(API_ROUTES.TAGS.LIST);
+}
+
+export async function autoTagSummary(summaryId: string): Promise<AutoTagSuggestion> {
+  return request<AutoTagSuggestion>(API_ROUTES.SUMMARIES.AUTO_TAG(summaryId), {
+    method: "POST",
+  });
+}
+
+export async function autoTagBulk(summaryIds: string[]): Promise<BulkAutoTagResponse> {
+  return request<BulkAutoTagResponse>(API_ROUTES.SUMMARIES.AUTO_TAG_BULK, {
+    method: "POST",
+    body: JSON.stringify({ summaryIds }),
+  });
 }
 
 export async function createCheckout() {
