@@ -8,8 +8,12 @@ import {
   MAX_TAGS_PER_SUMMARY,
   MAX_FREE_UNIQUE_TAGS,
   TAG_MAX_LENGTH,
+  PRO_FEATURES,
 } from "@cliphy/shared";
+import type { SummaryJson } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
+import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
+import { requirePro } from "../middleware/require-pro.js";
 
 export const summaryRoutes = new Hono<AppEnv>();
 
@@ -111,6 +115,115 @@ summaryRoutes.get("/tags", async (c) => {
     }
   }
   return c.json({ tags: [...tagSet].sort() });
+});
+
+// ── POST /auto-tag/bulk — Bulk auto-tag (Pro only) ───────────
+// Registered BEFORE /:id so "auto-tag" isn't captured as an :id param.
+
+summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json<{ summaryIds?: unknown }>();
+
+  if (
+    !Array.isArray(body.summaryIds) ||
+    body.summaryIds.length === 0 ||
+    body.summaryIds.length > 20
+  ) {
+    return c.json({ error: "summaryIds must be a non-empty array (max 20)" }, 400);
+  }
+
+  const ids = body.summaryIds.filter((id): id is string => typeof id === "string");
+
+  // Fetch summaries owned by user
+  const { data: rows } = await supabase
+    .from("summaries")
+    .select("id, summary_json")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .in("id", ids);
+
+  if (!rows || rows.length === 0) {
+    return c.json({ suggestions: [] });
+  }
+
+  // Fetch existing tags
+  const { data: allRows } = await supabase
+    .from("summaries")
+    .select("tags")
+    .eq("user_id", userId)
+    .is("deleted_at", null);
+
+  const existingTags = [
+    ...new Set((allRows ?? []).flatMap((r) => (r.tags as string[]) ?? [])),
+  ].sort();
+
+  // Split into taggable and skipped
+  const taggable = rows.filter((r) => r.summary_json);
+  const skippedIds = new Set(ids.filter((id) => !taggable.some((r) => r.id === id)));
+
+  if (taggable.length === 0) {
+    return c.json({
+      suggestions: ids.map((id) => ({ summaryId: id, skipped: true })),
+    });
+  }
+
+  const results = await suggestTagsBulk(
+    taggable.map((r) => ({
+      id: r.id,
+      summaryJson: r.summary_json as SummaryJson,
+    })),
+    existingTags,
+  );
+
+  const suggestions = ids.map((id) => {
+    if (skippedIds.has(id)) return { summaryId: id, skipped: true as const };
+    const result = results.find((r) => r.id === id);
+    return {
+      summaryId: id,
+      existing: result?.existing ?? [],
+      new: result?.new ?? [],
+    };
+  });
+
+  return c.json({ suggestions });
+});
+
+// ── POST /:id/auto-tag — Single summary auto-tag (Pro only) ──
+
+summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c) => {
+  const userId = c.get("userId");
+  const summaryId = c.req.param("id");
+
+  const { data: summary } = await supabase
+    .from("summaries")
+    .select("id, summary_json")
+    .eq("id", summaryId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .single();
+
+  if (!summary) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  if (!summary.summary_json) {
+    return c.json({ error: "Summary not ready for auto-tagging" }, 400);
+  }
+
+  // Fetch existing tags
+  const { data: allRows } = await supabase
+    .from("summaries")
+    .select("tags")
+    .eq("user_id", userId)
+    .is("deleted_at", null);
+
+  const existingTags = [
+    ...new Set((allRows ?? []).flatMap((r) => (r.tags as string[]) ?? [])),
+  ].sort();
+
+  const result = await suggestTags(summary.summary_json as SummaryJson, existingTags);
+
+  return c.json(result);
 });
 
 // ── PATCH /:id/tags — Update tags on a summary ──────────────
