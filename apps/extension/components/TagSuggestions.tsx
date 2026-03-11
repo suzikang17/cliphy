@@ -1,0 +1,98 @@
+import { useState } from "react";
+
+interface TagSuggestion {
+  tag: string;
+  isNew: boolean;
+  checked: boolean;
+}
+
+interface TagSuggestionsProps {
+  existing: string[];
+  new: string[];
+  currentTags: string[];
+  onApply: (tags: string[]) => void;
+  onDismiss: () => void;
+}
+
+export function TagSuggestions({
+  existing,
+  new: newTags,
+  currentTags,
+  onApply,
+  onDismiss,
+}: TagSuggestionsProps) {
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>(() => [
+    ...existing
+      .filter((t) => !currentTags.includes(t))
+      .map((tag) => ({ tag, isNew: false, checked: true })),
+    ...newTags.map((tag) => ({ tag, isNew: true, checked: true })),
+  ]);
+
+  if (suggestions.length === 0) {
+    return (
+      <div className="mt-2 p-3 rounded-lg bg-(--color-surface-raised) border border-(--color-border-soft) text-sm text-(--color-text-muted)">
+        No tag suggestions — this video's content is already well-covered by existing tags.
+        <button
+          onClick={onDismiss}
+          className="ml-2 text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 p-0 cursor-pointer underline text-sm"
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+
+  function toggleTag(index: number) {
+    setSuggestions((prev) => prev.map((s, i) => (i === index ? { ...s, checked: !s.checked } : s)));
+  }
+
+  function handleApply() {
+    const selected = suggestions.filter((s) => s.checked).map((s) => s.tag);
+    onApply([...currentTags, ...selected]);
+  }
+
+  const anyChecked = suggestions.some((s) => s.checked);
+
+  return (
+    <div className="mt-2 p-3 rounded-lg bg-(--color-surface-raised) border border-(--color-border-soft)">
+      <div className="text-xs text-(--color-text-muted) mb-2">✨ Suggested tags</div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {suggestions.map((s, i) => (
+          <button
+            key={s.tag}
+            onClick={() => toggleTag(i)}
+            className={`
+              px-2.5 py-1 rounded-full text-xs border cursor-pointer transition-all
+              ${
+                s.checked
+                  ? s.isNew
+                    ? "bg-purple-900/30 border-purple-600/50 text-purple-300"
+                    : "bg-emerald-900/30 border-emerald-600/50 text-emerald-300"
+                  : "bg-transparent border-(--color-border-soft) text-(--color-text-muted) opacity-50"
+              }
+            `}
+          >
+            {s.isNew && <span className="text-[10px] opacity-60 mr-1">NEW</span>}
+            {s.tag}
+            {s.checked ? " ✓" : ""}
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={onDismiss}
+          className="text-sm text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 px-2 py-1 cursor-pointer"
+        >
+          Dismiss
+        </button>
+        <button
+          onClick={handleApply}
+          disabled={!anyChecked}
+          className="text-sm bg-neon-600 text-white px-4 py-1 rounded-lg border-0 cursor-pointer hover:bg-neon-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Apply selected
+        </button>
+      </div>
+    </div>
+  );
+}
