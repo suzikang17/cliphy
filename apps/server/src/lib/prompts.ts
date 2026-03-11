@@ -31,3 +31,61 @@ Video title: ${videoTitle}
 
 Transcript:
 ${transcript}`;
+
+export const TAG_SUGGESTION_SYSTEM_PROMPT = `You are a tag classifier. Given a video summary and a list of existing user tags, suggest which tags apply.
+
+Rules:
+- Pick 1-5 existing tags that genuinely fit the content
+- Suggest 0-2 new tags ONLY if no existing tag covers a major theme
+- New tags must be lowercase, concise (1-3 words), and match the style of existing tags
+- If there are no existing tags, suggest 2-4 new tags that categorize the content
+- Return valid JSON only, no markdown fences
+
+Response format:
+{"existing": ["tag1", "tag2"], "new": ["tag3"]}`;
+
+export function tagSuggestionUserPrompt(
+  summary: string,
+  keyPoints: string[],
+  contextTitle: string | null,
+  existingTags: string[],
+): string {
+  const tagsSection =
+    existingTags.length > 0
+      ? `\nExisting tags: ${existingTags.join(", ")}`
+      : "\nNo existing tags yet — suggest new ones.";
+  const contextSection = contextTitle ? `\nContext section: ${contextTitle}` : "";
+  return `Summary: ${summary}\n\nKey points:\n${keyPoints.map((p) => `- ${p}`).join("\n")}${contextSection}${tagsSection}`;
+}
+
+export const BULK_TAG_SUGGESTION_SYSTEM_PROMPT = `You are a tag classifier. Given multiple video summaries and a list of existing user tags, suggest which tags apply to each video.
+
+Rules:
+- For each video, pick 1-5 existing tags that genuinely fit
+- Suggest 0-2 new tags per video ONLY if no existing tag covers a major theme
+- New tags must be lowercase, concise (1-3 words), and match the style of existing tags
+- Consider all videos together to create cohesive tagging across them
+- If there are no existing tags, suggest 2-4 new tags per video
+- Return valid JSON only, no markdown fences
+
+Response format (array keyed by video ID):
+{"results": [{"id": "abc", "existing": ["tag1"], "new": ["tag2"]}, ...]}`;
+
+export function bulkTagSuggestionUserPrompt(
+  videos: { id: string; summary: string; keyPoints: string[]; contextTitle: string | null }[],
+  existingTags: string[],
+): string {
+  const tagsSection =
+    existingTags.length > 0
+      ? `Existing tags: ${existingTags.join(", ")}`
+      : "No existing tags yet — suggest new ones.";
+
+  const videoSections = videos
+    .map((v) => {
+      const ctx = v.contextTitle ? `\nContext section: ${v.contextTitle}` : "";
+      return `[Video ${v.id}]\nSummary: ${v.summary}\nKey points:\n${v.keyPoints.map((p) => `- ${p}`).join("\n")}${ctx}`;
+    })
+    .join("\n\n");
+
+  return `${tagsSection}\n\n${videoSections}`;
+}
