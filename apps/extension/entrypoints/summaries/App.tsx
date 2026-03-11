@@ -221,6 +221,25 @@ export function App() {
     }
   }
 
+  async function handleApplyAllAutoTags() {
+    // Apply sequentially to avoid race conditions on shared allTags state
+    for (const [summaryId, result] of autoTagResults) {
+      const summary = summaries.find((s) => s.id === summaryId);
+      if (!summary) continue;
+      const merged = [
+        ...summary.tags,
+        ...result.existing.filter((t) => !summary.tags.includes(t)),
+        ...result.new,
+      ];
+      await handleTagsChange(summaryId, merged);
+    }
+    setAutoTagResults(new Map());
+  }
+
+  function handleDismissAllAutoTags() {
+    setAutoTagResults(new Map());
+  }
+
   async function handleBulkDelete() {
     const ids = [...selectedIds];
     for (const id of ids) {
@@ -384,6 +403,28 @@ export function App() {
         onAutoTagApply={handleAutoTagApply}
         onAutoTagDismiss={handleAutoTagDismiss}
       />
+      {autoTagResults.size > 0 && (
+        <div className="sticky bottom-16 mx-auto max-w-2xl bg-(--color-surface-raised) border border-(--color-border-soft) rounded-xl px-4 py-3 shadow-brutal-sm flex items-center justify-between z-10 mb-2">
+          <span className="text-sm text-(--color-text)">
+            ✨ {autoTagResults.size} {autoTagResults.size === 1 ? "summary has" : "summaries have"}{" "}
+            pending tag suggestions
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDismissAllAutoTags}
+              className="text-sm text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 px-2 py-1 cursor-pointer"
+            >
+              Dismiss all
+            </button>
+            <button
+              onClick={handleApplyAllAutoTags}
+              className="text-sm bg-neon-600 text-white px-4 py-1.5 rounded-lg border-0 cursor-pointer hover:bg-neon-700 transition-colors"
+            >
+              Apply all
+            </button>
+          </div>
+        </div>
+      )}
       {isPro && (
         <SelectionActionBar
           selectedCount={selectedIds.size}

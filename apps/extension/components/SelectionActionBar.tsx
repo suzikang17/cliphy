@@ -20,7 +20,7 @@ export function SelectionActionBar({
   if (selectedCount === 0) return null;
 
   return (
-    <div className="sticky bottom-4 mx-auto max-w-2xl bg-(--color-surface-elevated) border border-(--color-border) rounded-xl px-4 py-3 shadow-brutal-sm flex items-center justify-between z-10">
+    <div className="sticky bottom-4 mx-auto max-w-2xl bg-(--color-surface-raised) border border-(--color-border-soft) rounded-xl px-4 py-3 shadow-brutal-sm flex items-center justify-between z-10">
       <div className="flex items-center gap-3 text-sm">
         <span className="text-(--color-text)">{selectedCount} selected</span>
         {selectedCount < totalCount && (
