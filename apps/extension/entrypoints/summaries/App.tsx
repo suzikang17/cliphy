@@ -1,4 +1,4 @@
-import type { Summary, UsageInfo } from "@cliphy/shared";
+import type { AutoTagSuggestion, Summary, UsageInfo } from "@cliphy/shared";
 import {
   formatTimeSaved,
   FREE_HISTORY_DAYS,
@@ -7,9 +7,13 @@ import {
 } from "@cliphy/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "../../components/Logo";
-import { SummaryDetail } from "../../components/SummaryDetail";
+import { SelectionActionBar } from "../../components/SelectionActionBar";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
+import { SummaryDetail } from "../../components/SummaryDetail";
+import { TagSuggestions } from "../../components/TagSuggestions";
 import {
+  autoTagBulk,
+  autoTagSummary,
   deleteSummary,
   getAllTags,
   getSummaries,
@@ -40,6 +44,10 @@ export function App() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [autoTagLoading, setAutoTagLoading] = useState<Set<string>>(new Set());
+  const [autoTagResults, setAutoTagResults] = useState<Map<string, AutoTagSuggestion>>(new Map());
+  const [bulkAutoTagLoading, setBulkAutoTagLoading] = useState(false);
 
   useEffect(() => {
     init();
@@ -135,6 +143,90 @@ export function App() {
       // Restore on failure
       setSummaries(prev);
     }
+  }
+
+  const hasSelection = selectedIds.size > 0;
+  const isPro = usage?.plan === "pro";
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(displayedSummaries.map((s) => s.id)));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleAutoTag(summaryId: string) {
+    setAutoTagLoading((prev) => new Set(prev).add(summaryId));
+    try {
+      const result = await autoTagSummary(summaryId);
+      setAutoTagResults((prev) => new Map(prev).set(summaryId, result));
+    } catch (err) {
+      console.error("Auto-tag failed:", err);
+    } finally {
+      setAutoTagLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(summaryId);
+        return next;
+      });
+    }
+  }
+
+  function handleAutoTagApply(summaryId: string, newTags: string[]) {
+    handleTagsChange(summaryId, newTags);
+    setAutoTagResults((prev) => {
+      const next = new Map(prev);
+      next.delete(summaryId);
+      return next;
+    });
+  }
+
+  function handleAutoTagDismiss(summaryId: string) {
+    setAutoTagResults((prev) => {
+      const next = new Map(prev);
+      next.delete(summaryId);
+      return next;
+    });
+  }
+
+  async function handleBulkAutoTag() {
+    const ids = [...selectedIds];
+    setBulkAutoTagLoading(true);
+    try {
+      const response = await autoTagBulk(ids);
+      const newResults = new Map(autoTagResults);
+      for (const suggestion of response.suggestions) {
+        if (!suggestion.skipped && suggestion.existing && suggestion.new) {
+          newResults.set(suggestion.summaryId, {
+            existing: suggestion.existing,
+            new: suggestion.new,
+          });
+        }
+      }
+      setAutoTagResults(newResults);
+      clearSelection();
+    } catch (err) {
+      console.error("Bulk auto-tag failed:", err);
+    } finally {
+      setBulkAutoTagLoading(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds];
+    for (const id of ids) {
+      await handleDelete(id);
+    }
+    clearSelection();
   }
 
   function handleSelectSummary(summary: Summary) {
@@ -282,7 +374,27 @@ export function App() {
         onDelete={handleDelete}
         allTags={allTags}
         onTagsChange={handleTagsChange}
+        hasSelection={hasSelection}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelection}
+        isPro={isPro}
+        autoTagLoading={autoTagLoading}
+        autoTagResults={autoTagResults}
+        onAutoTag={handleAutoTag}
+        onAutoTagApply={handleAutoTagApply}
+        onAutoTagDismiss={handleAutoTagDismiss}
       />
+      {isPro && (
+        <SelectionActionBar
+          selectedCount={selectedIds.size}
+          totalCount={displayedSummaries.length}
+          onSelectAll={selectAll}
+          onClear={clearSelection}
+          onAutoTag={handleBulkAutoTag}
+          onDelete={handleBulkDelete}
+          loading={bulkAutoTagLoading}
+        />
+      )}
       {usage?.plan === "free" && (
         <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
           <span>
@@ -452,6 +564,15 @@ function CardList({
   onDelete,
   allTags,
   onTagsChange,
+  hasSelection,
+  selectedIds,
+  onToggleSelect,
+  isPro,
+  autoTagLoading,
+  autoTagResults,
+  onAutoTag,
+  onAutoTagApply,
+  onAutoTagDismiss,
 }: {
   summaries: Summary[];
   totalCount: number;
@@ -463,6 +584,15 @@ function CardList({
   onDelete: (id: string) => void;
   allTags: string[];
   onTagsChange: (id: string, tags: string[]) => Promise<void>;
+  hasSelection: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  isPro: boolean;
+  autoTagLoading: Set<string>;
+  autoTagResults: Map<string, AutoTagSuggestion>;
+  onAutoTag: (id: string) => void;
+  onAutoTagApply: (id: string, tags: string[]) => void;
+  onAutoTagDismiss: (id: string) => void;
 }) {
   // No summaries at all
   if (totalCount === 0) {
@@ -505,6 +635,15 @@ function CardList({
           onTagsChange={onTagsChange}
           filterTag={filterTag}
           onFilterTag={onFilterTag}
+          hasSelection={hasSelection}
+          isSelected={selectedIds.has(s.id)}
+          onToggleSelect={() => onToggleSelect(s.id)}
+          isPro={isPro}
+          autoTagLoading={autoTagLoading.has(s.id)}
+          autoTagResult={autoTagResults.get(s.id)}
+          onAutoTag={() => onAutoTag(s.id)}
+          onAutoTagApply={(tags) => onAutoTagApply(s.id, tags)}
+          onAutoTagDismiss={() => onAutoTagDismiss(s.id)}
         />
       ))}
     </div>
@@ -519,6 +658,15 @@ function SummaryCard({
   onTagsChange,
   filterTag,
   onFilterTag,
+  hasSelection,
+  isSelected,
+  onToggleSelect,
+  isPro,
+  autoTagLoading,
+  autoTagResult,
+  onAutoTag,
+  onAutoTagApply,
+  onAutoTagDismiss,
 }: {
   summary: Summary;
   onSelect: (s: Summary) => void;
@@ -527,6 +675,15 @@ function SummaryCard({
   onTagsChange: (id: string, tags: string[]) => Promise<void>;
   filterTag: string | null;
   onFilterTag: (tag: string | null) => void;
+  hasSelection?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  isPro?: boolean;
+  autoTagLoading?: boolean;
+  autoTagResult?: AutoTagSuggestion;
+  onAutoTag?: () => void;
+  onAutoTagApply?: (tags: string[]) => void;
+  onAutoTagDismiss?: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
@@ -556,8 +713,28 @@ function SummaryCard({
   return (
     <div
       onClick={() => onSelect(s)}
-      className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""}`}
+      className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""} ${hasSelection ? "pl-10" : ""} ${isSelected ? "ring-2 ring-neon-500/50" : ""} ${hasSelection && !isSelected ? "opacity-70" : ""}`}
     >
+      {/* Selection checkbox */}
+      <div
+        className={`absolute left-2 top-3 transition-opacity ${
+          hasSelection ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.();
+          }}
+          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+            isSelected
+              ? "bg-neon-600 border-neon-600 text-white"
+              : "bg-transparent border-(--color-border-hard) hover:border-neon-500"
+          }`}
+        >
+          {isSelected && <span className="text-xs">&#10003;</span>}
+        </button>
+      </div>
       <div className="flex items-start gap-3">
         <img
           src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
@@ -651,9 +828,30 @@ function SummaryCard({
                 </div>
               )}
             </div>
+            {isPro && !autoTagResult && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAutoTag?.();
+                }}
+                disabled={autoTagLoading}
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-900/30 border-2 border-neon-600/30 text-neon-400 hover:bg-neon-800/40 cursor-pointer transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
+              >
+                {autoTagLoading ? "..." : "\u2728 Auto-tag"}
+              </button>
+            )}
           </div>
         </div>
       </div>
+      {autoTagResult && onAutoTagApply && onAutoTagDismiss && (
+        <TagSuggestions
+          existing={autoTagResult.existing}
+          new={autoTagResult.new}
+          currentTags={s.tags}
+          onApply={onAutoTagApply}
+          onDismiss={onAutoTagDismiss}
+        />
+      )}
       {/* Delete button — visible on hover */}
       <button
         onClick={handleDeleteClick}
