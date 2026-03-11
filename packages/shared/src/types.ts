@@ -24,11 +24,20 @@ export interface User {
   updatedAt: string;
 }
 
+/** A labeled sub-group inside a context section (e.g. "Ingredients", "Steps") */
+export interface ContextGroup {
+  label: string;
+  items: string[];
+}
+
 /** AI-chosen section that adapts to video content (e.g. Recipe, Steps, Action Items) */
 export interface ContextSection {
   title: string;
   icon: string;
+  /** Flat list of items (used when groups is absent) */
   items: string[];
+  /** Optional sub-groups for structured content like recipes (ingredients + steps) */
+  groups?: ContextGroup[];
 }
 
 /** Shape of the AI-generated summary stored as JSONB in summaries.summary_json */
@@ -98,6 +107,22 @@ export interface ErrorResponse {
 
 export interface TagsResponse {
   tags: string[];
+}
+
+export interface AutoTagSuggestion {
+  existing: string[];
+  new: string[];
+}
+
+export interface BulkAutoTagSuggestion {
+  summaryId: string;
+  existing?: string[];
+  new?: string[];
+  skipped?: boolean;
+}
+
+export interface BulkAutoTagResponse {
+  suggestions: BulkAutoTagSuggestion[];
 }
 
 /** Returned with 402 when a free user attempts a pro-only feature. */

@@ -31,6 +31,7 @@ export const PRO_FEATURES = {
   CUSTOM_PROMPTS: "custom_prompts",
   EXPORT: "export",
   PRIORITY_PROCESSING: "priority_processing",
+  AUTO_TAG: "auto_tag",
 } as const;
 
 export type ProFeature = (typeof PRO_FEATURES)[keyof typeof PRO_FEATURES];
@@ -52,6 +53,8 @@ export const API_ROUTES = {
     ITEM: (id: string) => `/api/summaries/${id}`,
     TAGS: (id: string) => `/api/summaries/${id}/tags`,
     SEARCH: "/api/summaries/search",
+    AUTO_TAG: (id: string) => `/api/summaries/${id}/auto-tag`,
+    AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",
   },
   TAGS: {
     LIST: "/api/summaries/tags",
