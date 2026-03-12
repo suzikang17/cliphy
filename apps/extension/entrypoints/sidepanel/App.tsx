@@ -1,4 +1,5 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
+import type { Runtime } from "wxt/browser";
 import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "../../components/Logo";
@@ -20,6 +21,7 @@ import {
   retryQueueItem,
 } from "../../lib/api";
 import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
+import { isActiveTab } from "../../lib/is-active-tab";
 import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
@@ -182,9 +184,15 @@ export function App() {
   // Listen for VIDEO_DETECTED from content script (has metadata after DOM loads)
   // and re-detect on tab navigation
   useEffect(() => {
-    const onMessage = (message: unknown) => {
+    const onMessage = async (message: unknown, sender: Runtime.MessageSender) => {
       const msg = message as ExtensionMessage;
       if (msg.type === "VIDEO_DETECTED" && msg.video?.videoId) {
+        // Ignore messages from background tabs
+        if (sender.tab?.id !== undefined) {
+          const active = await isActiveTab(sender.tab.id);
+          if (!active) return;
+        }
+
         if (msg.video.videoId !== dismissedVideoRef.current) {
           dismissedVideoRef.current = null;
         }
@@ -202,13 +210,14 @@ export function App() {
       }
     };
 
-    const onUpdated = (_tabId: number, changeInfo: { url?: string }) => {
-      if (changeInfo.url) {
-        // Clear stale video card — content script will send fresh VIDEO_DETECTED
-        setVideo(null);
-        setVideoLoading(changeInfo.url.includes("youtube.com/watch"));
-        setAddStatus("idle");
-      }
+    const onUpdated = async (tabId: number, changeInfo: { url?: string }) => {
+      if (!changeInfo.url) return;
+      // Only react to URL changes in the active tab
+      const active = await isActiveTab(tabId);
+      if (!active) return;
+      setVideo(null);
+      setVideoLoading(changeInfo.url.includes("youtube.com/watch"));
+      setAddStatus("idle");
     };
     const onActivated = () => detectVideo();
 
@@ -358,7 +367,7 @@ export function App() {
   }
 
   async function handleAddToQueue() {
-    if (!video?.videoId) return;
+    if (!video?.videoId || video.isLive) return;
     setIsAdding(true);
     setAddError(undefined);
     setUpgradePrompt(null);
