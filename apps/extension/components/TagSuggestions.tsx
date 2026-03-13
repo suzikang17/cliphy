@@ -62,17 +62,17 @@ export function TagSuggestions({
             key={s.tag}
             onClick={() => toggleTag(i)}
             className={`
-              px-2.5 py-1 rounded-full text-xs border cursor-pointer transition-all
+              px-2.5 py-1 rounded-full text-xs font-bold border-2 cursor-pointer transition-all
               ${
                 s.checked
                   ? s.isNew
-                    ? "bg-purple-900/30 border-purple-600/50 text-purple-300"
-                    : "bg-emerald-900/30 border-emerald-600/50 text-emerald-300"
-                  : "bg-transparent border-(--color-border-soft) text-(--color-text-muted) opacity-50"
+                    ? "bg-neon-100 border-neon-400 text-neon-700 dark:bg-neon-900/30 dark:border-neon-600 dark:text-neon-300"
+                    : "bg-emerald-100 border-emerald-400 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-600 dark:text-emerald-300"
+                  : "bg-(--color-surface) border-(--color-border-soft) text-(--color-text-muted) opacity-50"
               }
             `}
           >
-            {s.isNew && <span className="text-[10px] opacity-60 mr-1">NEW</span>}
+            {s.isNew && <span className="text-[10px] font-extrabold opacity-70 mr-1">NEW</span>}
             {s.tag}
             {s.checked ? " ✓" : ""}
           </button>
