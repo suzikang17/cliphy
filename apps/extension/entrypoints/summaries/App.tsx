@@ -756,26 +756,6 @@ function SummaryCard({
       onClick={() => onSelect(s)}
       className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""} ${isSelected ? "ring-2 ring-neon-500/50" : ""} ${hasSelection && !isSelected ? "opacity-70" : ""}`}
     >
-      {/* Selection checkbox — right side, vertically centered */}
-      <div
-        className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity ${
-          hasSelection ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}
-      >
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect?.();
-          }}
-          className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
-            isSelected
-              ? "bg-neon-600 border-neon-600 text-white"
-              : "bg-transparent border-(--color-border-hard) hover:border-neon-500"
-          }`}
-        >
-          {isSelected && <span className="text-xs">&#10003;</span>}
-        </button>
-      </div>
       <div className="flex items-start gap-3">
         <img
           src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
@@ -787,9 +767,26 @@ function SummaryCard({
             <p className="text-sm font-bold text-(--color-text) m-0 line-clamp-1">
               {s.videoTitle || s.videoId}
             </p>
-            <span className="text-[10px] text-(--color-text-faint) whitespace-nowrap shrink-0">
-              {relativeDate(s.createdAt)}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] text-(--color-text-faint) whitespace-nowrap">
+                {relativeDate(s.createdAt)}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelect?.();
+                }}
+                className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                  hasSelection ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                } ${
+                  isSelected
+                    ? "bg-neon-600 border-neon-600 text-white"
+                    : "bg-transparent border-(--color-border-hard) hover:border-neon-500"
+                }`}
+              >
+                {isSelected && <span className="text-[9px]">&#10003;</span>}
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-(--color-text-faint) mt-0.5 m-0">
             {s.videoChannel && <span>{s.videoChannel}</span>}
