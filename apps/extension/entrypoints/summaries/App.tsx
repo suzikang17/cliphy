@@ -876,7 +876,7 @@ function SummaryCard({
                   onAutoTag?.();
                 }}
                 disabled={autoTagLoading}
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-900/30 border-2 border-neon-600/30 text-neon-400 hover:bg-neon-800/40 cursor-pointer transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-100 border-2 border-neon-400 text-neon-700 dark:bg-neon-900/30 dark:border-neon-600 dark:text-neon-300 hover:bg-neon-200 dark:hover:bg-neon-800/40 cursor-pointer transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
               >
                 {autoTagLoading ? "..." : "\u2728 Auto-tag"}
               </button>
