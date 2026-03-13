@@ -446,7 +446,7 @@ export function App() {
             >
               Upgrade to Pro
             </button>{" "}
-            for unlimited history.
+            for unlimited history, ✨ AI auto-tagging, and more.
           </span>
         </div>
       )}
