@@ -54,24 +54,17 @@ export function TagSuggestions({
   const anyChecked = suggestions.some((s) => s.checked);
 
   return (
-    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] text-(--color-text-faint)">✨</span>
+    <div className="mt-1 flex items-center gap-1 flex-wrap">
       {suggestions.map((s, i) => (
         <button
           key={s.tag}
           onClick={() => toggleTag(i)}
-          className={`
-            px-2 py-0.5 rounded-full text-[10px] font-bold border-2 cursor-pointer transition-all
-            ${
-              s.checked
-                ? s.isNew
-                  ? "bg-neon-100 border-neon-400 text-neon-700 dark:bg-neon-900/30 dark:border-neon-600 dark:text-neon-300"
-                  : "bg-emerald-100 border-emerald-400 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-600 dark:text-emerald-300"
-                : "bg-(--color-surface) border-(--color-border-soft) text-(--color-text-muted) opacity-50 line-through"
-            }
-          `}
+          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border-2 border-dashed cursor-pointer transition-all ${
+            s.checked
+              ? "bg-(--color-surface-raised) text-(--color-text-secondary) border-(--color-border-muted)"
+              : "bg-(--color-surface) text-(--color-text-faint) border-(--color-border-soft) line-through opacity-50"
+          }`}
         >
-          {s.isNew && <span className="text-[9px] opacity-70 mr-0.5">NEW</span>}
           {s.tag}
         </button>
       ))}
@@ -80,7 +73,7 @@ export function TagSuggestions({
         disabled={!anyChecked}
         className="text-[10px] font-bold text-neon-600 hover:text-neon-800 bg-transparent border-0 p-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        Apply
+        Add
       </button>
       <button
         onClick={onDismiss}
