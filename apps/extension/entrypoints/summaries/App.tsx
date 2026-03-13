@@ -885,13 +885,15 @@ function SummaryCard({
         </div>
       </div>
       {autoTagResult && onAutoTagApply && onAutoTagDismiss && (
-        <TagSuggestions
-          existing={autoTagResult.existing}
-          new={autoTagResult.new}
-          currentTags={s.tags}
-          onApply={onAutoTagApply}
-          onDismiss={onAutoTagDismiss}
-        />
+        <div onClick={(e) => e.stopPropagation()} role="presentation">
+          <TagSuggestions
+            existing={autoTagResult.existing}
+            new={autoTagResult.new}
+            currentTags={s.tags}
+            onApply={onAutoTagApply}
+            onDismiss={onAutoTagDismiss}
+          />
+        </div>
       )}
       {/* Delete button — visible on hover */}
       <button
