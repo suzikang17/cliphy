@@ -754,11 +754,11 @@ function SummaryCard({
   return (
     <div
       onClick={() => onSelect(s)}
-      className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""} ${hasSelection ? "pl-10" : ""} ${isSelected ? "ring-2 ring-neon-500/50" : ""} ${hasSelection && !isSelected ? "opacity-70" : ""}`}
+      className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""} ${isSelected ? "ring-2 ring-neon-500/50" : ""} ${hasSelection && !isSelected ? "opacity-70" : ""}`}
     >
-      {/* Selection checkbox */}
+      {/* Selection checkbox — right side, vertically centered */}
       <div
-        className={`absolute left-2 top-3 transition-opacity ${
+        className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity ${
           hasSelection ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         }`}
       >
