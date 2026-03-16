@@ -131,6 +131,15 @@ export function App() {
             return [updated, ...prev];
           });
 
+          // Keep detail view in sync
+          setSelectedSummary((prev) => {
+            if (!prev || prev.id !== updated.id) return prev;
+            if ((statusPriority[updated.status] ?? 0) < (statusPriority[prev.status] ?? 0)) {
+              return prev;
+            }
+            return updated;
+          });
+
           if (updated.status === "completed" || updated.status === "failed") {
             getUsage()
               .then((res) => setUsage(res.usage))
