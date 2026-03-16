@@ -6,7 +6,7 @@ Always respond with valid JSON matching this exact schema:
 {
   "summary": "string (MAX 2 sentences. Brief TL;DR only. Must be under 50 words.)",
   "keyPoints": ["string (5-10 key takeaways as bullet points)"],
-  "contextSection": {"title": "string", "icon": "string (single emoji)", "items": ["string (3-7 specific, practical items)"]} or null,
+  "contextSection": {"title": "string", "icon": "string (single emoji)", "items": ["string (3-7 specific, practical items)"], "groups": [{"label": "string", "items": ["string"]}]} or null,
   "timestamps": ["string (topic changes in format 'M:SS - Topic description'. The transcript includes [M:SS] markers — use those exact times. Do NOT round or estimate.)"]
 }
 
@@ -19,6 +19,8 @@ contextSection guidelines:
 - Product reviews → "Verdict" ⚖️
 - Set to null for entertainment, music videos, vlogs, or when a structured section would feel forced
 - Items must be specific and concrete — not generic platitudes
+- Use "groups" when content has distinct sub-categories (e.g. recipe → Ingredients + Steps, review → Pros + Cons). When using groups, leave "items" as an empty array []
+- Use flat "items" (no groups) when content is a simple list without natural sub-categories
 
 Respond ONLY with the JSON object. No markdown, no code fences, no extra text.`;
 

@@ -526,7 +526,16 @@ export function SummaryDetail({
       </div>
 
       {!json ? (
-        <p className="text-(--color-text-muted) text-sm">No summary data available.</p>
+        summary.status === "pending" || summary.status === "processing" ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="w-6 h-6 border-2 border-neon-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-(--color-text-muted) m-0">
+              {summary.status === "pending" ? "Queued..." : "Generating summary..."}
+            </p>
+          </div>
+        ) : (
+          <p className="text-(--color-text-muted) text-sm">No summary data available.</p>
+        )
       ) : (
         <>
           {/* Truncation warning */}
