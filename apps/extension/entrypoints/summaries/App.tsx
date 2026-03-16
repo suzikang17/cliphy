@@ -16,6 +16,7 @@ import {
   deleteSummary,
   getAllTags,
   getSummaries,
+  getSummary,
   getUsage,
   retryQueueItem,
   updateSummaryTags,
@@ -150,29 +151,38 @@ export function App() {
   async function handleRetry(id: string) {
     const original = summaries.find((s) => s.id === id);
     // Optimistic: show as pending, clear old summary
-    setSummaries((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, status: "pending" as const, summaryJson: undefined, errorMessage: undefined }
-          : s,
-      ),
-    );
+    const pending = { status: "pending" as const, summaryJson: undefined, errorMessage: undefined };
+    setSummaries((prev) => prev.map((s) => (s.id === id ? { ...s, ...pending } : s)));
     if (selectedSummary?.id === id) {
-      setSelectedSummary((prev) =>
-        prev
-          ? { ...prev, status: "pending" as const, summaryJson: undefined, errorMessage: undefined }
-          : prev,
-      );
+      setSelectedSummary((prev) => (prev ? { ...prev, ...pending } : prev));
     }
     try {
       await retryQueueItem(id);
+      // Poll until complete (no realtime subscription on this page)
+      pollSummary(id);
     } catch {
-      // Rollback on failure
       if (original) {
         setSummaries((prev) => prev.map((s) => (s.id === id ? original : s)));
         if (selectedSummary?.id === id) setSelectedSummary(original);
       }
     }
+  }
+
+  function pollSummary(id: string) {
+    const interval = setInterval(async () => {
+      try {
+        const res = await getSummary(id);
+        const s = res.summary;
+        // Update status while processing
+        setSummaries((prev) => prev.map((x) => (x.id === id ? s : x)));
+        setSelectedSummary((prev) => (prev?.id === id ? s : prev));
+        if (s.status === "completed" || s.status === "failed") {
+          clearInterval(interval);
+        }
+      } catch {
+        clearInterval(interval);
+      }
+    }, 3000);
   }
 
   const hasSelection = selectedIds.size > 0;
@@ -759,11 +769,19 @@ function SummaryCard({
       className={`group relative w-full text-left bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal-sm cursor-pointer hover:shadow-brutal-pressed press-down transition-all ${showTagPicker ? "z-10" : ""} ${isSelected ? "ring-2 ring-neon-500/50" : ""} ${hasSelection && !isSelected ? "opacity-70" : ""}`}
     >
       <div className="flex items-start gap-3">
-        <img
-          src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
-          alt=""
-          className="w-28 h-16 rounded border-2 border-(--color-border-hard) object-cover shrink-0"
-        />
+        <a
+          href={`https://www.youtube.com/watch?v=${s.videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0"
+        >
+          <img
+            src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
+            alt=""
+            className="w-28 h-16 rounded border-2 border-(--color-border-hard) object-cover"
+          />
+        </a>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-bold text-(--color-text) m-0 line-clamp-1">

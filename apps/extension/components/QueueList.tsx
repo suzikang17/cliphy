@@ -160,7 +160,13 @@ function QueueItem({
         isClickable ? "cursor-pointer hover:shadow-brutal-pressed press-down" : ""
       }`}
     >
-      <div className="relative shrink-0">
+      <a
+        href={`https://www.youtube.com/watch?v=${s.videoId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="relative shrink-0"
+      >
         <img
           src={`https://i.ytimg.com/vi/${s.videoId}/default.jpg`}
           alt=""
@@ -171,7 +177,7 @@ function QueueItem({
             <div className="w-6 h-6 rounded-full border-2 border-white/40 border-t-white animate-spin" />
           </div>
         )}
-      </div>
+      </a>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold leading-snug line-clamp-2">{s.videoTitle ?? s.videoId}</p>
         <div className="flex items-center gap-1.5 text-[10px] text-(--color-text-faint) truncate">
@@ -301,7 +307,13 @@ function CurrentMatchedItem({
   return (
     <li className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal">
       <div className="flex gap-3">
-        <div className="relative shrink-0">
+        <a
+          href={`https://www.youtube.com/watch?v=${s.videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="relative shrink-0"
+        >
           <img
             src={`https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg`}
             alt=""
@@ -312,7 +324,7 @@ function CurrentMatchedItem({
               <div className="w-6 h-6 rounded-full border-2 border-white/40 border-t-white animate-spin" />
             </div>
           )}
-        </div>
+        </a>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold leading-snug line-clamp-2">
             {s.videoTitle ?? video.title}
@@ -417,7 +429,9 @@ function CurrentVideoItem({
 }) {
   const durationSeconds = video.duration ? (parseDurationToSeconds(video.duration) ?? 0) : 0;
   const isTooLong = durationSeconds > MAX_VIDEO_DURATION_SECONDS;
-  const isDisabled = isAdding || addStatus === "queued" || addStatus === "processing" || isTooLong;
+  const isLive = video.isLive;
+  const isDisabled =
+    isAdding || addStatus === "queued" || addStatus === "processing" || isTooLong || isLive;
 
   return (
     <li className="bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg p-3 shadow-brutal">
@@ -436,7 +450,12 @@ function CurrentVideoItem({
             {video.channel && video.duration && <span>&middot;</span>}
             {video.duration && <span>{video.duration}</span>}
           </div>
-          {isTooLong && (
+          {isLive && (
+            <p className="text-[10px] text-red-500 mt-1 mb-0">
+              Livestreams can&apos;t be summarized
+            </p>
+          )}
+          {isTooLong && !isLive && (
             <p className="text-[10px] text-red-500 mt-1 mb-0">
               Too long to summarize (max 4 hours)
             </p>
@@ -462,8 +481,8 @@ function CurrentVideoItem({
         >
           {isAdding
             ? "Adding..."
-            : isTooLong
-              ? "Too Long"
+            : isLive || isTooLong
+              ? "Unavailable"
               : addStatus === "queued"
                 ? "Queued"
                 : addStatus === "processing"
