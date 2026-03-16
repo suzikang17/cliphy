@@ -13,11 +13,11 @@ import { SummaryDetail } from "../../components/SummaryDetail";
 import { TagSuggestions } from "../../components/TagSuggestions";
 import {
   autoTagBulk,
-  autoTagSummary,
   deleteSummary,
   getAllTags,
   getSummaries,
   getUsage,
+  retryQueueItem,
   updateSummaryTags,
 } from "../../lib/api";
 import { openCheckout } from "../../lib/checkout";
@@ -45,7 +45,6 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [autoTagLoading, setAutoTagLoading] = useState<Set<string>>(new Set());
   const [autoTagResults, setAutoTagResults] = useState<Map<string, AutoTagSuggestion>>(new Map());
   const [bulkAutoTagLoading, setBulkAutoTagLoading] = useState(false);
 
@@ -96,16 +95,19 @@ export function App() {
   async function handleTagsChange(summaryId: string, newTags: string[]) {
     // Optimistic update — reflect immediately in UI
     const rollback = summaries.find((s) => s.id === summaryId)?.tags;
-    setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: newTags } : s)));
+    setSummaries((prev) => {
+      const updated = prev.map((s) => (s.id === summaryId ? { ...s, tags: newTags } : s));
+      // Recompute allTags so removed tags disappear immediately
+      const all = new Set<string>();
+      for (const s of updated) for (const t of s.tags) all.add(t);
+      setAllTags([...all].sort());
+      // Clear filter if the filtered tag no longer exists
+      if (filterTag && !all.has(filterTag)) setFilterTag(null);
+      return updated;
+    });
     if (selectedSummary?.id === summaryId) {
       setSelectedSummary((prev) => (prev ? { ...prev, tags: newTags } : prev));
     }
-    // Derive allTags locally so filter dropdown updates instantly
-    setAllTags((prev) => {
-      const all = new Set(prev);
-      for (const t of newTags) all.add(t);
-      return [...all].sort();
-    });
 
     try {
       const [res] = await Promise.all([
@@ -145,6 +147,34 @@ export function App() {
     }
   }
 
+  async function handleRetry(id: string) {
+    const original = summaries.find((s) => s.id === id);
+    // Optimistic: show as pending, clear old summary
+    setSummaries((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, status: "pending" as const, summaryJson: undefined, errorMessage: undefined }
+          : s,
+      ),
+    );
+    if (selectedSummary?.id === id) {
+      setSelectedSummary((prev) =>
+        prev
+          ? { ...prev, status: "pending" as const, summaryJson: undefined, errorMessage: undefined }
+          : prev,
+      );
+    }
+    try {
+      await retryQueueItem(id);
+    } catch {
+      // Rollback on failure
+      if (original) {
+        setSummaries((prev) => prev.map((s) => (s.id === id ? original : s)));
+        if (selectedSummary?.id === id) setSelectedSummary(original);
+      }
+    }
+  }
+
   const hasSelection = selectedIds.size > 0;
   const isPro = usage?.plan === "pro";
 
@@ -163,22 +193,6 @@ export function App() {
 
   function clearSelection() {
     setSelectedIds(new Set());
-  }
-
-  async function handleAutoTag(summaryId: string) {
-    setAutoTagLoading((prev) => new Set(prev).add(summaryId));
-    try {
-      const result = await autoTagSummary(summaryId);
-      setAutoTagResults((prev) => new Map(prev).set(summaryId, result));
-    } catch (err) {
-      console.error("Auto-tag failed:", err);
-    } finally {
-      setAutoTagLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(summaryId);
-        return next;
-      });
-    }
   }
 
   function handleAutoTagApply(summaryId: string, newTags: string[]) {
@@ -361,6 +375,7 @@ export function App() {
           allTags={allTags}
           tagLimitReached={usage?.plan === "free" && allTags.length >= MAX_FREE_UNIQUE_TAGS}
           onTagsChange={(tags) => handleTagsChange(selectedSummary.id, tags)}
+          onRetry={() => handleRetry(selectedSummary.id)}
         />
       </div>
     );
@@ -397,9 +412,7 @@ export function App() {
         selectedIds={selectedIds}
         onToggleSelect={toggleSelection}
         isPro={isPro}
-        autoTagLoading={autoTagLoading}
         autoTagResults={autoTagResults}
-        onAutoTag={handleAutoTag}
         onAutoTagApply={handleAutoTagApply}
         onAutoTagDismiss={handleAutoTagDismiss}
       />
@@ -609,9 +622,7 @@ function CardList({
   selectedIds,
   onToggleSelect,
   isPro,
-  autoTagLoading,
   autoTagResults,
-  onAutoTag,
   onAutoTagApply,
   onAutoTagDismiss,
 }: {
@@ -629,9 +640,7 @@ function CardList({
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   isPro: boolean;
-  autoTagLoading: Set<string>;
   autoTagResults: Map<string, AutoTagSuggestion>;
-  onAutoTag: (id: string) => void;
   onAutoTagApply: (id: string, tags: string[]) => void;
   onAutoTagDismiss: (id: string) => void;
 }) {
@@ -680,9 +689,7 @@ function CardList({
           isSelected={selectedIds.has(s.id)}
           onToggleSelect={() => onToggleSelect(s.id)}
           isPro={isPro}
-          autoTagLoading={autoTagLoading.has(s.id)}
           autoTagResult={autoTagResults.get(s.id)}
-          onAutoTag={() => onAutoTag(s.id)}
           onAutoTagApply={(tags) => onAutoTagApply(s.id, tags)}
           onAutoTagDismiss={() => onAutoTagDismiss(s.id)}
         />
@@ -702,10 +709,7 @@ function SummaryCard({
   hasSelection,
   isSelected,
   onToggleSelect,
-  isPro,
-  autoTagLoading,
   autoTagResult,
-  onAutoTag,
   onAutoTagApply,
   onAutoTagDismiss,
 }: {
@@ -720,9 +724,7 @@ function SummaryCard({
   isSelected?: boolean;
   onToggleSelect?: () => void;
   isPro?: boolean;
-  autoTagLoading?: boolean;
   autoTagResult?: AutoTagSuggestion;
-  onAutoTag?: () => void;
   onAutoTagApply?: (tags: string[]) => void;
   onAutoTagDismiss?: () => void;
 }) {
@@ -768,9 +770,6 @@ function SummaryCard({
               {s.videoTitle || s.videoId}
             </p>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[10px] text-(--color-text-faint) whitespace-nowrap">
-                {relativeDate(s.createdAt)}
-              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -796,6 +795,10 @@ function SummaryCard({
             {s.videoDurationSeconds != null && s.videoDurationSeconds > 0 && (
               <span>{formatTimeSaved(s.videoDurationSeconds)}</span>
             )}
+            {(s.videoChannel || (s.videoDurationSeconds != null && s.videoDurationSeconds > 0)) && (
+              <span>&middot;</span>
+            )}
+            <span>{relativeDate(s.createdAt)}</span>
           </div>
           <div className="flex flex-wrap items-center gap-1 mt-1">
             {s.tags.map((tag) => (
@@ -866,32 +869,20 @@ function SummaryCard({
                 </div>
               )}
             </div>
-            {isPro && !autoTagResult && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAutoTag?.();
-                }}
-                disabled={autoTagLoading}
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neon-100 border-2 border-neon-400 text-neon-700 dark:bg-neon-900/30 dark:border-neon-600 dark:text-neon-300 hover:bg-neon-200 dark:hover:bg-neon-800/40 cursor-pointer transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
-              >
-                {autoTagLoading ? "..." : "\u2728 Auto-tag"}
-              </button>
+            {autoTagResult && onAutoTagApply && onAutoTagDismiss && (
+              <div onClick={(e) => e.stopPropagation()} role="presentation" className="contents">
+                <TagSuggestions
+                  existing={autoTagResult.existing}
+                  new={autoTagResult.new}
+                  currentTags={s.tags}
+                  onApply={onAutoTagApply}
+                  onDismiss={onAutoTagDismiss}
+                />
+              </div>
             )}
           </div>
         </div>
       </div>
-      {autoTagResult && onAutoTagApply && onAutoTagDismiss && (
-        <div onClick={(e) => e.stopPropagation()} role="presentation">
-          <TagSuggestions
-            existing={autoTagResult.existing}
-            new={autoTagResult.new}
-            currentTags={s.tags}
-            onApply={onAutoTagApply}
-            onDismiss={onAutoTagDismiss}
-          />
-        </div>
-      )}
       {/* Delete button — visible on hover */}
       <button
         onClick={handleDeleteClick}

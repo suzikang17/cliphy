@@ -64,11 +64,30 @@ export function parseSummaryResponse(text: string): SummaryJson {
     const cs = obj.contextSection as Record<string, unknown>;
     if (typeof cs.title === "string" && typeof cs.icon === "string" && Array.isArray(cs.items)) {
       const items = sanitizeStringArray(cs.items);
-      if (items.length > 0) {
+
+      // Parse optional groups (e.g. recipe with Ingredients + Steps)
+      let groups: import("@cliphy/shared").ContextGroup[] | undefined;
+      if (Array.isArray(cs.groups)) {
+        const parsed = cs.groups
+          .filter(
+            (g): g is Record<string, unknown> =>
+              g !== null && typeof g === "object" && !Array.isArray(g),
+          )
+          .filter((g) => typeof g.label === "string" && Array.isArray(g.items))
+          .map((g) => ({
+            label: (g.label as string).slice(0, MAX_SECTION_TITLE_LENGTH),
+            items: sanitizeStringArray(g.items as unknown[]),
+          }))
+          .filter((g) => g.items.length > 0);
+        if (parsed.length > 0) groups = parsed;
+      }
+
+      if (items.length > 0 || groups) {
         result.contextSection = {
           title: cs.title.slice(0, MAX_SECTION_TITLE_LENGTH),
           icon: cs.icon.slice(0, 4),
           items,
+          ...(groups && { groups }),
         };
       }
     }

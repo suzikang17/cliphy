@@ -9,6 +9,8 @@ interface SummaryDetailProps {
   onTagsChange?: (tags: string[]) => void;
   onSeek?: (seconds: number) => void;
   onDismiss?: () => void;
+  /** Re-summarize this video (retry with fresh AI call) */
+  onRetry?: () => void;
   /** Open summary in a new tab (popout) */
   onOpenInTab?: () => void;
   /** When true, export bar is not rendered inline — use ExportBar separately */
@@ -57,10 +59,16 @@ function toMarkdown(summary: Summary): string {
   const ctxMd = resolveContextSection(json);
   if (ctxMd) {
     lines.push(`## ${ctxMd.title}`);
-    for (const item of ctxMd.items) {
-      lines.push(`- ${item}`);
+    if (ctxMd.groups?.length) {
+      for (const group of ctxMd.groups) {
+        lines.push(`### ${group.label}`);
+        for (const item of group.items) lines.push(`- ${item}`);
+        lines.push("");
+      }
+    } else {
+      for (const item of ctxMd.items) lines.push(`- ${item}`);
+      lines.push("");
     }
-    lines.push("");
   }
   if (json.timestamps.length > 0) {
     lines.push("## Jump To");
@@ -99,10 +107,16 @@ function toPlainText(summary: Summary): string {
   const ctxPt = resolveContextSection(json);
   if (ctxPt) {
     lines.push(`${ctxPt.title}:`);
-    for (const item of ctxPt.items) {
-      lines.push(`• ${item}`);
+    if (ctxPt.groups?.length) {
+      for (const group of ctxPt.groups) {
+        lines.push(`${group.label}:`);
+        for (const item of group.items) lines.push(`• ${item}`);
+        lines.push("");
+      }
+    } else {
+      for (const item of ctxPt.items) lines.push(`• ${item}`);
+      lines.push("");
     }
-    lines.push("");
   }
   if (json.timestamps.length > 0) {
     lines.push("Jump To:");
@@ -236,14 +250,28 @@ function ExportBar({
   copyMarkdown,
   setCopyMarkdown,
   onCopy,
+  onRetry,
   onDismiss,
 }: {
   copied: CopyState;
   copyMarkdown: boolean;
   setCopyMarkdown: (v: boolean) => void;
   onCopy: () => void;
+  onRetry?: () => void;
   onDismiss?: () => void;
 }) {
+  const [confirmRetry, setConfirmRetry] = useState(false);
+
+  function handleRetryClick() {
+    if (confirmRetry) {
+      onRetry?.();
+      setConfirmRetry(false);
+    } else {
+      setConfirmRetry(true);
+      setTimeout(() => setConfirmRetry(false), 3000);
+    }
+  }
+
   return (
     <div className="flex items-center gap-3">
       <button
@@ -261,27 +289,58 @@ function ExportBar({
         />
         Markdown
       </label>
-      {onDismiss && (
-        <button
-          onClick={onDismiss}
-          className="ml-auto text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-red-50 dark:hover:bg-red-950/30 press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-red-500"
-          title="Dismiss summary"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      <div className="ml-auto flex items-center gap-2">
+        {onRetry && (
+          <button
+            onClick={handleRetryClick}
+            className={`text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all ${
+              confirmRetry
+                ? "text-amber-600 border-amber-400 font-bold"
+                : "text-(--color-text-faint) hover:text-neon-600 hover:bg-neon-50 dark:hover:bg-neon-900/30"
+            }`}
+            title="Re-summarize this video"
           >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-        </button>
-      )}
+            {confirmRetry ? (
+              "Re-summarize?"
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            )}
+          </button>
+        )}
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-red-50 dark:hover:bg-red-950/30 press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-red-500"
+            title="Dismiss summary"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -355,6 +414,7 @@ export function SummaryDetail({
   onTagsChange,
   onSeek,
   onDismiss,
+  onRetry,
   onOpenInTab,
   pinned,
   copyAsMarkdown,
@@ -629,19 +689,53 @@ export function SummaryDetail({
                     {ctx.title}
                   </h3>
                   <CopyButton
-                    text={ctx.items.map((i) => `• ${i}`).join("\n")}
-                    markdownText={ctx.items.map((i) => `- ${i}`).join("\n")}
+                    text={
+                      ctx.groups?.length
+                        ? ctx.groups
+                            .map((g) => `${g.label}:\n${g.items.map((i) => `• ${i}`).join("\n")}`)
+                            .join("\n\n")
+                        : ctx.items.map((i) => `• ${i}`).join("\n")
+                    }
+                    markdownText={
+                      ctx.groups?.length
+                        ? ctx.groups
+                            .map(
+                              (g) => `### ${g.label}\n${g.items.map((i) => `- ${i}`).join("\n")}`,
+                            )
+                            .join("\n\n")
+                        : ctx.items.map((i) => `- ${i}`).join("\n")
+                    }
                     useMarkdown={copyMarkdown}
                   />
                 </div>
-                <ul className="list-none p-0 m-0 space-y-1.5">
-                  {ctx.items.map((item, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
-                      <span className="text-neon-500 font-bold shrink-0">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+                {ctx.groups?.length ? (
+                  <div className="space-y-3">
+                    {ctx.groups.map((group, gi) => (
+                      <div key={gi}>
+                        <h4 className="text-[11px] font-semibold text-(--color-text-secondary) uppercase tracking-wide mb-1 m-0">
+                          {group.label}
+                        </h4>
+                        <ul className="list-none p-0 m-0 space-y-1.5">
+                          {group.items.map((item, i) => (
+                            <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                              <span className="text-neon-500 font-bold shrink-0">•</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ul className="list-none p-0 m-0 space-y-1.5">
+                    {ctx.items.map((item, i) => (
+                      <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                        <span className="text-neon-500 font-bold shrink-0">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ) : null;
           })()}
@@ -654,6 +748,7 @@ export function SummaryDetail({
                 copyMarkdown={localCopyMarkdown}
                 setCopyMarkdown={setLocalCopyMarkdown}
                 onCopy={handleCopy}
+                onRetry={summary.status === "completed" ? onRetry : undefined}
                 onDismiss={onDismiss}
               />
             </div>

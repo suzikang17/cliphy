@@ -331,31 +331,42 @@ queueRoutes.post("/:id/retry", async (c) => {
     return c.json({ error: "Queue item not found" }, 404);
   }
 
-  if (row.status !== "pending" && row.status !== "failed") {
-    return c.json({ error: "Item must be in pending or failed state to retry" }, 409);
+  if (row.status !== "pending" && row.status !== "failed" && row.status !== "completed") {
+    return c.json({ error: "Item must be in pending, failed, or completed state to retry" }, 409);
   }
 
-  // Rate limit check for retries of failed items (pending retries don't consume a new slot)
-  if (row.status === "failed") {
+  // Rate limit: failed always costs a slot, completed costs a slot for free users only
+  const needsRateLimit =
+    row.status === "failed" || (row.status === "completed" && /* free users pay */ true);
+
+  if (needsRateLimit) {
     const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
     const plan = (user?.plan as "free" | "pro") ?? "free";
-    const limit = PLAN_LIMITS[plan];
 
-    const { data: allowed } = await supabase.rpc("increment_monthly_count", {
-      p_user_id: userId,
-      p_limit: limit,
-    });
+    // Pro users can re-summarize completed items for free
+    if (row.status === "completed" && plan === "pro") {
+      // no-op: skip rate limit
+    } else {
+      const limit = PLAN_LIMITS[plan];
+      const { data: allowed } = await supabase.rpc("increment_monthly_count", {
+        p_user_id: userId,
+        p_limit: limit,
+      });
 
-    if (!allowed) {
-      return c.json(
-        { error: "Monthly summary limit reached", code: "RATE_LIMITED", limit, plan },
-        429,
-      );
+      if (!allowed) {
+        return c.json(
+          { error: "Monthly summary limit reached", code: "RATE_LIMITED", limit, plan },
+          429,
+        );
+      }
     }
   }
 
-  // Reset to pending before re-firing
-  await supabase.from("summaries").update({ status: "pending", error_message: null }).eq("id", id);
+  // Reset to pending before re-firing (clear old summary for completed items)
+  await supabase
+    .from("summaries")
+    .update({ status: "pending", error_message: null, summary_json: null })
+    .eq("id", id);
 
   await inngest.send({
     name: "video/summarize.requested",
@@ -366,7 +377,9 @@ queueRoutes.post("/:id/retry", async (c) => {
     },
   });
 
-  return c.json({ summary: toSummary({ ...row, status: "pending", error_message: null }) });
+  return c.json({
+    summary: toSummary({ ...row, status: "pending", error_message: null, summary_json: null }),
+  });
 });
 
 // DELETE /:id — Remove a queued item

@@ -469,16 +469,17 @@ export function App() {
 
   async function handleRetryItem(id: string) {
     const original = summaries.find((s) => s.id === id);
-    setSummaries((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: "pending" as const, errorMessage: undefined } : s,
-      ),
-    );
+    const pending = { status: "pending" as const, summaryJson: undefined, errorMessage: undefined };
+    setSummaries((prev) => prev.map((s) => (s.id === id ? { ...s, ...pending } : s)));
+    if (selectedSummary?.id === id) {
+      setSelectedSummary((prev) => (prev ? { ...prev, ...pending } : prev));
+    }
     try {
       await retryQueueItem(id);
     } catch {
       if (original) {
         setSummaries((prev) => prev.map((s) => (s.id === id ? original : s)));
+        if (selectedSummary?.id === id) setSelectedSummary(original);
       }
     }
   }
@@ -677,6 +678,11 @@ export function App() {
             copyMarkdown={copyMarkdown}
             setCopyMarkdown={setCopyMarkdown}
             onCopy={handleCopyAll}
+            onRetry={
+              selectedSummary.status === "completed"
+                ? () => handleRetryItem(selectedSummary.id)
+                : undefined
+            }
             onDismiss={() => handleDismissSummary(selectedSummary.id)}
           />
         </div>

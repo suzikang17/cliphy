@@ -674,12 +674,12 @@ describe("Queue", () => {
       expect(res.status).toBe(404);
     });
 
-    it("returns 409 for completed item", async () => {
+    it("returns 409 for processing item", async () => {
       supabaseMock = {
         from: vi
           .fn()
           .mockReturnValue(
-            mockChain({ data: { id: "sum-1", status: "completed", user_id: "test-user-id" } }),
+            mockChain({ data: { id: "sum-1", status: "processing", user_id: "test-user-id" } }),
           ),
         rpc: vi.fn(),
       } as unknown as ReturnType<typeof mockChain>;
@@ -687,6 +687,43 @@ describe("Queue", () => {
       const app = await createApp();
       const res = await app.request("/queue/sum-1/retry", { method: "POST" });
       expect(res.status).toBe(409);
+    });
+
+    it("allows retry for completed item (re-summarize)", async () => {
+      const fetchChain = mockChain({
+        data: {
+          id: "sum-1",
+          status: "completed",
+          user_id: "test-user-id",
+          youtube_video_id: "dQw4w9WgXcQ",
+          video_title: "Test Video",
+          video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          summary_json: { summary: "old" },
+          error_message: null,
+          created_at: "2026-02-20T10:00:00Z",
+          updated_at: "2026-02-20T10:00:00Z",
+        },
+      });
+      const planChain = mockChain({ data: { plan: "pro" } });
+      const updateChain = mockChain({ data: { id: "sum-1" } });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return fetchChain;
+          if (callCount === 2) return planChain;
+          return updateChain;
+        }),
+        rpc: vi.fn(),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue/sum-1/retry", { method: "POST" });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.summary.status).toBe("pending");
+      expect(json.summary.summaryJson).toBeUndefined();
     });
 
     it("checks rate limit when retrying a failed item", async () => {
