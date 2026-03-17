@@ -112,7 +112,7 @@
   </head>
   <body>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: February 28, 2026</p>
+    <p class="updated">Last updated: March 16, 2026</p>
 
     <p>
       Cliphy ("we", "us", "our") is a Chrome extension that summarizes YouTube videos using AI. This
@@ -138,6 +138,10 @@
         limits and display time-saved metrics.
       </li>
       <li>
+        <strong>Tags</strong> — user-created and AI-suggested labels applied to summaries for
+        organization.
+      </li>
+      <li>
         <strong>Payment information</strong> — handled entirely by Stripe. We never see, receive, or
         store your card details.
       </li>
@@ -148,6 +152,10 @@
       <li>To authenticate you and manage your account.</li>
       <li>To generate AI-powered video summaries on your request.</li>
       <li>To enforce usage limits and process subscription payments.</li>
+      <li>
+        To suggest tags for your summaries using AI, based on summary content and your existing tags
+        (Pro feature).
+      </li>
       <li>To improve the service using aggregate, anonymized usage patterns.</li>
     </ul>
 
@@ -195,6 +203,11 @@
       generating the summary. Anthropic does not use your data for model training. See
       <a href="https://www.anthropic.com/privacy">Anthropic's privacy policy</a>.
     </p>
+    <p>
+      For the AI auto-tagging feature (Pro), summary content and your existing tag names are sent to
+      the Claude API to generate tag suggestions. This data is processed in real time and is not
+      retained by Anthropic.
+    </p>
 
     <h2>5. Third-Party Services</h2>
     <p>We share data with the following service providers, solely to operate Cliphy:</p>
@@ -206,8 +219,8 @@
       </tr>
       <tr>
         <td><a href="https://www.anthropic.com/privacy">Anthropic</a></td>
-        <td>AI summary generation</td>
-        <td>Video transcripts (not retained)</td>
+        <td>AI summary generation &amp; tag suggestions</td>
+        <td>Video transcripts, summary content, tag names (not retained)</td>
       </tr>
       <tr>
         <td><a href="https://stripe.com/privacy">Stripe</a></td>
