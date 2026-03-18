@@ -2,6 +2,7 @@ import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/sh
 import type { Runtime } from "wxt/browser";
 import { parseDurationToSeconds } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
+import { BatchTabsButton } from "../../components/BatchTabsButton";
 import { Logo } from "../../components/Logo";
 import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
@@ -9,6 +10,7 @@ import { SummaryDetail, ExportBar, toMarkdown, toPlainText } from "../../compone
 import { UpgradePrompt } from "../../components/UpgradePrompt";
 import { UsageBar } from "../../components/UsageBar";
 import {
+  addToQueueBatch,
   AuthError,
   createPortal,
   deleteQueueItem,
@@ -511,50 +513,63 @@ export function App() {
           <span className="text-lg font-extrabold text-(--color-text)">Queue</span>
         )}
       </div>
-      {user && (
-        <div className="relative" ref={userMenuRef}>
-          <button
-            onClick={() => setShowUserMenu((v) => !v)}
-            className="text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors truncate max-w-[160px]"
-          >
-            {user.email} &#9662;
-          </button>
-          {showUserMenu && (
-            <div className="absolute right-0 top-full mt-1 w-fit bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20">
-              {user.plan === "pro" && (
-                <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 text-left border-b border-(--color-border-soft) mb-1">
-                  Pro Plan
-                </div>
-              )}
-              {user.plan === "pro" && (
+      <div className="flex items-center gap-2">
+        {view === "dashboard" && user?.plan === "pro" && (
+          <BatchTabsButton
+            summaries={summaries}
+            currentVideoId={currentVideo?.videoId ?? null}
+            onBatchQueue={async (videos) => {
+              const res = await addToQueueBatch(videos);
+              await fetchQueueAndUsage();
+              return { added: res.added, skipped: res.skipped };
+            }}
+          />
+        )}
+        {user && (
+          <div className="relative" ref={userMenuRef}>
+            <button
+              onClick={() => setShowUserMenu((v) => !v)}
+              className="text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors truncate max-w-[160px]"
+            >
+              {user.email} &#9662;
+            </button>
+            {showUserMenu && (
+              <div className="absolute right-0 top-full mt-1 w-fit bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20">
+                {user.plan === "pro" && (
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 text-left border-b border-(--color-border-soft) mb-1">
+                    Pro Plan
+                  </div>
+                )}
+                {user.plan === "pro" && (
+                  <button
+                    onClick={async () => {
+                      setShowUserMenu(false);
+                      try {
+                        const { url } = await createPortal();
+                        await browser.tabs.create({ url });
+                      } catch {
+                        // silently fail
+                      }
+                    }}
+                    className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
+                  >
+                    Billing
+                  </button>
+                )}
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     setShowUserMenu(false);
-                    try {
-                      const { url } = await createPortal();
-                      await browser.tabs.create({ url });
-                    } catch {
-                      // silently fail
-                    }
+                    handleSignOut();
                   }}
                   className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
                 >
-                  Billing
+                  Sign out
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  setShowUserMenu(false);
-                  handleSignOut();
-                }}
-                className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
-              >
-                Sign out
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 
