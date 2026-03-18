@@ -21,6 +21,8 @@ function classifyError(message: string): string {
 export const summarizeVideo = inngest.createFunction(
   {
     id: "summarize-video",
+    retries: 3,
+    timeouts: { finish: "5m" },
     onFailure: async ({ event }) => {
       const { summaryId } = event.data.event.data as { summaryId: string };
       const videoId = (event.data.event.data as { videoId?: string }).videoId;
