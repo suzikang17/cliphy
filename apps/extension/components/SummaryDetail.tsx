@@ -1,6 +1,13 @@
-import type { ContextSection, Summary } from "@cliphy/shared";
+import type {
+  ChatMessage,
+  ChatResponse,
+  ContextSection,
+  Summary,
+  SummaryJson,
+} from "@cliphy/shared";
 import { formatTimeSaved, parseDurationToSeconds, TAG_MAX_LENGTH } from "@cliphy/shared";
 import { useRef, useState } from "react";
+import { ChatThread } from "./ChatThread";
 
 interface SummaryDetailProps {
   summary: Summary;
@@ -17,6 +24,12 @@ interface SummaryDetailProps {
   pinned?: boolean;
   /** External markdown toggle (used when pinned) */
   copyAsMarkdown?: boolean;
+  /** Chat with AI about this video (Pro-only) */
+  onChat?: (messages: ChatMessage[]) => Promise<ChatResponse>;
+  /** Apply a summary update from chat */
+  onApplyUpdate?: (summaryJson: SummaryJson) => Promise<void>;
+  /** Whether this summary has a transcript for chat */
+  hasTranscript?: boolean;
 }
 
 export { ExportBar, toMarkdown, toPlainText };
@@ -418,9 +431,14 @@ export function SummaryDetail({
   onOpenInTab,
   pinned,
   copyAsMarkdown,
+  onChat,
+  onApplyUpdate,
+  hasTranscript,
 }: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
   const [localCopyMarkdown, setLocalCopyMarkdown] = useState(false);
+  const [activeTab, setActiveTab] = useState<"summary" | "chat">("summary");
+  const [summaryUpdated, setSummaryUpdated] = useState(false);
   const copyMarkdown = pinned ? (copyAsMarkdown ?? false) : localCopyMarkdown;
   const json = summary.summaryJson;
 
@@ -525,6 +543,35 @@ export function SummaryDetail({
         </div>
       </div>
 
+      {/* Tab bar — only when chat is available and summary has content */}
+      {onChat && json && (
+        <div className="flex border-b-2 border-(--color-border-hard) mb-3">
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
+              activeTab === "summary"
+                ? "border-neon-600 text-neon-600 dark:text-neon-400"
+                : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
+            }`}
+          >
+            Summary
+            {summaryUpdated && activeTab !== "summary" && (
+              <span className="inline-block w-1.5 h-1.5 bg-neon-600 rounded-full ml-1.5 -mt-1" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("chat")}
+            className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
+              activeTab === "chat"
+                ? "border-neon-600 text-neon-600 dark:text-neon-400"
+                : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
+            }`}
+          >
+            💬 Chat
+          </button>
+        </div>
+      )}
+
       {!json ? (
         summary.status === "pending" || summary.status === "processing" ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -538,216 +585,242 @@ export function SummaryDetail({
         )
       ) : (
         <>
-          {/* Truncation warning */}
-          {json.truncated && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700 dark:text-amber-400">
-              This summary is based on a partial transcript. The video was too long to process in
-              full.
-            </div>
-          )}
+          {activeTab === "summary" && (
+            <>
+              {/* Truncation warning */}
+              {json.truncated && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700 dark:text-amber-400">
+                  This summary is based on a partial transcript. The video was too long to process
+                  in full.
+                </div>
+              )}
 
-          {/* Inline TOC */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            <a
-              href="#tldr"
-              onClick={(e) => scrollToSection(e, "tldr")}
-              className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
-            >
-              TL;DR
-            </a>
-            {json.keyPoints.length > 0 && (
-              <a
-                href="#highlights"
-                onClick={(e) => scrollToSection(e, "highlights")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
-              >
-                Highlights
-              </a>
-            )}
-            {json.timestamps.length > 0 && (
-              <a
-                href="#jump-to"
-                onClick={(e) => scrollToSection(e, "jump-to")}
-                className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
-              >
-                Jump To
-              </a>
-            )}
-            {(() => {
-              const ctx = resolveContextSection(json);
-              return ctx ? (
+              {/* Inline TOC */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
                 <a
-                  href="#context-section"
-                  onClick={(e) => scrollToSection(e, "context-section")}
+                  href="#tldr"
+                  onClick={(e) => scrollToSection(e, "tldr")}
                   className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
                 >
-                  {ctx.title}
+                  TL;DR
                 </a>
-              ) : null;
-            })()}
-          </div>
-
-          {/* TL;DR */}
-          <div
-            id="tldr"
-            className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">TL;DR</h3>
-              <CopyButton
-                text={json.summary}
-                markdownText={`> ${json.summary}`}
-                useMarkdown={copyMarkdown}
-              />
-            </div>
-            <p className="text-sm text-(--color-text-body) leading-relaxed m-0 italic">
-              {json.summary}
-            </p>
-          </div>
-
-          {/* Key Points */}
-          {json.keyPoints.length > 0 && (
-            <div
-              id="highlights"
-              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
-                  Highlights
-                </h3>
-                <CopyButton
-                  text={json.keyPoints.map((p) => `• ${p}`).join("\n")}
-                  markdownText={json.keyPoints.map((p) => `- ${p}`).join("\n")}
-                  useMarkdown={copyMarkdown}
-                />
+                {json.keyPoints.length > 0 && (
+                  <a
+                    href="#highlights"
+                    onClick={(e) => scrollToSection(e, "highlights")}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
+                  >
+                    Highlights
+                  </a>
+                )}
+                {json.timestamps.length > 0 && (
+                  <a
+                    href="#jump-to"
+                    onClick={(e) => scrollToSection(e, "jump-to")}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
+                  >
+                    Jump To
+                  </a>
+                )}
+                {(() => {
+                  const ctx = resolveContextSection(json);
+                  return ctx ? (
+                    <a
+                      href="#context-section"
+                      onClick={(e) => scrollToSection(e, "context-section")}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-(--color-surface-raised) text-(--color-text-secondary) no-underline hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors cursor-pointer"
+                    >
+                      {ctx.title}
+                    </a>
+                  ) : null;
+                })()}
               </div>
-              <ul className="list-none p-0 m-0 space-y-1.5">
-                {json.keyPoints.map((point, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
-                    <span className="text-neon-500 font-bold shrink-0">•</span>
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
-          {/* Jump To */}
-          {json.timestamps.length > 0 && (
-            <div
-              id="jump-to"
-              className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
-                  Jump To
-                </h3>
-                <CopyButton
-                  text={json.timestamps.join("\n")}
-                  markdownText={json.timestamps.map((t) => `- ${t}`).join("\n")}
-                  useMarkdown={copyMarkdown}
-                />
-              </div>
-              <ul className="list-none p-0 m-0 space-y-1">
-                {json.timestamps.map((ts, i) => {
-                  const parsed = extractTimestamp(ts);
-                  if (parsed) {
-                    return (
-                      <li key={i} className="flex items-baseline gap-2 text-sm">
-                        {onSeek ? (
-                          <button
-                            onClick={() => onSeek(parsed.seconds)}
-                            className="w-14 text-right text-neon-600 hover:text-neon-800 bg-transparent border-0 cursor-pointer p-0 font-mono text-xs font-bold shrink-0 transition-colors"
-                          >
-                            {parsed.time}
-                          </button>
-                        ) : (
-                          <a
-                            href={`https://youtube.com/watch?v=${summary.videoId}&t=${parsed.seconds}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-14 text-right text-neon-600 hover:text-neon-800 font-mono text-xs font-bold shrink-0 no-underline transition-colors inline-block"
-                          >
-                            {parsed.time}
-                          </a>
-                        )}
-                        <span className="text-(--color-text-body)">{parsed.label}</span>
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={i} className="text-sm text-(--color-text-body)">
-                      {ts}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {/* Context Section (Action Items or dynamic) */}
-          {(() => {
-            const ctx = resolveContextSection(json);
-            return ctx ? (
+              {/* TL;DR */}
               <div
-                id="context-section"
+                id="tldr"
                 className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
-                    {ctx.title}
+                    TL;DR
                   </h3>
                   <CopyButton
-                    text={
-                      ctx.groups?.length
-                        ? ctx.groups
-                            .map((g) => `${g.label}:\n${g.items.map((i) => `• ${i}`).join("\n")}`)
-                            .join("\n\n")
-                        : ctx.items.map((i) => `• ${i}`).join("\n")
-                    }
-                    markdownText={
-                      ctx.groups?.length
-                        ? ctx.groups
-                            .map(
-                              (g) => `### ${g.label}\n${g.items.map((i) => `- ${i}`).join("\n")}`,
-                            )
-                            .join("\n\n")
-                        : ctx.items.map((i) => `- ${i}`).join("\n")
-                    }
+                    text={json.summary}
+                    markdownText={`> ${json.summary}`}
                     useMarkdown={copyMarkdown}
                   />
                 </div>
-                {ctx.groups?.length ? (
-                  <div className="space-y-3">
-                    {ctx.groups.map((group, gi) => (
-                      <div key={gi}>
-                        <h4 className="text-[11px] font-semibold text-(--color-text-secondary) uppercase tracking-wide mb-1 m-0">
-                          {group.label}
-                        </h4>
-                        <ul className="list-none p-0 m-0 space-y-1.5">
-                          {group.items.map((item, i) => (
-                            <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
-                              <span className="text-neon-500 font-bold shrink-0">•</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                <p className="text-sm text-(--color-text-body) leading-relaxed m-0 italic">
+                  {json.summary}
+                </p>
+              </div>
+
+              {/* Key Points */}
+              {json.keyPoints.length > 0 && (
+                <div
+                  id="highlights"
+                  className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                      Highlights
+                    </h3>
+                    <CopyButton
+                      text={json.keyPoints.map((p) => `• ${p}`).join("\n")}
+                      markdownText={json.keyPoints.map((p) => `- ${p}`).join("\n")}
+                      useMarkdown={copyMarkdown}
+                    />
                   </div>
-                ) : (
                   <ul className="list-none p-0 m-0 space-y-1.5">
-                    {ctx.items.map((item, i) => (
+                    {json.keyPoints.map((point, i) => (
                       <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
                         <span className="text-neon-500 font-bold shrink-0">•</span>
-                        <span>{item}</span>
+                        <span>{point}</span>
                       </li>
                     ))}
                   </ul>
-                )}
-              </div>
-            ) : null;
-          })()}
+                </div>
+              )}
+
+              {/* Jump To */}
+              {json.timestamps.length > 0 && (
+                <div
+                  id="jump-to"
+                  className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                      Jump To
+                    </h3>
+                    <CopyButton
+                      text={json.timestamps.join("\n")}
+                      markdownText={json.timestamps.map((t) => `- ${t}`).join("\n")}
+                      useMarkdown={copyMarkdown}
+                    />
+                  </div>
+                  <ul className="list-none p-0 m-0 space-y-1">
+                    {json.timestamps.map((ts, i) => {
+                      const parsed = extractTimestamp(ts);
+                      if (parsed) {
+                        return (
+                          <li key={i} className="flex items-baseline gap-2 text-sm">
+                            {onSeek ? (
+                              <button
+                                onClick={() => onSeek(parsed.seconds)}
+                                className="w-14 text-right text-neon-600 hover:text-neon-800 bg-transparent border-0 cursor-pointer p-0 font-mono text-xs font-bold shrink-0 transition-colors"
+                              >
+                                {parsed.time}
+                              </button>
+                            ) : (
+                              <a
+                                href={`https://youtube.com/watch?v=${summary.videoId}&t=${parsed.seconds}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-14 text-right text-neon-600 hover:text-neon-800 font-mono text-xs font-bold shrink-0 no-underline transition-colors inline-block"
+                              >
+                                {parsed.time}
+                              </a>
+                            )}
+                            <span className="text-(--color-text-body)">{parsed.label}</span>
+                          </li>
+                        );
+                      }
+                      return (
+                        <li key={i} className="text-sm text-(--color-text-body)">
+                          {ts}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Context Section (Action Items or dynamic) */}
+              {(() => {
+                const ctx = resolveContextSection(json);
+                return ctx ? (
+                  <div
+                    id="context-section"
+                    className="bg-(--color-surface-raised) rounded-lg p-3 mb-4 scroll-mt-2 transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-neon-600 m-0">
+                        {ctx.title}
+                      </h3>
+                      <CopyButton
+                        text={
+                          ctx.groups?.length
+                            ? ctx.groups
+                                .map(
+                                  (g) => `${g.label}:\n${g.items.map((i) => `• ${i}`).join("\n")}`,
+                                )
+                                .join("\n\n")
+                            : ctx.items.map((i) => `• ${i}`).join("\n")
+                        }
+                        markdownText={
+                          ctx.groups?.length
+                            ? ctx.groups
+                                .map(
+                                  (g) =>
+                                    `### ${g.label}\n${g.items.map((i) => `- ${i}`).join("\n")}`,
+                                )
+                                .join("\n\n")
+                            : ctx.items.map((i) => `- ${i}`).join("\n")
+                        }
+                        useMarkdown={copyMarkdown}
+                      />
+                    </div>
+                    {ctx.groups?.length ? (
+                      <div className="space-y-3">
+                        {ctx.groups.map((group, gi) => (
+                          <div key={gi}>
+                            <h4 className="text-[11px] font-semibold text-(--color-text-secondary) uppercase tracking-wide mb-1 m-0">
+                              {group.label}
+                            </h4>
+                            <ul className="list-none p-0 m-0 space-y-1.5">
+                              {group.items.map((item, i) => (
+                                <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                                  <span className="text-neon-500 font-bold shrink-0">•</span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ul className="list-none p-0 m-0 space-y-1.5">
+                        {ctx.items.map((item, i) => (
+                          <li key={i} className="flex gap-2 text-sm text-(--color-text-body)">
+                            <span className="text-neon-500 font-bold shrink-0">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+            </>
+          )}
+
+          {activeTab === "chat" && onChat && (
+            <div className="h-[calc(100vh-200px)]">
+              <ChatThread
+                summaryId={summary.id}
+                hasTranscript={hasTranscript ?? false}
+                onChat={onChat}
+                onApplyUpdate={async (sj) => {
+                  if (onApplyUpdate) {
+                    await onApplyUpdate(sj);
+                    setSummaryUpdated(true);
+                  }
+                }}
+                onRetry={onRetry}
+              />
+            </div>
+          )}
 
           {/* Export buttons — rendered externally when pinned=true */}
           {!pinned && (

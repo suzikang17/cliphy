@@ -12,6 +12,7 @@ import { UsageBar } from "../../components/UsageBar";
 import {
   addToQueueBatch,
   AuthError,
+  chatWithSummary,
   createPortal,
   deleteQueueItem,
   deleteSummary,
@@ -21,6 +22,7 @@ import {
   getUser,
   ProRequiredError,
   retryQueueItem,
+  updateSummaryJson,
 } from "../../lib/api";
 import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
 import { isActiveTab } from "../../lib/is-active-tab";
@@ -689,9 +691,25 @@ export function App() {
             summary={selectedSummary}
             onSeek={(seconds) => seekVideo(seconds, selectedSummary.videoId)}
             onDismiss={() => handleDismissSummary(selectedSummary.id)}
+            onRetry={() => handleRetryItem(selectedSummary.id)}
             onOpenInTab={() => handleOpenSummary(selectedSummary.id)}
             pinned
             copyAsMarkdown={copyMarkdown}
+            onChat={
+              user?.plan === "pro" && selectedSummary.status === "completed"
+                ? (messages) => chatWithSummary(selectedSummary.id, messages)
+                : undefined
+            }
+            onApplyUpdate={
+              user?.plan === "pro"
+                ? async (sj) => {
+                    const { summary: updated } = await updateSummaryJson(selectedSummary.id, sj);
+                    setSelectedSummary(updated);
+                    setSummaries((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+                  }
+                : undefined
+            }
+            hasTranscript={selectedSummary.status === "completed"}
           />
         </div>
         <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
