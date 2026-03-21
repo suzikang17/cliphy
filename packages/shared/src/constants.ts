@@ -32,6 +32,7 @@ export const PRO_FEATURES = {
   EXPORT: "export",
   PRIORITY_PROCESSING: "priority_processing",
   AUTO_TAG: "auto_tag",
+  VIDEO_CHAT: "video_chat",
 } as const;
 
 export type ProFeature = (typeof PRO_FEATURES)[keyof typeof PRO_FEATURES];
@@ -55,6 +56,8 @@ export const API_ROUTES = {
     SEARCH: "/api/summaries/search",
     AUTO_TAG: (id: string) => `/api/summaries/${id}/auto-tag`,
     AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",
+    CHAT: (id: string) => `/api/summaries/${id}/chat`,
+    UPDATE: (id: string) => `/api/summaries/${id}`,
   },
   TAGS: {
     LIST: "/api/summaries/tags",

@@ -132,3 +132,17 @@ export interface ProRequiredResponse {
   feature: string;
   upgrade_url: string;
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export type ChatUpdatedSection = "summary" | "keyPoints" | "timestamps" | "contextSection";
+
+export interface ChatResponse {
+  type: "chat" | "update";
+  content: string;
+  updatedSection?: ChatUpdatedSection;
+  updatedSummaryJson?: SummaryJson;
+}
