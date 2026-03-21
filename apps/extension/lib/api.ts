@@ -9,6 +9,9 @@ import type {
   ProRequiredResponse,
   AutoTagSuggestion,
   BulkAutoTagResponse,
+  ChatMessage,
+  ChatResponse,
+  SummaryJson,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -239,5 +242,19 @@ export async function createCheckout() {
 export async function createPortal() {
   return request<{ url: string }>(API_ROUTES.BILLING.PORTAL, {
     method: "POST",
+  });
+}
+
+export async function chatWithSummary(id: string, messages: ChatMessage[]) {
+  return request<ChatResponse>(API_ROUTES.SUMMARIES.CHAT(id), {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  });
+}
+
+export async function updateSummaryJson(id: string, summaryJson: SummaryJson) {
+  return request<{ summary: Summary }>(API_ROUTES.SUMMARIES.UPDATE(id), {
+    method: "PATCH",
+    body: JSON.stringify({ summary_json: summaryJson }),
   });
 }
