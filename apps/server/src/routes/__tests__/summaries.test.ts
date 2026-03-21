@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { epic, feature, layer } from "allure-js-commons";
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
+import { chatWithVideo } from "../../services/chat.js";
 
 // ── Mock Supabase ─────────────────────────────────────────────
 
@@ -56,6 +57,10 @@ vi.mock("../../lib/supabase.js", () => ({
   ),
 }));
 
+vi.mock("../../services/chat.js", () => ({
+  chatWithVideo: vi.fn(),
+}));
+
 vi.mock("../../middleware/auth.js", () => ({
   authMiddleware: vi.fn(
     async (c: { set: (k: string, v: string) => void }, next: () => Promise<void>) => {
@@ -80,6 +85,7 @@ const sampleRow = {
   video_url: "https://youtube.com/watch?v=abc12345678",
   status: "completed",
   summary_json: { summary: "A test summary", keyPoints: ["Point 1"], timestamps: ["0:00 - Start"] },
+  transcript: "Hello and welcome to the video...",
   error_message: null,
   deleted_at: null,
   created_at: "2026-02-20T10:00:00Z",
@@ -237,6 +243,146 @@ describe("Summaries", () => {
       const res = await app.request("/summaries/nonexistent", { method: "DELETE" });
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("POST /summaries/:id/chat", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("Video Chat");
+    });
+
+    it("returns 400 for missing messages", async () => {
+      // 1st from() → users table (requirePro plan check)
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toMatch(/messages/i);
+    });
+
+    it("returns 404 when summary not found", async () => {
+      // 1st from() → users table (requirePro plan check)
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      // 2nd from() → summaries table (fetch summary)
+      fromResults.push(mockChain({ data: null, error: { message: "not found" } }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/nonexistent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }),
+      });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 400 when no transcript (code: NO_TRANSCRIPT)", async () => {
+      const rowWithoutTranscript = { ...sampleRow, transcript: null };
+      // 1st from() → users table (requirePro plan check)
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      // 2nd from() → summaries table (fetch summary)
+      fromResults.push(mockChain({ data: rowWithoutTranscript }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: "Hello" }] }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.code).toBe("NO_TRANSCRIPT");
+    });
+
+    it("returns 200 with chat response on success", async () => {
+      const chatResponse = { type: "chat" as const, content: "This video is about testing." };
+      vi.mocked(chatWithVideo).mockResolvedValue(chatResponse);
+
+      // 1st from() → users table (requirePro plan check)
+      fromResults.push(mockChain({ data: { plan: "pro" } }));
+      // 2nd from() → summaries table (fetch summary)
+      fromResults.push(mockChain({ data: sampleRow }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "What is this video about?" }],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.type).toBe("chat");
+      expect(json.content).toBe("This video is about testing.");
+      expect(chatWithVideo).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("PATCH /summaries/:id", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      fromCallCount = 0;
+      fromResults = [];
+      layer("unit");
+      epic("Summaries");
+      feature("Update Summary");
+    });
+
+    it("returns 200 with updated summary", async () => {
+      const updatedRow = {
+        ...sampleRow,
+        summary_json: {
+          summary: "Updated summary",
+          keyPoints: ["New point"],
+          timestamps: ["0:00 - New start"],
+        },
+      };
+      fromResults.push(mockChain({ data: updatedRow }));
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary_json: {
+            summary: "Updated summary",
+            keyPoints: ["New point"],
+            timestamps: ["0:00 - New start"],
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.summary.summaryJson.summary).toBe("Updated summary");
+    });
+
+    it("returns 400 for invalid summary_json", async () => {
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary_json: { summary: "No arrays" } }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toMatch(/summary_json/i);
     });
   });
 });

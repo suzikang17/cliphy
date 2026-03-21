@@ -10,10 +10,12 @@ import {
   TAG_MAX_LENGTH,
   PRO_FEATURES,
 } from "@cliphy/shared";
-import type { SummaryJson } from "@cliphy/shared";
+import type { SummaryJson, ChatMessage } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { requirePro } from "../middleware/require-pro.js";
+import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
+import { chatWithVideo } from "../services/chat.js";
 
 export const summaryRoutes = new Hono<AppEnv>();
 
@@ -224,6 +226,114 @@ summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c)
   const result = await suggestTags(summary.summary_json as SummaryJson, existingTags);
 
   return c.json(result);
+});
+
+// ── POST /:id/chat — Chat with a video (Pro only) ───────────
+
+summaryRoutes.post("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) => {
+  const userId = c.get("userId");
+  const summaryId = c.req.param("id");
+
+  const body = await c.req.json<{ messages?: unknown }>();
+
+  // Validate messages
+  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 50) {
+    return c.json({ error: "messages must be a non-empty array (max 50)" }, 400);
+  }
+
+  for (const msg of body.messages) {
+    if (
+      typeof msg !== "object" ||
+      msg === null ||
+      typeof msg.role !== "string" ||
+      typeof msg.content !== "string"
+    ) {
+      return c.json({ error: "Each message must have a role and content" }, 400);
+    }
+  }
+
+  // Fetch summary
+  const { data: summary } = await supabase
+    .from("summaries")
+    .select("*")
+    .eq("id", summaryId)
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .is("deleted_at", null)
+    .single();
+
+  if (!summary) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  if (!summary.transcript) {
+    return c.json({ error: "No transcript available for this video", code: "NO_TRANSCRIPT" }, 400);
+  }
+
+  try {
+    const result = await chatWithVideo({
+      transcript: summary.transcript as string,
+      videoTitle: summary.video_title as string,
+      summaryJson: summary.summary_json as SummaryJson,
+      messages: body.messages as ChatMessage[],
+    });
+
+    return c.json(result);
+  } catch (err) {
+    if (err instanceof APIConnectionError) {
+      return c.json({ error: "AI service temporarily unavailable" }, 503);
+    }
+    if (err instanceof APIError) {
+      if (err.status === 429 || err.status === 500 || err.status === 503) {
+        return c.json({ error: "AI service temporarily unavailable" }, 503);
+      }
+      if (err.status === 400 || err.status === 401) {
+        return c.json({ error: "AI service error" }, 500);
+      }
+    }
+    throw err;
+  }
+});
+
+// ── PATCH /:id — Update summary content ─────────────────────
+
+summaryRoutes.patch("/:id", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const body = await c.req.json<{ summary_json?: unknown }>();
+
+  // Validate summary_json structure
+  const sj = body.summary_json;
+  if (
+    typeof sj !== "object" ||
+    sj === null ||
+    typeof (sj as Record<string, unknown>).summary !== "string" ||
+    !Array.isArray((sj as Record<string, unknown>).keyPoints) ||
+    !Array.isArray((sj as Record<string, unknown>).timestamps)
+  ) {
+    return c.json(
+      {
+        error: "summary_json must have summary (string), keyPoints (array), and timestamps (array)",
+      },
+      400,
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("summaries")
+    .update({ summary_json: sj })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  return c.json({ summary: toSummary(data as Record<string, unknown>) });
 });
 
 // ── PATCH /:id/tags — Update tags on a summary ──────────────
