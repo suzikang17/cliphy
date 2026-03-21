@@ -151,7 +151,7 @@ export const summarizeVideo = inngest.createFunction(
     await step.run("save-result", async () => {
       await supabase
         .from("summaries")
-        .update({ status: "completed", summary_json: summaryJson })
+        .update({ status: "completed", summary_json: summaryJson, transcript })
         .eq("id", summaryId);
     });
 
