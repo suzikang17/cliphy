@@ -7,7 +7,7 @@ pnpm exec esbuild apps/server/src/vercel.ts \
   --platform=node \
   --format=cjs \
   --jsx=automatic \
-  --jsx-import-source=hono \
+  --jsx-import-source=hono/jsx \
   --outfile=.vercel/output/functions/api/index.func/index.js
 
 # Function config
