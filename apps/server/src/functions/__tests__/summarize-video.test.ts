@@ -427,14 +427,11 @@ describe("summarize-video", () => {
         },
       });
 
-      // Should NOT fire as an exception (no alert)
-      expect(mockSentryCapture).not.toHaveBeenCalled();
-
-      // Should log as info-level message with video ID for tracking
-      expect(mockSentryMessage).toHaveBeenCalledWith(
-        "No captions: noCapVid",
+      // Should fire as warning-level exception for Sentry dashboard visibility
+      expect(mockSentryCapture).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "No captions: noCapVid" }),
         expect.objectContaining({
-          level: "info",
+          level: "warning",
           extra: expect.objectContaining({ errorMessage: expect.any(String) }),
           tags: expect.objectContaining({ error_category: "no_captions", video_id: "noCapVid" }),
         }),

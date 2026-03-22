@@ -67,7 +67,9 @@ app.onError(async (err, c) => {
     return err.getResponse();
   }
   logger.error("Unhandled error", err);
-  Sentry.captureException(err);
+  Sentry.captureException(err, {
+    tags: { component: "hono", error_category: "unhandled" },
+  });
   await Sentry.flush(2000);
   return c.json({ error: "Internal server error" }, 500);
 });

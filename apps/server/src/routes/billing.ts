@@ -215,7 +215,10 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
   if (error) {
     const err = new Error(`Subscription sync failed: ${error.message}`);
-    Sentry.captureException(err, { extra: { subscriptionId: subscription.id } });
+    Sentry.captureException(err, {
+      extra: { subscriptionId: subscription.id },
+      tags: { component: "billing", error_category: "subscription_sync" },
+    });
     throw err;
   }
 
@@ -223,6 +226,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     const err = new Error(`syncSubscription matched 0 rows for customer ${customerId}`);
     Sentry.captureException(err, {
       extra: { customerId, subscriptionId: subscription.id, status: subscription.status },
+      tags: { component: "billing", error_category: "subscription_sync" },
     });
     throw err;
   }
@@ -245,7 +249,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .eq("id", userId);
     if (error) {
       const err = new Error(`Checkout customer link failed: ${error.message}`);
-      Sentry.captureException(err, { extra: { userId, customerId } });
+      Sentry.captureException(err, {
+        extra: { userId, customerId },
+        tags: { component: "billing", error_category: "checkout" },
+      });
       throw err;
     }
   }
@@ -299,7 +306,10 @@ billingRoutes.post("/webhook", async (c) => {
     log.error("Webhook handler failed", err instanceof Error ? err : new Error(String(err)), {
       type: event.type,
     });
-    Sentry.captureException(err, { extra: { eventType: event.type } });
+    Sentry.captureException(err, {
+      extra: { eventType: event.type },
+      tags: { component: "billing", error_category: "webhook" },
+    });
     await Sentry.flush(2000);
     return c.json({ error: "Webhook handler failed" }, 500);
   }

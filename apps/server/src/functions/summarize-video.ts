@@ -54,8 +54,8 @@ export const summarizeVideo = inngest.createFunction(
         });
       } else if (isExpected) {
         // Track expected failures without alerting
-        Sentry.captureMessage(`No captions: ${videoId}`, {
-          level: "info",
+        Sentry.captureException(new Error(`No captions: ${videoId}`), {
+          level: "warning",
           extra: { summaryId, errorMessage },
           tags: { component: "inngest", error_category: "no_captions", video_id: videoId },
           fingerprint: ["summarize-video", "no_captions"],
