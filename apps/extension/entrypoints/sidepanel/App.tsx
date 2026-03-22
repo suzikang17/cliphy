@@ -86,6 +86,7 @@ export function App() {
   const [copyMarkdown, setCopyMarkdown] = useState(false);
   const [copied, setCopied] = useState<"idle" | "copied">("idle");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [chatActive, setChatActive] = useState(false);
 
   const realtimeStarted = useRef(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -686,7 +687,9 @@ export function App() {
     return (
       <div className="flex flex-col h-screen">
         {topBar}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div
+          className={`flex-1 ${chatActive ? "flex flex-col overflow-hidden p-0" : "overflow-y-auto p-4"}`}
+        >
           <SummaryDetail
             summary={selectedSummary}
             onSeek={(seconds) => seekVideo(seconds, selectedSummary.videoId)}
@@ -710,22 +713,25 @@ export function App() {
                 : undefined
             }
             hasTranscript={selectedSummary.status === "completed"}
+            onTabChange={(tab) => setChatActive(tab === "chat")}
           />
         </div>
-        <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
-          <ExportBar
-            copied={copied}
-            copyMarkdown={copyMarkdown}
-            setCopyMarkdown={setCopyMarkdown}
-            onCopy={handleCopyAll}
-            onRetry={
-              selectedSummary.status === "completed"
-                ? () => handleRetryItem(selectedSummary.id)
-                : undefined
-            }
-            onDismiss={() => handleDismissSummary(selectedSummary.id)}
-          />
-        </div>
+        {!chatActive && (
+          <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
+            <ExportBar
+              copied={copied}
+              copyMarkdown={copyMarkdown}
+              setCopyMarkdown={setCopyMarkdown}
+              onCopy={handleCopyAll}
+              onRetry={
+                selectedSummary.status === "completed"
+                  ? () => handleRetryItem(selectedSummary.id)
+                  : undefined
+              }
+              onDismiss={() => handleDismissSummary(selectedSummary.id)}
+            />
+          </div>
+        )}
       </div>
     );
   }

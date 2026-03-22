@@ -6,7 +6,7 @@ import type {
   SummaryJson,
 } from "@cliphy/shared";
 import { formatTimeSaved, parseDurationToSeconds, TAG_MAX_LENGTH } from "@cliphy/shared";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatThread } from "./ChatThread";
 
 interface SummaryDetailProps {
@@ -30,6 +30,8 @@ interface SummaryDetailProps {
   onApplyUpdate?: (summaryJson: SummaryJson) => Promise<void>;
   /** Whether this summary has a transcript for chat */
   hasTranscript?: boolean;
+  /** Called when active tab changes (for parent layout adjustments) */
+  onTabChange?: (tab: "summary" | "chat") => void;
 }
 
 export { ExportBar, toMarkdown, toPlainText };
@@ -434,10 +436,15 @@ export function SummaryDetail({
   onChat,
   onApplyUpdate,
   hasTranscript,
+  onTabChange,
 }: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
   const [localCopyMarkdown, setLocalCopyMarkdown] = useState(false);
   const [activeTab, setActiveTab] = useState<"summary" | "chat">("summary");
+
+  useEffect(() => {
+    onTabChange?.(activeTab);
+  }, [activeTab]);
   const [summaryUpdated, setSummaryUpdated] = useState(false);
   const copyMarkdown = pinned ? (copyAsMarkdown ?? false) : localCopyMarkdown;
   const json = summary.summaryJson;
@@ -463,9 +470,9 @@ export function SummaryDetail({
   }
 
   return (
-    <div>
+    <div className={activeTab === "chat" && onChat ? "flex flex-col h-full px-4 pt-4" : ""}>
       {/* Video metadata */}
-      <div className="flex items-start gap-3 mb-4">
+      <div className={`flex items-start gap-3 ${activeTab === "chat" ? "mb-2" : "mb-4"}`}>
         <a
           href={`https://youtube.com/watch?v=${summary.videoId}`}
           target="_blank"
@@ -806,7 +813,7 @@ export function SummaryDetail({
           )}
 
           {activeTab === "chat" && onChat && (
-            <div className="h-[calc(100vh-200px)]">
+            <div className="flex-1 min-h-0">
               <ChatThread
                 summaryId={summary.id}
                 hasTranscript={hasTranscript ?? false}
