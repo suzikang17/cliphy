@@ -230,6 +230,7 @@ export function ChatThread({
       <div className="shrink-0 px-3 py-2 border-t border-(--color-border-soft)">
         <div className="flex gap-2">
           <textarea
+            autoFocus
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
