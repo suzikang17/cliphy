@@ -14,6 +14,7 @@ import { queueRoutes } from "./routes/queue.js";
 import { summaryRoutes } from "./routes/summaries.js";
 import { usageRoutes } from "./routes/usage.js";
 import { billingRoutes } from "./routes/billing.js";
+import { adminRoutes } from "./routes/admin/index.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -26,24 +27,30 @@ if (ALLOWED_ORIGINS.length === 0 && process.env.NODE_ENV !== "development") {
 
 const app = new Hono<AppEnv>().basePath("/api");
 
+const isAdminRoute = (path: string) => path.startsWith("/api/admin");
+
 app.use("*", honoLogger());
-app.use("*", secureHeaders());
 app.use("*", async (c, next) => {
+  if (isAdminRoute(c.req.path)) return next();
+  return secureHeaders()(c, next);
+});
+app.use("*", async (c, next) => {
+  if (isAdminRoute(c.req.path)) return next();
   const origin = c.req.header("Origin");
   if (origin && ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
     return c.json({ error: "Forbidden" }, 403);
   }
   return next();
 });
-app.use(
-  "*",
-  cors({
+app.use("*", async (c, next) => {
+  if (isAdminRoute(c.req.path)) return next();
+  return cors({
     origin: ALLOWED_ORIGINS,
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
-  }),
-);
+  })(c, next);
+});
 
 app.on(
   ["GET", "PUT", "POST"],
@@ -61,6 +68,7 @@ app.route("/queue", queueRoutes);
 app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
+app.route("/admin", adminRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {
