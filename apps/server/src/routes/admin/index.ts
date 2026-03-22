@@ -4,6 +4,7 @@ import { adminAuthMiddleware } from "./middleware.js";
 import { loginRoutes } from "./login.js";
 import { adminUserRoutes } from "./users.js";
 import { adminSummaryRoutes } from "./summaries.js";
+import { adminQueueRoutes } from "./queue.js";
 
 export const adminRoutes = new Hono();
 
@@ -33,6 +34,7 @@ adminRoutes.use("*", adminAuthMiddleware);
 adminRoutes.route("/login", loginRoutes);
 adminRoutes.route("/users", adminUserRoutes);
 adminRoutes.route("/summaries", adminSummaryRoutes);
+adminRoutes.route("/queue", adminQueueRoutes);
 
 // Dashboard redirect
 adminRoutes.get("/", (c) => c.redirect("/api/admin/users"));
