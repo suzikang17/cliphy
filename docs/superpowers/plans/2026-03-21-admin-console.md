@@ -1496,13 +1496,12 @@ adminSummaryRoutes.get("/:id", async (c) => {
           <div class="detail-row">
             <span class="label">URL</span>
             <span>
-              {summary.video_url ? (
-                <a href={summary.video_url} target="_blank">
-                  {summary.video_url}
-                </a>
-              ) : (
-                "—"
-              )}
+              <a
+                href={`https://www.youtube.com/watch?v=${summary.youtube_video_id}`}
+                target="_blank"
+              >
+                Watch on YouTube
+              </a>
             </span>
           </div>
           <div class="detail-row">
