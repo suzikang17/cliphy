@@ -552,10 +552,10 @@ export function SummaryDetail({
 
       {/* Tab bar — only when chat is available and summary has content */}
       {onChat && json && (
-        <div className="flex border-b-2 border-(--color-border-hard) mb-3">
+        <div className="flex border-b-2 border-(--color-border-soft) mb-3">
           <button
             onClick={() => setActiveTab("summary")}
-            className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
+            className={`flex-1 py-2 text-xs font-bold text-center -mb-[2px] border-b-2 transition-colors cursor-pointer ${
               activeTab === "summary"
                 ? "border-neon-600 text-neon-600 dark:text-neon-400"
                 : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
@@ -568,7 +568,7 @@ export function SummaryDetail({
           </button>
           <button
             onClick={() => setActiveTab("chat")}
-            className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
+            className={`flex-1 py-2 text-xs font-bold text-center -mb-[2px] border-b-2 transition-colors cursor-pointer ${
               activeTab === "chat"
                 ? "border-neon-600 text-neon-600 dark:text-neon-400"
                 : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
