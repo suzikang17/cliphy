@@ -205,8 +205,7 @@ export function App() {
     setSelectedIds(new Set());
   }
 
-  function handleAutoTagApply(summaryId: string, newTags: string[]) {
-    handleTagsChange(summaryId, newTags);
+  function handleAutoTagDismiss(summaryId: string) {
     setAutoTagResults((prev) => {
       const next = new Map(prev);
       next.delete(summaryId);
@@ -214,7 +213,31 @@ export function App() {
     });
   }
 
-  function handleAutoTagDismiss(summaryId: string) {
+  function handleAutoTagApplyOne(summaryId: string, tag: string) {
+    const summary = summaries.find((s) => s.id === summaryId);
+    if (!summary) return;
+    handleTagsChange(summaryId, [...summary.tags, tag]);
+    setAutoTagResults((prev) => {
+      const next = new Map(prev);
+      const result = prev.get(summaryId);
+      if (!result) return prev;
+      const remaining = {
+        existing: result.existing.filter((t) => t !== tag),
+        new: result.new.filter((t) => t !== tag),
+      };
+      if (remaining.existing.length === 0 && remaining.new.length === 0) {
+        next.delete(summaryId);
+      } else {
+        next.set(summaryId, remaining);
+      }
+      return next;
+    });
+  }
+
+  function handleAutoTagApplyAll(summaryId: string, tags: string[]) {
+    const summary = summaries.find((s) => s.id === summaryId);
+    if (!summary) return;
+    handleTagsChange(summaryId, [...summary.tags, ...tags]);
     setAutoTagResults((prev) => {
       const next = new Map(prev);
       next.delete(summaryId);
@@ -253,7 +276,7 @@ export function App() {
       const merged = [
         ...summary.tags,
         ...result.existing.filter((t) => !summary.tags.includes(t)),
-        ...result.new,
+        ...result.new.filter((t) => !summary.tags.includes(t)),
       ];
       await handleTagsChange(summaryId, merged);
     }
@@ -423,7 +446,8 @@ export function App() {
         onToggleSelect={toggleSelection}
         isPro={isPro}
         autoTagResults={autoTagResults}
-        onAutoTagApply={handleAutoTagApply}
+        onAutoTagApplyOne={handleAutoTagApplyOne}
+        onAutoTagApplyAll={handleAutoTagApplyAll}
         onAutoTagDismiss={handleAutoTagDismiss}
       />
       {autoTagResults.size > 0 && (
@@ -633,7 +657,8 @@ function CardList({
   onToggleSelect,
   isPro,
   autoTagResults,
-  onAutoTagApply,
+  onAutoTagApplyOne,
+  onAutoTagApplyAll,
   onAutoTagDismiss,
 }: {
   summaries: Summary[];
@@ -651,7 +676,8 @@ function CardList({
   onToggleSelect: (id: string) => void;
   isPro: boolean;
   autoTagResults: Map<string, AutoTagSuggestion>;
-  onAutoTagApply: (id: string, tags: string[]) => void;
+  onAutoTagApplyOne: (id: string, tag: string) => void;
+  onAutoTagApplyAll: (id: string, tags: string[]) => void;
   onAutoTagDismiss: (id: string) => void;
 }) {
   // No summaries at all
@@ -700,7 +726,8 @@ function CardList({
           onToggleSelect={() => onToggleSelect(s.id)}
           isPro={isPro}
           autoTagResult={autoTagResults.get(s.id)}
-          onAutoTagApply={(tags) => onAutoTagApply(s.id, tags)}
+          onAutoTagApplyOne={(tag) => onAutoTagApplyOne(s.id, tag)}
+          onAutoTagApplyAll={(tags) => onAutoTagApplyAll(s.id, tags)}
           onAutoTagDismiss={() => onAutoTagDismiss(s.id)}
         />
       ))}
@@ -720,7 +747,8 @@ function SummaryCard({
   isSelected,
   onToggleSelect,
   autoTagResult,
-  onAutoTagApply,
+  onAutoTagApplyOne,
+  onAutoTagApplyAll,
   onAutoTagDismiss,
 }: {
   summary: Summary;
@@ -735,7 +763,8 @@ function SummaryCard({
   onToggleSelect?: () => void;
   isPro?: boolean;
   autoTagResult?: AutoTagSuggestion;
-  onAutoTagApply?: (tags: string[]) => void;
+  onAutoTagApplyOne?: (tag: string) => void;
+  onAutoTagApplyAll?: (tags: string[]) => void;
   onAutoTagDismiss?: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -887,20 +916,21 @@ function SummaryCard({
                 </div>
               )}
             </div>
-            {autoTagResult && onAutoTagApply && onAutoTagDismiss && (
-              <div onClick={(e) => e.stopPropagation()} role="presentation" className="contents">
-                <TagSuggestions
-                  existing={autoTagResult.existing}
-                  new={autoTagResult.new}
-                  currentTags={s.tags}
-                  onApply={onAutoTagApply}
-                  onDismiss={onAutoTagDismiss}
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>
+      {autoTagResult && onAutoTagApplyOne && onAutoTagApplyAll && onAutoTagDismiss && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <TagSuggestions
+            existing={autoTagResult.existing}
+            new={autoTagResult.new}
+            currentTags={s.tags}
+            onApplyOne={onAutoTagApplyOne}
+            onApply={onAutoTagApplyAll}
+            onDismiss={onAutoTagDismiss}
+          />
+        </div>
+      )}
       {/* Delete button — visible on hover */}
       <button
         onClick={handleDeleteClick}
