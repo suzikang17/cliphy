@@ -4,7 +4,11 @@ import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { Sentry } from "../lib/sentry.js";
 import { supabase } from "../lib/supabase.js";
-import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
+import {
+  fetchTranscript,
+  MAX_TRANSCRIPT_LENGTH,
+  TranscriptNotAvailableError,
+} from "../services/transcript.js";
 import { summarizeTranscript } from "../services/summarizer.js";
 
 const log = logger.child({ fn: "summarize-video" });
