@@ -32,6 +32,8 @@ interface SummaryDetailProps {
   hasTranscript?: boolean;
   /** Called when active tab changes (for parent layout adjustments) */
   onTabChange?: (tab: "summary" | "chat") => void;
+  /** Load persisted chat history */
+  onLoadHistory?: () => Promise<ChatMessage[]>;
 }
 
 export { ExportBar, toMarkdown, toPlainText };
@@ -437,6 +439,7 @@ export function SummaryDetail({
   onApplyUpdate,
   hasTranscript,
   onTabChange,
+  onLoadHistory,
 }: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
   const [localCopyMarkdown, setLocalCopyMarkdown] = useState(false);
@@ -825,6 +828,7 @@ export function SummaryDetail({
                   }
                 }}
                 onRetry={onRetry}
+                onLoadHistory={onLoadHistory}
               />
             </div>
           )}

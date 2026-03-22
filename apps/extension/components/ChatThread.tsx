@@ -7,6 +7,7 @@ interface ChatThreadProps {
   onChat: (messages: ChatMessage[]) => Promise<ChatResponse>;
   onApplyUpdate: (summaryJson: SummaryJson) => Promise<void>;
   onRetry?: () => void;
+  onLoadHistory?: () => Promise<ChatMessage[]>;
 }
 
 interface DisplayMessage {
@@ -26,6 +27,7 @@ export function ChatThread({
   onChat,
   onApplyUpdate,
   onRetry,
+  onLoadHistory,
 }: ChatThreadProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
@@ -34,9 +36,26 @@ export function ChatThread({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMessages([]);
     setInput("");
     setError(null);
+    setLoading(false);
+
+    if (onLoadHistory) {
+      onLoadHistory()
+        .then((history) => {
+          setMessages(
+            history.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          );
+        })
+        .catch(() => {
+          setMessages([]);
+        });
+    } else {
+      setMessages([]);
+    }
   }, [summaryId]);
 
   useEffect(() => {

@@ -228,6 +228,27 @@ summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c)
   return c.json(result);
 });
 
+// ── GET /:id/chat — Load chat history (Pro only) ─────────────
+
+summaryRoutes.get("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const { data, error } = await supabase
+    .from("summaries")
+    .select("chat_messages")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error || !data) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  return c.json({ messages: data.chat_messages ?? [] });
+});
+
 // ── POST /:id/chat — Chat with a video (Pro only) ───────────
 
 summaryRoutes.post("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) => {
@@ -277,6 +298,14 @@ summaryRoutes.post("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) =
       summaryJson: summary.summary_json as SummaryJson,
       messages: body.messages as ChatMessage[],
     });
+
+    // Persist the updated conversation to the DB
+    const updatedMessages = [
+      ...(body.messages as ChatMessage[]),
+      { role: "assistant" as const, content: result.content },
+    ];
+
+    await supabase.from("summaries").update({ chat_messages: updatedMessages }).eq("id", summaryId);
 
     return c.json(result);
   } catch (err) {

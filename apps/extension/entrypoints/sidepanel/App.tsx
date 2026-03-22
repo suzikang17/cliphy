@@ -13,6 +13,7 @@ import {
   addToQueueBatch,
   AuthError,
   chatWithSummary,
+  getChatHistory,
   createPortal,
   deleteQueueItem,
   deleteSummary,
@@ -701,6 +702,11 @@ export function App() {
             onChat={
               user?.plan === "pro" && selectedSummary.status === "completed"
                 ? (messages) => chatWithSummary(selectedSummary.id, messages)
+                : undefined
+            }
+            onLoadHistory={
+              user?.plan === "pro" && selectedSummary.status === "completed"
+                ? () => getChatHistory(selectedSummary.id).then((r) => r.messages)
                 : undefined
             }
             onApplyUpdate={

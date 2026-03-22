@@ -245,6 +245,12 @@ export async function createPortal() {
   });
 }
 
+export async function getChatHistory(id: string) {
+  return request<{ messages: ChatMessage[] }>(API_ROUTES.SUMMARIES.CHAT(id), {
+    method: "GET",
+  });
+}
+
 export async function chatWithSummary(id: string, messages: ChatMessage[]) {
   return request<ChatResponse>(API_ROUTES.SUMMARIES.CHAT(id), {
     method: "POST",
