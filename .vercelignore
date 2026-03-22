@@ -3,3 +3,5 @@ docs/
 apps/extension/
 .serena/
 .superpowers/
+allure-results/
+node_modules/
