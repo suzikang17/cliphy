@@ -435,8 +435,8 @@ describe("summarize-video", () => {
         "No captions: noCapVid",
         expect.objectContaining({
           level: "info",
-          extra: expect.objectContaining({ videoId: "noCapVid" }),
-          tags: expect.objectContaining({ error_category: "no_captions" }),
+          extra: expect.objectContaining({ errorMessage: expect.any(String) }),
+          tags: expect.objectContaining({ error_category: "no_captions", video_id: "noCapVid" }),
         }),
       );
 

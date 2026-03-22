@@ -4,7 +4,11 @@ import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { Sentry } from "../lib/sentry.js";
 import { supabase } from "../lib/supabase.js";
-import { fetchTranscript, TranscriptNotAvailableError } from "../services/transcript.js";
+import {
+  fetchTranscript,
+  MAX_TRANSCRIPT_LENGTH,
+  TranscriptNotAvailableError,
+} from "../services/transcript.js";
 import { summarizeTranscript } from "../services/summarizer.js";
 
 const log = logger.child({ fn: "summarize-video" });
@@ -39,24 +43,30 @@ export const summarizeVideo = inngest.createFunction(
         // P0: AI service is down for all users
         Sentry.captureException(new Error(errorMessage), {
           level: "fatal",
-          extra: { summaryId, videoId },
-          tags: { component: "inngest", error_category: "billing", severity: "p0" },
+          extra: { summaryId },
+          tags: {
+            component: "inngest",
+            error_category: "billing",
+            severity: "p0",
+            video_id: videoId,
+          },
           fingerprint: ["summarize-video", "billing"],
         });
       } else if (isExpected) {
         // Track expected failures without alerting
         Sentry.captureMessage(`No captions: ${videoId}`, {
           level: "info",
-          extra: { summaryId, videoId, errorMessage },
-          tags: { component: "inngest", error_category: "no_captions" },
+          extra: { summaryId, errorMessage },
+          tags: { component: "inngest", error_category: "no_captions", video_id: videoId },
           fingerprint: ["summarize-video", "no_captions"],
         });
       } else {
         Sentry.captureException(new Error(errorMessage), {
-          extra: { summaryId, videoId },
+          extra: { summaryId },
           tags: {
             component: "inngest",
             error_category: errorCategory,
+            video_id: videoId,
           },
           fingerprint: ["summarize-video", errorCategory],
         });
@@ -89,9 +99,26 @@ export const summarizeVideo = inngest.createFunction(
       videoTitle: string;
     };
 
-    // Step 1: Mark as processing and fetch transcript server-side
+    // Step 1: Mark as processing and fetch transcript (use cached if available)
     const { text: transcript, truncated } = await step.run("fetch-transcript", async () => {
       await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
+
+      // Check for a cached transcript from a previous summary of the same video
+      const { data: cached } = await supabase
+        .from("summaries")
+        .select("transcript")
+        .eq("video_id", videoId)
+        .not("transcript", "is", null)
+        .neq("id", summaryId)
+        .limit(1)
+        .single();
+
+      if (cached?.transcript) {
+        const text = cached.transcript as string;
+        const wasTruncated = text.length >= MAX_TRANSCRIPT_LENGTH;
+        log.info("Transcript cache hit", { videoId, chars: text.length });
+        return { text, truncated: wasTruncated };
+      }
 
       try {
         const result = await fetchTranscript(videoId);
