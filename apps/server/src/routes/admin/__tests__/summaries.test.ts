@@ -58,7 +58,7 @@ describe("Admin Summaries", () => {
             status: "completed",
             tags: ["tech", "ai"],
             created_at: "2026-01-01T00:00:00Z",
-            users: { email: "user@example.com" },
+            users: [{ email: "user@example.com" }],
           },
         ],
         count: 1,

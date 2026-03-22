@@ -30,6 +30,9 @@ cat > .vercel/output/config.json << 'EOF'
 }
 EOF
 
+# Copy htmx.js next to the bundle (no node_modules at runtime in Vercel serverless)
+cp apps/server/node_modules/htmx.org/dist/htmx.min.js .vercel/output/functions/api/index.func/htmx.min.js
+
 # Static pages
 mkdir -p .vercel/output/static/terms .vercel/output/static/privacy
 cp apps/server/src/pages/landing.html .vercel/output/static/index.html

@@ -10,7 +10,7 @@ interface SummaryListRow {
   status: string;
   tags: string[] | null;
   created_at: string;
-  users: { email: string };
+  users: { email: string }[];
 }
 
 interface SummaryDetailRow {
@@ -86,7 +86,7 @@ adminSummaryRoutes.get("/", async (c) => {
               onclick={`window.location='/api/admin/summaries/${s.id}'`}
             >
               <td>{s.video_title ?? s.youtube_video_id}</td>
-              <td style="font-size:0.85rem;color:#666">{s.users?.email ?? "—"}</td>
+              <td style="font-size:0.85rem;color:#666">{s.users?.[0]?.email ?? "—"}</td>
               <td>
                 <StatusBadge status={s.status} />
               </td>

@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getCookie } from "hono/cookie";
 import type { MiddlewareHandler } from "hono";
 
@@ -27,9 +27,10 @@ export function verifyAdminCookie(cookie: string): boolean {
   const ts = cookie.slice(0, dotIndex);
   const sig = cookie.slice(dotIndex + 1);
 
-  // Check signature
+  // Check signature (timing-safe)
   const expected = sign(ts);
-  if (sig !== expected) return false;
+  if (sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
+    return false;
 
   // Check expiry
   const age = Date.now() - parseInt(ts, 10);
@@ -39,7 +40,7 @@ export function verifyAdminCookie(cookie: string): boolean {
 }
 
 export function adminCookieHeader(cookieValue: string): string {
-  return `${COOKIE_NAME}=${cookieValue}; HttpOnly; SameSite=Strict; Path=/api/admin; Max-Age=${MAX_AGE}`;
+  return `${COOKIE_NAME}=${cookieValue}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=${MAX_AGE}`;
 }
 
 export const adminAuthMiddleware: MiddlewareHandler = async (c, next) => {

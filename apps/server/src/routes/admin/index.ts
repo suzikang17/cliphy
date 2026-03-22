@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { adminAuthMiddleware } from "./middleware.js";
 import { loginRoutes } from "./login.js";
 import { adminUserRoutes } from "./users.js";
@@ -8,13 +9,18 @@ import { adminQueueRoutes } from "./queue.js";
 
 export const adminRoutes = new Hono();
 
-// Serve HTMX from node_modules (self-hosted to avoid CSP issues)
+// Serve HTMX from node_modules (self-hosted to avoid CSP issues).
+// In production (Vercel serverless), node_modules is unavailable at runtime —
+// the build script copies htmx.min.js next to the bundle (__dirname).
+// In dev, fall back to reading from node_modules directly.
 let htmxJs: string | null = null;
 function getHtmxJs(): string {
   if (!htmxJs) {
     try {
-      htmxJs = readFileSync(require.resolve("htmx.org/dist/htmx.min.js"), "utf-8");
+      // Production: file copied next to bundle by build-vercel.sh
+      htmxJs = readFileSync(resolve(__dirname, "htmx.min.js"), "utf-8");
     } catch {
+      // Dev: read from node_modules
       htmxJs = readFileSync("node_modules/htmx.org/dist/htmx.min.js", "utf-8");
     }
   }

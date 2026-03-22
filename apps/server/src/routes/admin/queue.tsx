@@ -9,7 +9,7 @@ interface QueueSummaryRow {
   youtube_video_id: string;
   status: string;
   created_at: string;
-  users: { email: string };
+  users: { email: string }[];
 }
 
 export const adminQueueRoutes = new Hono();
@@ -95,7 +95,7 @@ adminQueueRoutes.get("/", async (c) => {
                 onclick={`window.location='/api/admin/summaries/${s.id}'`}
               >
                 <td>{s.video_title ?? "Untitled"}</td>
-                <td>{s.users?.email ?? "—"}</td>
+                <td>{s.users?.[0]?.email ?? "—"}</td>
                 <td>
                   <StatusBadge status={s.status} />
                 </td>
