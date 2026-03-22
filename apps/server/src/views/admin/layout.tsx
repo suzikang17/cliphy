@@ -56,7 +56,7 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         .login-form .btn { width: 100%; }
         .error { color: #dc2626; margin-bottom: 1rem; font-size: 0.9rem; }
         .success { color: #15803d; margin-bottom: 1rem; font-size: 0.9rem; }
-        pre { background: #1a1a1a; color: #e5e7eb; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; }
+        pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
       `}</style>
     </head>
     <body>
