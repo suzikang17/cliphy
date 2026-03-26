@@ -156,6 +156,12 @@ export default defineBackground(() => {
             .then(() => sendResponse({ success: true }))
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;
+
+        case "SETUP_REALTIME":
+          setupRealtime()
+            .then(() => sendResponse({ success: true }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+          return true;
       }
 
       return false;
