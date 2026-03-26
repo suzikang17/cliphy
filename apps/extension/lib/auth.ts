@@ -58,6 +58,68 @@ export async function signIn(): Promise<void> {
   await setTokens(accessToken, refreshToken);
 }
 
+/**
+ * Sign up with email and password via Supabase REST API.
+ * Can be called directly from the sidepanel (no background script needed).
+ */
+export async function signUpWithEmail(email: string, password: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    const msg = data?.msg || data?.error_description || data?.message;
+    if (res.status === 422 && msg?.includes("already been registered")) {
+      throw new Error("An account with this email already exists. Try signing in.");
+    }
+    throw new Error(msg || "Sign up failed");
+  }
+
+  const data = await res.json();
+  if (!data.access_token || !data.refresh_token) {
+    throw new Error("Sign up failed — no tokens received");
+  }
+
+  await setTokens(data.access_token, data.refresh_token);
+}
+
+/**
+ * Sign in with email and password via Supabase REST API.
+ * Can be called directly from the sidepanel (no background script needed).
+ */
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    const msg = data?.msg || data?.error_description || data?.message;
+    if (res.status === 400) {
+      throw new Error("Invalid email or password");
+    }
+    throw new Error(msg || "Sign in failed");
+  }
+
+  const data = await res.json();
+  if (!data.access_token || !data.refresh_token) {
+    throw new Error("Sign in failed — no tokens received");
+  }
+
+  await setTokens(data.access_token, data.refresh_token);
+}
+
 export async function signOut(): Promise<void> {
   // Best-effort server-side token revocation
   try {
