@@ -364,9 +364,11 @@ export function App() {
       }
       // Trigger realtime subscription in background
       browser.runtime.sendMessage({ type: "SETUP_REALTIME" }).catch(() => {});
+      setEmailInput("");
+      setPasswordInput("");
       setLoading(true);
-      setEmailLoading(false);
       await init();
+      setEmailLoading(false);
     } catch (err) {
       setEmailLoading(false);
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -382,6 +384,7 @@ export function App() {
     setAddStatus("idle");
     setSummaries([]);
     setUsage(null);
+    setAuthMode("signin");
   }
 
   async function detectVideo() {
