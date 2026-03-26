@@ -8,6 +8,7 @@ export interface VideoInfo {
   url: string;
   channel: string | null;
   duration: string | null;
+  isLive: boolean;
 }
 
 // Content script → Background
@@ -39,6 +40,10 @@ export interface SignOutMessage {
   type: "SIGN_OUT";
 }
 
+export interface SetupRealtimeMessage {
+  type: "SETUP_REALTIME";
+}
+
 // Background → Popup/UI (Realtime update)
 export interface SummaryUpdatedMessage {
   type: "SUMMARY_UPDATED";
@@ -57,5 +62,6 @@ export type ExtensionMessage =
   | AddToQueueMessage
   | SignInMessage
   | SignOutMessage
+  | SetupRealtimeMessage
   | SummaryUpdatedMessage
   | SeekVideoMessage;
