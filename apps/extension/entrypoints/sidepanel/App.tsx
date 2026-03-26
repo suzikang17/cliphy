@@ -25,7 +25,12 @@ import {
   retryQueueItem,
   updateSummaryJson,
 } from "../../lib/api";
-import { getAccessToken, getUserIdFromToken } from "../../lib/auth";
+import {
+  getAccessToken,
+  getUserIdFromToken,
+  signUpWithEmail,
+  signInWithEmail,
+} from "../../lib/auth";
 import { isActiveTab } from "../../lib/is-active-tab";
 import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
@@ -88,6 +93,10 @@ export function App() {
   const [copied, setCopied] = useState<"idle" | "copied">("idle");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [chatActive, setChatActive] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
 
   const realtimeStarted = useRef(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -131,7 +140,12 @@ export function App() {
                 return prev;
               }
               const next = [...prev];
-              next[idx] = updated;
+              // Realtime payloads can drop large columns — preserve existing data
+              next[idx] = {
+                ...current,
+                ...updated,
+                summaryJson: updated.summaryJson ?? current.summaryJson,
+              };
               return next;
             }
             return [updated, ...prev];
@@ -143,7 +157,8 @@ export function App() {
             if ((statusPriority[updated.status] ?? 0) < (statusPriority[prev.status] ?? 0)) {
               return prev;
             }
-            return updated;
+            // Realtime payloads can drop large columns — preserve existing data
+            return { ...prev, ...updated, summaryJson: updated.summaryJson ?? prev.summaryJson };
           });
 
           if (updated.status === "completed" || updated.status === "failed") {
@@ -334,6 +349,27 @@ export function App() {
           : "Something went wrong. Please try again.",
       );
       setLoading(false);
+    }
+  }
+
+  async function handleEmailAuth(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setEmailLoading(true);
+    try {
+      if (authMode === "signup") {
+        await signUpWithEmail(emailInput, passwordInput);
+      } else {
+        await signInWithEmail(emailInput, passwordInput);
+      }
+      // Trigger realtime subscription in background
+      browser.runtime.sendMessage({ type: "SETUP_REALTIME" }).catch(() => {});
+      setLoading(true);
+      setEmailLoading(false);
+      await init();
+    } catch (err) {
+      setEmailLoading(false);
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
   }
 
@@ -636,13 +672,84 @@ export function App() {
             </div>
           </div>
 
+          <form onSubmit={handleEmailAuth} className="space-y-2.5 mb-3">
+            <input
+              type="email"
+              placeholder="Email"
+              required
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm bg-(--color-surface-raised) border-2 border-(--color-border-hard) rounded-lg outline-none focus:border-neon-600"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              required
+              minLength={6}
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm bg-(--color-surface-raised) border-2 border-(--color-border-hard) rounded-lg outline-none focus:border-neon-600"
+            />
+            <button
+              type="submit"
+              disabled={emailLoading}
+              className="px-5 py-2.5 text-sm bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full disabled:opacity-50"
+            >
+              {emailLoading
+                ? authMode === "signup"
+                  ? "Creating account..."
+                  : "Signing in..."
+                : authMode === "signup"
+                  ? "Sign up"
+                  : "Sign in"}
+            </button>
+          </form>
+
+          <p className="text-xs text-center text-(--color-text-muted) m-0 mb-4">
+            {authMode === "signin" ? (
+              <>
+                Don&apos;t have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signup");
+                    setError(null);
+                  }}
+                  className="text-neon-600 font-bold bg-transparent border-none cursor-pointer p-0 text-xs"
+                >
+                  Sign up
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setError(null);
+                  }}
+                  className="text-neon-600 font-bold bg-transparent border-none cursor-pointer p-0 text-xs"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-(--color-border-soft)" />
+            <span className="text-xs text-(--color-text-muted)">or</span>
+            <div className="flex-1 h-px bg-(--color-border-soft)" />
+          </div>
+
           <button
             onClick={handleSignIn}
-            className="px-5 py-2.5 text-sm bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
+            className="px-5 py-2.5 text-sm bg-(--color-surface-raised) text-(--color-text-primary) border-2 border-(--color-border-hard) rounded-lg shadow-brutal hover:shadow-brutal-hover press-down font-bold cursor-pointer w-full"
           >
-            Sign in with Google
+            Continue with Google
           </button>
-          {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
+          {error && <p className="text-red-600 text-xs mt-2 text-center">{error}</p>}
         </div>
       </div>
     );
@@ -688,9 +795,7 @@ export function App() {
     return (
       <div className="flex flex-col h-screen">
         {topBar}
-        <div
-          className={`flex-1 ${chatActive ? "flex flex-col overflow-hidden p-0" : "overflow-y-auto p-4"}`}
-        >
+        <div className="flex-1 flex flex-col overflow-hidden">
           <SummaryDetail
             summary={selectedSummary}
             onSeek={(seconds) => seekVideo(seconds, selectedSummary.videoId)}
