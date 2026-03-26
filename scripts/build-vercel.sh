@@ -38,4 +38,4 @@ mkdir -p .vercel/output/static/terms .vercel/output/static/privacy
 cp apps/server/src/pages/landing.html .vercel/output/static/index.html
 cp apps/server/src/pages/terms.html .vercel/output/static/terms/index.html
 cp apps/server/src/pages/privacy.html .vercel/output/static/privacy/index.html
-cp logo-concepts/final-logo.svg .vercel/output/static/logo.svg
+cp apps/server/src/pages/logo.svg .vercel/output/static/logo.svg
