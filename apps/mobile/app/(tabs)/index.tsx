@@ -4,6 +4,7 @@ import type { Summary, UsageInfo } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { getQueue, getUsage, addToQueue } from "../../lib/api";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
+import { supabase } from "../../lib/supabase";
 import { QueueCard } from "../../components/QueueCard";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
@@ -37,6 +38,43 @@ export default function QueueScreen() {
     setRefreshing(true);
     fetchData();
   }, [fetchData]);
+
+  // Supabase Realtime — live queue updates
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const userId = data.session?.user.id;
+      if (!userId) return;
+
+      const channel = supabase
+        .channel("queue-updates")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "summaries",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Summary;
+
+            if (payload.eventType === "INSERT") {
+              setItems((prev) => [updated, ...prev]);
+            } else if (payload.eventType === "UPDATE") {
+              setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+            } else if (payload.eventType === "DELETE") {
+              const deleted = payload.old as { id: string };
+              setItems((prev) => prev.filter((item) => item.id !== deleted.id));
+            }
+          },
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    });
+  }, []);
 
   // Clipboard YouTube URL detection on app focus
   const lastClipboardUrl = useRef<string | null>(null);

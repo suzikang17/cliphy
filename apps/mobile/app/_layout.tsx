@@ -7,6 +7,8 @@ import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { addToQueue } from "../lib/api";
+import { registerForPushNotifications } from "../lib/notifications";
+import * as Notifications from "expo-notifications";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -45,6 +47,24 @@ export default function RootLayout() {
       router.replace("/(tabs)");
     }
   }, [session, initialized, fontsLoaded, segments, router]);
+
+  // Register for push notifications when signed in
+  useEffect(() => {
+    if (!session) return;
+    registerForPushNotifications().catch(console.error);
+  }, [session]);
+
+  // Handle notification tap — navigate to summary
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const summaryId = response.notification.request.content.data?.summaryId;
+      if (summaryId) {
+        router.push(`/summary/${summaryId}`);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [router]);
 
   // Handle share intent (YouTube links shared from other apps)
   const { shareIntent, resetShareIntent } = useShareIntent();
