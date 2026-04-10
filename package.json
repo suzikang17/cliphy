@@ -5,6 +5,7 @@
   "scripts": {
     "dev:extension": "pnpm --filter extension dev",
     "dev:server": "pnpm --filter server dev",
+    "dev:mobile": "pnpm --filter mobile start",
     "build:extension": "pnpm --filter extension build",
     "build:server": "pnpm --filter server build",
     "prepare": "husky",
