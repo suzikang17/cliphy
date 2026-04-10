@@ -1,13 +1,10 @@
 import { View, Text } from "react-native";
-import { neon } from "@cliphy/shared";
 
 export default function HomeScreen() {
   return (
-    <View className="flex-1 items-center justify-center bg-white dark:bg-[#1e1e1e]">
-      <Text className="text-2xl font-bold" style={{ color: neon[600] }}>
-        Cliphy
-      </Text>
-      <Text className="text-sm text-gray-500 mt-1">NativeWind is working</Text>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text style={{ fontSize: 24, fontWeight: "bold", color: "#9358c7" }}>Cliphy</Text>
+      <Text style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>It works!</Text>
     </View>
   );
 }

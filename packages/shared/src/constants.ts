@@ -1,4 +1,4 @@
-import type { PlanTier } from "./types.js";
+import type { PlanTier } from "./types";
 
 export const PLAN_LIMITS: Record<PlanTier, number> = {
   free: 5,

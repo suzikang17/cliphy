@@ -1,4 +1,4 @@
-import type { Summary } from "./types.js";
+import type { Summary } from "./types";
 
 // Extension message types for communication between content script and background
 
