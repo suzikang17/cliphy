@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, SafeAreaView, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { getSummary } from "../../lib/api";
@@ -24,10 +25,26 @@ export default function SummaryDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-[#e5e7eb] dark:border-[#2a2a2a]">
-        <Pressable onPress={() => router.back()}>
-          <Text className="text-sm font-bold" style={{ fontFamily: "DMSans", color: neon[600] }}>
-            ← Back
+      <View className="flex-row items-center px-2 py-1 border-b border-[#e5e7eb] dark:border-[#2a2a2a]">
+        <Pressable
+          onPress={() => router.back()}
+          style={{
+            minHeight: 44,
+            minWidth: 44,
+            justifyContent: "center",
+            alignItems: "center",
+            flexDirection: "row",
+            paddingHorizontal: 8,
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron-back" size={20} color={neon[600]} />
+          <Text
+            className="text-base font-bold ml-1"
+            style={{ fontFamily: "DMSans", color: neon[600] }}
+          >
+            Back
           </Text>
         </Pressable>
       </View>
@@ -51,14 +68,23 @@ export default function SummaryDetailScreen() {
               {summary.videoTitle}
             </Text>
             {summary.videoChannel && (
-              <Text className="text-xs text-[#6b7280] mt-0.5" style={{ fontFamily: "DMSans" }}>
+              <Text
+                className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
+                style={{ fontFamily: "DMSans" }}
+              >
                 {summary.videoChannel}
               </Text>
             )}
             {summary.videoUrl && (
-              <Pressable onPress={() => Linking.openURL(summary.videoUrl!)} className="mt-2">
+              <Pressable
+                onPress={() => Linking.openURL(summary.videoUrl!)}
+                className="mt-2"
+                style={{ minHeight: 44, justifyContent: "center" }}
+                accessibilityRole="link"
+                accessibilityLabel="Watch on YouTube"
+              >
                 <Text
-                  className="text-xs font-bold"
+                  className="text-sm font-bold"
                   style={{ fontFamily: "DMSans", color: neon[600] }}
                 >
                   Watch on YouTube →
@@ -71,7 +97,7 @@ export default function SummaryDetailScreen() {
         </ScrollView>
       ) : (
         <View className="flex-1 items-center justify-center">
-          <Text className="text-[#6b7280]" style={{ fontFamily: "DMSans" }}>
+          <Text className="text-[#6b7280] dark:text-[#9ca3af]" style={{ fontFamily: "DMSans" }}>
             Summary not found
           </Text>
         </View>

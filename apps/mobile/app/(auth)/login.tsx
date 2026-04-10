@@ -8,6 +8,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  useColorScheme,
 } from "react-native";
 import { Logo } from "../../components/Logo";
 import { signInWithEmail, signUpWithEmail, signInWithGoogle } from "../../lib/auth";
@@ -19,6 +20,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
+  const isDark = useColorScheme() === "dark";
+  const placeholderColor = isDark ? colors.dark.textMuted : colors.light.textMuted;
 
   async function handleSubmit() {
     if (!email || !password) return;
@@ -68,7 +71,10 @@ export default function LoginScreen() {
           >
             Cliphy
           </Text>
-          <Text className="text-sm text-[#6b7280] mt-1" style={{ fontFamily: "DMSans" }}>
+          <Text
+            className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-1"
+            style={{ fontFamily: "DMSans" }}
+          >
             YouTube summaries, instantly
           </Text>
         </View>
@@ -76,25 +82,30 @@ export default function LoginScreen() {
         {/* Email/Password Form */}
         <View className="gap-3 mb-4">
           <TextInput
-            className="px-4 py-3 text-sm border-2 border-black dark:border-[#505050] rounded-lg bg-[#f3f4f6] dark:bg-[#333333] text-[#111827] dark:text-white"
+            className="px-4 py-3.5 text-base border-2 border-black dark:border-[#505050] rounded-lg bg-[#f3f4f6] dark:bg-[#333333] text-[#111827] dark:text-white"
             style={{ fontFamily: "DMSans" }}
             placeholder="Email"
-            placeholderTextColor={colors.light.textMuted}
+            placeholderTextColor={placeholderColor}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
+            returnKeyType="next"
+            accessibilityLabel="Email address"
           />
           <TextInput
-            className="px-4 py-3 text-sm border-2 border-black dark:border-[#505050] rounded-lg bg-[#f3f4f6] dark:bg-[#333333] text-[#111827] dark:text-white"
+            className="px-4 py-3.5 text-base border-2 border-black dark:border-[#505050] rounded-lg bg-[#f3f4f6] dark:bg-[#333333] text-[#111827] dark:text-white"
             style={{ fontFamily: "DMSans" }}
             placeholder="Password"
-            placeholderTextColor={colors.light.textMuted}
+            placeholderTextColor={placeholderColor}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+            accessibilityLabel="Password"
           />
         </View>
 
@@ -108,14 +119,17 @@ export default function LoginScreen() {
             ...brutalShadowSm(),
           }}
         >
-          <Text className="text-white font-bold text-sm" style={{ fontFamily: "DMSans" }}>
-            {loading ? "..." : mode === "signup" ? "Sign Up" : "Sign In"}
+          <Text className="text-white font-bold text-base" style={{ fontFamily: "DMSans" }}>
+            {loading ? "Signing in\u2026" : mode === "signup" ? "Sign Up" : "Sign In"}
           </Text>
         </Pressable>
 
         {/* Toggle mode */}
         <Pressable onPress={() => setMode(mode === "signin" ? "signup" : "signin")}>
-          <Text className="text-center text-sm text-[#6b7280]" style={{ fontFamily: "DMSans" }}>
+          <Text
+            className="text-center text-sm text-[#6b7280] dark:text-[#9ca3af]"
+            style={{ fontFamily: "DMSans" }}
+          >
             {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
             <Text className="font-bold" style={{ color: neon[600] }}>
               {mode === "signin" ? "Sign up" : "Sign in"}
@@ -138,7 +152,7 @@ export default function LoginScreen() {
           style={brutalShadowSm()}
         >
           <Text
-            className="font-bold text-sm text-[#111827] dark:text-white"
+            className="font-bold text-base text-[#111827] dark:text-white"
             style={{ fontFamily: "DMSans" }}
           >
             Continue with Google

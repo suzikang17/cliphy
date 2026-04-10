@@ -1,5 +1,6 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, useColorScheme } from "react-native";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
@@ -11,22 +12,37 @@ const STATUS_LABELS: Record<string, { label: string; color: string; darkColor: s
   failed: { label: "Failed", color: "#dc2626", darkColor: "#f87171" },
 };
 
+const STATUS_HINT: Record<string, string> = {
+  pending: "Waiting in queue\u2026",
+  processing: "Still summarizing — check back soon",
+  failed: "Summarization failed",
+};
+
 export function QueueCard({ item }: { item: Summary }) {
   const router = useRouter();
+  const isDark = useColorScheme() === "dark";
   const status = STATUS_LABELS[item.status] ?? STATUS_LABELS.pending;
+  const statusColor = isDark ? status.darkColor : status.color;
+
+  function handlePress() {
+    if (item.status === "completed") {
+      router.push(`/summary/${item.id}`);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
 
   return (
     <Pressable
-      onPress={() => {
-        if (item.status === "completed") {
-          router.push(`/summary/${item.id}`);
-        }
-      }}
+      onPress={handlePress}
       className="border-2 border-black dark:border-[#505050] rounded-lg p-3 bg-[#f9fafb] dark:bg-[#282828]"
       style={brutalShadowSm()}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.videoTitle || item.videoId}, ${status.label}`}
+      accessibilityHint={item.status === "completed" ? "Opens summary" : STATUS_HINT[item.status]}
     >
       <Text
-        className="text-sm font-bold text-[#111827] dark:text-white"
+        className="text-base font-bold text-[#111827] dark:text-white"
         style={{ fontFamily: "DMSans" }}
         numberOfLines={2}
       >
@@ -34,17 +50,20 @@ export function QueueCard({ item }: { item: Summary }) {
       </Text>
 
       {item.videoChannel && (
-        <Text className="text-xs text-[#6b7280] mt-0.5" style={{ fontFamily: "DMSans" }}>
+        <Text
+          className="text-xs text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
+          style={{ fontFamily: "DMSans" }}
+        >
           {item.videoChannel}
         </Text>
       )}
 
       <View className="flex-row items-center justify-between mt-2">
-        <View className="flex-row items-center gap-1">
-          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
+        <View className="flex-row items-center gap-1.5">
+          <View className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
           <Text
             className="text-xs font-medium"
-            style={{ fontFamily: "DMSans", color: status.color }}
+            style={{ fontFamily: "DMSans", color: statusColor }}
           >
             {status.label}
           </Text>

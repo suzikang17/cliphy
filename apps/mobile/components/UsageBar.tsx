@@ -7,7 +7,10 @@ export function UsageBar({ usage }: { usage: UsageInfo | null }) {
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
 
   return (
-    <View className="px-4 py-3 border-t border-[#e5e7eb] dark:border-[#2a2a2a] bg-white dark:bg-[#1e1e1e]">
+    <View
+      className="px-4 py-3 border-t border-[#e5e7eb] dark:border-[#2a2a2a] bg-white dark:bg-[#1e1e1e]"
+      accessibilityLabel={`${usage.used} of ${usage.limit} summaries used, ${usage.plan} plan`}
+    >
       <View className="flex-row justify-between mb-1.5">
         <Text className="text-xs text-[#6b7280]" style={{ fontFamily: "DMSans" }}>
           {usage.used}/{usage.limit} summaries

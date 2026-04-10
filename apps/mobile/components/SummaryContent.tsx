@@ -6,8 +6,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <View className="mb-5">
       <Text
-        className="text-xs font-bold text-[#6b7280] uppercase tracking-wide mb-2"
+        className="text-xs font-bold text-[#6b7280] dark:text-[#9ca3af] uppercase tracking-wide mb-2"
         style={{ fontFamily: "DMSans" }}
+        accessibilityRole="header"
       >
         {title}
       </Text>
@@ -25,7 +26,7 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       {/* TL;DR */}
       <Section title="Summary">
         <Text
-          className="text-sm text-[#1f2937] dark:text-[#f0f0f0] leading-5"
+          className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
           style={{ fontFamily: "DMSans" }}
         >
           {json.summary}
@@ -35,17 +36,17 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       {/* Key Points */}
       {json.keyPoints && json.keyPoints.length > 0 && (
         <Section title="Highlights">
-          <View className="gap-2">
+          <View className="gap-2.5">
             {json.keyPoints.map((point, i) => (
               <View key={i} className="flex-row gap-2">
                 <Text
-                  className="text-sm font-bold"
+                  className="text-base font-bold"
                   style={{ fontFamily: "DMSans", color: neon[600] }}
                 >
                   {"\u2022"}
                 </Text>
                 <Text
-                  className="text-sm text-[#1f2937] dark:text-[#f0f0f0] leading-5 flex-1"
+                  className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6 flex-1"
                   style={{ fontFamily: "DMSans" }}
                 >
                   {point}
@@ -59,11 +60,11 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       {/* Context Section */}
       {json.contextSection && (
         <Section title={`${json.contextSection.icon} ${json.contextSection.title}`}>
-          <View className="gap-1.5">
+          <View className="gap-2">
             {json.contextSection.items?.map((item, i) => (
               <Text
                 key={i}
-                className="text-sm text-[#1f2937] dark:text-[#f0f0f0]"
+                className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
                 style={{ fontFamily: "DMSans" }}
               >
                 {item}
@@ -76,7 +77,7 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       {/* Timestamps */}
       {json.timestamps && json.timestamps.length > 0 && (
         <Section title="Timestamps">
-          <View className="gap-1.5">
+          <View className="gap-2">
             {json.timestamps.map((ts, i) => (
               <Pressable
                 key={i}
@@ -87,6 +88,9 @@ export function SummaryContent({ summary }: { summary: Summary }) {
                     Linking.openURL(`${summary.videoUrl}&t=${seconds}`);
                   }
                 }}
+                style={{ minHeight: 44, justifyContent: "center" }}
+                accessibilityRole="link"
+                accessibilityLabel={`Jump to ${ts}`}
               >
                 <Text className="text-sm" style={{ fontFamily: "DMSans", color: neon[600] }}>
                   {ts}

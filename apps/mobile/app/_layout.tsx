@@ -1,7 +1,8 @@
 import "../global.css";
 import { useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, View, useColorScheme } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
+import { colors } from "@cliphy/shared";
 import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
@@ -94,7 +95,14 @@ export default function RootLayout() {
     }
   }, [shareIntent, session, resetShareIntent]);
 
+  const colorScheme = useColorScheme();
+  const bg = colorScheme === "dark" ? colors.dark.surface : colors.light.surface;
+
   if (!fontsLoaded || !initialized) return null;
 
-  return <Slot />;
+  return (
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      <Slot />
+    </View>
+  );
 }

@@ -39,6 +39,28 @@
           "androidIntentFilters": ["text/*"]
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "com.cliphy.app.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.com.cliphy.app"]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "5af71f4e-b1ca-4cc7-b38d-791e6c965e49"
+      }
+    },
+    "owner": "cliphy"
   }
 }
