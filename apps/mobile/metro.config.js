@@ -36,4 +36,16 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   );
 };
 
+// Inject polyfills before any app code (Metro guarantees this order)
+const defaultGetPolyfills = config.serializer.getPolyfills;
+config.serializer.getPolyfills = (options) => {
+  const polyfills = defaultGetPolyfills
+    ? defaultGetPolyfills(options)
+    : [];
+  return [
+    path.resolve(projectRoot, "polyfills.js"),
+    ...polyfills,
+  ];
+};
+
 module.exports = withNativeWind(config, { input: "./global.css" });
