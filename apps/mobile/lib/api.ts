@@ -2,7 +2,7 @@ import { getAccessToken } from "./auth";
 import { supabase } from "./supabase";
 import type { Summary, UsageInfo } from "@cliphy/shared";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL!;
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export class AuthError extends Error {
   constructor(message = "Session expired") {

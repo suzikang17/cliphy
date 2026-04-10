@@ -39,7 +39,6 @@ export default function QueueScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
-      {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-[#e5e7eb] dark:border-[#2a2a2a]">
         <Logo size={28} />
         <Text

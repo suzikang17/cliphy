@@ -1,10 +1,6 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 
-export default function HomeScreen() {
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold", color: "#9358c7" }}>Cliphy</Text>
-      <Text style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>It works!</Text>
-    </View>
-  );
+// Root index is a blank screen — _layout.tsx auth gate handles routing
+export default function Index() {
+  return <View className="flex-1 bg-white dark:bg-[#1e1e1e]" />;
 }
