@@ -1,8 +1,3 @@
-// Polyfill SharedArrayBuffer for Supabase on Hermes/Expo Go
-if (typeof globalThis.SharedArrayBuffer === "undefined") {
-  globalThis.SharedArrayBuffer = ArrayBuffer as typeof SharedArrayBuffer;
-}
-
 import "../global.css";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
