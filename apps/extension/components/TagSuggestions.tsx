@@ -47,7 +47,7 @@ export function TagSuggestions({
   }
 
   return (
-    <div className="mt-2 border-t border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+    <div className="mt-2 border-t border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-1 flex items-center gap-1 flex-wrap">
       <span className="text-[10px] text-green-700 dark:text-green-400 font-bold mr-1 shrink-0">
         ✨ Add tags:
       </span>

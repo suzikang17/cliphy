@@ -1,10 +1,26 @@
+import { copyFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateReportFromFile } from "./report.js";
+import { generateReportFromFile, generateIndex } from "./report.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const resultsJson = resolve(__dirname, "results/latest.json");
+const resultsDir = resolve(__dirname, "results");
+
+// Timestamped filename: 2026-03-03_21-45.json
+const now = new Date();
+const stamp = [
+  now.getFullYear(),
+  "-",
+  String(now.getMonth() + 1).padStart(2, "0"),
+  "-",
+  String(now.getDate()).padStart(2, "0"),
+  "_",
+  String(now.getHours()).padStart(2, "0"),
+  "-",
+  String(now.getMinutes()).padStart(2, "0"),
+].join("");
+const resultsJson = resolve(resultsDir, `${stamp}.json`);
 
 const args = process.argv.slice(2);
 const judgeIdx = args.indexOf("--judge");
@@ -46,6 +62,14 @@ try {
   // Promptfoo exits non-zero when tests fail — that's expected
 }
 
-// Generate HTML report from the JSON output
+// Copy to latest.json for convenience
+const latestJson = resolve(resultsDir, "latest.json");
+copyFileSync(resultsJson, latestJson);
+
+// Generate individual HTML report + index
 const htmlPath = generateReportFromFile(resultsJson);
+generateReportFromFile(latestJson);
+const indexPath = generateIndex(resultsDir);
+
 console.log(`\nReport: ${htmlPath}`);
+console.log(`Index:  ${indexPath}`);

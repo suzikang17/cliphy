@@ -185,17 +185,22 @@ async function runOneOff(url: string, save: boolean) {
   console.log(`Fetching transcript for ${videoId}...`);
 
   let transcript: string;
+  let videoTitle: string | null = null;
+  let durationSeconds: number | null = null;
   try {
-    transcript = (await fetchTranscript(videoId)).text;
+    const result = await fetchTranscript(videoId);
+    transcript = result.text;
+    videoTitle = result.title;
+    durationSeconds = result.durationSeconds;
   } catch (err) {
     console.error(`\nFailed to fetch transcript: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
 
-  console.log(`Transcript: ${transcript.length} chars`);
+  const title = videoTitle ?? `Video ${videoId}`;
+  console.log(`"${title}" — ${transcript.length} chars, ${durationSeconds ?? "?"}s`);
 
-  const title = `Video ${videoId}`;
-  const fixture: Fixture = { videoId, title, category: "one-off", transcript };
+  const fixture: Fixture = { videoId, title, category: "one-off", durationSeconds, transcript };
 
   console.log("Summarizing...");
   const result = await evalFixture(fixture);

@@ -1,7 +1,7 @@
 import { logger } from "../lib/logger.js";
 import { fetchViaProxy } from "../lib/proxy.js";
 
-const MAX_TRANSCRIPT_LENGTH = 250_000;
+export const MAX_TRANSCRIPT_LENGTH = 250_000;
 
 // Non-speech markers YouTube inserts into auto-generated captions
 const NON_SPEECH_PATTERN = /\[.*?\]/g;

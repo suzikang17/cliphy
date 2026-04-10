@@ -22,7 +22,7 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 
 **Detailed description:**
 
-> Cliphy saves you time by summarizing YouTube videos with AI. Click any YouTube video, hit "Summarize", and get a clean summary in seconds — no need to watch the whole thing.
+> Cliphy saves you time by summarizing YouTube videos with AI. Click a YouTube video, hit "Summarize", and get a clean summary in seconds — no need to watch the whole thing.
 >
 > HOW IT WORKS
 >
@@ -34,24 +34,30 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 > FEATURES
 >
 > - AI-powered summaries using Claude by Anthropic
-> - Key points, action items, and timestamps extracted automatically
+> - Key points, action items, and clickable timestamps
 > - Click timestamps to jump to that point in the video
 > - Queue multiple videos and summarize them in the background
+> - Copy summaries as plain text or Markdown
+> - Tag and organize your summaries in Cliphub, your full-page archive
+> - ✨ AI auto-tagging: select summaries and let AI suggest tags from your existing tags or create new ones (Pro)
+> - Search, filter by tag, and sort your summary history
 > - Right-click any YouTube video to add it from the context menu
 > - Keyboard shortcut: press "A" to quickly add the current video
+> - Real-time status updates as summaries are processed
 > - Track how much time you've saved
 >
 > FREE PLAN
 >
-> - 5 summaries per day
+> - 5 summaries per month
 > - 7-day summary history
+> - Up to 3 tags
 >
 > PRO PLAN
 >
-> - 100 summaries per day
+> - 100 summaries per month
 > - Unlimited history
-> - Batch queue from playlists
-> - Priority processing
+> - Unlimited tags
+> - ✨ AI auto-tagging
 >
 > Cliphy only runs on YouTube — it does not access any other websites or track your browsing.
 

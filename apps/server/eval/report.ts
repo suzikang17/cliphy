@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 
 // --- Types matching Promptfoo JSON output ---
 
@@ -50,18 +50,25 @@ interface ComponentResult {
 interface ParsedSummary {
   summary?: string;
   keyPoints?: string[];
+  contextSection?: {
+    title: string;
+    icon: string;
+    items: string[];
+    groups?: { label: string; items: string[] }[];
+  } | null;
   timestamps?: string[];
   actionItems?: string[];
 }
 
 // --- Config ---
 
-const METRICS = ["Accuracy", "Conciseness", "Actionability", "TimestampQuality"];
+const METRICS = ["Faithfulness", "Usefulness", "Timestamps", "ContextSection", "Readability"];
 const SHORT = {
-  Accuracy: "Acc",
-  Conciseness: "Con",
-  Actionability: "Act",
-  TimestampQuality: "TS",
+  Faithfulness: "Faith",
+  Usefulness: "Use",
+  Timestamps: "TS",
+  ContextSection: "Ctx",
+  Readability: "Read",
 } as Record<string, string>;
 
 // --- Helpers ---
@@ -97,6 +104,24 @@ function renderOutput(raw: string): string {
     parts.push(
       `<div class="label">Key Points</div><ul>${parsed.keyPoints.map((k) => `<li>${esc(k)}</li>`).join("")}</ul>`,
     );
+  }
+  if (parsed.contextSection) {
+    const cs = parsed.contextSection;
+    if (cs.groups?.length) {
+      parts.push(
+        `<div class="label">${esc(cs.icon)} ${esc(cs.title)}</div>` +
+          cs.groups
+            .map(
+              (g) =>
+                `<div class="label" style="font-size:.65rem;margin-top:.4rem">${esc(g.label)}</div><ul>${g.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`,
+            )
+            .join(""),
+      );
+    } else if (cs.items?.length) {
+      parts.push(
+        `<div class="label">${esc(cs.icon)} ${esc(cs.title)}</div><ul>${cs.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`,
+      );
+    }
   }
   if (parsed.timestamps?.length) {
     parts.push(
@@ -158,15 +183,15 @@ h1{font-size:1.4rem;font-weight:600}
 .meta{color:#64748b;font-size:.8rem;margin-top:.3rem;display:flex;gap:1.2rem}
 
 /* Cards */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem;margin:1.5rem 0}
-.card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1.25rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:1rem;margin:1.5rem 0}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1.25rem;overflow:hidden}
 .card.win{border-color:#22c55e;box-shadow:0 0 0 1px #22c55e}
-.card h2{font-size:1rem;font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.card h2{font-size:1rem;font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{font-size:.65rem;padding:.1rem .4rem;border-radius:9999px;background:#f0fdf4;color:#16a34a}
-.card-stats{display:flex;gap:1rem;font-size:.75rem;color:#64748b;margin-bottom:.6rem}
-.card-scores{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem}
-.card-score{text-align:center;padding:.35rem;border-radius:.375rem}
-.card-score .lbl{font-size:.6rem;color:#64748b;text-transform:uppercase;letter-spacing:.03em}
+.card-stats{display:flex;gap:1rem;font-size:.75rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap}
+.card-scores{display:flex;gap:.4rem;flex-wrap:wrap}
+.card-score{text-align:center;padding:.35rem .5rem;border-radius:.375rem;flex:1;min-width:60px}
+.card-score .lbl{font-size:.6rem;color:#64748b;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
 .card-score .val{font-size:1.05rem;font-weight:600;margin-top:.1rem}
 
 /* Heatmap */
@@ -181,6 +206,8 @@ td.sc{font-weight:600}
 td.sep,th.sep{border-left:2px solid #cbd5e1}
 tr.row{cursor:pointer}
 tr.row:hover td{background:#f8fafc}
+tr.row td:first-child::before{content:"▶ ";font-size:.6rem;color:#94a3b8}
+tr.row.expanded td:first-child::before{content:"▼ "}
 
 /* Detail panel */
 .det{display:none}
@@ -277,7 +304,7 @@ ${tests
     const cols = prompts
       .map((_, pi) => {
         const item = (byPrompt.get(pi) ?? []).find((r) => r.testIdx === ti);
-        if (!item)
+        if (!item || !item.gradingResult)
           return METRICS.map((_, mi) => `    <td${mi === 0 && pi > 0 ? ' class="sep"' : ""}>-</td>`)
             .concat(["    <td>-</td>"])
             .join("\n");
@@ -317,7 +344,7 @@ ${tests
       .join("\n");
 
     const totalCols = 1 + prompts.length * (METRICS.length + 1);
-    return `  <tr class="row" onclick="document.getElementById('${id}').classList.toggle('open')">
+    return `  <tr class="row" onclick="this.classList.toggle('expanded');document.getElementById('${id}').classList.toggle('open')">
     <td>${esc(desc)}</td>
 ${cols}
   </tr>
@@ -349,6 +376,149 @@ export function generateReportFromFile(jsonPath: string): string {
   return htmlPath;
 }
 
+// --- Index page listing all runs ---
+
+interface RunSummary {
+  file: string;
+  evalId: string;
+  timestamp: string;
+  categories: string; // e.g. "explainer ×2, short ×1"
+  tests: number;
+  passed: number;
+  failed: number;
+  scores: Record<string, Record<string, number>>; // prompt → metric → score
+  cost: number;
+}
+
+function loadRunSummary(jsonPath: string): RunSummary | null {
+  try {
+    const data: PromptfooOutput = JSON.parse(readFileSync(jsonPath, "utf8"));
+    const { prompts, stats } = data.results;
+    const scores: Record<string, Record<string, number>> = {};
+    for (const p of prompts) {
+      scores[p.label] = {};
+      for (const m of METRICS) {
+        scores[p.label][m] = p.metrics.namedScores[m] ?? 0;
+      }
+    }
+
+    // Extract categories from test descriptions like "[explainer] Title"
+    const catCounts = new Map<string, number>();
+    const seenTests = new Set<number>();
+    for (const item of data.results.results) {
+      if (seenTests.has(item.testIdx)) continue;
+      seenTests.add(item.testIdx);
+      const match = item.testCase.description.match(/^\[(\w+)\]/);
+      if (match) catCounts.set(match[1], (catCounts.get(match[1]) ?? 0) + 1);
+    }
+    const categories = [...catCounts.entries()].map(([cat, n]) => `${cat} ×${n}`).join(", ");
+
+    return {
+      file: basename(jsonPath).replace(/\.json$/, ".html"),
+      evalId: data.evalId,
+      timestamp: data.results.timestamp,
+      categories,
+      tests: stats.successes + stats.failures + stats.errors,
+      passed: stats.successes,
+      failed: stats.failures,
+      scores,
+      cost: prompts.reduce((sum, p) => sum + p.metrics.cost, 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function generateIndex(resultsDir: string): string {
+  const files = readdirSync(resultsDir)
+    .filter((f) => f.endsWith(".json") && f !== "latest.json")
+    .sort()
+    .reverse();
+
+  // Ensure each JSON has a matching HTML report
+  for (const f of files) {
+    const htmlFile = f.replace(/\.json$/, ".html");
+    if (!readdirSync(resultsDir).includes(htmlFile)) {
+      try {
+        generateReportFromFile(resolve(resultsDir, f));
+      } catch {
+        // Skip files that aren't valid promptfoo output
+      }
+    }
+  }
+
+  const runs = files
+    .map((f) => loadRunSummary(resolve(resultsDir, f)))
+    .filter(Boolean) as RunSummary[];
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eval Runs</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;color:#1e293b;padding:2rem;max-width:1200px;margin:0 auto;font-size:14px}
+h1{font-size:1.4rem;font-weight:600;margin-bottom:1.5rem}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;overflow:hidden}
+th{background:#f8fafc;padding:.6rem .8rem;text-align:left;font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b;border-bottom:1px solid #e2e8f0}
+th.sc{text-align:center}
+td{padding:.6rem .8rem;border-bottom:1px solid #f1f5f9;font-size:.8rem}
+td.sc{text-align:center;font-weight:600}
+tr:hover td{background:#f8fafc}
+a{color:#2563eb;text-decoration:none}
+a:hover{text-decoration:underline}
+.pass{color:#16a34a}.fail{color:#dc2626}
+.meta{color:#64748b;font-size:.75rem}
+</style></head><body>
+<h1>Eval Runs</h1>
+${
+  runs.length === 0
+    ? "<p>No runs yet.</p>"
+    : `<table>
+<thead><tr>
+  <th style="min-width:10rem">Date</th>
+  <th>Tests</th>
+  <th>Result</th>
+  <th>Categories</th>
+${METRICS.map((m) => `  <th class="sc" title="${esc(m)}">${SHORT[m] ?? esc(m)}</th>`).join("\n")}
+  <th class="sc">Cost</th>
+</tr></thead>
+<tbody>
+${runs
+  .map((r) => {
+    const date = new Date(r.timestamp).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    // Show scores for the first prompt (or average across prompts)
+    const avgScores: Record<string, number> = {};
+    for (const m of METRICS) {
+      const vals = Object.values(r.scores).map((s) => s[m] ?? 0);
+      avgScores[m] = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+    }
+    return `<tr>
+  <td><a href="${esc(r.file)}">${date}</a></td>
+  <td>${r.tests}</td>
+  <td><span class="pass">${r.passed}P</span> <span class="fail">${r.failed}F</span></td>
+  <td class="meta">${esc(r.categories)}</td>
+${METRICS.map((m) => {
+  const s = avgScores[m];
+  return `  <td class="sc" style="color:${scoreColor(s)}">${s.toFixed(2)}</td>`;
+}).join("\n")}
+  <td class="sc meta">$${r.cost.toFixed(3)}</td>
+</tr>`;
+  })
+  .join("\n")}
+</tbody></table>`
+}
+</body></html>`;
+
+  const indexPath = resolve(resultsDir, "index.html");
+  writeFileSync(indexPath, html);
+  return indexPath;
+}
+
 // CLI
 if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
   const jsonPath = process.argv[2];
@@ -356,6 +526,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename
     console.error("Usage: tsx apps/server/eval/report.ts <path-to-results.json>");
     process.exit(1);
   }
-  const htmlPath = generateReportFromFile(resolve(jsonPath));
+  const absPath = resolve(jsonPath);
+  const htmlPath = generateReportFromFile(absPath);
+  const indexPath = generateIndex(dirname(absPath));
   console.log(`Report: ${htmlPath}`);
+  console.log(`Index:  ${indexPath}`);
 }

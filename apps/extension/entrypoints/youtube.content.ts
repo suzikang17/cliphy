@@ -51,7 +51,10 @@ export default defineContentScript({
 
       const duration = getDuration();
 
-      return { videoId, title, url, channel, duration };
+      // .ytp-live class is only present on active livestreams, not past VODs
+      const isLive = document.querySelector(".ytp-live") !== null;
+
+      return { videoId, title, url, channel, duration, isLive };
     }
 
     function isVideoPage(): boolean {
@@ -109,6 +112,7 @@ export default defineContentScript({
         url: window.location.href,
         channel: null,
         duration: null,
+        isLive: false,
       });
 
       // Poll until YouTube updates the DOM (title change = reliable signal)

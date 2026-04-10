@@ -451,7 +451,7 @@ export function App() {
         onAutoTagDismiss={handleAutoTagDismiss}
       />
       {autoTagResults.size > 0 && (
-        <div className="sticky bottom-16 mx-auto max-w-2xl bg-(--color-surface-raised) border border-(--color-border-soft) rounded-xl px-4 py-3 shadow-brutal-sm flex items-center justify-between z-10 mb-2">
+        <div className="sticky bottom-16 mx-auto max-w-2xl bg-white dark:bg-(--color-surface-raised) border-2 border-(--color-border-hard) rounded-xl px-4 py-3 shadow-brutal-sm flex items-center justify-between z-10 mb-2">
           <span className="text-sm text-(--color-text)">
             ✨ {autoTagResults.size} {autoTagResults.size === 1 ? "summary has" : "summaries have"}{" "}
             pending tag suggestions
@@ -459,13 +459,13 @@ export function App() {
           <div className="flex gap-2">
             <button
               onClick={handleDismissAllAutoTags}
-              className="text-sm text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 px-2 py-1 cursor-pointer"
+              className="text-sm font-bold text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 px-2 py-1 cursor-pointer transition-colors"
             >
               Dismiss all
             </button>
             <button
               onClick={handleApplyAllAutoTags}
-              className="text-sm bg-neon-600 text-white px-4 py-1.5 rounded-lg border-0 cursor-pointer hover:bg-neon-700 transition-colors"
+              className="text-sm font-bold bg-neon-100 dark:bg-neon-900/50 hover:bg-neon-200 dark:hover:bg-neon-900/70 text-(--color-text) px-4 py-1.5 rounded-lg border-2 border-(--color-border-hard) shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
             >
               Apply all
             </button>
@@ -582,8 +582,6 @@ function Toolbar({
   );
 }
 
-const MAX_VISIBLE_TAGS = 8;
-
 function TagChips({
   tags,
   filterTag,
@@ -595,11 +593,6 @@ function TagChips({
   onFilterTag: (tag: string | null) => void;
   inline?: boolean;
 }) {
-  const visible = tags.slice(0, MAX_VISIBLE_TAGS);
-  const overflow = tags.slice(MAX_VISIBLE_TAGS);
-  // If the active filter is in overflow, always show it in visible chips
-  const activeInOverflow = filterTag && overflow.includes(filterTag);
-
   const chipClass = (tag: string) =>
     `text-[10px] font-bold px-2 py-0.5 rounded-full border-2 cursor-pointer transition-all ${
       filterTag === tag
@@ -609,12 +602,7 @@ function TagChips({
 
   return (
     <div className={`flex flex-wrap gap-1.5 ${inline ? "" : "mb-4"}`}>
-      {activeInOverflow && (
-        <button onClick={() => onFilterTag(null)} className={chipClass(filterTag)}>
-          {filterTag}
-        </button>
-      )}
-      {visible.map((tag) => (
+      {tags.map((tag) => (
         <button
           key={tag}
           onClick={() => onFilterTag(filterTag === tag ? null : tag)}
@@ -623,20 +611,6 @@ function TagChips({
           {tag}
         </button>
       ))}
-      {overflow.length > 0 && (
-        <select
-          value={filterTag && overflow.includes(filterTag) ? filterTag : ""}
-          onChange={(e) => onFilterTag(e.target.value || null)}
-          className="text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-(--color-border-hard) bg-(--color-surface) text-(--color-text-secondary) shadow-brutal-sm cursor-pointer"
-        >
-          <option value="">+{overflow.length} more</option>
-          {overflow.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </select>
-      )}
     </div>
   );
 }
@@ -934,7 +908,7 @@ function SummaryCard({
       {/* Delete button — visible on hover */}
       <button
         onClick={handleDeleteClick}
-        className={`absolute right-2 bottom-2 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-transparent cursor-pointer transition-all ${
+        className={`absolute right-2 bottom-2 text-[10px] font-bold px-1.5 py-0.5 rounded border bg-transparent cursor-pointer transition-all ${autoTagResult ? "hidden" : ""} ${
           confirmDelete
             ? "border-red-400 text-red-600 opacity-100"
             : "border-transparent text-(--color-text-faint) opacity-0 group-hover:opacity-100 hover:text-red-500"
