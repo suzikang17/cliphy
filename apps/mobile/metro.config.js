@@ -14,4 +14,26 @@ config.resolver.nodeModulesPaths = [
 ];
 config.resolver.disableHierarchicalLookup = true;
 
+// Resolve .js imports to .ts files (shared package uses ESM .js extensions)
+const originalResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.endsWith(".js")) {
+    const tsName = moduleName.replace(/\.js$/, ".ts");
+    try {
+      return (originalResolveRequest || context.resolveRequest)(
+        context,
+        tsName,
+        platform,
+      );
+    } catch {
+      // Fall through to default resolution
+    }
+  }
+  return (originalResolveRequest || context.resolveRequest)(
+    context,
+    moduleName,
+    platform,
+  );
+};
+
 module.exports = withNativeWind(config, { input: "./global.css" });
