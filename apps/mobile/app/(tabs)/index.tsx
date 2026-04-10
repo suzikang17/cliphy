@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { View, Text, FlatList, RefreshControl, SafeAreaView } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, FlatList, RefreshControl, SafeAreaView, AppState, Alert } from "react-native";
 import type { Summary, UsageInfo } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
-import { getQueue, getUsage } from "../../lib/api";
+import { getQueue, getUsage, addToQueue } from "../../lib/api";
+import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { QueueCard } from "../../components/QueueCard";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
@@ -35,6 +36,38 @@ export default function QueueScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
+  }, [fetchData]);
+
+  // Clipboard YouTube URL detection on app focus
+  const lastClipboardUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (state) => {
+      if (state !== "active") return;
+
+      const url = await getYouTubeUrlFromClipboard();
+      if (!url || url === lastClipboardUrl.current) return;
+
+      lastClipboardUrl.current = url;
+
+      Alert.alert("YouTube link detected", "Add this video to your queue?", [
+        { text: "No", style: "cancel" },
+        {
+          text: "Add",
+          onPress: async () => {
+            try {
+              const res = await addToQueue({ videoUrl: url });
+              Alert.alert("Added!", res.summary.videoTitle || "Video queued");
+              fetchData();
+            } catch (err: unknown) {
+              Alert.alert("Error", err instanceof Error ? err.message : "Failed to add");
+            }
+          },
+        },
+      ]);
+    });
+
+    return () => subscription.remove();
   }, [fetchData]);
 
   return (
