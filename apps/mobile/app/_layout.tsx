@@ -2,11 +2,8 @@ import "../global.css";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { useFonts } from "expo-font";
-import * as SplashScreen from "expo-splash-screen";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-
-SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -45,12 +42,6 @@ export default function RootLayout() {
       router.replace("/(tabs)");
     }
   }, [session, initialized, fontsLoaded, segments, router]);
-
-  useEffect(() => {
-    if (fontsLoaded && initialized) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, initialized]);
 
   if (!fontsLoaded || !initialized) return null;
 
