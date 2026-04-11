@@ -59,7 +59,7 @@ app.on(
   serve({
     client: inngest,
     functions: [summarizeVideo],
-    serveHost: process.env.INNGEST_SERVE_HOST || "https://cliphy.vercel.app",
+    serveHost: process.env.INNGEST_SERVE_HOST || "https://cliphy.app",
     servePath: "/api/inngest",
   }),
 );

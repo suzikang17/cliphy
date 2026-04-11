@@ -5,9 +5,10 @@
   "scripts": {
     "dev:extension": "pnpm --filter extension dev",
     "dev:server": "pnpm --filter server dev",
-    "dev:mobile": "pnpm --filter mobile start",
+    "dev:mobile": "cd apps/mobile && npx expo start --dev-client",
     "build:extension": "pnpm --filter extension build",
     "build:server": "pnpm --filter server build",
+    "build:mobile": "cd apps/mobile && npx expo run:ios --device --configuration Release",
     "prepare": "husky",
     "lint": "eslint .",
     "format": "prettier --write .",

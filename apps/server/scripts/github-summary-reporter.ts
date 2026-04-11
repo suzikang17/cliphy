@@ -20,7 +20,7 @@ export default class GithubSummaryReporter implements Reporter {
     const summaryPath = process.env.GITHUB_STEP_SUMMARY;
     if (!summaryPath) return;
 
-    const apiBase = process.env.API_BASE_URL ?? "https://cliphy.vercel.app";
+    const apiBase = process.env.API_BASE_URL ?? "https://cliphy.app";
     const passed = this.results.filter((t) => t.passed).length;
 
     const lines = [

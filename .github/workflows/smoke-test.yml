@@ -6,7 +6,7 @@ on:
       api_base_url:
         description: "API base URL to test"
         required: false
-        default: "https://cliphy.vercel.app"
+        default: "https://cliphy.app"
         type: string
 
 jobs:
