@@ -36,10 +36,15 @@ Monorepo with pnpm workspaces:
 
 ## Commands
 
+- `pnpm dev` — Web app + local API server (port 5173 + 3001)
+- `pnpm dev:prodApi` — Web app against prod API (cliphy.app)
+- `pnpm dev:all` — Web app + API server + extension
+- `pnpm dev:server` — API server only (port 3001)
 - `pnpm dev:extension` — Build extension in watch mode (output: `apps/extension/.output/chrome-mv3`). Load unpacked in Chrome via `chrome://extensions`.
-- `pnpm dev:server` — Run API server in dev mode (port 3000)
-- `pnpm --filter extension build` — Build extension for production
-- `pnpm --filter server build` — Build server
+- `pnpm dev:mobile` — Expo dev client
+- `pnpm build:web` — Build web app for production
+- `pnpm build:extension` — Build extension for production
+- `pnpm build:server` — Build server
 - `pnpm lint` — ESLint
 - `pnpm format` — Prettier
 - `pnpm test:unit` — Unit tests (Vitest)

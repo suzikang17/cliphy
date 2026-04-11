@@ -1,6 +1,6 @@
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import type { Runtime } from "wxt/browser";
-import { parseDurationToSeconds } from "@cliphy/shared";
+import { parseDurationToSeconds, WEB_ROUTES } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { BatchTabsButton } from "../../components/BatchTabsButton";
 import { Logo } from "../../components/Logo";
@@ -483,8 +483,8 @@ export function App() {
   }
 
   function handleOpenSummary(id: string) {
-    const url = browser.runtime.getURL(`/summaries.html#/summary/${id}`);
-    browser.tabs.create({ url });
+    const base = (import.meta.env.VITE_API_URL as string) || "https://cliphy.app";
+    browser.tabs.create({ url: `${base}${WEB_ROUTES.SUMMARY(id)}` });
   }
 
   function handleBack() {
@@ -833,6 +833,7 @@ export function App() {
         {!chatActive && (
           <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
             <ExportBar
+              summaryId={selectedSummary.id}
               copied={copied}
               copyMarkdown={copyMarkdown}
               setCopyMarkdown={setCopyMarkdown}
@@ -917,12 +918,12 @@ export function App() {
               </div>
               <button
                 onClick={() => {
-                  const url = browser.runtime.getURL("/summaries.html");
-                  browser.tabs.create({ url });
+                  const base = (import.meta.env.VITE_API_URL as string) || "https://cliphy.app";
+                  browser.tabs.create({ url: `${base}${WEB_ROUTES.DASHBOARD}` });
                 }}
                 className="text-xs font-bold text-neon-900 bg-neon-200 dark:bg-transparent dark:text-neon-400 border-2 border-(--color-border-hard) rounded-full px-3 py-1 shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all shrink-0"
               >
-                View all
+                Open Cliphy
               </button>
             </div>
           </div>

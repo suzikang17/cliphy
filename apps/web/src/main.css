@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --shadow-brutal: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  --shadow-brutal-sm: 3px 3px 0px 0px rgba(0, 0, 0, 1);
+  --shadow-brutal-hover: 2px 2px 0px 0px rgba(0, 0, 0, 1);
+  --shadow-brutal-pressed: 1px 1px 0px 0px rgba(0, 0, 0, 1);
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f9fafb;
+  --color-surface-raised: #f3f4f6;
+  --color-border-hard: #000000;
+  --color-border-soft: #e5e7eb;
+  --color-border-muted: #d1d5db;
+  --color-text: #111827;
+  --color-text-body: #1f2937;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #6b7280;
+  --color-text-faint: #9ca3af;
+  --color-accent-surface: #f5f0fa;
+  --color-warn-surface: #fffbeb;
+  --color-error-surface: #fef2f2;
+  --color-neon-100: #ede0f8;
+  --color-neon-200: #d5b8f0;
+  --color-neon-400: #b88ae2;
+  --color-neon-500: #a770d8;
+  --color-neon-600: #9358c7;
+  --color-neon-700: #7a3fb0;
+  --color-neon-800: #5e2e8e;
+  --color-neon-900: #221028;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #1e1e1e;
+    --color-surface-secondary: #282828;
+    --color-surface-raised: #333333;
+    --color-border-hard: #505050;
+    --color-border-soft: #2a2a2a;
+    --color-border-muted: #383838;
+    --color-text: #ffffff;
+    --color-text-body: #f0f0f0;
+    --color-text-secondary: #cccccc;
+    --color-text-muted: #b0b0b0;
+    --color-text-faint: #999999;
+    --color-accent-surface: #1e0030;
+    --color-warn-surface: #292000;
+    --color-error-surface: #290000;
+    --shadow-brutal: 4px 4px 0px 0px rgba(255, 255, 255, 0.12);
+    --shadow-brutal-sm: 3px 3px 0px 0px rgba(255, 255, 255, 0.12);
+    --shadow-brutal-hover: 2px 2px 0px 0px rgba(255, 255, 255, 0.12);
+    --shadow-brutal-pressed: 1px 1px 0px 0px rgba(255, 255, 255, 0.12);
+  }
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+@utility press-down {
+  @apply hover:translate-x-[2px] hover:translate-y-[2px] transition-all;
+}

@@ -5,7 +5,12 @@ import type {
   Summary,
   SummaryJson,
 } from "@cliphy/shared";
-import { formatTimeSaved, parseDurationToSeconds, TAG_MAX_LENGTH } from "@cliphy/shared";
+import {
+  formatTimeSaved,
+  parseDurationToSeconds,
+  TAG_MAX_LENGTH,
+  WEB_ROUTES,
+} from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { ChatThread } from "./ChatThread";
 
@@ -263,6 +268,7 @@ function TagEditor({
 }
 
 function ExportBar({
+  summaryId,
   copied,
   copyMarkdown,
   setCopyMarkdown,
@@ -270,6 +276,7 @@ function ExportBar({
   onRetry,
   onDismiss,
 }: {
+  summaryId: string;
   copied: CopyState;
   copyMarkdown: boolean;
   setCopyMarkdown: (v: boolean) => void;
@@ -278,6 +285,7 @@ function ExportBar({
   onDismiss?: () => void;
 }) {
   const [confirmRetry, setConfirmRetry] = useState(false);
+  const [shared, setShared] = useState(false);
 
   function handleRetryClick() {
     if (confirmRetry) {
@@ -307,6 +315,53 @@ function ExportBar({
         Markdown
       </label>
       <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={async () => {
+            const url = `https://cliphy.app${WEB_ROUTES.SUMMARY(summaryId)}`;
+            try {
+              await navigator.clipboard.writeText(url);
+              setShared(true);
+              setTimeout(() => setShared(false), 2000);
+            } catch {
+              // Clipboard API can fail in extension contexts
+            }
+          }}
+          className="text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 dark:hover:bg-neon-900/30 press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-neon-600"
+          title="Copy share link"
+        >
+          {shared ? (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neon-600"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          )}
+        </button>
         {onRetry && (
           <button
             onClick={handleRetryClick}
@@ -520,9 +575,9 @@ export function SummaryDetail({
                 <button
                   onClick={onOpenInTab}
                   className="inline-flex items-center gap-1 text-xs text-(--color-text-muted) hover:text-neon-600 bg-transparent border-0 cursor-pointer p-0 transition-colors"
-                  title="View in Cliphub"
+                  title="View on web"
                 >
-                  View in Cliphub
+                  View on web
                   <svg
                     width="10"
                     height="10"
@@ -833,6 +888,7 @@ export function SummaryDetail({
           {!pinned && (
             <div className="pt-2 border-t border-(--color-border-soft)">
               <ExportBar
+                summaryId={summary.id}
                 copied={copied}
                 copyMarkdown={localCopyMarkdown}
                 setCopyMarkdown={setLocalCopyMarkdown}

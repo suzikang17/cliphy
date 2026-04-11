@@ -72,6 +72,15 @@ export const API_ROUTES = {
   },
 } as const;
 
+export const WEB_ROUTES = {
+  DASHBOARD: "/dashboard",
+  LOGIN: "/login",
+  SUMMARY: (id: string) => `/summary/${id}`,
+  PRICING: "/pricing",
+  TERMS: "/terms",
+  PRIVACY: "/privacy",
+} as const;
+
 export const SUMMARY_STATUSES = {
   PENDING: "pending",
   PROCESSING: "processing",
