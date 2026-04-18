@@ -56,6 +56,11 @@ export interface SeekVideoMessage {
   seconds: number;
 }
 
+// Content script → Background
+export interface OpenSidePanelMessage {
+  type: "OPEN_SIDEPANEL";
+}
+
 export type ExtensionMessage =
   | VideoDetectedMessage
   | GetVideoInfoMessage
@@ -64,4 +69,5 @@ export type ExtensionMessage =
   | SignOutMessage
   | SetupRealtimeMessage
   | SummaryUpdatedMessage
-  | SeekVideoMessage;
+  | SeekVideoMessage
+  | OpenSidePanelMessage;
