@@ -27,12 +27,20 @@ Respond ONLY with the JSON object. No markdown, no code fences, no extra text.`;
 export const SUMMARY_USER_PROMPT = (
   videoTitle: string,
   transcript: string,
-) => `Summarize this YouTube video.
+  summaryLanguage?: string,
+  transcriptLanguage?: string,
+) => {
+  const langInstruction = summaryLanguage ? `\nRespond in ${summaryLanguage}.` : "";
+  const transcriptLabel = transcriptLanguage
+    ? `Transcript (language: ${transcriptLanguage}):`
+    : "Transcript:";
+  return `Summarize this YouTube video.${langInstruction}
 
 Video title: ${videoTitle}
 
-Transcript:
+${transcriptLabel}
 ${transcript}`;
+};
 
 export const TAG_SUGGESTION_SYSTEM_PROMPT = `You are a tag classifier. Given a video summary and a list of existing user tags, suggest which tags apply.
 
@@ -116,6 +124,8 @@ export function chatUserPrompt(
   videoTitle: string,
   transcript: string,
   currentSummary: string,
+  summaryLanguage?: string,
 ): string {
-  return `Video title: ${videoTitle}\n\nCurrent summary:\n${currentSummary}\n\nTranscript:\n${transcript}`;
+  const langInstruction = summaryLanguage ? `\n\nRespond in ${summaryLanguage}.` : "";
+  return `Video title: ${videoTitle}${langInstruction}\n\nCurrent summary:\n${currentSummary}\n\nTranscript:\n${transcript}`;
 }
