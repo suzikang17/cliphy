@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter web --filter server dev",
-    "dev:prodApi": "VITE_API_URL=https://cliphy.app pnpm --filter web dev",
+    "dev:prodApi": "VITE_API_URL=https://api.cliphy.app pnpm --filter web dev",
     "dev:all": "pnpm --filter web --filter server --filter extension dev",
     "dev:server": "pnpm --filter server dev",
     "dev:extension": "pnpm --filter extension dev",

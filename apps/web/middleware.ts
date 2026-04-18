@@ -18,7 +18,7 @@ export default async function middleware(request: Request) {
   const id = url.pathname.split("/summary/")[1];
   if (!id) return;
 
-  const apiUrl = process.env.API_URL || "https://cliphy.app";
+  const apiUrl = process.env.API_URL || "https://api.cliphy.app";
 
   try {
     const res = await fetch(`${apiUrl}/api/summaries/${id}`);

@@ -5,7 +5,7 @@
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
  *
  * Optional:
- *   API_BASE_URL  (default: https://cliphy.app)
+ *   API_BASE_URL  (default: https://api.cliphy.app)
  *
  * Usage:
  *   pnpm test:smoke
@@ -37,7 +37,7 @@ let userId: string;
 let queueItemId: string | undefined;
 
 beforeAll(async () => {
-  apiBase = (process.env.API_BASE_URL ?? "https://cliphy.app").replace(/\/$/, "");
+  apiBase = (process.env.API_BASE_URL ?? "https://api.cliphy.app").replace(/\/$/, "");
   const supabaseUrl = process.env.SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const anonKey = process.env.SUPABASE_ANON_KEY!;
