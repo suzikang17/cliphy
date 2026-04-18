@@ -8,7 +8,6 @@ const STORAGE_KEY = "cliphy_summary_language";
 
 export function LanguageSelector() {
   const [language, setLanguage] = useState<SummaryLanguageCode>("en");
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -24,7 +23,6 @@ export function LanguageSelector() {
       } catch {
         // Use cached value on error
       }
-      setLoading(false);
     }
     load();
   }, []);
@@ -43,8 +41,6 @@ export function LanguageSelector() {
       await set(STORAGE_KEY, prev);
     }
   }
-
-  if (loading) return null;
 
   return (
     <div className="px-3 py-1.5 border-b border-(--color-border-soft)">

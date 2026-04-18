@@ -52,7 +52,7 @@ Monorepo with pnpm workspaces:
 
 ## Notion integration
 
-- Task Board: collection://2928b00e-9d27-47fc-a709-27cfd4b5c9e0
+- Task Board: database_id=82ccf3ed-8f70-45c7-8480-2f55db398397 (data_source_id=2928b00e-9d27-47fc-a709-27cfd4b5c9e0 — use database_id for API calls)
 - Devlog: collection://20645fc8-887e-4b9e-a782-a45c888f9624
 - Decisions Log: collection://796aacf9-23e4-4038-8bc6-c073afbeadd6
 - Use Notion MCP tools to read/update tasks as you work
