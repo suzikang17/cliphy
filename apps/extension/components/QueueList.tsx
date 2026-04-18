@@ -479,15 +479,20 @@ function CurrentVideoItem({
               : "text-neon-800 bg-neon-100 dark:bg-transparent dark:text-neon-400 cursor-pointer border-2 border-(--color-border-hard) rounded-full font-bold shadow-brutal-sm hover:shadow-brutal-pressed press-down"
           }`}
         >
-          {isAdding
-            ? "Adding..."
-            : isLive || isTooLong
-              ? "Unavailable"
-              : addStatus === "queued"
-                ? "Queued"
-                : addStatus === "processing"
-                  ? "Processing..."
-                  : "Summarize Video"}
+          {isAdding ? (
+            "Adding..."
+          ) : isLive || isTooLong ? (
+            "Unavailable"
+          ) : addStatus === "queued" ? (
+            "Queued"
+          ) : addStatus === "processing" ? (
+            "Processing..."
+          ) : (
+            <span className="flex flex-col items-center leading-tight">
+              <span>Add to Queue</span>
+              <span className="text-[10px] font-normal opacity-70">⚡ Get summary</span>
+            </span>
+          )}
         </button>
       )}
       {addStatus === "error" && addError && <p className="text-red-600 text-xs mt-2">{addError}</p>}

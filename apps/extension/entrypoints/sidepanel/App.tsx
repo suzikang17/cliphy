@@ -27,6 +27,7 @@ import {
 } from "../../lib/api";
 import {
   getAccessToken,
+  getRefreshToken,
   getUserIdFromToken,
   signUpWithEmail,
   signInWithEmail,
@@ -483,9 +484,18 @@ export function App() {
     }
   }
 
-  function handleOpenSummary(id: string) {
+  async function openWebApp(path: string) {
     const base = (import.meta.env.VITE_API_URL as string) || "https://cliphy.app";
-    browser.tabs.create({ url: `${base}${WEB_ROUTES.SUMMARY(id)}` });
+    const [accessToken, refreshToken] = await Promise.all([getAccessToken(), getRefreshToken()]);
+    const hash =
+      accessToken && refreshToken
+        ? `#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
+        : "";
+    browser.tabs.create({ url: `${base}${path}${hash}` });
+  }
+
+  function handleOpenSummary(id: string) {
+    openWebApp(WEB_ROUTES.SUMMARY(id));
   }
 
   function handleBack() {
@@ -600,6 +610,15 @@ export function App() {
                   Billing
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  openWebApp(WEB_ROUTES.DASHBOARD);
+                }}
+                className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
+              >
+                Open Cliphy
+              </button>
               <button
                 onClick={() => {
                   setShowUserMenu(false);
@@ -909,26 +928,7 @@ export function App() {
 
       <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
         {usage && (
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <UsageBar
-                  usage={usage}
-                  onUpgrade={handleCheckout}
-                  upgradeLoading={checkoutLoading}
-                />
-              </div>
-              <button
-                onClick={() => {
-                  const base = (import.meta.env.VITE_API_URL as string) || "https://cliphy.app";
-                  browser.tabs.create({ url: `${base}${WEB_ROUTES.DASHBOARD}` });
-                }}
-                className="text-xs font-bold text-neon-900 bg-neon-200 dark:bg-transparent dark:text-neon-400 border-2 border-(--color-border-hard) rounded-full px-3 py-1 shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all shrink-0"
-              >
-                Open Cliphy
-              </button>
-            </div>
-          </div>
+          <UsageBar usage={usage} onUpgrade={handleCheckout} upgradeLoading={checkoutLoading} />
         )}
       </div>
     </div>

@@ -28,6 +28,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
+    const hash = window.location.hash.slice(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    }
+
     return () => subscription.unsubscribe();
   }, []);
 
