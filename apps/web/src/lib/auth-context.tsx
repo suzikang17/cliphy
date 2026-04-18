@@ -26,17 +26,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      // Clean up hash tokens from URL after Supabase processes them
+      if (window.location.hash.includes("access_token")) {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
     });
-
-    const hash = window.location.hash.slice(1);
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-
-    if (accessToken && refreshToken) {
-      history.replaceState(null, "", window.location.pathname + window.location.search);
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    }
 
     return () => subscription.unsubscribe();
   }, []);

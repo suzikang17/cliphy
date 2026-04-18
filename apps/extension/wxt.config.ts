@@ -29,7 +29,7 @@ export default defineConfig({
     host_permissions: ["https://www.youtube.com/*"],
     web_accessible_resources: [
       {
-        resources: ["icons/icon-16.png"],
+        resources: ["icons/icon-128.png"],
         matches: ["https://www.youtube.com/*"],
       },
     ],

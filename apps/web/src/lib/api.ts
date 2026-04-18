@@ -10,7 +10,7 @@ import type {
 } from "@cliphy/shared";
 import { supabase } from "./supabase";
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = (import.meta.env.VITE_API_URL as string) ?? "";
 
 export class AuthError extends Error {
   constructor(message: string) {

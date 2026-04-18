@@ -292,7 +292,7 @@ export default defineContentScript({
 
       if (document.getElementById("cliphy-video-btn")) return;
 
-      const iconUrl = browser.runtime.getURL("/icons/icon-16.png");
+      const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
       const btn = document.createElement("button");
       btn.id = "cliphy-video-btn";
       btn.className = "cliphy-btn";
@@ -356,7 +356,7 @@ export default defineContentScript({
         player.style.position = "relative";
       }
 
-      const iconUrl = browser.runtime.getURL("/icons/icon-16.png");
+      const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
       const btn = document.createElement("button");
       btn.id = "cliphy-player-btn";
       btn.className = "cliphy-btn";
@@ -487,7 +487,7 @@ export default defineContentScript({
       (el as HTMLElement).style.position = "relative";
       (el as HTMLElement).style.overflow = "visible";
 
-      const iconUrl = browser.runtime.getURL("/icons/icon-16.png");
+      const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
       const btn = document.createElement("button");
       btn.className = isLockup
         ? "cliphy-thumb-overlay cliphy-thumb-overlay--lockup"
