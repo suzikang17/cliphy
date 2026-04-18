@@ -49,7 +49,9 @@ export function LanguageSelector() {
   return (
     <div className="px-3 py-1.5 border-b border-(--color-border-soft)">
       <label className="flex items-center justify-between text-xs text-(--color-text-muted)">
-        <span>Summary language</span>
+        <span title="Summary language" className="cursor-default select-none">
+          🌐
+        </span>
         <select
           value={language}
           onChange={handleChange}
