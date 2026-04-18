@@ -39,7 +39,9 @@ app.use("*", async (c, next) => {
 app.use("*", async (c, next) => {
   if (isAdminRoute(c.req.path)) return next();
   const origin = c.req.header("Origin");
-  if (origin && ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
+  const isExtension =
+    origin?.startsWith("chrome-extension://") || origin?.startsWith("moz-extension://");
+  if (origin && !isExtension && ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
     return c.json({ error: "Forbidden" }, 403);
   }
   return next();
@@ -47,7 +49,11 @@ app.use("*", async (c, next) => {
 app.use("*", async (c, next) => {
   if (isAdminRoute(c.req.path)) return next();
   return cors({
-    origin: ALLOWED_ORIGINS,
+    origin: (origin) => {
+      if (origin.startsWith("chrome-extension://") || origin.startsWith("moz-extension://"))
+        return origin;
+      return ALLOWED_ORIGINS.includes(origin) ? origin : "";
+    },
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
