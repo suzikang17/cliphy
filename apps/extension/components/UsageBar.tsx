@@ -17,7 +17,7 @@ export function UsageBar({ usage, onUpgrade, upgradeLoading }: UsageBarProps) {
         className="absolute inset-y-0 left-0 bg-neon-200/50 dark:bg-neon-500/25"
         style={{ width: `${pct}%` }}
       />
-      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-(--color-text) gap-1.5">
+      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-(--color-text) gap-1.5 whitespace-nowrap">
         <span>
           {usage.used} / {usage.limit} used
         </span>

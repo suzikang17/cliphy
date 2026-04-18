@@ -43,23 +43,24 @@ export function LanguageSelector() {
   }
 
   return (
-    <div className="px-3 py-1.5 border-b border-(--color-border-soft)">
-      <label className="flex items-center justify-between text-xs text-(--color-text-muted)">
-        <span title="Summary language" className="cursor-default select-none">
-          🌐
-        </span>
-        <select
-          value={language}
-          onChange={handleChange}
-          className="text-xs bg-(--color-surface-raised) border border-(--color-border-soft) rounded px-1.5 py-0.5 text-(--color-text) cursor-pointer"
-        >
-          {Object.entries(SUMMARY_LANGUAGES).map(([code, name]) => (
-            <option key={code} value={code}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className="px-3 py-1.5 border-b border-(--color-border-soft) flex items-center gap-1.5">
+      <span
+        title="Summary language"
+        className="cursor-default select-none text-sm leading-none text-(--color-text-muted)"
+      >
+        🌐
+      </span>
+      <select
+        value={language}
+        onChange={handleChange}
+        className="text-xs bg-(--color-surface-raised) border border-(--color-border-soft) rounded px-1.5 py-0.5 text-(--color-text) cursor-pointer"
+      >
+        {Object.entries(SUMMARY_LANGUAGES).map(([code, name]) => (
+          <option key={code} value={code}>
+            {name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
