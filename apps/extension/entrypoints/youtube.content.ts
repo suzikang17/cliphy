@@ -160,20 +160,52 @@ export default defineContentScript({
 
     toastLink.addEventListener("click", (e) => {
       e.preventDefault();
-      browser.runtime
-        .sendMessage({ type: "OPEN_SIDEPANEL" } satisfies ExtensionMessage)
-        .catch(() => {});
+      safeSendMessage({ type: "OPEN_SIDEPANEL" } satisfies ExtensionMessage);
     });
 
-    function showToast(message: string, withLink = false) {
+    function showToast(message: string, linkLabel?: string) {
       if (toastTimer) clearTimeout(toastTimer);
       toastMsg.textContent = message;
-      toastLink.style.display = withLink ? "inline" : "none";
+      if (linkLabel) {
+        toastLink.textContent = linkLabel;
+        toastLink.style.display = "inline";
+      } else {
+        toastLink.style.display = "none";
+      }
       toast.classList.add("cliphy-toast--visible");
       toastTimer = setTimeout(() => {
         toast.classList.remove("cliphy-toast--visible");
         toastTimer = null;
       }, 3000);
+    }
+
+    type QueueResponse = { success: boolean; error?: string; code?: string } | null;
+
+    function handleQueueResponse(
+      response: QueueResponse,
+      onSuccess: () => void,
+      onFailure: () => void,
+    ) {
+      if (!response) {
+        // Extension context invalidated — old content script still in DOM
+        showToast("Reload the page to re-enable Cliphy");
+        onFailure();
+        return;
+      }
+      if (response.success) {
+        onSuccess();
+        return;
+      }
+      onFailure();
+      if (response.code === "rate_limited") {
+        showToast("Monthly limit reached — upgrade to Pro", "Open Cliphy →");
+      } else if (response.code === "pro_required") {
+        showToast("Pro plan required", "Upgrade →");
+      } else if (response.error === "Not authenticated") {
+        showToast("Sign in to Cliphy to summarize videos", "Sign in →");
+      } else {
+        showToast("Something went wrong — try again");
+      }
     }
 
     // ── Session queue state ──────────────────────────────────────
@@ -242,15 +274,13 @@ export default defineContentScript({
       return new URL(window.location.href).searchParams.has("v");
     }
 
+    function safeSendMessage(msg: ExtensionMessage): Promise<unknown> {
+      if (!browser.runtime?.id) return Promise.resolve(null);
+      return browser.runtime.sendMessage(msg).catch(() => null);
+    }
+
     function notifyBackground(video: VideoInfo) {
-      // Guard against "Extension context invalidated" after extension reload
-      if (!browser.runtime?.id) return;
-      browser.runtime
-        .sendMessage({
-          type: "VIDEO_DETECTED",
-          video,
-        } satisfies ExtensionMessage)
-        .catch(() => {});
+      safeSendMessage({ type: "VIDEO_DETECTED", video } satisfies ExtensionMessage);
     }
 
     // ── DOM helpers ──────────────────────────────────────────────
@@ -307,35 +337,26 @@ export default defineContentScript({
           ? parseDurationToSeconds(currentInfo.duration)
           : undefined;
 
-        const response = (await browser.runtime.sendMessage({
+        const response = (await safeSendMessage({
           type: "ADD_TO_QUEUE",
           videoUrl: currentInfo.url,
           videoTitle: currentInfo.title || undefined,
           videoChannel: currentInfo.channel || undefined,
           videoDurationSeconds: durationSeconds || undefined,
-        } satisfies ExtensionMessage)) as {
-          success: boolean;
-          error?: string;
-          code?: string;
-        };
+        } satisfies ExtensionMessage)) as QueueResponse;
 
-        if (response.success) {
-          queuedVideoIds.add(currentInfo.videoId);
-          btn.innerHTML = `✓ Added`;
-          showToast("Added to queue", true);
-        } else {
-          btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
-          btn.disabled = false;
-          if (response.code === "rate_limited") {
-            showToast("Monthly limit reached — upgrade to Pro");
-          } else if (response.code === "pro_required") {
-            showToast("Pro plan required");
-          } else if (response.error === "Not authenticated") {
-            showToast("Sign in to Cliphy to summarize videos");
-          } else {
-            showToast("Something went wrong — try again");
-          }
-        }
+        handleQueueResponse(
+          response,
+          () => {
+            queuedVideoIds.add(currentInfo.videoId!);
+            btn.innerHTML = `✓ Added`;
+            showToast("Added to queue", "Open Cliphy →");
+          },
+          () => {
+            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
+            btn.disabled = false;
+          },
+        );
       });
 
       const actionsInner = actions.querySelector("#top-level-buttons-computed") ?? actions;
@@ -379,41 +400,31 @@ export default defineContentScript({
           ? parseDurationToSeconds(currentInfo.duration)
           : undefined;
 
-        const response = (await browser.runtime.sendMessage({
+        const response = (await safeSendMessage({
           type: "ADD_TO_QUEUE",
           videoUrl: currentInfo.url,
           videoTitle: currentInfo.title || undefined,
           videoChannel: currentInfo.channel || undefined,
           videoDurationSeconds: durationSeconds || undefined,
-        } satisfies ExtensionMessage)) as {
-          success: boolean;
-          error?: string;
-          code?: string;
-        };
+        } satisfies ExtensionMessage)) as QueueResponse;
 
-        if (response.success) {
-          queuedVideoIds.add(currentInfo.videoId);
-          btn.innerHTML = `✓ Added`;
-          // Sync the actions row button too
-          const actionsBtn = document.getElementById("cliphy-video-btn");
-          if (actionsBtn) {
-            actionsBtn.innerHTML = `✓ Added`;
-            (actionsBtn as HTMLButtonElement).disabled = true;
-          }
-          showToast("Added to queue", true);
-        } else {
-          btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
-          btn.disabled = false;
-          if (response.code === "rate_limited") {
-            showToast("Monthly limit reached — upgrade to Pro");
-          } else if (response.code === "pro_required") {
-            showToast("Pro plan required");
-          } else if (response.error === "Not authenticated") {
-            showToast("Sign in to Cliphy to summarize videos");
-          } else {
-            showToast("Something went wrong — try again");
-          }
-        }
+        handleQueueResponse(
+          response,
+          () => {
+            queuedVideoIds.add(currentInfo.videoId!);
+            btn.innerHTML = `✓ Added`;
+            const actionsBtn = document.getElementById("cliphy-video-btn");
+            if (actionsBtn) {
+              actionsBtn.innerHTML = `✓ Added`;
+              (actionsBtn as HTMLButtonElement).disabled = true;
+            }
+            showToast("Added to queue", "Open Cliphy →");
+          },
+          () => {
+            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
+            btn.disabled = false;
+          },
+        );
       });
 
       player.appendChild(btn);
@@ -517,7 +528,7 @@ export default defineContentScript({
         e.stopPropagation();
         btn.disabled = true;
 
-        const response = (await browser.runtime.sendMessage({
+        const response = (await safeSendMessage({
           type: "ADD_TO_QUEUE",
           videoUrl: data.url,
           videoTitle: data.title,
@@ -529,23 +540,18 @@ export default defineContentScript({
           code?: string;
         };
 
-        if (response.success) {
-          queuedVideoIds.add(data.videoId);
-          btn.classList.add("cliphy-thumb-overlay--added");
-          btn.title = "Already in queue";
-          showToast("Added to queue", true);
-        } else {
-          btn.disabled = false;
-          if (response.code === "rate_limited") {
-            showToast("Monthly limit reached — upgrade to Pro");
-          } else if (response.code === "pro_required") {
-            showToast("Pro plan required");
-          } else if (response.error === "Not authenticated") {
-            showToast("Sign in to Cliphy to summarize videos");
-          } else {
-            showToast("Something went wrong — try again");
-          }
-        }
+        handleQueueResponse(
+          response as QueueResponse,
+          () => {
+            queuedVideoIds.add(data.videoId);
+            btn.classList.add("cliphy-thumb-overlay--added");
+            btn.title = "Already in queue";
+            showToast("Added to queue", "Open Cliphy →");
+          },
+          () => {
+            btn.disabled = false;
+          },
+        );
       });
 
       container.appendChild(btn);
@@ -599,28 +605,26 @@ export default defineContentScript({
           item.textContent = "Adding…";
           item.disabled = true;
 
-          const response = (await browser.runtime.sendMessage({
+          const response = (await safeSendMessage({
             type: "ADD_TO_QUEUE",
             videoUrl: data.url,
             videoTitle: data.title,
             videoChannel: data.channel,
             videoDurationSeconds: data.durationSeconds,
-          } satisfies ExtensionMessage)) as { success: boolean; error?: string; code?: string };
+          } satisfies ExtensionMessage)) as QueueResponse;
 
-          if (response.success) {
-            queuedVideoIds.add(data.videoId);
-            item.textContent = "✓ Added to queue";
-            showToast("Added to queue", true);
-          } else {
-            item.disabled = false;
-            item.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize with Cliphy`;
-            if (response.code === "rate_limited")
-              showToast("Monthly limit reached — upgrade to Pro");
-            else if (response.code === "pro_required") showToast("Pro plan required");
-            else if (response.error === "Not authenticated")
-              showToast("Sign in to Cliphy to summarize videos");
-            else showToast("Something went wrong — try again");
-          }
+          handleQueueResponse(
+            response,
+            () => {
+              queuedVideoIds.add(data.videoId);
+              item.textContent = "✓ Added to queue";
+              showToast("Added to queue", "Open Cliphy →");
+            },
+            () => {
+              item.disabled = false;
+              item.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize with Cliphy`;
+            },
+          );
         });
 
         listbox.appendChild(item);
