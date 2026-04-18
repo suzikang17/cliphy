@@ -9,42 +9,30 @@ export default defineContentScript({
     // ── Injected styles ───────────────────────────────────────────
     const style = document.createElement("style");
     style.textContent = `
-      .cliphy-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--yt-spec-10-percent-layer, rgba(0,0,0,0.08));
-        color: var(--yt-spec-text-primary, #0f0f0f);
-        border: 1px solid var(--yt-spec-10-percent-layer, rgba(0,0,0,0.12));
-        border-radius: 18px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        font-family: "Roboto", Arial, sans-serif;
-        line-height: 1;
-        white-space: nowrap;
-        vertical-align: middle;
-        transition: background 0.15s;
-      }
-      .cliphy-btn:hover { background: var(--yt-spec-10-percent-layer, rgba(0,0,0,0.15)); }
-      .cliphy-btn:disabled { opacity: 0.7; cursor: default; }
-      .cliphy-btn img { width: 14px; height: 14px; display: block; }
+      /* Cliphy action button — inherits YouTube's tonal button styles */
+      .cliphy-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; vertical-align: middle; }
+      .cliphy-btn:disabled { opacity: 0.5; cursor: default; }
+      .cliphy-btn img { width: 16px; height: 16px; display: block; }
 
-      /* Player overlay: white text on dark bg */
+      /* Player overlay: pill-shaped dark button */
       #cliphy-player-btn {
-        background: rgba(0,0,0,0.7) !important;
+        background: rgba(0,0,0,0.72) !important;
         color: #fff !important;
-        border-color: transparent !important;
+        border: none !important;
+        border-radius: 50px !important;
+        padding: 8px 16px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        font-family: "Roboto", Arial, sans-serif !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+        transition: background 0.15s, transform 0.15s, box-shadow 0.15s !important;
       }
-      #cliphy-player-btn:hover { background: rgba(0,0,0,0.85) !important; }
-
-      .cliphy-btn--sm {
-        padding: 3px 8px;
-        font-size: 11px;
-        gap: 4px;
+      #cliphy-player-btn:hover {
+        background: rgba(255,255,255,0.92) !important;
+        color: #0f0f0f !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+        transform: scale(1.04);
       }
-      .cliphy-btn--sm img { width: 12px; height: 12px; }
 
       .cliphy-thumb-overlay {
         position: absolute;
@@ -287,19 +275,21 @@ export default defineContentScript({
       const info = getVideoInfo();
       if (!info.videoId || info.isLive) return;
 
-      const actions = await waitForElement("#actions");
-      if (!actions) return;
+      // Wait for the actions buttons container to be populated, not just #actions existing
+      const actionsInnerEl = await waitForElement("#top-level-buttons-computed");
+      if (!actionsInnerEl) return;
 
       if (document.getElementById("cliphy-video-btn")) return;
 
       const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
       const btn = document.createElement("button");
       btn.id = "cliphy-video-btn";
-      btn.className = "cliphy-btn";
+      btn.className =
+        "cliphy-btn yt-spec-button-shape-next yt-spec-button-shape-next--tonal yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m";
       btn.style.marginLeft = "8px";
 
       const alreadyQueued = queuedVideoIds.has(info.videoId);
-      btn.innerHTML = alreadyQueued ? `✓ Added` : `<img src="${iconUrl}" alt="" /> Summarize`;
+      btn.innerHTML = alreadyQueued ? `✓ Added` : `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
       btn.disabled = alreadyQueued;
 
       btn.addEventListener("click", async () => {
@@ -329,14 +319,13 @@ export default defineContentScript({
             showToast("Added to queue", "Open Cliphy →");
           },
           () => {
-            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
+            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
             btn.disabled = false;
           },
         );
       });
 
-      const actionsInner = actions.querySelector("#top-level-buttons-computed") ?? actions;
-      actionsInner.appendChild(btn);
+      actionsInnerEl.appendChild(btn);
     }
 
     // ── Video player overlay button ────────────────────────────
@@ -362,7 +351,7 @@ export default defineContentScript({
       btn.className = "cliphy-btn";
 
       const alreadyQueued = queuedVideoIds.has(info.videoId);
-      btn.innerHTML = alreadyQueued ? `✓ Added` : `<img src="${iconUrl}" alt="" /> Summarize`;
+      btn.innerHTML = alreadyQueued ? `✓ Added` : `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
       btn.disabled = alreadyQueued;
 
       btn.addEventListener("click", async () => {
@@ -397,7 +386,7 @@ export default defineContentScript({
             showToast("Added to queue", "Open Cliphy →");
           },
           () => {
-            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize`;
+            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
             btn.disabled = false;
           },
         );
@@ -494,7 +483,7 @@ export default defineContentScript({
         : "cliphy-thumb-overlay";
 
       const alreadyQueued = queuedVideoIds.has(data.videoId);
-      btn.innerHTML = `<img src="${iconUrl}" alt="Summarize" />`;
+      btn.innerHTML = `<img src="${iconUrl}" alt="Add to Cliphy" />`;
       if (alreadyQueued) btn.classList.add("cliphy-thumb-overlay--added");
       btn.disabled = alreadyQueued;
       btn.title = alreadyQueued ? "Already in queue" : "Add to Cliphy";
