@@ -81,23 +81,6 @@ export default defineContentScript({
       /* CSS hover for yt-lockup-view-model (sidebar) */
       yt-lockup-view-model:hover .cliphy-thumb-overlay--lockup { opacity: 1; }
 
-      .cliphy-menu-item {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 0 16px;
-        height: 36px;
-        cursor: pointer;
-        font-size: 14px;
-        color: var(--yt-spec-text-primary, #fff);
-        width: 100%;
-        border: none;
-        background: none;
-        text-align: left;
-        font-family: "Roboto", Arial, sans-serif;
-      }
-      .cliphy-menu-item:hover { background: var(--yt-spec-10-percent-layer, rgba(255,255,255,0.1)); }
-      .cliphy-menu-item img { width: 24px; height: 24px; }
 
       #cliphy-player-btn {
         position: absolute;
@@ -210,13 +193,6 @@ export default defineContentScript({
 
     // ── Session queue state ──────────────────────────────────────
     const queuedVideoIds = new Set<string>();
-    let pendingMenuData: {
-      videoId: string;
-      url: string;
-      title?: string;
-      channel?: string;
-      durationSeconds?: number;
-    } | null = null;
 
     function formatDuration(totalSeconds: number): string {
       const h = Math.floor(totalSeconds / 3600);
@@ -565,71 +541,9 @@ export default defineContentScript({
           }
         });
       }
-
-      // Intercept three-dot menu click to stash video data for menu injection
-      const menuBtn = el.querySelector<HTMLElement>(
-        "ytd-menu-renderer button, #button.yt-icon-button, yt-button-shape button[aria-label], yt-button-view-model button",
-      );
-      if (menuBtn && !menuBtn.hasAttribute("data-cliphy-menu")) {
-        menuBtn.setAttribute("data-cliphy-menu", "1");
-        menuBtn.addEventListener("click", () => {
-          pendingMenuData = data;
-        });
-      }
     }
 
     function injectThumbnailButtons() {
-      const iconUrl = browser.runtime.getURL("/icons/icon-16.png");
-
-      function handleMenuNode(node: Element) {
-        const listbox = node.matches("tp-yt-paper-listbox")
-          ? node
-          : node.firstElementChild
-            ? node.querySelector("tp-yt-paper-listbox")
-            : null;
-        if (!listbox || listbox.querySelector(".cliphy-menu-item")) return;
-
-        const data = pendingMenuData;
-        pendingMenuData = null;
-        if (!data) return;
-
-        const item = document.createElement("button");
-        item.className = "cliphy-menu-item";
-        item.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize with Cliphy`;
-        if (queuedVideoIds.has(data.videoId)) {
-          item.textContent = "✓ Already in Cliphy queue";
-          item.disabled = true;
-        }
-
-        item.addEventListener("click", async () => {
-          item.textContent = "Adding…";
-          item.disabled = true;
-
-          const response = (await safeSendMessage({
-            type: "ADD_TO_QUEUE",
-            videoUrl: data.url,
-            videoTitle: data.title,
-            videoChannel: data.channel,
-            videoDurationSeconds: data.durationSeconds,
-          } satisfies ExtensionMessage)) as QueueResponse;
-
-          handleQueueResponse(
-            response,
-            () => {
-              queuedVideoIds.add(data.videoId);
-              item.textContent = "✓ Added to queue";
-              showToast("Added to queue", "Open Cliphy →");
-            },
-            () => {
-              item.disabled = false;
-              item.innerHTML = `<img src="${iconUrl}" alt="" /> Summarize with Cliphy`;
-            },
-          );
-        });
-
-        listbox.appendChild(item);
-      }
-
       document.querySelectorAll(THUMBNAIL_RENDERERS).forEach(injectThumbnailButton);
 
       // Single observer for both thumbnail buttons and menu injection.
@@ -650,9 +564,6 @@ export default defineContentScript({
             if (parentRenderer && !parentRenderer.hasAttribute("data-cliphy-injected")) {
               injectThumbnailButton(parentRenderer);
             }
-
-            // Menu injection
-            handleMenuNode(node);
           }
         }
       });
@@ -733,6 +644,8 @@ export default defineContentScript({
     injectVideoPageButton();
     injectVideoOverlay();
     injectThumbnailButtons();
+    // Deferred scan in case content script runs before YouTube renders thumbnails
+    setTimeout(scanThumbnails, 1500);
 
     if (isVideoPage()) {
       setTimeout(() => {

@@ -564,7 +564,7 @@ export function App() {
             </button>
           </>
         ) : (
-          <span className="text-lg font-extrabold text-(--color-text)">Queue</span>
+          <span className="text-lg font-extrabold text-(--color-text)">Summary Queue</span>
         )}
       </div>
       {view === "dashboard" && user?.plan === "pro" && (
