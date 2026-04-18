@@ -485,7 +485,7 @@ export function App() {
   }
 
   async function openWebApp(path: string) {
-    const base = (import.meta.env.VITE_API_URL as string) || "https://api.cliphy.app";
+    const base = (import.meta.env.VITE_WEB_URL as string) || "https://cliphy.app";
     const [accessToken, refreshToken] = await Promise.all([getAccessToken(), getRefreshToken()]);
     const hash =
       accessToken && refreshToken
