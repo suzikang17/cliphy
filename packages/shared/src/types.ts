@@ -146,3 +146,7 @@ export interface ChatResponse {
   updatedSection?: ChatUpdatedSection;
   updatedSummaryJson?: SummaryJson;
 }
+
+export interface UserSettings {
+  summaryLanguage: import("./constants.js").SummaryLanguageCode;
+}

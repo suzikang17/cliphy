@@ -70,6 +70,7 @@ export const API_ROUTES = {
     PORTAL: "/api/billing/portal",
     WEBHOOK: "/api/billing/webhook",
   },
+  SETTINGS: "/api/settings",
 } as const;
 
 export const WEB_ROUTES = {
@@ -87,3 +88,28 @@ export const SUMMARY_STATUSES = {
   COMPLETED: "completed",
   FAILED: "failed",
 } as const;
+
+export const SUMMARY_LANGUAGES = {
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  ko: "Korean",
+  ja: "Japanese",
+  zh: "Chinese",
+  ar: "Arabic",
+  hi: "Hindi",
+  it: "Italian",
+  ru: "Russian",
+  nl: "Dutch",
+  pl: "Polish",
+  tr: "Turkish",
+  vi: "Vietnamese",
+  th: "Thai",
+  id: "Indonesian",
+  uk: "Ukrainian",
+  sv: "Swedish",
+} as const;
+
+export type SummaryLanguageCode = keyof typeof SUMMARY_LANGUAGES;
