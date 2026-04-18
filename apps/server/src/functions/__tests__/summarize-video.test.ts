@@ -7,7 +7,18 @@ import { NonRetriableError } from "inngest";
 
 function mockChain(result: { data?: unknown; error?: unknown } = {}) {
   const chain: Record<string, unknown> = {};
-  const methods = ["from", "select", "insert", "update", "delete", "eq", "single"];
+  const methods = [
+    "from",
+    "select",
+    "insert",
+    "update",
+    "delete",
+    "eq",
+    "neq",
+    "not",
+    "limit",
+    "single",
+  ];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
