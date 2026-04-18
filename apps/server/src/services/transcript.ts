@@ -109,9 +109,9 @@ async function fetchCaptionTracks(videoId: string): Promise<PlayerResult> {
   return { tracks, title, durationSeconds };
 }
 
-/** Pick the best caption track: prefer English, fallback to first available. */
+/** Pick the best caption track: always use the original language (first track). */
 function pickTrack(tracks: CaptionTrack[]): CaptionTrack {
-  return tracks.find((t) => t.languageCode === "en") ?? tracks[0];
+  return tracks[0];
 }
 
 export interface TimedSegment {
@@ -236,6 +236,7 @@ export interface TranscriptResult {
   truncated: boolean;
   title: string | null;
   durationSeconds: number | null;
+  language: string;
 }
 
 export async function fetchTranscript(videoId: string): Promise<TranscriptResult> {
@@ -256,5 +257,11 @@ export async function fetchTranscript(videoId: string): Promise<TranscriptResult
     truncated = true;
   }
 
-  return { text: sanitizeTranscript(text), truncated, title, durationSeconds };
+  return {
+    text: sanitizeTranscript(text),
+    truncated,
+    title,
+    durationSeconds,
+    language: track.languageCode,
+  };
 }
