@@ -16,6 +16,7 @@ import { usageRoutes } from "./routes/usage.js";
 import { billingRoutes } from "./routes/billing.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { deviceRoutes } from "./routes/devices.js";
+import { settingsRoutes } from "./routes/settings.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -71,6 +72,7 @@ app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
 app.route("/devices", deviceRoutes);
 app.route("/admin", adminRoutes);
+app.route("/settings", settingsRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {
