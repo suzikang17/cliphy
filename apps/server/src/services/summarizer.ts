@@ -107,6 +107,8 @@ export function parseSummaryResponse(text: string): SummaryJson {
 export async function summarizeTranscript(
   transcript: string,
   videoTitle: string,
+  summaryLanguage?: string,
+  transcriptLanguage?: string,
 ): Promise<SummaryJson> {
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -116,7 +118,7 @@ export async function summarizeTranscript(
     messages: [
       {
         role: "user",
-        content: SUMMARY_USER_PROMPT(videoTitle, transcript),
+        content: SUMMARY_USER_PROMPT(videoTitle, transcript, summaryLanguage, transcriptLanguage),
       },
     ],
   });
@@ -135,7 +137,7 @@ export async function summarizeTranscript(
       messages: [
         {
           role: "user",
-          content: SUMMARY_USER_PROMPT(videoTitle, transcript),
+          content: SUMMARY_USER_PROMPT(videoTitle, transcript, summaryLanguage, transcriptLanguage),
         },
         { role: "assistant", content: text },
         {

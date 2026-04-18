@@ -138,6 +138,14 @@ queueRoutes.post("/", async (c) => {
     );
   }
 
+  // Fetch user's preferred summary language
+  const { data: settingsRow } = await supabase
+    .from("user_settings")
+    .select("summary_language")
+    .eq("user_id", userId)
+    .single();
+  const summaryLanguage = (settingsRow?.summary_language as string) ?? "en";
+
   // Insert new queue item
   const { data: row, error: insertError } = await supabase
     .from("summaries")
@@ -148,6 +156,7 @@ queueRoutes.post("/", async (c) => {
       video_channel: body.videoChannel || null,
       video_duration_seconds: body.videoDurationSeconds ?? null,
       video_url: body.videoUrl,
+      summary_language: summaryLanguage,
       status: "pending",
     })
     .select("*")
@@ -270,6 +279,14 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   const cappedInsert = toInsert.slice(0, allowedCount);
   const rateLimited = cappedInsert.length < toInsert.length;
 
+  // Fetch user's preferred summary language
+  const { data: batchSettingsRow } = await supabase
+    .from("user_settings")
+    .select("summary_language")
+    .eq("user_id", userId)
+    .single();
+  const batchSummaryLanguage = (batchSettingsRow?.summary_language as string) ?? "en";
+
   // Bulk insert
   const { data: rows, error: insertError } = await supabase
     .from("summaries")
@@ -278,6 +295,7 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
         user_id: userId,
         youtube_video_id: v.videoId,
         video_url: v.videoUrl,
+        summary_language: batchSummaryLanguage,
         status: "pending" as const,
       })),
     )

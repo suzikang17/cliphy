@@ -142,9 +142,19 @@ describe("summarize-video", () => {
 
   describe("happy path", () => {
     it("fetches transcript, generates summary, and saves result", async () => {
-      mockFetchTranscript.mockResolvedValue({ text: "transcript text", truncated: false });
+      mockFetchTranscript.mockResolvedValue({
+        text: "transcript text",
+        truncated: false,
+        language: "en",
+      });
       mockSummarizeTranscript.mockResolvedValue(sampleSummary);
-      fromResults = [mockChain(), mockChain()]; // processing update + save result
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }), // read summary_language
+        mockChain(), // processing update
+        mockChain({ data: null }), // transcript cache check
+        mockChain(), // transcript_language update
+        mockChain(), // save result
+      ];
 
       const { summarizeVideo } = await import("../summarize-video.js");
       const step = makeStep();
@@ -152,15 +162,30 @@ describe("summarize-video", () => {
 
       expect(result).toEqual({ summaryId: "sum-123", status: "completed" });
       expect(mockFetchTranscript).toHaveBeenCalledWith("dQw4w9WgXcQ");
-      expect(mockSummarizeTranscript).toHaveBeenCalledWith("transcript text", "Test Video");
+      expect(mockSummarizeTranscript).toHaveBeenCalledWith(
+        "transcript text",
+        "Test Video",
+        "English",
+        "English",
+      );
       expect(step.run).toHaveBeenCalledTimes(3);
     });
 
     it("sets truncated flag on summaryJson when transcript was truncated", async () => {
-      mockFetchTranscript.mockResolvedValue({ text: "truncated text", truncated: true });
+      mockFetchTranscript.mockResolvedValue({
+        text: "truncated text",
+        truncated: true,
+        language: "en",
+      });
       const summary = { ...sampleSummary };
       mockSummarizeTranscript.mockResolvedValue(summary);
-      fromResults = [mockChain(), mockChain()]; // processing update + save result
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }), // read summary_language
+        mockChain(), // processing update
+        mockChain({ data: null }), // transcript cache check
+        mockChain(), // transcript_language update
+        mockChain(), // save result
+      ];
 
       const { summarizeVideo } = await import("../summarize-video.js");
       const step = makeStep();
@@ -176,7 +201,12 @@ describe("summarize-video", () => {
       mockFetchTranscript.mockRejectedValue(
         new TranscriptNotAvailableError("No captions available for this video"),
       );
-      fromResults = [mockChain(), mockChain()]; // processing update + failed update
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }), // read summary_language
+        mockChain(), // processing update
+        mockChain({ data: null }), // transcript cache check
+        mockChain(), // failed update
+      ];
 
       const { summarizeVideo } = await import("../summarize-video.js");
       const step = makeStep();
@@ -188,7 +218,11 @@ describe("summarize-video", () => {
 
     it("rethrows unknown transcript errors for Inngest retry", async () => {
       mockFetchTranscript.mockRejectedValue(new Error("Network timeout"));
-      fromResults = [mockChain()];
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }), // read summary_language
+        mockChain(), // processing update
+        mockChain({ data: null }), // transcript cache check
+      ];
 
       const { summarizeVideo } = await import("../summarize-video.js");
       const step = makeStep();
@@ -201,8 +235,17 @@ describe("summarize-video", () => {
 
   describe("Claude API error classification", () => {
     beforeEach(() => {
-      mockFetchTranscript.mockResolvedValue({ text: "transcript text", truncated: false });
-      fromResults = [mockChain()]; // processing update
+      mockFetchTranscript.mockResolvedValue({
+        text: "transcript text",
+        truncated: false,
+        language: "en",
+      });
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }), // read summary_language
+        mockChain(), // processing update
+        mockChain({ data: null }), // transcript cache check
+        mockChain(), // transcript_language update
+      ];
     });
 
     it("rethrows APIConnectionError for Inngest retry", async () => {

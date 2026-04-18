@@ -1,4 +1,5 @@
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
+import { SUMMARY_LANGUAGES } from "@cliphy/shared";
 import { NonRetriableError } from "inngest";
 import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
@@ -100,7 +101,20 @@ export const summarizeVideo = inngest.createFunction(
     };
 
     // Step 1: Mark as processing and fetch transcript (use cached if available)
-    const { text: transcript, truncated } = await step.run("fetch-transcript", async () => {
+    const {
+      text: transcript,
+      truncated,
+      summaryLanguage,
+      transcriptLanguage,
+    } = await step.run("fetch-transcript", async () => {
+      // Read the requested summary language from the summary row
+      const { data: summaryRow } = await supabase
+        .from("summaries")
+        .select("summary_language")
+        .eq("id", summaryId)
+        .single();
+      const summaryLang = (summaryRow?.summary_language as string) ?? "en";
+
       await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
 
       // Check for a cached transcript from a previous summary of the same video
@@ -117,7 +131,12 @@ export const summarizeVideo = inngest.createFunction(
         const text = cached.transcript as string;
         const wasTruncated = text.length >= MAX_TRANSCRIPT_LENGTH;
         log.info("Transcript cache hit", { videoId, chars: text.length });
-        return { text, truncated: wasTruncated };
+        return {
+          text,
+          truncated: wasTruncated,
+          summaryLanguage: summaryLang,
+          transcriptLanguage: "",
+        };
       }
 
       try {
@@ -126,8 +145,21 @@ export const summarizeVideo = inngest.createFunction(
           videoId,
           chars: result.text.length,
           truncated: result.truncated,
+          language: result.language,
         });
-        return result;
+
+        // Store transcript language on the summary row
+        await supabase
+          .from("summaries")
+          .update({ transcript_language: result.language })
+          .eq("id", summaryId);
+
+        return {
+          text: result.text,
+          truncated: result.truncated,
+          summaryLanguage: summaryLang,
+          transcriptLanguage: result.language,
+        };
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {
           await supabase
@@ -143,7 +175,18 @@ export const summarizeVideo = inngest.createFunction(
     // Step 2: Generate summary via Claude
     const summaryJson = await step.run("generate-summary", async () => {
       try {
-        const result = await summarizeTranscript(transcript, videoTitle || "Untitled Video");
+        const summaryLangName =
+          SUMMARY_LANGUAGES[summaryLanguage as keyof typeof SUMMARY_LANGUAGES] ?? "English";
+        const transcriptLangName = transcriptLanguage
+          ? (SUMMARY_LANGUAGES[transcriptLanguage as keyof typeof SUMMARY_LANGUAGES] ??
+            transcriptLanguage)
+          : undefined;
+        const result = await summarizeTranscript(
+          transcript,
+          videoTitle || "Untitled Video",
+          summaryLangName,
+          transcriptLangName,
+        );
         if (truncated) {
           result.truncated = true;
         }

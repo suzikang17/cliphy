@@ -177,14 +177,18 @@ describe("Queue", () => {
       // position count
       const posChain = mockChain({ data: null, count: 0 });
 
+      // user_settings lookup
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
+
       let callCount = 0;
       supabaseMock = {
         from: vi.fn().mockImplementation(() => {
           callCount++;
           if (callCount === 1) return dupChain; // duplicate check
           if (callCount === 2) return planChain; // user plan
-          if (callCount === 3) return insertChain; // insert
-          if (callCount === 4) return posChain; // position
+          if (callCount === 3) return settingsChain; // user_settings
+          if (callCount === 4) return insertChain; // insert
+          if (callCount === 5) return posChain; // position
           return mockChain({});
         }),
         rpc: vi.fn().mockReturnValue(rpcChain),
@@ -281,14 +285,17 @@ describe("Queue", () => {
       const insertChain = mockChain({ data: row });
       const posChain = mockChain({ data: null, count: 0 });
 
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
+
       let callCount = 0;
       supabaseMock = {
         from: vi.fn().mockImplementation(() => {
           callCount++;
           if (callCount === 1) return dupChain;
           if (callCount === 2) return planChain;
-          if (callCount === 3) return insertChain;
-          if (callCount === 4) return posChain;
+          if (callCount === 3) return settingsChain;
+          if (callCount === 4) return insertChain;
+          if (callCount === 5) return posChain;
           return mockChain({});
         }),
         rpc: vi.fn().mockReturnValue(rpcChain),
@@ -333,6 +340,7 @@ describe("Queue", () => {
       const dupChain = mockChain({ data: null }); // no non-deleted duplicate
       const planChain = mockChain({ data: { plan: "free" } });
       const rpcChain = mockChain({ data: true });
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
       const row = {
         id: "sum-new",
         user_id: "test-user-id",
@@ -353,8 +361,9 @@ describe("Queue", () => {
           callCount++;
           if (callCount === 1) return dupChain;
           if (callCount === 2) return planChain;
-          if (callCount === 3) return insertChain;
-          if (callCount === 4) return posChain;
+          if (callCount === 3) return settingsChain;
+          if (callCount === 4) return insertChain;
+          if (callCount === 5) return posChain;
           return mockChain({});
         }),
         rpc: vi.fn().mockReturnValue(rpcChain),
