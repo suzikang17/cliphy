@@ -32,6 +32,7 @@ import {
   signInWithEmail,
 } from "../../lib/auth";
 import { isActiveTab } from "../../lib/is-active-tab";
+import { LanguageSelector } from "./LanguageSelector";
 import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
@@ -582,6 +583,7 @@ export function App() {
                   Pro Plan
                 </div>
               )}
+              <LanguageSelector />
               {user.plan === "pro" && (
                 <button
                   onClick={async () => {

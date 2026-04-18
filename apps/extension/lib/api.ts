@@ -12,6 +12,7 @@ import type {
   ChatMessage,
   ChatResponse,
   SummaryJson,
+  UserSettings,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -262,5 +263,16 @@ export async function updateSummaryJson(id: string, summaryJson: SummaryJson) {
   return request<{ summary: Summary }>(API_ROUTES.SUMMARIES.UPDATE(id), {
     method: "PATCH",
     body: JSON.stringify({ summary_json: summaryJson }),
+  });
+}
+
+export async function getSettings() {
+  return request<UserSettings>(API_ROUTES.SETTINGS);
+}
+
+export async function updateSettings(settings: Partial<UserSettings>) {
+  return request<UserSettings>(API_ROUTES.SETTINGS, {
+    method: "PATCH",
+    body: JSON.stringify(settings),
   });
 }
