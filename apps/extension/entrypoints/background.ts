@@ -83,7 +83,7 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener(
     (
       message: unknown,
-      _sender: Runtime.MessageSender,
+      sender: Runtime.MessageSender,
       sendResponse: (response: unknown) => void,
     ) => {
       const msg = message as ExtensionMessage;
@@ -162,6 +162,15 @@ export default defineBackground(() => {
             .then(() => sendResponse({ success: true }))
             .catch((err: Error) => sendResponse({ success: false, error: err.message }));
           return true;
+
+        case "OPEN_SIDEPANEL": {
+          const tabId = sender.tab?.id;
+          if (tabId) {
+            browser.sidePanel.open({ tabId }).catch(() => {});
+          }
+          sendResponse({ success: true });
+          return false;
+        }
       }
 
       return false;
