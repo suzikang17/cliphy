@@ -24,10 +24,12 @@ cat > .vercel/output/functions/api/index.func/.vc-config.json << 'EOF'
 EOF
 
 # Copy htmx.js next to the bundle (no node_modules at runtime in Vercel serverless)
-cp node_modules/htmx.org/dist/htmx.min.js .vercel/output/functions/api/index.func/htmx.min.js
+HTMX_PATH=$(node -e "console.log(require.resolve('htmx.org/dist/htmx.min.js'))")
+cp "$HTMX_PATH" .vercel/output/functions/api/index.func/htmx.min.js
 
 # ── 3. Static files ──
 # Web app SPA output → static root
+mkdir -p .vercel/output/static
 cp -r apps/web/dist/* .vercel/output/static/
 
 # Server static pages (terms, privacy, logo)
