@@ -971,7 +971,7 @@ export function App() {
             disabled={checkoutLoading}
             className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {checkoutLoading ? "Opening checkout..." : "✦ Unlock Pro"}
+            {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
           </button>
         </div>
       )}
