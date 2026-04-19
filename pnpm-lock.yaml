@@ -300,6 +300,10 @@ importers:
         version: 6.4.1(@types/node@22.19.11)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/shared:
+    dependencies:
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
     devDependencies:
       '@types/react':
         specifier: ^18.3.28
