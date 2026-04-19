@@ -58,6 +58,7 @@ export const API_ROUTES = {
     AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",
     CHAT: (id: string) => `/api/summaries/${id}/chat`,
     UPDATE: (id: string) => `/api/summaries/${id}`,
+    TRANSLATE: (id: string) => `/api/summaries/${id}/translate`,
   },
   TAGS: {
     LIST: "/api/summaries/tags",

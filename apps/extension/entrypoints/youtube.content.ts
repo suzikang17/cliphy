@@ -65,8 +65,8 @@ export default defineContentScript({
       yt-thumbnail-view-model { overflow: visible !important; }
       yt-lockup-view-model { overflow: visible !important; }
 
-      /* Lockup variant: injected into lockup itself, positioned over thumbnail (left side) */
-      .cliphy-thumb-overlay--lockup { top: 6px; left: 6px; right: auto; }
+      /* Lockup variant: injected into lockup itself, match base bottom-right position */
+      .cliphy-thumb-overlay--lockup { bottom: 28px; right: 4px; top: auto; left: auto; }
 
       /* CSS hover for yt-lockup-view-model (sidebar) */
       yt-lockup-view-model:hover .cliphy-thumb-overlay--lockup { opacity: 1; }
@@ -333,10 +333,7 @@ export default defineContentScript({
 
       actionsInnerEl.appendChild(btn);
 
-      // YouTube rebuilds #top-level-buttons-computed on SPA navigation after we inject.
-      // Watch for our button being removed and re-inject once so it survives the re-render.
-      // Scope to the actions bar's parent — not document.body — to avoid firing on every DOM mutation.
-      const guardTarget = actionsInnerEl.parentElement ?? actionsInnerEl;
+      // Re-inject if YouTube rebuilds the actions bar (SPA navigation wipes our button).
       videoPageBtnGuard = new MutationObserver(() => {
         if (!document.getElementById("cliphy-video-btn") && isVideoPage()) {
           videoPageBtnGuard?.disconnect();
@@ -344,7 +341,7 @@ export default defineContentScript({
           injectVideoPageButton();
         }
       });
-      videoPageBtnGuard.observe(guardTarget, { childList: true, subtree: true });
+      videoPageBtnGuard.observe(document.body, { childList: true, subtree: true });
     }
 
     // ── Video player overlay button ────────────────────────────

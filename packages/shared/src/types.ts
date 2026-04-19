@@ -63,6 +63,8 @@ export interface Summary {
   videoDurationSeconds?: number;
   status: SummaryStatus;
   summaryJson?: SummaryJson;
+  summaryLanguage?: string;
+  translations?: Partial<Record<import("./constants.js").SummaryLanguageCode, SummaryJson>>;
   errorMessage?: string;
   tags: string[];
   deletedAt?: string;

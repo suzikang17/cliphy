@@ -13,6 +13,7 @@ import type {
   ChatResponse,
   SummaryJson,
   UserSettings,
+  SummaryLanguageCode,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -275,4 +276,17 @@ export async function updateSettings(settings: Partial<UserSettings>) {
     method: "PATCH",
     body: JSON.stringify(settings),
   });
+}
+
+export async function translateSummary(
+  id: string,
+  language: SummaryLanguageCode,
+): Promise<{ summaryJson: SummaryJson; cached: boolean }> {
+  return request<{ summaryJson: SummaryJson; cached: boolean }>(
+    API_ROUTES.SUMMARIES.TRANSLATE(id),
+    {
+      method: "POST",
+      body: JSON.stringify({ language }),
+    },
+  );
 }

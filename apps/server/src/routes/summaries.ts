@@ -9,13 +9,16 @@ import {
   MAX_FREE_UNIQUE_TAGS,
   TAG_MAX_LENGTH,
   PRO_FEATURES,
+  PLAN_LIMITS,
+  SUMMARY_LANGUAGES,
 } from "@cliphy/shared";
-import type { SummaryJson, ChatMessage } from "@cliphy/shared";
+import type { SummaryJson, ChatMessage, SummaryLanguageCode } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
 import { chatWithVideo } from "../services/chat.js";
+import { translateSummaryJson } from "../services/translator.js";
 
 export const summaryRoutes = new Hono<AppEnv>();
 
@@ -486,6 +489,81 @@ summaryRoutes.get("/", async (c) => {
     offset,
     limit,
   });
+});
+
+// ── POST /:id/translate — Translate an existing summary ───────
+summaryRoutes.post("/:id/translate", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const body = await c.req.json<{ language?: string }>().catch(() => ({ language: undefined }));
+  const lang = body.language as SummaryLanguageCode | undefined;
+
+  if (!lang || !(lang in SUMMARY_LANGUAGES)) {
+    return c.json({ error: "Invalid language code" }, 400);
+  }
+
+  const { data: summary } = await supabase
+    .from("summaries")
+    .select("summary_json, summary_language, translations")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .is("deleted_at", null)
+    .single();
+
+  if (!summary) return c.json({ error: "Summary not found" }, 404);
+  if (!summary.summary_json) return c.json({ error: "Summary not ready" }, 400);
+
+  const originalLang = (summary.summary_language as string) ?? "en";
+
+  // Requesting the original language — return as-is, free
+  if (lang === originalLang) {
+    return c.json({ summaryJson: summary.summary_json, cached: true });
+  }
+
+  // Already translated — return cached, free
+  const cached = (summary.translations as Record<string, unknown> | null)?.[lang];
+  if (cached) {
+    return c.json({ summaryJson: cached, cached: true });
+  }
+
+  // New translation — costs one usage credit
+  const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
+  const plan = (user?.plan as "free" | "pro") ?? "free";
+  const limit = PLAN_LIMITS[plan];
+
+  const { data: allowed } = await supabase.rpc("increment_monthly_count", {
+    p_user_id: userId,
+    p_limit: limit,
+  });
+
+  if (!allowed) {
+    return c.json(
+      { error: "Monthly summary limit reached", code: "RATE_LIMITED", limit, plan },
+      429,
+    );
+  }
+
+  try {
+    const targetLangName = SUMMARY_LANGUAGES[lang];
+    const translated = await translateSummaryJson(
+      summary.summary_json as import("@cliphy/shared").SummaryJson,
+      targetLangName,
+    );
+
+    // Merge into translations JSONB
+    const existing = (summary.translations as Record<string, unknown>) ?? {};
+    await supabase
+      .from("summaries")
+      .update({ translations: { ...existing, [lang]: translated } })
+      .eq("id", id);
+
+    return c.json({ summaryJson: translated, cached: false });
+  } catch (err) {
+    await supabase.rpc("decrement_monthly_count", { p_user_id: userId });
+    throw err;
+  }
 });
 
 // ── GET /:id — Full summary detail ──────────────────────────

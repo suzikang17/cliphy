@@ -4,10 +4,12 @@ import type {
   ContextSection,
   Summary,
   SummaryJson,
+  SummaryLanguageCode,
 } from "@cliphy/shared";
 import {
   formatTimeSaved,
   parseDurationToSeconds,
+  SUMMARY_LANGUAGES,
   TAG_MAX_LENGTH,
   WEB_ROUTES,
 } from "@cliphy/shared";
@@ -39,6 +41,10 @@ interface SummaryDetailProps {
   onTabChange?: (tab: "summary" | "chat") => void;
   /** Load persisted chat history */
   onLoadHistory?: () => Promise<ChatMessage[]>;
+  /** Translate summary to another language (costs 1 credit if not cached) */
+  onTranslate?: (
+    lang: SummaryLanguageCode,
+  ) => Promise<{ summaryJson: SummaryJson; cached: boolean }>;
 }
 
 export { ExportBar, toMarkdown, toPlainText };
@@ -267,6 +273,110 @@ function TagEditor({
   );
 }
 
+function LanguagePicker({
+  originalLang,
+  viewingLang,
+  cachedTranslations,
+  translating,
+  onSelect,
+}: {
+  originalLang: string;
+  viewingLang: string;
+  cachedTranslations: Partial<Record<string, SummaryJson>>;
+  translating: boolean;
+  onSelect: (lang: SummaryLanguageCode, json: SummaryJson) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const availableLangs = Object.keys(SUMMARY_LANGUAGES) as SummaryLanguageCode[];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={translating}
+        className={`text-xs px-2 py-1.5 bg-(--color-surface) border-2 rounded-lg cursor-pointer transition-all ${
+          viewingLang !== originalLang
+            ? "border-neon-500 text-neon-600 dark:text-neon-400 font-bold"
+            : "border-(--color-border-hard) text-(--color-text-faint) hover:text-neon-600 hover:bg-neon-50 dark:hover:bg-neon-900/30 shadow-brutal-sm hover:shadow-brutal-pressed press-down"
+        }`}
+        title="Switch language"
+      >
+        {translating ? (
+          "…"
+        ) : (
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        )}
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-2 z-50 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-xl shadow-brutal-sm py-1 min-w-[160px] max-h-[240px] overflow-y-auto">
+          {availableLangs.map((lang) => {
+            const isOriginal = lang === originalLang;
+            const isCached = isOriginal || !!cachedTranslations[lang];
+            const isActive = lang === viewingLang;
+            return (
+              <button
+                key={lang}
+                onClick={() => {
+                  onSelect(lang, isOriginal ? undefined! : cachedTranslations[lang]!);
+                  setOpen(false);
+                }}
+                className={`w-full text-left text-[11px] font-bold px-3 py-1.5 bg-transparent border-0 cursor-pointer transition-colors flex items-center justify-between gap-2 ${
+                  isActive
+                    ? "text-neon-600 dark:text-neon-400 bg-neon-50 dark:bg-neon-900/20"
+                    : "text-(--color-text-secondary) hover:bg-neon-50 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300"
+                }`}
+              >
+                <span>{SUMMARY_LANGUAGES[lang]}</span>
+                {isActive && (
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+                {!isCached && !isActive && (
+                  <span className="text-[9px] text-(--color-text-faint) font-normal">Generate</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExportBar({
   summaryId,
   copied,
@@ -275,17 +385,40 @@ function ExportBar({
   onCopy,
   onRetry,
   onDismiss,
+  originalLang,
+  viewingLang,
+  cachedTranslations,
+  translating,
+  onLanguageSelect,
 }: {
   summaryId: string;
   copied: CopyState;
   copyMarkdown: boolean;
   setCopyMarkdown: (v: boolean) => void;
-  onCopy: () => void;
+  onCopy: (markdown?: boolean) => void;
   onRetry?: () => void;
   onDismiss?: () => void;
+  originalLang?: string;
+  viewingLang?: string;
+  cachedTranslations?: Partial<Record<string, SummaryJson>>;
+  translating?: boolean;
+  onLanguageSelect?: (lang: SummaryLanguageCode, json: SummaryJson | undefined) => void;
 }) {
   const [confirmRetry, setConfirmRetry] = useState(false);
   const [shared, setShared] = useState(false);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const copyMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCopyMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (copyMenuRef.current && !copyMenuRef.current.contains(e.target as Node)) {
+        setShowCopyMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showCopyMenu]);
 
   function handleRetryClick() {
     if (confirmRetry) {
@@ -297,39 +430,18 @@ function ExportBar({
     }
   }
 
+  const btnBase =
+    "text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 press-down cursor-pointer transition-all";
+
   return (
     <div className="flex items-center gap-3">
-      <button
-        onClick={onCopy}
-        className="text-xs font-bold px-3 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 press-down cursor-pointer transition-all"
-      >
-        {copied === "copied" ? "Copied!" : "Copy All"}
-      </button>
-      <label className="flex items-center gap-1.5 text-[11px] text-(--color-text-secondary) cursor-pointer select-none -mb-0.5">
-        <input
-          type="checkbox"
-          checked={copyMarkdown}
-          onChange={(e) => setCopyMarkdown(e.target.checked)}
-          className="accent-neon-600 cursor-pointer"
-        />
-        Markdown
-      </label>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="relative flex" ref={copyMenuRef}>
         <button
-          onClick={async () => {
-            const url = `https://cliphy.app${WEB_ROUTES.SUMMARY(summaryId)}`;
-            try {
-              await navigator.clipboard.writeText(url);
-              setShared(true);
-              setTimeout(() => setShared(false), 2000);
-            } catch {
-              // Clipboard API can fail in extension contexts
-            }
-          }}
-          className="text-xs px-2 py-1.5 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-100 dark:hover:bg-neon-900/30 press-down cursor-pointer transition-all text-(--color-text-faint) hover:text-neon-600"
-          title="Copy share link"
+          onClick={() => onCopy()}
+          title={`Copy as ${copyMarkdown ? "Markdown" : "text"}`}
+          className={`${btnBase} rounded-l-lg border-r-0 px-2.5`}
         >
-          {shared ? (
+          {copied === "copied" ? (
             <svg
               width="14"
               height="14"
@@ -354,14 +466,68 @@ function ExportBar({
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
           )}
         </button>
+        <button
+          onClick={() => setShowCopyMenu((v) => !v)}
+          className={`${btnBase} rounded-r-lg px-2`}
+        >
+          ▾
+        </button>
+        {showCopyMenu && (
+          <div className="absolute bottom-full left-0 mb-1 w-40 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20">
+            {(["Text", "Markdown"] as const).map((label) => {
+              const isMarkdown = label === "Markdown";
+              const active = copyMarkdown === isMarkdown;
+              return (
+                <button
+                  key={label}
+                  onClick={() => {
+                    setCopyMarkdown(isMarkdown);
+                    onCopy(isMarkdown);
+                    setShowCopyMenu(false);
+                  }}
+                  className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text) flex items-center gap-1.5"
+                >
+                  <span className="w-3 text-neon-600">{active ? "✓" : ""}</span>
+                  {label}
+                </button>
+              );
+            })}
+            <div className="border-t border-(--color-border-soft) my-1" />
+            <button
+              onClick={async () => {
+                const url = `https://cliphy.app${WEB_ROUTES.SUMMARY(summaryId)}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setShared(true);
+                  setTimeout(() => setShared(false), 2000);
+                } catch {
+                  // Clipboard API can fail in extension contexts
+                }
+                setShowCopyMenu(false);
+              }}
+              className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text) flex items-center gap-1.5"
+            >
+              <span className="w-3 text-neon-600">{shared ? "✓" : ""}</span>
+              {shared ? "Link copied" : "Copy share link"}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        {onLanguageSelect && originalLang && (
+          <LanguagePicker
+            originalLang={originalLang}
+            viewingLang={viewingLang ?? originalLang}
+            cachedTranslations={cachedTranslations ?? {}}
+            translating={translating ?? false}
+            onSelect={onLanguageSelect}
+          />
+        )}
         {onRetry && (
           <button
             onClick={handleRetryClick}
@@ -495,6 +661,7 @@ export function SummaryDetail({
   hasTranscript,
   onTabChange,
   onLoadHistory,
+  onTranslate,
 }: SummaryDetailProps) {
   const [copied, setCopied] = useState<CopyState>("idle");
   const [localCopyMarkdown, setLocalCopyMarkdown] = useState(false);
@@ -505,7 +672,20 @@ export function SummaryDetail({
   }, [activeTab]);
   const [summaryUpdated, setSummaryUpdated] = useState(false);
   const copyMarkdown = pinned ? (copyAsMarkdown ?? false) : localCopyMarkdown;
-  const json = summary.summaryJson;
+
+  const [viewingLang, setViewingLang] = useState<string>(summary.summaryLanguage ?? "en");
+  const [cachedTranslations, setCachedTranslations] = useState<
+    Partial<Record<string, SummaryJson>>
+  >(summary.translations ?? {});
+  const [translating, setTranslating] = useState(false);
+
+  // The summary JSON to display — either a cached translation or the original
+  const displayJson =
+    viewingLang === (summary.summaryLanguage ?? "en")
+      ? summary.summaryJson
+      : (cachedTranslations[viewingLang] ?? summary.summaryJson);
+
+  const json = displayJson;
 
   function scrollToSection(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     e.preventDefault();
@@ -516,8 +696,10 @@ export function SummaryDetail({
     setTimeout(() => el.classList.remove("ring-2", "ring-neon-400", "ring-offset-2"), 800);
   }
 
-  async function handleCopy() {
-    const content = copyMarkdown ? toMarkdown(summary) : toPlainText(summary);
+  async function handleCopy(asMarkdown?: boolean) {
+    const displaySummary = displayJson ? { ...summary, summaryJson: displayJson } : summary;
+    const content =
+      (asMarkdown ?? copyMarkdown) ? toMarkdown(displaySummary) : toPlainText(displaySummary);
     try {
       await navigator.clipboard.writeText(content);
       setCopied("copied");
@@ -895,6 +1077,35 @@ export function SummaryDetail({
                 onCopy={handleCopy}
                 onRetry={summary.status === "completed" ? onRetry : undefined}
                 onDismiss={onDismiss}
+                originalLang={summary.summaryLanguage ?? "en"}
+                viewingLang={viewingLang}
+                cachedTranslations={cachedTranslations}
+                translating={translating}
+                onLanguageSelect={
+                  onTranslate
+                    ? async (lang, cachedJson) => {
+                        if (cachedJson || lang === (summary.summaryLanguage ?? "en")) {
+                          // Cached or original — switch instantly
+                          setViewingLang(lang);
+                        } else {
+                          // Need to generate — costs a credit
+                          setTranslating(true);
+                          try {
+                            const result = await onTranslate(lang);
+                            setCachedTranslations((prev) => ({
+                              ...prev,
+                              [lang]: result.summaryJson,
+                            }));
+                            setViewingLang(lang);
+                          } catch {
+                            // Silently fail — user sees no change
+                          } finally {
+                            setTranslating(false);
+                          }
+                        }
+                      }
+                    : undefined
+                }
               />
             </div>
           )}

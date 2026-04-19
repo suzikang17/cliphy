@@ -12,6 +12,8 @@ export function toSummary(row: Record<string, unknown>): Summary {
     videoDurationSeconds: (row.video_duration_seconds as number) ?? undefined,
     status: row.status as Summary["status"],
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
+    summaryLanguage: (row.summary_language as string) ?? undefined,
+    translations: (row.translations as Summary["translations"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
     createdAt: row.created_at as string,
