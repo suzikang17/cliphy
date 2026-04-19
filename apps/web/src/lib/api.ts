@@ -7,6 +7,9 @@ import type {
   Summary,
   ChatMessage,
   ChatResponse,
+  TagsResponse,
+  AutoTagSuggestion,
+  BulkAutoTagResponse,
 } from "@cliphy/shared";
 import { supabase } from "./supabase";
 
@@ -103,6 +106,28 @@ export async function getSummary(id: string) {
 
 export async function deleteSummary(id: string) {
   return request<{ deleted: true }>(API_ROUTES.SUMMARIES.ITEM(id), { method: "DELETE" });
+}
+
+export async function updateSummaryTags(id: string, tags: string[]) {
+  return request<TagsResponse>(API_ROUTES.SUMMARIES.TAGS(id), {
+    method: "PATCH",
+    body: JSON.stringify({ tags }),
+  });
+}
+
+export async function getAllTags() {
+  return request<TagsResponse>(API_ROUTES.TAGS.LIST);
+}
+
+export async function autoTagSummary(id: string) {
+  return request<AutoTagSuggestion>(API_ROUTES.SUMMARIES.AUTO_TAG(id), { method: "POST" });
+}
+
+export async function autoTagBulk(summaryIds: string[]) {
+  return request<BulkAutoTagResponse>(API_ROUTES.SUMMARIES.AUTO_TAG_BULK, {
+    method: "POST",
+    body: JSON.stringify({ summaryIds }),
+  });
 }
 
 // Usage
