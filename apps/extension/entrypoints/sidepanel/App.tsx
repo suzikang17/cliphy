@@ -620,12 +620,22 @@ export function App() {
           </button>
           {showUserMenu && (
             <div className="absolute right-0 top-full mt-1 w-fit bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 z-20">
-              {user.plan === "pro" && (
+              <LanguageSelector />
+              {user.plan === "pro" ? (
                 <div className="px-3 py-1.5 text-[10px] font-bold text-neon-600 text-left border-b border-(--color-border-soft) mb-1">
                   Pro Plan
                 </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    handleCheckout();
+                  }}
+                  className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 border-b border-(--color-border-soft) cursor-pointer hover:bg-(--color-surface-raised) transition-colors font-bold text-neon-600 dark:text-neon-400 mb-1"
+                >
+                  ✦ Upgrade to Pro
+                </button>
               )}
-              <LanguageSelector />
               {user.plan === "pro" && (
                 <button
                   onClick={async () => {
@@ -649,7 +659,7 @@ export function App() {
                 }}
                 className="w-full text-left text-xs px-3 py-1.5 bg-transparent border-0 cursor-pointer hover:bg-(--color-surface-raised) transition-colors text-(--color-text)"
               >
-                Open Cliphy
+                Open Cliphub
               </button>
               <button
                 onClick={() => {
@@ -919,31 +929,21 @@ export function App() {
         />
       )}
 
-      <div className="shrink-0 px-4 pt-3 pb-0">
-        {upgradePrompt && (
-          <div className="mb-3">
-            <UpgradePrompt
-              message={upgradePrompt}
-              onDismiss={() => setUpgradePrompt(null)}
-              onUpgraded={handleUpgraded}
-            />
-          </div>
-        )}
-        {usage && usage.plan === "free" && !upgradePrompt && (
-          <button
-            onClick={handleCheckout}
-            disabled={checkoutLoading}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 mb-3 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
-          </button>
-        )}
-        {usage && (
-          <div className="mb-3">
-            <UsageBar usage={usage} onUpgrade={handleCheckout} upgradeLoading={checkoutLoading} />
-          </div>
-        )}
-      </div>
+      {upgradePrompt && (
+        <div className="shrink-0 px-4 pt-3">
+          <UpgradePrompt
+            message={upgradePrompt}
+            onDismiss={() => setUpgradePrompt(null)}
+            onUpgraded={handleUpgraded}
+          />
+        </div>
+      )}
+
+      {usage && (
+        <div className="shrink-0 border-b border-(--color-border-soft) px-4 py-2">
+          <UsageBar usage={usage} onOpenCliphy={() => openWebApp(WEB_ROUTES.DASHBOARD)} />
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-4 pb-2">
         <QueueList
@@ -963,6 +963,18 @@ export function App() {
           onRetry={handleRetryItem}
         />
       </div>
+
+      {user?.plan !== "pro" && (
+        <div className="shrink-0 border-t border-(--color-border-soft) px-4 py-3">
+          <button
+            onClick={handleCheckout}
+            disabled={checkoutLoading}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {checkoutLoading ? "Opening checkout..." : "✦ Unlock Pro"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

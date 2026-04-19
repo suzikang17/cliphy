@@ -6,7 +6,7 @@ import { get, set } from "../../lib/storage";
 
 const STORAGE_KEY = "cliphy_summary_language";
 
-export function LanguageSelector() {
+export function LanguageSelector({ compact = false }: { compact?: boolean }) {
   const [language, setLanguage] = useState<SummaryLanguageCode>("en");
 
   useEffect(() => {
@@ -40,6 +40,30 @@ export function LanguageSelector() {
       setLanguage(prev);
       await set(STORAGE_KEY, prev);
     }
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1">
+        <span
+          title="Summary language"
+          className="cursor-default select-none text-sm leading-none text-(--color-text-muted)"
+        >
+          🌐
+        </span>
+        <select
+          value={language}
+          onChange={handleChange}
+          className="text-xs bg-(--color-surface-raised) border border-(--color-border-soft) rounded px-1.5 py-0.5 text-(--color-text) cursor-pointer"
+        >
+          {Object.entries(SUMMARY_LANGUAGES).map(([code, name]) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
   }
 
   return (
