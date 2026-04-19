@@ -22,6 +22,7 @@ import {
   getUsage,
   getUser,
   ProRequiredError,
+  RateLimitError,
   retryQueueItem,
   updateSummaryJson,
 } from "../../lib/api";
@@ -417,10 +418,25 @@ export function App() {
       const [queueRes, usageRes] = await Promise.all([getQueue(), getUsage()]);
       setSummaries(queueRes.items);
       setUsage(usageRes.usage);
+      // Sync selectedSummary so the detail view updates when polling recovers a missed realtime event
+      setSelectedSummary((prev) => {
+        if (!prev) return prev;
+        const updated = queueRes.items.find((s) => s.id === prev.id);
+        return updated ?? prev;
+      });
     } catch {
       // Silently fail
     }
   }
+
+  // Poll while any summary is in-flight — fallback for missed realtime events
+  useEffect(() => {
+    if (!user) return;
+    const hasInFlight = summaries.some((s) => s.status === "pending" || s.status === "processing");
+    if (!hasInFlight) return;
+    const timer = setTimeout(fetchQueueAndUsage, 3000);
+    return () => clearTimeout(timer);
+  }, [summaries, user]);
 
   async function handleAddToQueue() {
     if (!video?.videoId || video.isLive) return;
@@ -541,7 +557,15 @@ export function App() {
     }
     try {
       await retryQueueItem(id);
-    } catch {
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        const limit = err.limit;
+        const plan = err.plan;
+        setUpgradePrompt(
+          `Monthly limit reached (${limit}/${limit} summaries on ${plan} plan). Upgrade for more.`,
+        );
+        setView("dashboard");
+      }
       if (original) {
         setSummaries((prev) => prev.map((s) => (s.id === id ? original : s)));
         if (selectedSummary?.id === id) setSelectedSummary(original);
@@ -860,7 +884,8 @@ export function App() {
               setCopyMarkdown={setCopyMarkdown}
               onCopy={handleCopyAll}
               onRetry={
-                selectedSummary.status === "completed"
+                selectedSummary.status === "completed" &&
+                !(user?.plan !== "pro" && usage && usage.used >= usage.limit)
                   ? () => handleRetryItem(selectedSummary.id)
                   : undefined
               }
