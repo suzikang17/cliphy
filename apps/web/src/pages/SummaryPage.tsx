@@ -1,7 +1,7 @@
-import type { Summary } from "@cliphy/shared";
-import { formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router";
+import type { AutoTagSuggestion, Summary } from "@cliphy/shared";
+import { TagSuggestions, formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router";
 import { Nav } from "../components/Nav";
 import * as api from "../lib/api";
 
@@ -17,17 +17,112 @@ function extractTimestamp(text: string): { time: string; seconds: number; label:
 export function SummaryPage() {
   const { id } = useParams<{ id: string }>();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [autoTagResult, setAutoTagResult] = useState<AutoTagSuggestion | null>(null);
+  const [autoTagLoading, setAutoTagLoading] = useState(false);
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!id) return;
-    api
-      .getSummary(id)
-      .then((res) => setSummary(res.summary))
+    Promise.all([
+      api.getSummary(id),
+      api.getAllTags().catch(() => ({ tags: [] as string[] })),
+      api.getUsage().catch(() => null),
+    ])
+      .then(([res, tagsRes, usageRes]) => {
+        setSummary(res.summary);
+        setAllTags(tagsRes.tags);
+        if (usageRes) setIsPro(usageRes.usage.plan === "pro");
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!showTagPicker) return;
+    const onClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowTagPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showTagPicker]);
+
+  async function handleTagsChange(newTags: string[]) {
+    if (!summary || !id) return;
+    const rollback = summary.tags;
+    setSummary((prev) => (prev ? { ...prev, tags: newTags } : prev));
+    try {
+      const res = await api.updateSummaryTags(id, newTags);
+      setSummary((prev) => (prev ? { ...prev, tags: res.tags } : prev));
+      const tagsRes = await api.getAllTags().catch(() => null);
+      if (tagsRes) setAllTags(tagsRes.tags);
+    } catch {
+      setSummary((prev) => (prev ? { ...prev, tags: rollback } : prev));
+    }
+  }
+
+  async function handleRetry() {
+    if (!id) return;
+    setRetrying(true);
+    try {
+      await api.retryQueueItem(id);
+      setSummary((prev) => (prev ? { ...prev, status: "pending", summaryJson: undefined } : prev));
+      const interval = setInterval(async () => {
+        try {
+          const res = await api.getSummary(id);
+          setSummary(res.summary);
+          if (res.summary.status === "completed" || res.summary.status === "failed") {
+            clearInterval(interval);
+            setRetrying(false);
+          }
+        } catch {
+          clearInterval(interval);
+          setRetrying(false);
+        }
+      }, 3000);
+    } catch {
+      setRetrying(false);
+    }
+  }
+
+  async function handleAutoTag() {
+    if (!id) return;
+    setAutoTagLoading(true);
+    try {
+      const result = await api.autoTagSummary(id);
+      setAutoTagResult(result);
+    } catch (err) {
+      console.error("Auto-tag failed:", err);
+    } finally {
+      setAutoTagLoading(false);
+    }
+  }
+
+  function handleAutoTagApplyOne(tag: string) {
+    if (!summary) return;
+    handleTagsChange([...summary.tags, tag]);
+    setAutoTagResult((prev) => {
+      if (!prev) return null;
+      const remaining = {
+        existing: prev.existing.filter((t) => t !== tag),
+        new: prev.new.filter((t) => t !== tag),
+      };
+      return remaining.existing.length === 0 && remaining.new.length === 0 ? null : remaining;
+    });
+  }
+
+  function handleAutoTagApplyAll(tags: string[]) {
+    if (!summary) return;
+    handleTagsChange([...summary.tags, ...tags]);
+    setAutoTagResult(null);
+  }
 
   if (loading) {
     return (
@@ -68,7 +163,6 @@ export function SummaryPage() {
     <div className="max-w-3xl mx-auto px-6 pb-12">
       <Nav />
 
-      {/* Back link */}
       <Link
         to="/dashboard"
         className="inline-flex items-center gap-1 text-sm font-semibold text-(--color-text-muted) hover:text-neon-600 no-underline transition-colors mb-6"
@@ -76,7 +170,7 @@ export function SummaryPage() {
         &larr; Dashboard
       </Link>
 
-      {/* Video metadata */}
+      {/* Video metadata + tag editing */}
       <div className="flex items-start gap-4 mb-8">
         <a
           href={`https://youtube.com/watch?v=${summary.videoId}`}
@@ -110,16 +204,78 @@ export function SummaryPage() {
               </>
             )}
           </div>
-          {summary.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {summary.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft)"
+
+          {/* Tags + editing */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+            {summary.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft)"
+              >
+                {tag}
+                <button
+                  onClick={() => handleTagsChange(summary.tags.filter((t) => t !== tag))}
+                  className="bg-transparent border-0 p-0 cursor-pointer text-neon-500 hover:text-red-500 transition-colors leading-none"
+                  title={`Remove "${tag}"`}
                 >
-                  {tag}
-                </span>
-              ))}
+                  &times;
+                </button>
+              </span>
+            ))}
+            <div className="relative" ref={pickerRef}>
+              <button
+                onClick={() => setShowTagPicker((v) => !v)}
+                className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors"
+              >
+                + tag
+              </button>
+              {showTagPicker && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-(--color-surface) border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm py-1 min-w-[140px]">
+                  {allTags.filter((t) => !summary.tags.includes(t)).length > 0 ? (
+                    allTags
+                      .filter((t) => !summary.tags.includes(t))
+                      .map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            handleTagsChange([...summary.tags, t]);
+                            setShowTagPicker(false);
+                          }}
+                          className="w-full text-left text-xs font-bold px-3 py-1.5 bg-transparent border-0 cursor-pointer text-(--color-text-secondary) hover:bg-neon-100 hover:text-neon-600 dark:hover:bg-neon-900/30 dark:hover:text-neon-300 transition-colors"
+                        >
+                          {t}
+                        </button>
+                      ))
+                  ) : (
+                    <span className="block text-xs text-(--color-text-faint) px-3 py-1.5">
+                      No more tags
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {isPro && !autoTagResult && json && (
+              <button
+                onClick={handleAutoTag}
+                disabled={autoTagLoading}
+                className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-neon-100 dark:bg-neon-900/30 text-neon-700 dark:text-neon-400 border-2 border-neon-300 dark:border-neon-700 hover:bg-neon-200 dark:hover:bg-neon-900/50 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                {autoTagLoading ? "..." : "✨ Auto-tag"}
+              </button>
+            )}
+          </div>
+
+          {autoTagResult && (
+            <div className="mt-2">
+              <TagSuggestions
+                existing={autoTagResult.existing}
+                new={autoTagResult.new}
+                currentTags={summary.tags}
+                onApplyOne={handleAutoTagApplyOne}
+                onApply={handleAutoTagApplyAll}
+                onDismiss={() => setAutoTagResult(null)}
+              />
             </div>
           )}
         </div>
@@ -134,6 +290,17 @@ export function SummaryPage() {
               {summary.status === "pending" ? "Queued..." : "Generating summary..."}
             </p>
           </div>
+        ) : summary.status === "failed" ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <p className="text-sm text-red-600 dark:text-red-400">Summary generation failed.</p>
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="text-sm font-bold px-4 py-2 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer disabled:opacity-50 transition-all"
+            >
+              {retrying ? "Retrying..." : "Retry"}
+            </button>
+          </div>
         ) : (
           <p className="text-(--color-text-muted)">No summary data available.</p>
         )
@@ -146,7 +313,6 @@ export function SummaryPage() {
             </div>
           )}
 
-          {/* TL;DR */}
           <section className="bg-(--color-surface-raised) rounded-xl p-5">
             <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600 mb-2">TL;DR</h2>
             <p className="text-base text-(--color-text-body) leading-relaxed m-0 italic">
@@ -154,7 +320,6 @@ export function SummaryPage() {
             </p>
           </section>
 
-          {/* Key Points */}
           {json.keyPoints.length > 0 && (
             <section className="bg-(--color-surface-raised) rounded-xl p-5">
               <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600 mb-2">
@@ -171,7 +336,6 @@ export function SummaryPage() {
             </section>
           )}
 
-          {/* Timestamps */}
           {json.timestamps.length > 0 && (
             <section className="bg-(--color-surface-raised) rounded-xl p-5">
               <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600 mb-2">
@@ -205,7 +369,6 @@ export function SummaryPage() {
             </section>
           )}
 
-          {/* Context Section */}
           {ctx && (
             <section className="bg-(--color-surface-raised) rounded-xl p-5">
               <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600 mb-2">
