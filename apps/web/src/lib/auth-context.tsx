@@ -20,16 +20,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    async function init() {
+      // Extension passes tokens in hash — set session explicitly before any auth state fires
+      const hash = window.location.hash;
+      if (hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.slice(1));
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+        }
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
+      setLoading(false);
+    }
+
+    init();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-      // Clean up hash tokens from URL after Supabase processes them
-      if (window.location.hash.includes("access_token")) {
-        history.replaceState(null, "", window.location.pathname + window.location.search);
-      }
     });
 
     return () => subscription.unsubscribe();
