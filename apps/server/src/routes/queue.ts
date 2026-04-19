@@ -380,10 +380,23 @@ queueRoutes.post("/:id/retry", async (c) => {
     }
   }
 
+  // Fetch user's current language preference so regenerate respects the selected language
+  const { data: settingsRow } = await supabase
+    .from("user_settings")
+    .select("summary_language")
+    .eq("user_id", userId)
+    .single();
+  const summaryLanguage = (settingsRow?.summary_language as string) ?? "en";
+
   // Reset to pending before re-firing (clear old summary for completed items)
   await supabase
     .from("summaries")
-    .update({ status: "pending", error_message: null, summary_json: null })
+    .update({
+      status: "pending",
+      error_message: null,
+      summary_json: null,
+      summary_language: summaryLanguage,
+    })
     .eq("id", id);
 
   await inngest.send({
