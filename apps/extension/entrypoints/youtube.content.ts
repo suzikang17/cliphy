@@ -36,8 +36,8 @@ export default defineContentScript({
 
       .cliphy-thumb-overlay {
         position: absolute;
-        top: 6px;
-        right: 6px;
+        bottom: 28px;
+        right: 4px;
         z-index: 10;
         display: inline-flex;
         align-items: center;
@@ -53,7 +53,9 @@ export default defineContentScript({
         padding: 0;
       }
       .cliphy-thumb-overlay img { width: 14px; height: 14px; display: block; }
-      .cliphy-thumb-overlay:hover { background: rgba(0,0,0,0.9); }
+      .cliphy-thumb-overlay { transition: background 0.15s, transform 0.15s; }
+      .cliphy-thumb-overlay:hover { background: rgba(255,255,255,0.92); transform: scale(1.15); }
+      .cliphy-thumb-overlay:hover img { filter: invert(1); }
       .cliphy-thumb-overlay:disabled { opacity: 0.5 !important; cursor: default; }
       .cliphy-thumb-overlay--visible { opacity: 1; }
       .cliphy-thumb-overlay--added { opacity: 1 !important; background: rgba(62,166,255,0.85); }
@@ -268,7 +270,11 @@ export default defineContentScript({
     }
 
     // ── Video page button ─────────────────────────────────────────
+    let videoPageBtnGuard: MutationObserver | null = null;
+
     async function injectVideoPageButton() {
+      videoPageBtnGuard?.disconnect();
+      videoPageBtnGuard = null;
       document.getElementById("cliphy-video-btn")?.remove();
 
       if (!isVideoPage()) return;
@@ -326,6 +332,19 @@ export default defineContentScript({
       });
 
       actionsInnerEl.appendChild(btn);
+
+      // YouTube rebuilds #top-level-buttons-computed on SPA navigation after we inject.
+      // Watch for our button being removed and re-inject once so it survives the re-render.
+      // Scope to the actions bar's parent — not document.body — to avoid firing on every DOM mutation.
+      const guardTarget = actionsInnerEl.parentElement ?? actionsInnerEl;
+      videoPageBtnGuard = new MutationObserver(() => {
+        if (!document.getElementById("cliphy-video-btn") && isVideoPage()) {
+          videoPageBtnGuard?.disconnect();
+          videoPageBtnGuard = null;
+          injectVideoPageButton();
+        }
+      });
+      videoPageBtnGuard.observe(guardTarget, { childList: true, subtree: true });
     }
 
     // ── Video player overlay button ────────────────────────────

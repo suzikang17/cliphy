@@ -285,11 +285,13 @@ export function App() {
         return;
       }
 
+      // Fetch user first so dashboard renders correctly even if later calls fail
+      await fetchUser();
+
       const params = new URLSearchParams(window.location.search);
       const summaryId = params.get("id");
 
-      const [, queueRes, usageRes, , summaryRes] = await Promise.all([
-        fetchUser(),
+      const [queueRes, usageRes, , summaryRes] = await Promise.all([
         getQueue(),
         getUsage(),
         detectVideo(),
@@ -310,6 +312,12 @@ export function App() {
       }
     } catch (err) {
       if (err instanceof Error && err.message === "SESSION_EXPIRED") return;
+      if (err instanceof RateLimitError) {
+        setUpgradePrompt(
+          `Monthly limit reached (${err.limit}/${err.limit} summaries on ${err.plan} plan). Upgrade for more.`,
+        );
+        return;
+      }
       console.error("[Cliphy] init failed:", err);
       setError("Something went wrong. Please try again.");
     } finally {
@@ -930,6 +938,11 @@ export function App() {
             {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
           </button>
         )}
+        {usage && (
+          <div className="mb-3">
+            <UsageBar usage={usage} onUpgrade={handleCheckout} upgradeLoading={checkoutLoading} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-2">
@@ -949,12 +962,6 @@ export function App() {
           onRemove={handleRemoveItem}
           onRetry={handleRetryItem}
         />
-      </div>
-
-      <div className="shrink-0 p-4 pt-3 border-t border-(--color-border-soft)">
-        {usage && (
-          <UsageBar usage={usage} onUpgrade={handleCheckout} upgradeLoading={checkoutLoading} />
-        )}
       </div>
     </div>
   );
