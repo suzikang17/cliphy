@@ -7,10 +7,9 @@ import {
 } from "@cliphy/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "../../components/Logo";
-import { SelectionActionBar } from "../../components/SelectionActionBar";
+import { SelectionActionBar, TagSuggestions } from "@cliphy/shared";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import { SummaryDetail } from "../../components/SummaryDetail";
-import { TagSuggestions } from "../../components/TagSuggestions";
 import {
   autoTagBulk,
   deleteSummary,
