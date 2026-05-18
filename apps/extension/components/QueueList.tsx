@@ -217,7 +217,8 @@ function QueueItem({
                 onOpenSummary(s.id);
               }}
               className="bg-transparent border-0 p-0 cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all"
-              aria-label="Open in new tab"
+              title="Open In Cliphy App"
+              aria-label="Open In Cliphy App"
             >
               <svg
                 width="14"
@@ -363,7 +364,8 @@ function CurrentMatchedItem({
           <button
             onClick={() => onOpenSummary(s.id)}
             className="py-2 px-3 bg-(--color-surface) cursor-pointer border-2 border-(--color-border-hard) rounded-full shadow-brutal-sm hover:shadow-brutal-pressed press-down active:translate-x-[3px] active:translate-y-[3px] active:shadow-none flex items-center justify-center"
-            aria-label="Open in new tab"
+            title="Open In Cliphy App"
+            aria-label="Open In Cliphy App"
           >
             <svg
               width="14"
