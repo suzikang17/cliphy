@@ -119,7 +119,19 @@ export default defineBackground(() => {
             } catch (err) {
               console.error("[Cliphy] addToQueue failed:", err);
               const message = err instanceof Error ? err.message : String(err);
-              if (message === "Video already queued" && tabId != null) {
+              if (tabId != null && err instanceof RateLimitError) {
+                browser.tabs.sendMessage(tabId, {
+                  type: "SHOW_TOAST",
+                  message: "Monthly limit reached — upgrade to Pro",
+                  linkLabel: "Open Cliphy →",
+                } satisfies import("@cliphy/shared").ShowToastMessage);
+              } else if (tabId != null && err instanceof ProRequiredError) {
+                browser.tabs.sendMessage(tabId, {
+                  type: "SHOW_TOAST",
+                  message: "Pro plan required — upgrade to continue",
+                  linkLabel: "Open Cliphy →",
+                } satisfies import("@cliphy/shared").ShowToastMessage);
+              } else if (message === "Video already queued" && tabId != null) {
                 browser.tabs.sendMessage(tabId, {
                   type: "SHOW_TOAST",
                   message: "Already in your queue",
