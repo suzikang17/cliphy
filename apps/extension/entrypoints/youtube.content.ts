@@ -598,6 +598,11 @@ export default defineContentScript({
           return false;
         }
 
+        if (msg.type === "SHOW_TOAST") {
+          showToast(msg.message, msg.linkLabel);
+          return false;
+        }
+
         return false;
       },
     );

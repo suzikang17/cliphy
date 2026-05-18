@@ -64,6 +64,7 @@ cat > .vercel/output/config.json << 'EOF'
   "version": 3,
   "routes": [
     { "src": "/api/(.*)", "dest": "/api" },
+    { "src": "/admin/(.*)", "dest": "/api" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

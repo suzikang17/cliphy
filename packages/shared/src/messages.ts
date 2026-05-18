@@ -61,6 +61,13 @@ export interface OpenSidePanelMessage {
   type: "OPEN_SIDEPANEL";
 }
 
+// Background → Content script (show a toast after a fire-and-forget response)
+export interface ShowToastMessage {
+  type: "SHOW_TOAST";
+  message: string;
+  linkLabel?: string;
+}
+
 export type ExtensionMessage =
   | VideoDetectedMessage
   | GetVideoInfoMessage
@@ -70,4 +77,5 @@ export type ExtensionMessage =
   | SetupRealtimeMessage
   | SummaryUpdatedMessage
   | SeekVideoMessage
-  | OpenSidePanelMessage;
+  | OpenSidePanelMessage
+  | ShowToastMessage;

@@ -94,6 +94,7 @@ export default defineBackground(() => {
           return false; // No async response needed
 
         case "ADD_TO_QUEUE": {
+          const tabId = sender.tab?.id;
           (async () => {
             const authed = await isAuthenticated();
             if (!authed) {
@@ -101,40 +102,30 @@ export default defineBackground(() => {
               return;
             }
 
+            // Respond before the API call — the service worker can be killed mid-flight
+            // causing the port to close and the content script to show a false "Reload" error.
+            // The sidepanel picks up queued items via realtime subscription regardless.
+            sendResponse({ success: true });
+
             console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
 
             try {
-              const result = await addToQueue({
+              await addToQueue({
                 videoUrl: msg.videoUrl,
                 videoTitle: msg.videoTitle,
                 videoChannel: msg.videoChannel,
                 videoDurationSeconds: msg.videoDurationSeconds,
               });
-              sendResponse({ success: true, summary: result.summary });
             } catch (err) {
               console.error("[Cliphy] addToQueue failed:", err);
-              if (err instanceof RateLimitError) {
-                sendResponse({
-                  success: false,
-                  error: err.message,
-                  code: "rate_limited",
-                  limit: err.limit,
-                  plan: err.plan,
-                });
-              } else if (err instanceof ProRequiredError) {
-                sendResponse({
-                  success: false,
-                  error: err.message,
-                  code: "pro_required",
-                  upgrade_url: err.upgradeUrl,
-                });
+              const message = err instanceof Error ? err.message : String(err);
+              if (message === "Video already queued" && tabId != null) {
+                browser.tabs.sendMessage(tabId, {
+                  type: "SHOW_TOAST",
+                  message: "Already in your queue",
+                } satisfies import("@cliphy/shared").ShowToastMessage);
               } else {
-                // Unexpected error — report to Sentry
-                sentryScope?.captureException(err instanceof Error ? err : new Error(String(err)));
-                sendResponse({
-                  success: false,
-                  error: err instanceof Error ? err.message : "Unknown error",
-                });
+                sentryScope?.captureException(err instanceof Error ? err : new Error(message));
               }
             }
           })();

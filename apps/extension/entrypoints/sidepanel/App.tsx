@@ -940,9 +940,21 @@ export function App() {
         </div>
       )}
 
-      {usage && (
-        <div className="shrink-0 border-b border-(--color-border-soft) px-4 py-2">
-          <UsageBar usage={usage} onOpenCliphy={() => openWebApp(WEB_ROUTES.DASHBOARD)} />
+      {user?.plan !== "pro" && (
+        <div className="shrink-0 border-b border-(--color-border-soft) px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={handleCheckout}
+            disabled={checkoutLoading}
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
+          </button>
+          <button
+            onClick={() => openWebApp(WEB_ROUTES.DASHBOARD)}
+            className="shrink-0 bg-transparent border-0 p-0 font-bold text-xs text-neon-600 dark:text-neon-400 cursor-pointer hover:text-neon-800 dark:hover:text-neon-200 transition-colors"
+          >
+            cliphy.app ↗
+          </button>
         </div>
       )}
 
@@ -965,15 +977,9 @@ export function App() {
         />
       </div>
 
-      {user?.plan !== "pro" && (
-        <div className="shrink-0 border-t border-(--color-border-soft) px-4 py-3">
-          <button
-            onClick={handleCheckout}
-            disabled={checkoutLoading}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 bg-neon-100 dark:bg-neon-900/50 text-neon-700 dark:text-neon-400 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed hover:bg-neon-200 dark:hover:bg-neon-900/70 press-down cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {checkoutLoading ? "Opening checkout..." : "✦ Unlock 100 summaries/month with Pro"}
-          </button>
+      {usage && (
+        <div className="shrink-0 border-t border-(--color-border-soft) px-4 py-2">
+          <UsageBar usage={usage} />
         </div>
       )}
     </div>
