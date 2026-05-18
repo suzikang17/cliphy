@@ -111,11 +111,20 @@ export default defineContentScript({
         transform: translateY(0);
         pointer-events: auto;
       }
+      #cliphy-toast.cliphy-toast--error {
+        border-left: 3px solid #e6007e;
+        padding-left: 13px;
+        font-size: 14px;
+        font-weight: 500;
+      }
       #cliphy-toast a {
         color: #3ea6ff;
         text-decoration: none;
         font-weight: 500;
         white-space: nowrap;
+      }
+      #cliphy-toast.cliphy-toast--error a {
+        color: #e6007e;
       }
       #cliphy-toast a:hover { text-decoration: underline; }
     `;
@@ -136,7 +145,7 @@ export default defineContentScript({
       safeSendMessage({ type: "OPEN_SIDEPANEL" } satisfies ExtensionMessage);
     });
 
-    function showToast(message: string, linkLabel?: string) {
+    function showToast(message: string, linkLabel?: string, variant?: "error") {
       if (toastTimer) clearTimeout(toastTimer);
       toastMsg.textContent = message;
       if (linkLabel) {
@@ -145,11 +154,15 @@ export default defineContentScript({
       } else {
         toastLink.style.display = "none";
       }
+      toast.classList.toggle("cliphy-toast--error", variant === "error");
       toast.classList.add("cliphy-toast--visible");
-      toastTimer = setTimeout(() => {
-        toast.classList.remove("cliphy-toast--visible");
-        toastTimer = null;
-      }, 3000);
+      toastTimer = setTimeout(
+        () => {
+          toast.classList.remove("cliphy-toast--visible");
+          toastTimer = null;
+        },
+        variant === "error" ? 5000 : 3000,
+      );
     }
 
     type QueueResponse = { success: boolean; error?: string; code?: string } | null;
@@ -171,9 +184,9 @@ export default defineContentScript({
       }
       onFailure();
       if (response.code === "rate_limited") {
-        showToast("Monthly limit reached — upgrade to Pro", "Open Cliphy →");
+        showToast("Monthly limit reached — upgrade to Pro", "Open Cliphy →", "error");
       } else if (response.code === "pro_required") {
-        showToast("Pro plan required", "Upgrade →");
+        showToast("Pro plan required — upgrade to continue", "Open Cliphy →", "error");
       } else if (response.error === "Not authenticated") {
         showToast("Sign in to Cliphy to summarize videos", "Sign in →");
       } else {
@@ -599,7 +612,7 @@ export default defineContentScript({
         }
 
         if (msg.type === "SHOW_TOAST") {
-          showToast(msg.message, msg.linkLabel);
+          showToast(msg.message, msg.linkLabel, msg.variant);
           return false;
         }
 

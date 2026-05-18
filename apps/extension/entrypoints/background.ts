@@ -124,12 +124,14 @@ export default defineBackground(() => {
                   type: "SHOW_TOAST",
                   message: "Monthly limit reached — upgrade to Pro",
                   linkLabel: "Open Cliphy →",
+                  variant: "error",
                 } satisfies import("@cliphy/shared").ShowToastMessage);
               } else if (tabId != null && err instanceof ProRequiredError) {
                 browser.tabs.sendMessage(tabId, {
                   type: "SHOW_TOAST",
                   message: "Pro plan required — upgrade to continue",
                   linkLabel: "Open Cliphy →",
+                  variant: "error",
                 } satisfies import("@cliphy/shared").ShowToastMessage);
               } else if (message === "Video already queued" && tabId != null) {
                 browser.tabs.sendMessage(tabId, {

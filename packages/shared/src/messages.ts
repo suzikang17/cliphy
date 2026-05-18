@@ -66,6 +66,7 @@ export interface ShowToastMessage {
   type: "SHOW_TOAST";
   message: string;
   linkLabel?: string;
+  variant?: "error";
 }
 
 export type ExtensionMessage =
