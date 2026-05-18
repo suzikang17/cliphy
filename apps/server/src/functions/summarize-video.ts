@@ -91,8 +91,8 @@ export const summarizeVideo = inngest.createFunction(
         await supabase.rpc("decrement_monthly_count", { p_user_id: summary.user_id });
       }
     },
+    triggers: [{ event: "video/summarize.requested" }],
   },
-  { event: "video/summarize.requested" },
   async ({ event, step }) => {
     const { summaryId, videoId, videoTitle } = event.data as {
       summaryId: string;

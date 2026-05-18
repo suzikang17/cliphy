@@ -234,8 +234,8 @@ importers:
         specifier: ^2.0.8
         version: 2.0.8
       inngest:
-        specifier: ^3.52.3
-        version: 3.52.3(@opentelemetry/core@2.5.1(@opentelemetry/api@1.9.0))(express@5.2.1)(hono@4.12.5)(typescript@5.9.3)(zod@4.3.6)
+        specifier: ^4.4.0
+        version: 4.4.0(@opentelemetry/core@2.5.1(@opentelemetry/api@1.9.0))(express@5.2.1)(hono@4.12.5)(react@19.2.0)(typescript@5.9.3)(zod@4.3.6)
       stripe:
         specifier: ^20.4.0
         version: 20.4.0(@types/node@22.19.11)
@@ -6644,8 +6644,8 @@ packages:
       react-devtools-core:
         optional: true
 
-  inngest@3.52.3:
-    resolution: {integrity: sha512-e1sHdjjySXX56m58SMYz+1hRqBKPzxM6w5tPAEs30ocpsK2VZOqyc2aOJ4dQPixilJOphlk+IJx0SjX2gwGtPQ==}
+  inngest@4.4.0:
+    resolution: {integrity: sha512-OdNedhkjTK1EPij6k4nbQ70uWjxxjES1xJJPNFPp7XQJMyr0PrKg0SOoCL+FNsXp1Zrb7ZZG06sru9WHgFdE/g==}
     engines: {node: '>=20'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -6657,6 +6657,7 @@ packages:
       hono: '>=4.2.7'
       koa: '>=2.14.2'
       next: '>=12.0.0'
+      react: 19.2.0
       typescript: '>=5.8.0'
       zod: ^3.25.0 || ^4.0.0
     peerDependenciesMeta:
@@ -6677,6 +6678,8 @@ packages:
       koa:
         optional: true
       next:
+        optional: true
+      react:
         optional: true
       typescript:
         optional: true
@@ -17948,7 +17951,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  inngest@3.52.3(@opentelemetry/core@2.5.1(@opentelemetry/api@1.9.0))(express@5.2.1)(hono@4.12.5)(typescript@5.9.3)(zod@4.3.6):
+  inngest@4.4.0(@opentelemetry/core@2.5.1(@opentelemetry/api@1.9.0))(express@5.2.1)(hono@4.12.5)(react@19.2.0)(typescript@5.9.3)(zod@4.3.6):
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@inngest/ai': 0.1.7
@@ -17965,20 +17968,19 @@ snapshots:
       '@types/debug': 4.1.12
       '@types/ms': 2.1.0
       canonicalize: 1.0.8
-      chalk: 4.1.2
       cross-fetch: 4.1.0
       debug: 4.4.3
       hash.js: 1.1.7
       json-stringify-safe: 5.0.1
       ms: 2.1.3
       serialize-error-cjs: 0.1.4
-      strip-ansi: 5.2.0
       temporal-polyfill: 0.2.5
       ulid: 2.4.0
       zod: 4.3.6
     optionalDependencies:
       express: 5.2.1
       hono: 4.12.5
+      react: 19.2.0
       typescript: 5.9.3
     transitivePeerDependencies:
       - '@opentelemetry/core'
