@@ -847,8 +847,9 @@ export function App() {
 
   // Detail view
   if (view === "detail" && selectedSummary) {
-    async function handleCopyAll() {
-      const content = copyMarkdown ? toMarkdown(selectedSummary!) : toPlainText(selectedSummary!);
+    async function handleCopyAll(asMarkdown?: boolean) {
+      const content =
+        (asMarkdown ?? copyMarkdown) ? toMarkdown(selectedSummary!) : toPlainText(selectedSummary!);
       try {
         await navigator.clipboard.writeText(content);
         setCopied("copied");
