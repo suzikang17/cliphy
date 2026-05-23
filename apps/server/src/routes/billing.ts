@@ -200,10 +200,12 @@ async function syncSubscription(subscription: Stripe.Subscription) {
   const customerId =
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
+  const newPlan = planFromStatus(subscription.status);
+
   const { data: rows, error } = await supabase
     .from("users")
     .update({
-      plan: planFromStatus(subscription.status),
+      plan: newPlan,
       stripe_subscription_id: subscription.id,
       subscription_status: subscription.status,
       trial_ends_at: subscription.trial_end
@@ -229,6 +231,13 @@ async function syncSubscription(subscription: Stripe.Subscription) {
       tags: { component: "billing", error_category: "subscription_sync" },
     });
     throw err;
+  }
+
+  // Pause auto-subscriptions when plan drops to free
+  if (newPlan === "free") {
+    const userIds = rows.map((r) => r.id as string);
+    await supabase.from("subscriptions").update({ is_active: false }).in("user_id", userIds);
+    log.info("Paused subscriptions on Pro downgrade", { userIds });
   }
 }
 
