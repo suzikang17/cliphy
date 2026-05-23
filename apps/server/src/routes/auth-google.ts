@@ -19,7 +19,7 @@ authGoogleRoutes.get("/status", authMiddleware, async (c) => {
   return c.json({ connected: !!data });
 });
 
-// GET / — initiate OAuth flow
+// GET / — initiate OAuth flow, returns the Google redirect URL as JSON
 authGoogleRoutes.get("/", authMiddleware, async (c) => {
   const userId = c.get("userId");
   const state = randomUUID();
@@ -36,7 +36,7 @@ authGoogleRoutes.get("/", authMiddleware, async (c) => {
     state,
   });
 
-  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  return c.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
 });
 
 // GET /callback — exchange code for tokens (redirect from Google, no auth header)

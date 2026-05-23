@@ -20,6 +20,12 @@ export function Nav() {
             >
               Dashboard
             </Link>
+            <Link
+              to="/subscriptions"
+              className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
+            >
+              Subscriptions
+            </Link>
             <button
               onClick={() => signOut()}
               className="text-sm font-semibold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors"

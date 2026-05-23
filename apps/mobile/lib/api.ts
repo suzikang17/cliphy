@@ -1,6 +1,13 @@
 import { getAccessToken } from "./auth";
 import { supabase } from "./supabase";
-import type { Summary, UsageInfo } from "@cliphy/shared";
+import type {
+  Summary,
+  UsageInfo,
+  Subscription,
+  SubscriptionCreateRequest,
+  SubscriptionUpdateRequest,
+  GoogleConnectionStatus,
+} from "@cliphy/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
@@ -125,3 +132,30 @@ export const createCheckout = () =>
 
 export const createPortal = () =>
   apiFetch<{ url: string }>("/api/billing/portal", { method: "POST" });
+
+// Subscriptions
+export const getSubscriptions = () =>
+  apiFetch<{ subscriptions: Subscription[] }>("/api/subscriptions");
+
+export const createSubscription = (body: SubscriptionCreateRequest) =>
+  apiFetch<{ subscription: Subscription }>("/api/subscriptions", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const updateSubscription = (id: string, body: SubscriptionUpdateRequest) =>
+  apiFetch<{ subscription: Subscription }>(`/api/subscriptions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+
+export const deleteSubscription = (id: string) =>
+  apiFetch<{ deleted: true }>(`/api/subscriptions/${id}`, { method: "DELETE" });
+
+// Google OAuth
+export const getGoogleStatus = () => apiFetch<GoogleConnectionStatus>("/api/auth/google/status");
+
+export const getGoogleConnectUrl = () => apiFetch<{ url: string }>("/api/auth/google");
+
+export const disconnectGoogle = () =>
+  apiFetch<{ disconnected: true }>("/api/auth/google", { method: "DELETE" });

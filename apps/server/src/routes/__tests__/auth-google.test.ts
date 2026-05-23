@@ -99,16 +99,16 @@ describe("GET /auth/google/status", () => {
 // ── GET / (initiate) ──────────────────────────────────────────
 
 describe("GET /auth/google", () => {
-  it("redirects to Google OAuth URL", async () => {
+  it("returns Google OAuth URL as JSON", async () => {
     supabaseMock = mockChain({ data: null, error: null });
 
     const res = await buildApp().request("/auth/google");
 
-    expect(res.status).toBe(302);
-    const location = res.headers.get("location") ?? "";
-    expect(location).toContain("accounts.google.com/o/oauth2/v2/auth");
-    expect(location).toContain("youtube.readonly");
-    expect(location).toContain("state=");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { url: string };
+    expect(body.url).toContain("accounts.google.com/o/oauth2/v2/auth");
+    expect(body.url).toContain("youtube.readonly");
+    expect(body.url).toContain("state=");
   });
 });
 

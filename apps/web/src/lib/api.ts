@@ -10,6 +10,10 @@ import type {
   TagsResponse,
   AutoTagSuggestion,
   BulkAutoTagResponse,
+  Subscription,
+  SubscriptionCreateRequest,
+  SubscriptionUpdateRequest,
+  GoogleConnectionStatus,
 } from "@cliphy/shared";
 import { supabase } from "./supabase";
 
@@ -150,4 +154,40 @@ export async function chatWithSummary(id: string, messages: ChatMessage[]) {
     method: "POST",
     body: JSON.stringify({ messages }),
   });
+}
+
+// Subscriptions
+export async function getSubscriptions() {
+  return request<{ subscriptions: Subscription[] }>(API_ROUTES.SUBSCRIPTIONS.LIST);
+}
+
+export async function createSubscription(body: SubscriptionCreateRequest) {
+  return request<{ subscription: Subscription }>(API_ROUTES.SUBSCRIPTIONS.ADD, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateSubscription(id: string, body: SubscriptionUpdateRequest) {
+  return request<{ subscription: Subscription }>(API_ROUTES.SUBSCRIPTIONS.ITEM(id), {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteSubscription(id: string) {
+  return request<{ deleted: true }>(API_ROUTES.SUBSCRIPTIONS.ITEM(id), { method: "DELETE" });
+}
+
+// Google OAuth
+export async function getGoogleStatus() {
+  return request<GoogleConnectionStatus>(API_ROUTES.AUTH_GOOGLE.STATUS);
+}
+
+export async function getGoogleConnectUrl() {
+  return request<{ url: string }>(API_ROUTES.AUTH_GOOGLE.CONNECT);
+}
+
+export async function disconnectGoogle() {
+  return request<{ disconnected: true }>(API_ROUTES.AUTH_GOOGLE.DISCONNECT, { method: "DELETE" });
 }

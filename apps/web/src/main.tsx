@@ -10,6 +10,7 @@ import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { SummaryPage } from "./pages/SummaryPage";
+import { Subscriptions } from "./pages/Subscriptions";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/summary/:id" element={<SummaryPage />} />
+            <Route path="/subscriptions" element={<Subscriptions />} />
           </Route>
         </Routes>
       </AuthProvider>
