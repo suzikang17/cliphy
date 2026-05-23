@@ -1,4 +1,4 @@
-import type { Summary } from "@cliphy/shared";
+import type { Summary, Subscription } from "@cliphy/shared";
 
 /** Map a DB row (snake_case) to a Summary object (camelCase). */
 export function toSummary(row: Record<string, unknown>): Summary {
@@ -16,6 +16,23 @@ export function toSummary(row: Record<string, unknown>): Summary {
     translations: (row.translations as Summary["translations"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export function toSubscription(row: Record<string, unknown>): Subscription {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    type: row.type as Subscription["type"],
+    sourceId: (row.source_id as string) ?? undefined,
+    sourceName: row.source_name as string,
+    sourceUrl: (row.source_url as string) ?? undefined,
+    isActive: row.is_active as boolean,
+    lastCheckedAt: (row.last_checked_at as string) ?? undefined,
+    skippedCount: (row.skipped_count as number) ?? 0,
+    lastSkippedAt: (row.last_skipped_at as string) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
