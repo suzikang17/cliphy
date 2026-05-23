@@ -5,10 +5,23 @@ import { relativeDate } from "@cliphy/shared";
 import { Nav } from "../components/Nav";
 import * as api from "../lib/api";
 
+const YOUTUBE_NON_CHANNEL_PATHS =
+  /^\/(feed|trending|gaming|music|live|premium|account|results|shorts|watch|embed)\b/;
+
 function inferType(url: string): SubscriptionType | null {
   if (/[?&]list=/.test(url) || /\/playlist\b/.test(url)) return "playlist";
   if (/\/@|\/channel\/|\/c\/|\/user\//.test(url)) return "channel";
-  if (/youtube\.com\/[^/?#\s]+$/.test(url)) return "channel";
+  try {
+    const { pathname } = new URL(url);
+    if (
+      /youtube\.com/.test(url) &&
+      /^\/[^/?#\s]+$/.test(pathname) &&
+      !YOUTUBE_NON_CHANNEL_PATHS.test(pathname)
+    )
+      return "channel";
+  } catch {
+    // invalid URL
+  }
   return null;
 }
 
@@ -208,8 +221,12 @@ export function Subscriptions() {
           </p>
           <button
             onClick={async () => {
-              const { url } = await api.createCheckout();
-              window.location.href = url;
+              try {
+                const { url } = await api.createCheckout();
+                window.location.href = url;
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Failed to start checkout");
+              }
             }}
             className="text-sm font-bold px-4 py-2 bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all"
           >

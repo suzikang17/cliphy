@@ -26,10 +26,23 @@ import {
 import { brutalShadowSm, getTheme } from "../../lib/theme";
 import { neon } from "@cliphy/shared";
 
+const YOUTUBE_NON_CHANNEL_PATHS =
+  /^\/(feed|trending|gaming|music|live|premium|account|results|shorts|watch|embed)\b/;
+
 function inferType(url: string): SubscriptionType | null {
   if (/[?&]list=/.test(url) || /\/playlist\b/.test(url)) return "playlist";
   if (/\/@|\/channel\/|\/c\/|\/user\//.test(url)) return "channel";
-  if (/youtube\.com\/[^/?#\s]+$/.test(url)) return "channel";
+  try {
+    const { pathname } = new URL(url);
+    if (
+      /youtube\.com/.test(url) &&
+      /^\/[^/?#\s]+$/.test(pathname) &&
+      !YOUTUBE_NON_CHANNEL_PATHS.test(pathname)
+    )
+      return "channel";
+  } catch {
+    // invalid URL
+  }
   return null;
 }
 

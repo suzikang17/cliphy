@@ -48,7 +48,7 @@ authGoogleRoutes.get("/callback", async (c) => {
   const webAppUrl = process.env.WEB_APP_URL ?? "";
 
   if (error || !code || !state) {
-    return c.redirect(`${webAppUrl}/settings?google_error=true`);
+    return c.redirect(`${webAppUrl}/subscriptions?google_error=true`);
   }
 
   // Validate and consume state
@@ -59,14 +59,14 @@ authGoogleRoutes.get("/callback", async (c) => {
     .maybeSingle();
 
   if (!stateRow) {
-    return c.redirect(`${webAppUrl}/settings?google_error=invalid_state`);
+    return c.redirect(`${webAppUrl}/subscriptions?google_error=invalid_state`);
   }
 
   // Delete state (single use, even if expired)
   await supabase.from("oauth_states").delete().eq("state", state);
 
   if (new Date(stateRow.expires_at as string).getTime() < Date.now()) {
-    return c.redirect(`${webAppUrl}/settings?google_error=state_expired`);
+    return c.redirect(`${webAppUrl}/subscriptions?google_error=state_expired`);
   }
 
   const userId = stateRow.user_id as string;
@@ -85,7 +85,7 @@ authGoogleRoutes.get("/callback", async (c) => {
   });
 
   if (!tokenRes.ok) {
-    return c.redirect(`${webAppUrl}/settings?google_error=token_exchange_failed`);
+    return c.redirect(`${webAppUrl}/subscriptions?google_error=token_exchange_failed`);
   }
 
   const tokens = (await tokenRes.json()) as {
@@ -105,7 +105,7 @@ authGoogleRoutes.get("/callback", async (c) => {
     scopes: tokens.scope ?? GOOGLE_SCOPES,
   });
 
-  return c.redirect(`${webAppUrl}/settings?google_connected=true`);
+  return c.redirect(`${webAppUrl}/subscriptions?google_connected=true`);
 });
 
 // DELETE / — revoke token and disconnect Google account

@@ -140,6 +140,7 @@ describe("GET /auth/google/callback", () => {
 
     expect(res.status).toBe(302);
     const location = res.headers.get("location") ?? "";
+    expect(location).toContain("subscriptions");
     expect(location).toContain("google_connected=true");
   });
 
