@@ -152,3 +152,33 @@ export interface ChatResponse {
 export interface UserSettings {
   summaryLanguage: import("./constants.js").SummaryLanguageCode;
 }
+
+export type SubscriptionType = "channel" | "playlist" | "watch_later";
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  type: SubscriptionType;
+  sourceId?: string;
+  sourceName: string;
+  sourceUrl?: string;
+  isActive: boolean;
+  lastCheckedAt?: string;
+  skippedCount: number;
+  lastSkippedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubscriptionCreateRequest {
+  type: SubscriptionType;
+  sourceUrl?: string;
+}
+
+export interface SubscriptionUpdateRequest {
+  isActive?: boolean;
+}
+
+export interface GoogleConnectionStatus {
+  connected: boolean;
+}

@@ -33,7 +33,16 @@ export const PRO_FEATURES = {
   PRIORITY_PROCESSING: "priority_processing",
   AUTO_TAG: "auto_tag",
   VIDEO_CHAT: "video_chat",
+  AUTO_SUBSCRIBE: "auto_subscribe",
 } as const;
+
+export const SUBSCRIPTION_TYPES = {
+  CHANNEL: "channel",
+  PLAYLIST: "playlist",
+  WATCH_LATER: "watch_later",
+} as const;
+
+export const MAX_SUBSCRIPTIONS_PER_USER = 20;
 
 export type ProFeature = (typeof PRO_FEATURES)[keyof typeof PRO_FEATURES];
 
@@ -72,6 +81,17 @@ export const API_ROUTES = {
     WEBHOOK: "/api/billing/webhook",
   },
   SETTINGS: "/api/settings",
+  SUBSCRIPTIONS: {
+    LIST: "/api/subscriptions",
+    ADD: "/api/subscriptions",
+    ITEM: (id: string) => `/api/subscriptions/${id}`,
+  },
+  AUTH_GOOGLE: {
+    CONNECT: "/api/auth/google",
+    CALLBACK: "/api/auth/google/callback",
+    DISCONNECT: "/api/auth/google",
+    STATUS: "/api/auth/google/status",
+  },
 } as const;
 
 export const WEB_ROUTES = {
