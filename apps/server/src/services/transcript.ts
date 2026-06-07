@@ -52,7 +52,7 @@ interface CaptionTrack {
 
 interface PlayerResponse {
   playabilityStatus?: { status: string };
-  videoDetails?: { title?: string; lengthSeconds?: string };
+  videoDetails?: { title?: string; author?: string; lengthSeconds?: string };
   captions?: {
     playerCaptionsTracklistRenderer?: {
       captionTracks?: CaptionTrack[];
@@ -63,6 +63,7 @@ interface PlayerResponse {
 interface PlayerResult {
   tracks: CaptionTrack[];
   title: string | null;
+  channel: string | null;
   durationSeconds: number | null;
 }
 
@@ -105,8 +106,9 @@ async function fetchCaptionTracks(videoId: string): Promise<PlayerResult> {
     : null;
 
   const title = data.videoDetails?.title ?? null;
+  const channel = data.videoDetails?.author ?? null;
 
-  return { tracks, title, durationSeconds };
+  return { tracks, title, channel, durationSeconds };
 }
 
 /** Pick the best caption track: always use the original language (first track). */
@@ -235,12 +237,13 @@ export interface TranscriptResult {
   text: string;
   truncated: boolean;
   title: string | null;
+  channel: string | null;
   durationSeconds: number | null;
   language: string;
 }
 
 export async function fetchTranscript(videoId: string): Promise<TranscriptResult> {
-  const { tracks, title, durationSeconds } = await fetchCaptionTracks(videoId);
+  const { tracks, title, channel, durationSeconds } = await fetchCaptionTracks(videoId);
   const track = pickTrack(tracks);
   const segments = await fetchTimedText(track);
 
@@ -261,6 +264,7 @@ export async function fetchTranscript(videoId: string): Promise<TranscriptResult
     text: sanitizeTranscript(text),
     truncated,
     title,
+    channel,
     durationSeconds,
     language: track.languageCode,
   };

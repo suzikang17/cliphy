@@ -32,6 +32,9 @@ export const summarizeVideo = inngest.createFunction(
   {
     id: "summarize-video",
     retries: 3,
+    // Cap simultaneous runs so the fan-out (incl. retries) can't stampede the
+    // proxy past Decodo's concurrent-connection limit. Tune to the plan's cap.
+    concurrency: { limit: 4 },
     timeouts: { finish: "5m" },
     onFailure: async ({ event }) => {
       const { summaryId } = event.data.event.data as { summaryId: string };
@@ -111,6 +114,7 @@ export const summarizeVideo = inngest.createFunction(
       truncated,
       summaryLanguage,
       transcriptLanguage,
+      resolvedTitle,
     } = await step.run("fetch-transcript", async () => {
       // Read the requested summary language from the summary row
       const { data: summaryRow } = await supabase
@@ -141,6 +145,7 @@ export const summarizeVideo = inngest.createFunction(
           truncated: wasTruncated,
           summaryLanguage: summaryLang,
           transcriptLanguage: "",
+          resolvedTitle: videoTitle,
         };
       }
 
@@ -153,17 +158,21 @@ export const summarizeVideo = inngest.createFunction(
           language: result.language,
         });
 
-        // Store transcript language on the summary row
-        await supabase
-          .from("summaries")
-          .update({ transcript_language: result.language })
-          .eq("id", summaryId);
+        // Backfill metadata from InnerTube (the same call that got the transcript) —
+        // authoritative title/channel/duration, no extra request. Only overwrite with
+        // values we actually got, so a good client-supplied title isn't nulled out.
+        const metaUpdate: Record<string, unknown> = { transcript_language: result.language };
+        if (result.title) metaUpdate.video_title = result.title;
+        if (result.channel) metaUpdate.video_channel = result.channel;
+        if (result.durationSeconds) metaUpdate.video_duration_seconds = result.durationSeconds;
+        await supabase.from("summaries").update(metaUpdate).eq("id", summaryId);
 
         return {
           text: result.text,
           truncated: result.truncated,
           summaryLanguage: summaryLang,
           transcriptLanguage: result.language,
+          resolvedTitle: result.title || videoTitle,
         };
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {
@@ -188,7 +197,7 @@ export const summarizeVideo = inngest.createFunction(
           : undefined;
         const result = await summarizeTranscript(
           transcript,
-          videoTitle || "Untitled Video",
+          resolvedTitle || "Untitled Video",
           summaryLangName,
           transcriptLangName,
         );
