@@ -22,6 +22,20 @@ export interface GetVideoInfoMessage {
   type: "GET_VIDEO_INFO";
 }
 
+// Background → Content script: pull scraped metadata for a video URL
+// (used by the right-click context menu, which only knows the link URL)
+export interface GetQueueMetadataMessage {
+  type: "GET_QUEUE_METADATA";
+  videoUrl: string;
+}
+
+// Content script → Background response to GET_QUEUE_METADATA
+export interface QueueMetadata {
+  videoTitle?: string;
+  videoChannel?: string;
+  videoDurationSeconds?: number;
+}
+
 // Popup → Background
 export interface AddToQueueMessage {
   type: "ADD_TO_QUEUE";
@@ -72,6 +86,7 @@ export interface ShowToastMessage {
 export type ExtensionMessage =
   | VideoDetectedMessage
   | GetVideoInfoMessage
+  | GetQueueMetadataMessage
   | AddToQueueMessage
   | SignInMessage
   | SignOutMessage

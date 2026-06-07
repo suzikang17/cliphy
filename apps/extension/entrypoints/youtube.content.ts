@@ -1,4 +1,4 @@
-import type { ExtensionMessage, VideoInfo } from "@cliphy/shared";
+import type { ExtensionMessage, VideoInfo, QueueMetadata } from "@cliphy/shared";
 import type { Runtime } from "wxt/browser";
 import { parseDurationToSeconds } from "../lib/duration";
 
@@ -33,44 +33,6 @@ export default defineContentScript({
         box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
         transform: scale(1.04);
       }
-
-      .cliphy-thumb-overlay {
-        position: absolute;
-        bottom: 28px;
-        right: 4px;
-        z-index: 10;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-        background: rgba(0,0,0,0.75);
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        opacity: 0;
-        transition: opacity 0.15s;
-        padding: 0;
-      }
-      .cliphy-thumb-overlay img { width: 14px; height: 14px; display: block; }
-      .cliphy-thumb-overlay { transition: background 0.15s, transform 0.15s; }
-      .cliphy-thumb-overlay:hover { background: rgba(255,255,255,0.92); transform: scale(1.15); }
-      .cliphy-thumb-overlay:hover img { filter: invert(1); }
-      .cliphy-thumb-overlay:disabled { opacity: 0.5 !important; cursor: default; }
-      .cliphy-thumb-overlay--visible { opacity: 1; }
-      .cliphy-thumb-overlay--added { opacity: 1 !important; background: rgba(62,166,255,0.85); }
-
-      /* Compact thumbnail (sidebar) needs overflow visible so our overlay shows */
-      ytd-compact-thumbnail { overflow: visible !important; }
-      yt-thumbnail-view-model { overflow: visible !important; }
-      yt-lockup-view-model { overflow: visible !important; }
-
-      /* Lockup variant: injected into lockup itself, match base bottom-right position */
-      .cliphy-thumb-overlay--lockup { bottom: 28px; right: 4px; top: auto; left: auto; }
-
-      /* CSS hover for yt-lockup-view-model (sidebar) */
-      yt-lockup-view-model:hover .cliphy-thumb-overlay--lockup { opacity: 1; }
-
 
       #cliphy-player-btn {
         position: absolute;
@@ -282,81 +244,6 @@ export default defineContentScript({
       });
     }
 
-    // ── Video page button ─────────────────────────────────────────
-    let videoPageBtnGuard: MutationObserver | null = null;
-
-    async function injectVideoPageButton() {
-      videoPageBtnGuard?.disconnect();
-      videoPageBtnGuard = null;
-      document.getElementById("cliphy-video-btn")?.remove();
-
-      if (!isVideoPage()) return;
-      const info = getVideoInfo();
-      if (!info.videoId || info.isLive) return;
-
-      // Wait for the actions buttons container to be populated, not just #actions existing
-      const actionsInnerEl = await waitForElement("#top-level-buttons-computed");
-      if (!actionsInnerEl) return;
-
-      if (document.getElementById("cliphy-video-btn")) return;
-
-      const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
-      const btn = document.createElement("button");
-      btn.id = "cliphy-video-btn";
-      btn.className =
-        "cliphy-btn yt-spec-button-shape-next yt-spec-button-shape-next--tonal yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-m";
-      btn.style.marginLeft = "8px";
-
-      const alreadyQueued = queuedVideoIds.has(info.videoId);
-      btn.innerHTML = alreadyQueued ? `✓ Added` : `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
-      btn.disabled = alreadyQueued;
-
-      btn.addEventListener("click", async () => {
-        const currentInfo = getVideoInfo();
-        if (!currentInfo.videoId) return;
-
-        btn.disabled = true;
-        btn.textContent = "Adding…";
-
-        const durationSeconds = currentInfo.duration
-          ? parseDurationToSeconds(currentInfo.duration)
-          : undefined;
-
-        const response = (await safeSendMessage({
-          type: "ADD_TO_QUEUE",
-          videoUrl: currentInfo.url,
-          videoTitle: currentInfo.title || undefined,
-          videoChannel: currentInfo.channel || undefined,
-          videoDurationSeconds: durationSeconds || undefined,
-        } satisfies ExtensionMessage)) as QueueResponse;
-
-        handleQueueResponse(
-          response,
-          () => {
-            queuedVideoIds.add(currentInfo.videoId!);
-            btn.innerHTML = `✓ Added`;
-            showToast("Added to queue", "Open Cliphy →");
-          },
-          () => {
-            btn.innerHTML = `<img src="${iconUrl}" alt="" /> Add to Cliphy`;
-            btn.disabled = false;
-          },
-        );
-      });
-
-      actionsInnerEl.appendChild(btn);
-
-      // Re-inject if YouTube rebuilds the actions bar (SPA navigation wipes our button).
-      videoPageBtnGuard = new MutationObserver(() => {
-        if (!document.getElementById("cliphy-video-btn") && isVideoPage()) {
-          videoPageBtnGuard?.disconnect();
-          videoPageBtnGuard = null;
-          injectVideoPageButton();
-        }
-      });
-      videoPageBtnGuard.observe(document.body, { childList: true, subtree: true });
-    }
-
     // ── Video player overlay button ────────────────────────────
     async function injectVideoOverlay() {
       document.getElementById("cliphy-player-btn")?.remove();
@@ -407,11 +294,6 @@ export default defineContentScript({
           () => {
             queuedVideoIds.add(currentInfo.videoId!);
             btn.innerHTML = `✓ Added`;
-            const actionsBtn = document.getElementById("cliphy-video-btn");
-            if (actionsBtn) {
-              actionsBtn.innerHTML = `✓ Added`;
-              (actionsBtn as HTMLButtonElement).disabled = true;
-            }
             showToast("Added to queue", "Open Cliphy →");
           },
           () => {
@@ -424,8 +306,8 @@ export default defineContentScript({
       player.appendChild(btn);
     }
 
-    // ── Thumbnail injection ───────────────────────────────────────
-    const THUMBNAIL_RENDERERS =
+    // ── Video metadata scraping (for right-click context menu) ────
+    const VIDEO_RENDERERS =
       "ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-rich-grid-media, yt-lockup-view-model";
 
     interface ThumbnailData {
@@ -478,115 +360,63 @@ export default defineContentScript({
       };
     }
 
-    function injectThumbnailButton(el: Element) {
-      if (el.hasAttribute("data-cliphy-injected")) return;
+    // Metadata for the last right-clicked video link, keyed by videoId. The browser's
+    // `contextmenu` event fires before the background's contextMenus.onClicked, so when
+    // the user picks "Add to Cliphy" the background can pull the scraped title/channel/
+    // duration from here via GET_QUEUE_METADATA.
+    const contextVideoData = new Map<string, ThumbnailData>();
 
-      const data = extractThumbnailData(el);
-      if (!data) return; // not hydrated yet — MutationObserver or next scan will retry
+    function rememberContextVideo(target: Element | null) {
+      const anchor = target?.closest<HTMLAnchorElement>("a[href*='/watch?v=']");
+      if (!anchor?.href) return;
 
-      // For yt-lockup-view-model (sidebar), YouTube re-renders yt-thumbnail-view-model
-      // on hover, ejecting any children we appended. Inject into the lockup itself instead.
-      const isLockup = el.tagName.toLowerCase() === "yt-lockup-view-model";
-      let container: HTMLElement;
-      if (isLockup) {
-        container = el as HTMLElement;
-      } else {
-        const thumbEl =
-          el.querySelector<HTMLElement>("ytd-thumbnail") ??
-          el.querySelector<HTMLElement>("ytd-compact-thumbnail") ??
-          el.querySelector<HTMLElement>("a#thumbnail");
-        if (!thumbEl) return; // not ready yet — MutationObserver will retry
-        thumbEl.style.position = "relative";
-        thumbEl.style.overflow = "visible";
-        container = thumbEl;
+      let videoId: string | null;
+      try {
+        videoId = new URL(anchor.href).searchParams.get("v");
+      } catch {
+        return;
       }
+      if (!videoId) return;
 
-      el.setAttribute("data-cliphy-injected", "1");
-      (el as HTMLElement).style.position = "relative";
-      (el as HTMLElement).style.overflow = "visible";
-
-      const iconUrl = browser.runtime.getURL("/icons/icon-128.png");
-      const btn = document.createElement("button");
-      btn.className = isLockup
-        ? "cliphy-thumb-overlay cliphy-thumb-overlay--lockup"
-        : "cliphy-thumb-overlay";
-
-      const alreadyQueued = queuedVideoIds.has(data.videoId);
-      btn.innerHTML = `<img src="${iconUrl}" alt="Add to Cliphy" />`;
-      if (alreadyQueued) btn.classList.add("cliphy-thumb-overlay--added");
-      btn.disabled = alreadyQueued;
-      btn.title = alreadyQueued ? "Already in queue" : "Add to Cliphy";
-
-      btn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        btn.disabled = true;
-
-        const response = (await safeSendMessage({
-          type: "ADD_TO_QUEUE",
-          videoUrl: data.url,
-          videoTitle: data.title,
-          videoChannel: data.channel,
-          videoDurationSeconds: data.durationSeconds,
-        } satisfies ExtensionMessage)) as {
-          success: boolean;
-          error?: string;
-          code?: string;
-        };
-
-        handleQueueResponse(
-          response as QueueResponse,
-          () => {
-            queuedVideoIds.add(data.videoId);
-            btn.classList.add("cliphy-thumb-overlay--added");
-            btn.title = "Already in queue";
-            showToast("Added to queue", "Open Cliphy →");
-          },
-          () => {
-            btn.disabled = false;
-          },
-        );
-      });
-
-      container.appendChild(btn);
-
-      // JS hover for non-lockup renderers; lockup uses CSS :hover (more reliable)
-      if (!isLockup) {
-        el.addEventListener("mouseenter", () => btn.classList.add("cliphy-thumb-overlay--visible"));
-        el.addEventListener("mouseleave", () => {
-          if (!btn.classList.contains("cliphy-thumb-overlay--added")) {
-            btn.classList.remove("cliphy-thumb-overlay--visible");
-          }
-        });
-      }
+      // Scrape title/channel/duration from the enclosing video renderer if we can find one.
+      const renderer = anchor.closest(VIDEO_RENDERERS);
+      const data = renderer ? extractThumbnailData(renderer) : null;
+      contextVideoData.set(videoId, data ?? { videoId, url: anchor.href });
     }
 
-    function injectThumbnailButtons() {
-      document.querySelectorAll(THUMBNAIL_RENDERERS).forEach(injectThumbnailButton);
+    document.addEventListener(
+      "contextmenu",
+      (e) => rememberContextVideo(e.target as Element | null),
+      true,
+    );
 
-      // Single observer for both thumbnail buttons and menu injection.
-      // Skip querySelectorAll on leaf nodes to avoid thrashing during video playback.
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          for (const node of mutation.addedNodes) {
-            if (!(node instanceof Element)) continue;
+    // Resolve metadata for a video URL: live page info if it's the current video,
+    // otherwise the scraped data from the last right-clicked thumbnail.
+    function getQueueMetadata(videoUrl: string): QueueMetadata {
+      let videoId: string | null;
+      try {
+        videoId = new URL(videoUrl).searchParams.get("v");
+      } catch {
+        return {};
+      }
+      if (!videoId) return {};
 
-            // Thumbnail buttons
-            if (node.matches(THUMBNAIL_RENDERERS)) {
-              injectThumbnailButton(node);
-            } else if (node.firstElementChild) {
-              node.querySelectorAll(THUMBNAIL_RENDERERS).forEach(injectThumbnailButton);
-            }
-            // Catch hydration: a child was added inside an already-present but un-injected renderer
-            const parentRenderer = node.parentElement?.closest(THUMBNAIL_RENDERERS);
-            if (parentRenderer && !parentRenderer.hasAttribute("data-cliphy-injected")) {
-              injectThumbnailButton(parentRenderer);
-            }
-          }
-        }
-      });
+      if (isVideoPage() && new URL(window.location.href).searchParams.get("v") === videoId) {
+        const info = getVideoInfo();
+        return {
+          videoTitle: info.title || undefined,
+          videoChannel: info.channel || undefined,
+          videoDurationSeconds: info.duration ? parseDurationToSeconds(info.duration) : undefined,
+        };
+      }
 
-      observer.observe(document.body, { childList: true, subtree: true });
+      const data = contextVideoData.get(videoId);
+      if (!data) return {};
+      return {
+        videoTitle: data.title,
+        videoChannel: data.channel,
+        videoDurationSeconds: data.durationSeconds,
+      };
     }
 
     // Listen for on-demand requests from popup / side panel / background
@@ -600,6 +430,11 @@ export default defineContentScript({
 
         if (msg.type === "GET_VIDEO_INFO") {
           sendResponse(getVideoInfo());
+          return false;
+        }
+
+        if (msg.type === "GET_QUEUE_METADATA") {
+          sendResponse(getQueueMetadata(msg.videoUrl));
           return false;
         }
 
@@ -624,16 +459,9 @@ export default defineContentScript({
     // On SPA nav, the URL updates instantly but DOM metadata (title, channel,
     // duration meta tag) still reflects the previous video. The <video> element
     // duration updates once the new video loads.
-    function scanThumbnails() {
-      document.querySelectorAll(THUMBNAIL_RENDERERS).forEach(injectThumbnailButton);
-    }
-
     document.addEventListener("yt-navigate-finish", () => {
-      // Re-inject video page button on every SPA navigation
-      injectVideoPageButton();
+      // Re-inject player overlay on every SPA navigation
       injectVideoOverlay();
-      // Re-scan thumbnails — sidebar loads after navigation completes
-      scanThumbnails();
 
       if (!isVideoPage()) return;
 
@@ -663,12 +491,8 @@ export default defineContentScript({
       }, 500);
     });
 
-    // Initial page load — inject buttons and notify background
-    injectVideoPageButton();
+    // Initial page load — inject player overlay and notify background
     injectVideoOverlay();
-    injectThumbnailButtons();
-    // Deferred scan in case content script runs before YouTube renders thumbnails
-    setTimeout(scanThumbnails, 1500);
 
     if (isVideoPage()) {
       setTimeout(() => {
