@@ -9,6 +9,11 @@ const redirectUri = AuthSession.makeRedirectUri({
   path: "auth/callback",
 });
 
+const resetRedirectUri = AuthSession.makeRedirectUri({
+  scheme: "com.cliphy.app",
+  path: "reset",
+});
+
 export async function signInWithEmail(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -43,19 +48,15 @@ export async function signInWithGoogle() {
     throw new Error("OAuth cancelled");
   }
 
-  const url = new URL(result.url);
-  const params = new URLSearchParams(url.hash.substring(1));
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (!accessToken || !refreshToken) {
-    throw new Error("Missing tokens in OAuth callback");
+  // Supabase v2 uses PKCE — exchange the authorization code for a session.
+  // exchangeCodeForSession expects the bare code, not the full callback URL.
+  const code = new URL(result.url).searchParams.get("code");
+  if (!code) {
+    throw new Error("Missing authorization code in OAuth callback");
   }
 
-  const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.exchangeCodeForSession(code);
   if (sessionError) throw sessionError;
 
   return sessionData;
@@ -69,4 +70,21 @@ export async function signOut() {
 export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
+}
+
+export async function resetPassword(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: resetRedirectUri,
+  });
+  if (error) throw error;
+}
+
+export async function exchangeRecoveryCode(code: string) {
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+}
+
+export async function updatePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
 }

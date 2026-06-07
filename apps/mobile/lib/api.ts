@@ -7,6 +7,7 @@ import type {
   SubscriptionCreateRequest,
   SubscriptionUpdateRequest,
   GoogleConnectionStatus,
+  CheckEmailResponse,
 } from "@cliphy/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
@@ -159,3 +160,18 @@ export const getGoogleConnectUrl = () => apiFetch<{ url: string }>("/api/auth/go
 
 export const disconnectGoogle = () =>
   apiFetch<{ disconnected: true }>("/api/auth/google", { method: "DELETE" });
+
+// Auth (pre-login, no token)
+export async function checkEmail(email: string): Promise<CheckEmailResponse> {
+  const res = await fetch(`${API_URL}/api/auth/check-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (res.status === 429) throw new Error("Too many attempts — try again in a moment.");
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API error ${res.status}`);
+  }
+  return res.json();
+}
