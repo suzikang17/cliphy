@@ -102,11 +102,15 @@ export default function LoginScreen() {
   }
 
   async function handleForgot() {
+    if (loading) return;
+    setLoading(true);
     try {
       await resetPassword(normalizedEmail());
       Alert.alert("Check your email", "We sent you a link to reset your password.");
     } catch (err: unknown) {
       Alert.alert("Error", err instanceof Error ? err.message : "Couldn't send reset email.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -242,7 +246,7 @@ export default function LoginScreen() {
         )}
 
         {step === "credentials" && status === "password" && (
-          <Pressable onPress={handleForgot} className="mb-3">
+          <Pressable onPress={handleForgot} disabled={loading} className="mb-3">
             <Text
               className="text-center text-sm"
               style={{ color: neon[600], fontFamily: "DMSans" }}

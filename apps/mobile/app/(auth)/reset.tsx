@@ -60,7 +60,8 @@ export default function ResetScreen() {
     setLoading(true);
     try {
       await updatePassword(password);
-      // Recovery session is now a full session; _layout routes into (tabs).
+      // Recovery session is now a full session — go into the app.
+      router.replace("/(tabs)");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Couldn't update password.");
     } finally {
