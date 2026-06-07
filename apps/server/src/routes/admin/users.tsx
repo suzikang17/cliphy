@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { supabase } from "../../lib/supabase.js";
 import { AdminLayout } from "../../views/admin/layout.js";
 import { StatusBadge, PlanBadge, Pagination } from "../../views/admin/components.js";
@@ -25,6 +26,22 @@ interface SummaryRow {
   status: string;
   created_at: string;
 }
+
+interface UserDetail {
+  id: string;
+  email: string;
+  plan: string;
+  subscription_status: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  trial_ends_at: string | null;
+  monthly_summary_count: number;
+  monthly_count_reset_at: string | null;
+  created_at: string;
+}
+
+const USER_DETAIL_COLUMNS =
+  "id, email, plan, subscription_status, stripe_customer_id, stripe_subscription_id, trial_ends_at, monthly_summary_count, monthly_count_reset_at, created_at";
 
 export const adminUserRoutes = new Hono();
 
@@ -180,9 +197,7 @@ adminUserRoutes.get("/:id", async (c) => {
 
   const { data: user, error: userErr } = await supabase
     .from("users")
-    .select(
-      "id, email, plan, subscription_status, stripe_customer_id, stripe_subscription_id, trial_ends_at, monthly_summary_count, monthly_count_reset_at, created_at",
-    )
+    .select(USER_DETAIL_COLUMNS)
     .eq("id", userId)
     .single();
 
@@ -218,70 +233,7 @@ adminUserRoutes.get("/:id", async (c) => {
       </div>
       <h1>{user.email}</h1>
 
-      <div class="detail-grid section">
-        {/* Profile card */}
-        <div class="card">
-          <h2>Profile</h2>
-          <div class="detail-row">
-            <span class="label">Email</span>
-            <span>{user.email}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Plan</span>
-            <span>
-              <PlanBadge plan={user.plan} />
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Subscription status</span>
-            <span>
-              <StatusBadge status={user.subscription_status} />
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Stripe customer</span>
-            <span style="font-size:0.8rem;color:var(--text-muted)">
-              {user.stripe_customer_id ?? "—"}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Stripe subscription</span>
-            <span style="font-size:0.8rem;color:var(--text-muted)">
-              {user.stripe_subscription_id ?? "—"}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Trial ends at</span>
-            <span>{user.trial_ends_at ? formatDate(user.trial_ends_at) : "—"}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Created</span>
-            <span>{formatDate(user.created_at)}</span>
-          </div>
-        </div>
-
-        {/* Usage card */}
-        <div class="card">
-          <h2>Usage</h2>
-          <div class="detail-row">
-            <span class="label">Monthly count</span>
-            <span>{user.monthly_summary_count}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Count reset at</span>
-            <span>
-              {user.monthly_count_reset_at ? formatDate(user.monthly_count_reset_at) : "—"}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Total summaries</span>
-            <span>{totalSummaries ?? 0}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div class="section">{actionsFragment(userId)}</div>
+      {userCards(user as UserDetail, totalSummaries ?? 0)}
 
       {/* Recent summaries */}
       <div class="section">
@@ -322,56 +274,27 @@ adminUserRoutes.get("/:id", async (c) => {
 
 // ─── Action endpoints ─────────────────────────────────────────────────────────
 
-adminUserRoutes.post("/:id/upgrade", async (c) => {
-  const userId = c.req.param("id");
-  try {
-    await upgradeUser(userId);
-    return c.html(actionsFragment(userId, "User upgraded to Pro."));
-  } catch (err: unknown) {
-    return c.html(actionsFragment(userId, undefined, (err as Error).message));
-  }
-});
+adminUserRoutes.post("/:id/upgrade", (c) =>
+  runAction(c, () => upgradeUser(c.req.param("id")), "User upgraded to Pro."),
+);
 
-adminUserRoutes.post("/:id/downgrade", async (c) => {
-  const userId = c.req.param("id");
-  try {
-    await downgradeUser(userId);
-    return c.html(actionsFragment(userId, "User downgraded to Free."));
-  } catch (err: unknown) {
-    return c.html(actionsFragment(userId, undefined, (err as Error).message));
-  }
-});
+adminUserRoutes.post("/:id/downgrade", (c) =>
+  runAction(c, () => downgradeUser(c.req.param("id")), "User downgraded to Free."),
+);
 
-adminUserRoutes.post("/:id/cancel-subscription", async (c) => {
-  const userId = c.req.param("id");
-  try {
-    await cancelSubscription(userId);
-    return c.html(actionsFragment(userId, "Subscription canceled."));
-  } catch (err: unknown) {
-    return c.html(actionsFragment(userId, undefined, (err as Error).message));
-  }
-});
+adminUserRoutes.post("/:id/cancel-subscription", (c) =>
+  runAction(c, () => cancelSubscription(c.req.param("id")), "Subscription canceled."),
+);
 
-adminUserRoutes.post("/:id/reset-count", async (c) => {
-  const userId = c.req.param("id");
-  try {
-    await resetMonthlyCount(userId);
-    return c.html(actionsFragment(userId, "Monthly count reset."));
-  } catch (err: unknown) {
-    return c.html(actionsFragment(userId, undefined, (err as Error).message));
-  }
-});
+adminUserRoutes.post("/:id/reset-count", (c) =>
+  runAction(c, () => resetMonthlyCount(c.req.param("id")), "Monthly count reset."),
+);
 
 adminUserRoutes.post("/:id/set-count", async (c) => {
   const userId = c.req.param("id");
   const body = await c.req.parseBody();
   const count = Number(body["count"]);
-  try {
-    await setMonthlyCount(userId, count);
-    return c.html(actionsFragment(userId, `Monthly count set to ${count}.`));
-  } catch (err: unknown) {
-    return c.html(actionsFragment(userId, undefined, (err as Error).message));
-  }
+  return runAction(c, () => setMonthlyCount(userId, count), `Monthly count set to ${count}.`);
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -393,70 +316,152 @@ function buildBaseUrl(params: { plan: string; status: string; search: string }):
   return parts.length ? `/api/admin/users?${parts.join("&")}` : "/api/admin/users";
 }
 
-function actionsFragment(userId: string, success?: string, error?: string) {
+async function fetchUserCards(
+  userId: string,
+): Promise<{ user: UserDetail; totalSummaries: number } | null> {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select(USER_DETAIL_COLUMNS)
+    .eq("id", userId)
+    .single();
+
+  if (error || !user) return null;
+
+  const { count } = await supabase
+    .from("summaries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .is("deleted_at", null);
+
+  return { user: user as UserDetail, totalSummaries: count ?? 0 };
+}
+
+// Run a mutation, then re-render the cards with the updated values + a message.
+async function runAction(c: Context, fn: () => Promise<void>, successMsg: string) {
+  let success: string | undefined;
+  let error: string | undefined;
+  try {
+    await fn();
+    success = successMsg;
+  } catch (err: unknown) {
+    error = (err as Error).message;
+  }
+
+  const userId = c.req.param("id");
+  const data = userId ? await fetchUserCards(userId) : null;
+  if (!data) return c.html(<div class="error">User not found</div>, 404);
+  return c.html(userCards(data.user, data.totalSummaries, success, error));
+}
+
+function userCards(user: UserDetail, totalSummaries: number, success?: string, error?: string) {
+  const userId = user.id;
+  const swap = { "hx-target": "#user-cards", "hx-swap": "outerHTML" } as const;
   return (
-    <div id="user-actions" class="card">
-      <h2>Actions</h2>
-      {success && <div class="success">{success}</div>}
-      {error && <div class="error">{error}</div>}
-      <div class="actions">
-        <button
-          class="btn btn-primary"
-          hx-post={`/api/admin/users/${userId}/upgrade`}
-          hx-target="#user-actions"
-          hx-swap="outerHTML"
-          hx-confirm="Upgrade this user to Pro?"
-        >
-          Upgrade to Pro
-        </button>
-        <button
-          class="btn btn-secondary"
-          hx-post={`/api/admin/users/${userId}/downgrade`}
-          hx-target="#user-actions"
-          hx-swap="outerHTML"
-          hx-confirm="Downgrade this user to Free? This will cancel their Stripe subscription."
-        >
-          Downgrade to Free
-        </button>
-        <button
-          class="btn btn-danger"
-          hx-post={`/api/admin/users/${userId}/cancel-subscription`}
-          hx-target="#user-actions"
-          hx-swap="outerHTML"
-          hx-confirm="Cancel this user's Stripe subscription?"
-        >
-          Cancel subscription
-        </button>
-        <button
-          class="btn btn-secondary"
-          hx-post={`/api/admin/users/${userId}/reset-count`}
-          hx-target="#user-actions"
-          hx-swap="outerHTML"
-          hx-confirm="Reset this user's monthly count to 0?"
-        >
-          Reset monthly count
-        </button>
+    <div class="detail-grid section" id="user-cards">
+      {(success || error) && (
+        <div style="grid-column:1/-1">
+          {success && <div class="success">{success}</div>}
+          {error && <div class="error">{error}</div>}
+        </div>
+      )}
+
+      {/* Profile card */}
+      <div class="card">
+        <h2>Profile</h2>
+        <div class="detail-row">
+          <span class="label">Email</span>
+          <span>{user.email}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Plan</span>
+          <span class="field-actions">
+            <PlanBadge plan={user.plan} />
+            <button
+              class="btn btn-primary btn-sm"
+              hx-post={`/api/admin/users/${userId}/upgrade`}
+              {...swap}
+              hx-confirm="Upgrade this user to Pro?"
+            >
+              Upgrade
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              hx-post={`/api/admin/users/${userId}/downgrade`}
+              {...swap}
+              hx-confirm="Downgrade this user to Free? This will cancel their Stripe subscription."
+            >
+              Downgrade
+            </button>
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Subscription status</span>
+          <span class="field-actions">
+            <StatusBadge status={user.subscription_status} />
+            <button
+              class="btn btn-danger btn-sm"
+              hx-post={`/api/admin/users/${userId}/cancel-subscription`}
+              {...swap}
+              hx-confirm="Cancel this user's Stripe subscription?"
+            >
+              Cancel
+            </button>
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Stripe customer</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">
+            {user.stripe_customer_id ?? "—"}
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Stripe subscription</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">
+            {user.stripe_subscription_id ?? "—"}
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Trial ends at</span>
+          <span>{user.trial_ends_at ? formatDate(user.trial_ends_at) : "—"}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Created</span>
+          <span>{formatDate(user.created_at)}</span>
+        </div>
       </div>
-      <form
-        class="actions"
-        hx-post={`/api/admin/users/${userId}/set-count`}
-        hx-target="#user-actions"
-        hx-swap="outerHTML"
-        style="align-items:center"
-      >
-        <input
-          type="number"
-          name="count"
-          min="0"
-          step="1"
-          required
-          placeholder="Monthly count"
-          style="width:150px;padding:0.5rem 0.75rem;border:1px solid var(--input-border);border-radius:6px;font-size:0.9rem;background:var(--surface);color:var(--text)"
-        />
-        <button class="btn btn-secondary" type="submit">
-          Set monthly count
-        </button>
-      </form>
+
+      {/* Usage card */}
+      <div class="card">
+        <h2>Usage</h2>
+        <div class="detail-row">
+          <span class="label">Monthly count</span>
+          <span class="field-actions">
+            <span>{user.monthly_summary_count}</span>
+            <button
+              class="btn btn-secondary btn-sm"
+              hx-post={`/api/admin/users/${userId}/reset-count`}
+              {...swap}
+              hx-confirm="Reset this user's monthly count to 0?"
+            >
+              Reset
+            </button>
+            <form class="field-actions" hx-post={`/api/admin/users/${userId}/set-count`} {...swap}>
+              <input type="number" name="count" min="0" step="1" required placeholder="#" />
+              <button class="btn btn-secondary btn-sm" type="submit">
+                Set
+              </button>
+            </form>
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Count reset at</span>
+          <span>{user.monthly_count_reset_at ? formatDate(user.monthly_count_reset_at) : "—"}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Total summaries</span>
+          <span>{totalSummaries}</span>
+        </div>
+      </div>
     </div>
   );
 }

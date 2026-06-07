@@ -87,12 +87,15 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         .badge-failed { background: #fee2e2; color: #b91c1c; }
         .filters { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
         .filters select, .filters input { padding: 0.5rem 0.75rem; border: 1px solid var(--input-border); border-radius: 6px; font-size: 0.9rem; background: var(--surface); color: var(--text); }
-        .filters input[type="search"] { min-width: 250px; }
+        .filters input[type=search] { min-width: 250px; }
         .btn { display: inline-block; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; }
         .btn-primary { background: #2563eb; color: white; }
         .btn-danger { background: #dc2626; color: white; }
         .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.78rem; }
         .btn:hover { opacity: 0.9; }
+        .field-actions { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+        .detail-row .field-actions input[type=number] { width: 70px; padding: 0.3rem 0.5rem; border: 1px solid var(--input-border); border-radius: 6px; font-size: 0.85rem; background: var(--surface); color: var(--text); }
         .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
         .pagination { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center; }
         .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -103,7 +106,7 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
         a.row-link { color: inherit; text-decoration: none; }
         .login-form { max-width: 400px; margin: 4rem auto; }
-        .login-form input[type="password"] { width: 100%; padding: 0.75rem; border: 1px solid var(--input-border); border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; background: var(--surface); color: var(--text); }
+        .login-form input[type=password] { width: 100%; padding: 0.75rem; border: 1px solid var(--input-border); border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; background: var(--surface); color: var(--text); }
         .login-form .btn { width: 100%; }
         .error { color: var(--danger-text); margin-bottom: 1rem; font-size: 0.9rem; }
         .success { color: var(--success-text); margin-bottom: 1rem; font-size: 0.9rem; }
