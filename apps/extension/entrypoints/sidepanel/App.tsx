@@ -973,7 +973,7 @@ export function App() {
 
       {usage && (
         <div className="shrink-0 border-t border-(--color-border-soft) px-4 py-2">
-          <UsageBar usage={usage} />
+          <UsageBar usage={usage} onOpenApp={() => openWebApp(WEB_ROUTES.DASHBOARD)} />
         </div>
       )}
     </div>

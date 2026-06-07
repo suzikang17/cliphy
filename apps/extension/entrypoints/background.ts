@@ -154,7 +154,6 @@ export default defineBackground(() => {
 
       switch (msg.type) {
         case "VIDEO_DETECTED":
-          console.log("[Cliphy] Video detected:", msg.video.videoId);
           return false; // No async response needed
 
         case "ADD_TO_QUEUE": {
@@ -170,8 +169,6 @@ export default defineBackground(() => {
             // causing the port to close and the content script to show a false "Reload" error.
             // The sidepanel picks up queued items via realtime subscription regardless.
             sendResponse({ success: true });
-
-            console.log("[Cliphy] ADD_TO_QUEUE:", msg.videoUrl);
 
             try {
               await addToQueue({
