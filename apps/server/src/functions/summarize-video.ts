@@ -14,6 +14,12 @@ import { summarizeTranscript } from "../services/summarizer.js";
 
 const log = logger.child({ fn: "summarize-video" });
 
+// Global concurrency ceiling, derived from the Anthropic ITPM limit:
+// ITPM ÷ worst-case input tokens per summary (250k-char transcript ≈ ~63k tokens).
+// Tier 2 (450k ITPM) ≈ 7; backed off to 5 for burst headroom. Override via env
+// when the Anthropic tier changes (Tier 3 → ~10, Tier 4 → ~25).
+const SUMMARIZE_CONCURRENCY = Number(process.env.SUMMARIZE_CONCURRENCY) || 5;
+
 function classifyError(message: string): string {
   if (/credit.?balance|billing|insufficient.?funds/i.test(message)) return "billing";
   if (/rate.?limit|429/i.test(message)) return "rate_limit";
@@ -32,9 +38,9 @@ export const summarizeVideo = inngest.createFunction(
   {
     id: "summarize-video",
     retries: 3,
-    // Cap simultaneous runs so the fan-out (incl. retries) can't stampede the
-    // proxy past Decodo's concurrent-connection limit. Tune to the plan's cap.
-    concurrency: { limit: 4 },
+    // Per-user fairness (no single user starves others) + a global ceiling sized to
+    // the Anthropic ITPM limit so the fan-out + retries don't trip 429s.
+    concurrency: [{ key: "event.data.userId", limit: 2 }, { limit: SUMMARIZE_CONCURRENCY }],
     timeouts: { finish: "5m" },
     onFailure: async ({ event }) => {
       const { summaryId } = event.data.event.data as { summaryId: string };

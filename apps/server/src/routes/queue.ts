@@ -178,6 +178,7 @@ queueRoutes.post("/", async (c) => {
       summaryId: row.id as string,
       videoId,
       videoTitle: (row.video_title as string) ?? "Untitled Video",
+      userId,
     },
   });
 
@@ -321,6 +322,7 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
         summaryId: row.id as string,
         videoId: row.youtube_video_id as string,
         videoTitle: (row.video_title as string) ?? "Untitled Video",
+        userId,
       },
     })),
   );
@@ -408,6 +410,7 @@ queueRoutes.post("/:id/retry", async (c) => {
       summaryId: id,
       videoId: row.youtube_video_id as string,
       videoTitle: (row.video_title as string) ?? "Untitled Video",
+      userId,
     },
   });
 
