@@ -6,6 +6,7 @@ import { loginRoutes } from "./login.js";
 import { adminUserRoutes } from "./users.js";
 import { adminSummaryRoutes } from "./summaries.js";
 import { adminQueueRoutes } from "./queue.js";
+import { adminProxyTestRoutes } from "./proxy-test.js";
 
 export const adminRoutes = new Hono();
 
@@ -41,6 +42,7 @@ adminRoutes.route("/login", loginRoutes);
 adminRoutes.route("/users", adminUserRoutes);
 adminRoutes.route("/summaries", adminSummaryRoutes);
 adminRoutes.route("/queue", adminQueueRoutes);
+adminRoutes.route("/proxy-test", adminProxyTestRoutes);
 
 // Dashboard redirect
 adminRoutes.get("/", (c) => c.redirect("/api/admin/users"));

@@ -7,7 +7,7 @@
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "downgrade-user": "tsx --env-file=../../.env scripts/downgrade-user.ts"
+    "test-proxy": "tsx --env-file=.env.local scripts/test-proxy-fetch.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
