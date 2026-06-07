@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { supabase } from "../../lib/supabase.js";
 import { AdminLayout } from "../../views/admin/layout.js";
 import { StatusBadge, Pagination } from "../../views/admin/components.js";
+import { formatDateTime } from "../../views/admin/format.js";
 
 interface SummaryListRow {
   id: string;
@@ -23,6 +24,7 @@ interface SummaryDetailRow {
   tags: string[] | null;
   created_at: string;
   error_message: string | null;
+  error_category: string | null;
   summary_json: unknown;
   transcript: string | null;
   users: { email: string; plan: string; id: string };
@@ -37,6 +39,7 @@ const PER_PAGE = 25;
 adminSummaryRoutes.get("/", async (c) => {
   const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
   const status = c.req.query("status") ?? "";
+  const category = c.req.query("category") ?? "";
   const from_date = c.req.query("from") ?? "";
   const to_date = c.req.query("to") ?? "";
   const search = c.req.query("search") ?? "";
@@ -55,6 +58,7 @@ adminSummaryRoutes.get("/", async (c) => {
     .range(from, to);
 
   if (status && status !== "all") query = query.eq("status", status);
+  if (category) query = query.eq("error_category", category);
   if (from_date) query = query.not("created_at", "lt", from_date);
   if (to_date) query = query.not("created_at", "gt", `${to_date}T23:59:59Z`);
   if (search) {
@@ -64,7 +68,7 @@ adminSummaryRoutes.get("/", async (c) => {
 
   const { data: summaries, count } = await query;
 
-  const baseUrl = buildBaseUrl({ status, from: from_date, to: to_date, search });
+  const baseUrl = buildBaseUrl({ status, category, from: from_date, to: to_date, search });
 
   const tableFragment = (
     <div id="summaries-table">
@@ -93,7 +97,7 @@ adminSummaryRoutes.get("/", async (c) => {
               <td style="font-size:0.8rem;color:var(--text-muted)">
                 {(s.tags ?? []).join(", ") || "—"}
               </td>
-              <td>{formatDate(s.created_at)}</td>
+              <td>{formatDateTime(s.created_at)}</td>
             </tr>
           ))}
           {(summaries ?? []).length === 0 && (
@@ -143,6 +147,30 @@ adminSummaryRoutes.get("/", async (c) => {
           <option value="failed" selected={status === "failed"}>
             Failed
           </option>
+        </select>
+        <select
+          name="category"
+          hx-get="/api/admin/summaries"
+          hx-target="#summaries-table"
+          hx-swap="outerHTML"
+          hx-include="[name]"
+        >
+          <option value="" selected={!category}>
+            All failure types
+          </option>
+          {[
+            "network",
+            "billing",
+            "rate_limit",
+            "upstream",
+            "parse_failure",
+            "no_captions",
+            "unknown",
+          ].map((cat) => (
+            <option value={cat} selected={category === cat}>
+              {cat}
+            </option>
+          ))}
         </select>
         <input
           type="date"
@@ -263,7 +291,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
           </div>
           <div class="detail-row">
             <span class="label">Created</span>
-            <span>{formatDate(s.created_at)}</span>
+            <span>{formatDateTime(s.created_at)}</span>
           </div>
         </div>
 
@@ -296,7 +324,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
       {s.status === "failed" && s.error_message && (
         <div class="section">
           <div class="card">
-            <h2>Error</h2>
+            <h2>Error{s.error_category ? ` — ${s.error_category}` : ""}</h2>
             <pre style="background:var(--error-bg);border:1px solid var(--error-border);padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;color:var(--error-text);white-space:pre-wrap;word-break:break-all">
               {s.error_message}
             </pre>
@@ -331,16 +359,9 @@ adminSummaryRoutes.get("/:id", async (c) => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function buildBaseUrl(params: {
   status: string;
+  category: string;
   from: string;
   to: string;
   search: string;
@@ -348,6 +369,7 @@ function buildBaseUrl(params: {
   const parts: string[] = [];
   if (params.status && params.status !== "all")
     parts.push(`status=${encodeURIComponent(params.status)}`);
+  if (params.category) parts.push(`category=${encodeURIComponent(params.category)}`);
   if (params.from) parts.push(`from=${encodeURIComponent(params.from)}`);
   if (params.to) parts.push(`to=${encodeURIComponent(params.to)}`);
   if (params.search) parts.push(`search=${encodeURIComponent(params.search)}`);

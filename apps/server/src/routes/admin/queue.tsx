@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { supabase } from "../../lib/supabase.js";
 import { AdminLayout } from "../../views/admin/layout.js";
 import { StatsCard, StatusBadge } from "../../views/admin/components.js";
+import { formatDateTime } from "../../views/admin/format.js";
 
 interface QueueSummaryRow {
   id: string;
@@ -99,7 +100,7 @@ adminQueueRoutes.get("/", async (c) => {
                 <td>
                   <StatusBadge status={s.status} />
                 </td>
-                <td>{formatDate(s.created_at)}</td>
+                <td>{formatDateTime(s.created_at)}</td>
               </tr>
             ))}
             {recentItems.length === 0 && (
@@ -124,13 +125,3 @@ adminQueueRoutes.get("/", async (c) => {
     </AdminLayout>,
   );
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}

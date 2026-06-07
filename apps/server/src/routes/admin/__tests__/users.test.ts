@@ -129,6 +129,25 @@ describe("Admin Users", () => {
     expect(html).toContain("My Video");
   });
 
+  it("GET /admin/users/:id shows effective monthly count for a stale counter", async () => {
+    mockFrom
+      .mockReturnValueOnce(
+        mockChain({
+          data: userRow({ monthly_summary_count: 3, monthly_count_reset_at: "2020-01-10" }),
+          error: null,
+        }),
+      ) // user (reset date long before this month → effective 0)
+      .mockReturnValueOnce(mockChain({ data: [] })) // recent summaries
+      .mockReturnValueOnce(mockChain({ count: 0 })); // total summaries
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("0 this month");
+    expect(html).toContain("raw: 3");
+  });
+
   it("POST /admin/users/:id/upgrade sets plan to pro", async () => {
     const chain = mockChain({ data: userRow(), error: null });
     mockFrom.mockReturnValue(chain);

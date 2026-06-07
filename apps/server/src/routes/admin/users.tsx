@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { supabase } from "../../lib/supabase.js";
 import { AdminLayout } from "../../views/admin/layout.js";
 import { StatusBadge, PlanBadge, Pagination } from "../../views/admin/components.js";
+import { formatDate, formatDateTime } from "../../views/admin/format.js";
 import {
   downgradeUser,
   upgradeUser,
@@ -102,7 +103,7 @@ adminUserRoutes.get("/", async (c) => {
                 <StatusBadge status={u.subscription_status} />
               </td>
               <td>{u.monthly_summary_count}</td>
-              <td>{formatDate(u.created_at)}</td>
+              <td>{formatDateTime(u.created_at)}</td>
             </tr>
           ))}
           {(users ?? []).length === 0 && (
@@ -255,7 +256,7 @@ adminUserRoutes.get("/:id", async (c) => {
                 <td>
                   <StatusBadge status={s.status} />
                 </td>
-                <td>{formatDate(s.created_at)}</td>
+                <td>{formatDateTime(s.created_at)}</td>
               </tr>
             ))}
             {(summaries ?? []).length === 0 && (
@@ -298,14 +299,6 @@ adminUserRoutes.post("/:id/set-count", async (c) => {
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function buildBaseUrl(params: { plan: string; status: string; search: string }): string {
   const parts: string[] = [];
@@ -356,6 +349,16 @@ async function runAction(c: Context, fn: () => Promise<void>, successMsg: string
 function userCards(user: UserDetail, totalSummaries: number, success?: string, error?: string) {
   const userId = user.id;
   const swap = { "hx-target": "#user-cards", "hx-swap": "outerHTML" } as const;
+
+  // The stored counter resets lazily (only on the user's next summary), so it can
+  // be stale across months. Mirror usage.ts to show the effective current-month count.
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  const monthStartStr = monthStart.toISOString().slice(0, 10);
+  const rawCount = user.monthly_summary_count;
+  const effectiveCount =
+    user.monthly_count_reset_at && user.monthly_count_reset_at >= monthStartStr ? rawCount : 0;
+  const countIsStale = effectiveCount !== rawCount;
   return (
     <div class="detail-grid section" id="user-cards">
       {(success || error) && (
@@ -426,7 +429,7 @@ function userCards(user: UserDetail, totalSummaries: number, success?: string, e
         </div>
         <div class="detail-row">
           <span class="label">Created</span>
-          <span>{formatDate(user.created_at)}</span>
+          <span>{formatDateTime(user.created_at)}</span>
         </div>
       </div>
 
@@ -436,7 +439,19 @@ function userCards(user: UserDetail, totalSummaries: number, success?: string, e
         <div class="detail-row">
           <span class="label">Monthly count</span>
           <span class="field-actions">
-            <span>{user.monthly_summary_count}</span>
+            <span>
+              {effectiveCount} this month
+              {countIsStale && (
+                <span style="color:var(--text-muted);font-size:0.8rem">
+                  {" "}
+                  (raw: {rawCount}
+                  {user.monthly_count_reset_at
+                    ? `, last reset ${formatDate(user.monthly_count_reset_at)}`
+                    : ""}
+                  )
+                </span>
+              )}
+            </span>
             <button
               class="btn btn-secondary btn-sm"
               hx-post={`/api/admin/users/${userId}/reset-count`}
