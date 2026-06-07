@@ -50,31 +50,29 @@ Monorepo with pnpm workspaces:
 - `pnpm test:unit` — Unit tests (Vitest)
 - `pnpm test:smoke` — Live API smoke tests (requires env vars)
 
-## Notion integration
+## Project context (docs/)
 
-- Task Board: database_id=82ccf3ed-8f70-45c7-8480-2f55db398397 (data_source_id=2928b00e-9d27-47fc-a709-27cfd4b5c9e0 — use database_id for API calls)
-- Devlog: collection://20645fc8-887e-4b9e-a782-a45c888f9624
-- Decisions Log: collection://796aacf9-23e4-4038-8bc6-c073afbeadd6
-- Use Notion MCP tools to read/update tasks as you work
-- Mark tasks Done when acceptance criteria are met
-- Log architectural decisions in the Decisions Log
-- Services & Providers page: https://www.notion.so/313f59b611bb813583fcc4dde572ee58
-  - Update this page whenever a new service/provider is added or removed
+All project context lives as plain markdown in `docs/` — start at [`docs/INDEX.md`](docs/INDEX.md). This repo is the source of truth; the old Notion workspace is a read-only archive (migrated 2026-06-07). Do **not** write to Notion.
+
+- **Decisions:** `docs/decisions/` — one ADR file per decision (+ `INDEX.md`). Log architectural/tooling choices here.
+- **Devlog:** `docs/devlog/` — one dated file per session (+ `INDEX.md`).
+- **Roadmap / tasks:** open work in `docs/ROADMAP.md`, completed in `docs/task-archive.md`.
+- **Services & cost:** `docs/providers.md` — update whenever a service/provider is added, removed, or changed.
+- **Architecture & ops:** `docs/architecture.md`.
 
 ## Workflow
 
 ### Session flow
 
-1. Pull task from Notion Task Board at start of session
-2. Set task status to **In Progress** in Notion when starting work
-3. Build → verify it works → commit and push
-4. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
-5. When making a tech choice, check what's industry standard before committing to it
-6. Switch tools early if something's wrong — don't accumulate tech debt on stubs
-7. Commit after each logical chunk, not at the end
-8. Mark task **Done** in Notion when finished (set Date Completed, add Notes, check off checklist items)
-9. Create follow-up tasks in Notion when new work is discovered
-10. Log devlog entry at end of session (what got done, decisions, issues hit)
+1. Pick a task from `docs/ROADMAP.md` at start of session
+2. Build → verify it works → commit and push
+3. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
+4. When making a tech choice, check what's industry standard before committing to it
+5. Switch tools early if something's wrong — don't accumulate tech debt on stubs
+6. Commit after each logical chunk, not at the end
+7. When a task is finished, move its row from `docs/ROADMAP.md` to `docs/task-archive.md` (with a Notes summary + commit hashes)
+8. Add follow-up tasks to `docs/ROADMAP.md` when new work is discovered
+9. Log a devlog entry in `docs/devlog/` at end of session (what got done, decisions, issues hit)
 
 ### Sequencing
 
@@ -93,10 +91,10 @@ Monorepo with pnpm workspaces:
 
 ## Auto-logging
 
-After any noteworthy event, automatically log it to Notion without being asked.
+After any noteworthy event, automatically log it to the `docs/` markdown without being asked.
 Use `/devlog` for a full session summary at the end.
 
-**Log to Devlog when:**
+**Log to `docs/devlog/` when:**
 
 - A task is completed
 - A bug is hit and fixed
@@ -104,7 +102,7 @@ Use `/devlog` for a full session summary at the end.
 - A workaround is applied
 - Something unexpected is learned
 
-**Log to Decisions Log when:**
+**Add a new ADR to `docs/decisions/` when:**
 
 - A tech choice is made between alternatives
 - An architectural pattern is chosen

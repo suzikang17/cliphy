@@ -1,12 +1,12 @@
 ---
 name: ship
-description: Use when work is ready to verify, commit, push, and log to Notion. Runs lint and build checks, commits changes, pushes to remote, then updates Notion task board and devlog.
-argument-hint: "[optional: task name for Notion update]"
+description: Use when work is ready to verify, commit, push, and log to the repo docs/. Runs lint and build checks, commits changes, pushes to remote, then updates the roadmap/archive and devlog markdown.
+argument-hint: "[optional: task name for docs update]"
 ---
 
 # Ship
 
-Verify, commit, push, and update Notion in one flow.
+Verify, commit, push, and update the repo docs/ in one flow.
 
 ## Steps
 
@@ -38,8 +38,8 @@ If any fail, stop and fix before continuing.
 - `git push`
 - If push fails (e.g. behind remote), stop and ask — do not force push
 
-### 4. Update Notion
+### 4. Update docs
 
-Invoke the `update-notion` skill with the task name (if provided as argument).
+Invoke the `update-docs` skill with the task name (if provided as argument).
 
-This handles: marking the task Done, appending to devlog, logging decisions.
+This handles: moving the task to `docs/task-archive.md`, appending to `docs/devlog/`, and adding decision ADRs.

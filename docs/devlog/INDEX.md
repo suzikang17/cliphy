@@ -1,0 +1,28 @@
+# Devlog
+
+Daily build log, migrated verbatim from Notion 2026-06-07. One file per session. `Day N` = work session (matches entry titles).
+
+| Day | Date       | Entry                                                                                                                                                                          |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | 2026-02-14 | [Day 0: Setting up the command center](day-00-setting-up-the-command-center.md)                                                                                                |
+| 1   | 2026-02-16 | [Day 1 — Project scaffold + Claude Code workflow](day-01-project-scaffold-claude-code-workflow.md)                                                                             |
+| 2   | 2026-02-17 | [Day 2 — CI, Supabase, content script, transcript fetching, workflow automation](day-02-ci-supabase-content-script-transcript-fetching-workflow-automation.md)                 |
+| 3   | 2026-02-18 | [Day 3 — First e2e summary working](day-03-first-e2e-summary-working.md)                                                                                                       |
+| 4   | 2026-02-19 | [Day 4 — Deploy backend to Vercel + Google OAuth working](day-04-deploy-backend-to-vercel-google-oauth-working.md)                                                             |
+| 5   | 2026-02-20 | [Day 5 — Queue system, summary endpoints, rate limiting](day-05-queue-system-summary-endpoints-rate-limiting.md)                                                               |
+| 6   | 2026-02-21 | [Day 6 — Background worker, popup dashboard, async pipeline, Allure reporting](day-06-background-worker-popup-dashboard-async-pipeline-allure-reporting.md)                    |
+| 7   | 2026-02-23 | [Day 7 — Brutalist-lite popup UI, residential proxy, design tokens & polish](day-07-brutalist-lite-popup-ui-residential-proxy-design-tokens-polish.md)                         |
+| 8   | 2026-02-26 | [Day 8 — Queue management UI, time saved indicator, summary detail & export, loading states](day-08-queue-management-ui-time-saved-indicator-summary-detail-export-loading.md) |
+| 9   | 2026-02-27 | [Day 9 — Dismiss/archive summaries, queue UI polish, bug fixes, security hardening](day-09-dismissarchive-summaries-queue-ui-polish-bug-fixes-security-hardening.md)           |
+| 10  | 2026-02-28 | [Day 10 — Pro tier gating, privacy policy, security smoke tests](day-10-pro-tier-gating-privacy-policy-security-smoke-tests.md)                                                |
+| 11  | 2026-03-02 | [Day 11 — Auth Bug Fixes, Error UX, UI Polish, Dark Mode & Stripe Billing](day-11-auth-bug-fixes-error-ux-ui-polish-dark-mode-stripe-billing.md)                               |
+| 12  | 2026-03-03 | [Day 12 — Truncation, Tests, Prompt Tuning, Summary Tags, Design Pass](day-12-truncation-tests-prompt-tuning-summary-tags-design-pass.md)                                      |
+| 13  | 2026-03-04 | [Day 13 — Dynamic Context Section + Error Tracking with Sentry](day-13-dynamic-context-section-error-tracking-with-sentry.md)                                                  |
+| 14  | 2026-03-06 | [Day 14 — Prompt Tuning, Pink Theme, Neobrutalist Overhaul, Dark Mode & Upgrade CTA Polish](day-14-prompt-tuning-pink-theme-neobrutalist-overhaul-dark-mode-upgrade-cta-p.md)  |
+| 15  | 2026-03-07 | [Day 15 — Landing Page & Static Pages Migration](day-15-landing-page-static-pages-migration.md)                                                                                |
+| 16  | 2026-03-17 | [Day 16 — Inngest function timeout & retry config](day-16-inngest-function-timeout-retry-config.md)                                                                            |
+| 34  | 2026-03-21 | [Day 34 — Failure analytics via Sentry dashboards](day-34-failure-analytics-via-sentry-dashboards.md)                                                                          |
+| 62  | 2026-04-18 | [Day 62 — Move API to api.cliphy.app subdomain](day-62-move-api-to-apicliphyapp-subdomain.md)                                                                                  |
+| —   | 2026-05-23 | [Auto-subscriptions backend — YouTube polling + Google OAuth](2026-05-23-auto-subscriptions-backend-youtube-polling-google-oauth.md)                                           |
+| —   | 2026-05-23 | [Auto-subscriptions UI — web + mobile management pages](2026-05-23-auto-subscriptions-ui-web-mobile-management-pages.md)                                                       |
+| 63  | 2026-06-07 | [Day 63 — Proxy rotation fix, InnerTube titles, Sentry tracing, migration runner](day-63-proxy-rotation-innertube-titles-sentry-tracing-migration-runner.md)                   |
