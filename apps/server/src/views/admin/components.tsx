@@ -54,7 +54,7 @@ export const Pagination: FC<{
           ← Prev
         </button>
       )}
-      <span style="padding:0.5rem;color:#666">
+      <span style="padding:0.5rem;color:var(--text-muted)">
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (

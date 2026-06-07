@@ -89,7 +89,7 @@ adminUserRoutes.get("/", async (c) => {
           ))}
           {(users ?? []).length === 0 && (
             <tr>
-              <td colspan={5} style="text-align:center;color:#999;padding:2rem">
+              <td colspan={5} style="text-align:center;color:var(--text-faint);padding:2rem">
                 No users found
               </td>
             </tr>
@@ -211,7 +211,7 @@ adminUserRoutes.get("/:id", async (c) => {
   return c.html(
     <AdminLayout title={user.email}>
       <div style="margin-bottom:1rem">
-        <a href="/api/admin/users" style="color:#666;text-decoration:none">
+        <a href="/api/admin/users" style="color:var(--text-muted);text-decoration:none">
           ← Back to Users
         </a>
       </div>
@@ -239,11 +239,15 @@ adminUserRoutes.get("/:id", async (c) => {
           </div>
           <div class="detail-row">
             <span class="label">Stripe customer</span>
-            <span style="font-size:0.8rem;color:#666">{user.stripe_customer_id ?? "—"}</span>
+            <span style="font-size:0.8rem;color:var(--text-muted)">
+              {user.stripe_customer_id ?? "—"}
+            </span>
           </div>
           <div class="detail-row">
             <span class="label">Stripe subscription</span>
-            <span style="font-size:0.8rem;color:#666">{user.stripe_subscription_id ?? "—"}</span>
+            <span style="font-size:0.8rem;color:var(--text-muted)">
+              {user.stripe_subscription_id ?? "—"}
+            </span>
           </div>
           <div class="detail-row">
             <span class="label">Trial ends at</span>
@@ -343,7 +347,7 @@ adminUserRoutes.get("/:id", async (c) => {
             ))}
             {(summaries ?? []).length === 0 && (
               <tr>
-                <td colspan={3} style="text-align:center;color:#999;padding:2rem">
+                <td colspan={3} style="text-align:center;color:var(--text-faint);padding:2rem">
                   No summaries yet
                 </td>
               </tr>

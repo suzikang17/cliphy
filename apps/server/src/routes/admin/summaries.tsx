@@ -86,17 +86,19 @@ adminSummaryRoutes.get("/", async (c) => {
               onclick={`window.location='/api/admin/summaries/${s.id}'`}
             >
               <td>{s.video_title ?? s.youtube_video_id}</td>
-              <td style="font-size:0.85rem;color:#666">{s.users?.email ?? "—"}</td>
+              <td style="font-size:0.85rem;color:var(--text-muted)">{s.users?.email ?? "—"}</td>
               <td>
                 <StatusBadge status={s.status} />
               </td>
-              <td style="font-size:0.8rem;color:#666">{(s.tags ?? []).join(", ") || "—"}</td>
+              <td style="font-size:0.8rem;color:var(--text-muted)">
+                {(s.tags ?? []).join(", ") || "—"}
+              </td>
               <td>{formatDate(s.created_at)}</td>
             </tr>
           ))}
           {(summaries ?? []).length === 0 && (
             <tr>
-              <td colspan={5} style="text-align:center;color:#999;padding:2rem">
+              <td colspan={5} style="text-align:center;color:var(--text-faint);padding:2rem">
                 No summaries found
               </td>
             </tr>
@@ -212,7 +214,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
   return c.html(
     <AdminLayout title={s.video_title ?? s.youtube_video_id}>
       <div style="margin-bottom:1rem">
-        <a href="/api/admin/summaries" style="color:#666;text-decoration:none">
+        <a href="/api/admin/summaries" style="color:var(--text-muted);text-decoration:none">
           ← Back to Summaries
         </a>
       </div>
@@ -255,7 +257,9 @@ adminSummaryRoutes.get("/:id", async (c) => {
           </div>
           <div class="detail-row">
             <span class="label">Tags</span>
-            <span style="font-size:0.85rem;color:#666">{(s.tags ?? []).join(", ") || "—"}</span>
+            <span style="font-size:0.85rem;color:var(--text-muted)">
+              {(s.tags ?? []).join(", ") || "—"}
+            </span>
           </div>
           <div class="detail-row">
             <span class="label">Created</span>
@@ -277,7 +281,10 @@ adminSummaryRoutes.get("/:id", async (c) => {
           <div class="detail-row">
             <span class="label">User ID</span>
             <span style="font-size:0.8rem">
-              <a href={`/api/admin/users/${s.users.id}`} style="color:#666;font-family:monospace">
+              <a
+                href={`/api/admin/users/${s.users.id}`}
+                style="color:var(--text-muted);font-family:monospace"
+              >
                 {s.users.id}
               </a>
             </span>
@@ -290,7 +297,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
         <div class="section">
           <div class="card">
             <h2>Error</h2>
-            <pre style="background:#fff5f5;border:1px solid #fed7d7;padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;color:#c53030;white-space:pre-wrap;word-break:break-all">
+            <pre style="background:var(--error-bg);border:1px solid var(--error-border);padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;color:var(--error-text);white-space:pre-wrap;word-break:break-all">
               {s.error_message}
             </pre>
           </div>
@@ -301,7 +308,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
       <div class="section">
         <div class="card">
           <h2>Summary JSON</h2>
-          <pre style="background:#f7f7f7;border:1px solid #e2e8f0;padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-all">
+          <pre style="background:var(--code-bg);border:1px solid var(--code-border);color:var(--code-text);padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-all">
             {s.summary_json != null ? JSON.stringify(s.summary_json, null, 2) : "—"}
           </pre>
         </div>
@@ -312,7 +319,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
         <div class="section">
           <div class="card">
             <h2>Transcript Preview</h2>
-            <pre style="background:#f7f7f7;border:1px solid #e2e8f0;padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-word">
+            <pre style="background:var(--code-bg);border:1px solid var(--code-border);color:var(--code-text);padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem;white-space:pre-wrap;word-break:break-word">
               {transcriptPreview}
             </pre>
           </div>

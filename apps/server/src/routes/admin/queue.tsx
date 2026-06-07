@@ -104,7 +104,7 @@ adminQueueRoutes.get("/", async (c) => {
             ))}
             {recentItems.length === 0 && (
               <tr>
-                <td colspan={4} style="text-align:center;color:#999;padding:2rem">
+                <td colspan={4} style="text-align:center;color:var(--text-faint);padding:2rem">
                   No summaries found
                 </td>
               </tr>
