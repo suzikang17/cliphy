@@ -27,7 +27,18 @@ type MockChain = Record<string, ReturnType<typeof vi.fn>> & {
 
 function mockChain(result: { data?: unknown; error?: unknown; count?: number }) {
   const chain: MockChain = {} as MockChain;
-  const methods = ["select", "eq", "ilike", "order", "range", "is", "not", "single", "neq"];
+  const methods = [
+    "select",
+    "eq",
+    "ilike",
+    "order",
+    "range",
+    "is",
+    "not",
+    "single",
+    "neq",
+    "update",
+  ];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
@@ -70,5 +81,50 @@ describe("Admin Users", () => {
     const html = await res.text();
     expect(html).toContain("test@example.com");
     expect(html).toContain("free");
+  });
+
+  it("POST /admin/users/:id/upgrade sets plan to pro", async () => {
+    const chain = mockChain({ error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1/upgrade", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("User upgraded to Pro.");
+    expect(chain.update).toHaveBeenCalledWith({ plan: "pro", subscription_status: "active" });
+    expect(chain.eq).toHaveBeenCalledWith("id", "u1");
+  });
+
+  it("POST /admin/users/:id/downgrade resets plan to free (no Stripe sub)", async () => {
+    // First call: fetch user (no stripe sub). Second call: update row.
+    const fetchChain = mockChain({ data: { stripe_subscription_id: null }, error: null });
+    const updateChain = mockChain({ error: null });
+    mockFrom.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1/downgrade", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("User downgraded to Free.");
+    expect(updateChain.update).toHaveBeenCalledWith({
+      plan: "free",
+      stripe_customer_id: null,
+      stripe_subscription_id: null,
+      subscription_status: "none",
+    });
+  });
+
+  it("POST /admin/users/:id/upgrade surfaces DB errors", async () => {
+    mockFrom.mockReturnValue(mockChain({ error: { message: "boom" } }));
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1/upgrade", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Failed to upgrade: boom");
   });
 });
