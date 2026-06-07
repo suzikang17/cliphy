@@ -1,7 +1,7 @@
 import type { FC, PropsWithChildren } from "hono/jsx";
 
 export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, children }) => (
-  <html lang="en">
+  <html lang="en" data-theme="dark">
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -30,30 +30,30 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
           --success-text: #15803d;
           --danger-text: #dc2626;
         }
-        @media (prefers-color-scheme: dark) {
-          :root {
-            --bg: #0f1115;
-            --text: #e6e8eb;
-            --text-muted: #a3aab5;
-            --text-faint: #8b93a0;
-            --surface: #1a1d23;
-            --surface-alt: #22262e;
-            --surface-hover: #252a33;
-            --border: #2d323c;
-            --border-soft: #262b34;
-            --input-border: #3a414d;
-            --shadow: rgba(0,0,0,0.5);
-            --nav-bg: #15171c;
-            --code-bg: #12151b;
-            --code-border: #2d323c;
-            --code-text: #e6e8eb;
-            --error-bg: #2a1517;
-            --error-border: #5c2a2d;
-            --error-text: #f87171;
-            --link: #60a5fa;
-            --success-text: #4ade80;
-            --danger-text: #f87171;
-          }
+        /* Dark palette: applied for explicit dark choice, or for "auto" when the OS prefers dark. */
+        :root[data-theme=dark],
+        :root[data-theme=auto].os-dark {
+          --bg: #0f1115;
+          --text: #e6e8eb;
+          --text-muted: #a3aab5;
+          --text-faint: #8b93a0;
+          --surface: #1a1d23;
+          --surface-alt: #22262e;
+          --surface-hover: #252a33;
+          --border: #2d323c;
+          --border-soft: #262b34;
+          --input-border: #3a414d;
+          --shadow: rgba(0,0,0,0.5);
+          --nav-bg: #15171c;
+          --code-bg: #12151b;
+          --code-border: #2d323c;
+          --code-text: #e6e8eb;
+          --error-bg: #2a1517;
+          --error-border: #5c2a2d;
+          --error-text: #f87171;
+          --link: #60a5fa;
+          --success-text: #4ade80;
+          --danger-text: #f87171;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
@@ -62,6 +62,8 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         nav a { color: #ccc; text-decoration: none; font-size: 0.9rem; }
         nav a:hover, nav a.active { color: white; }
         nav .brand { font-weight: bold; font-size: 1.1rem; color: white; margin-right: 1rem; }
+        .theme-toggle { margin-left: auto; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 0.3rem 0.7rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; line-height: 1; }
+        .theme-toggle:hover { background: rgba(255,255,255,0.18); }
         a { color: var(--link); }
         table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px var(--shadow); }
         th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
@@ -107,6 +109,37 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         .success { color: var(--success-text); margin-bottom: 1rem; font-size: 0.9rem; }
         pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
       `}</style>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+        (function () {
+          var KEY = "admin-theme";
+          var root = document.documentElement;
+          var mq = window.matchMedia("(prefers-color-scheme: dark)");
+          function apply(t) {
+            root.setAttribute("data-theme", t);
+            root.classList.toggle("os-dark", t === "auto" && mq.matches);
+          }
+          function current() { return localStorage.getItem(KEY) || "dark"; }
+          function label(t) { return t === "dark" ? "🌙 Dark" : t === "light" ? "☀️ Light" : "🖥 Auto"; }
+          apply(current());
+          mq.addEventListener("change", function () { apply(current()); });
+          document.addEventListener("DOMContentLoaded", function () {
+            var btn = document.getElementById("theme-toggle");
+            if (!btn) return;
+            btn.textContent = label(current());
+            btn.addEventListener("click", function () {
+              var order = ["dark", "light", "auto"];
+              var next = order[(order.indexOf(current()) + 1) % order.length];
+              localStorage.setItem(KEY, next);
+              apply(next);
+              btn.textContent = label(next);
+            });
+          });
+        })();
+      `,
+        }}
+      />
     </head>
     <body>
       <nav>
@@ -114,6 +147,14 @@ export const AdminLayout: FC<PropsWithChildren<{ title?: string }>> = ({ title, 
         <a href="/api/admin/users">Users</a>
         <a href="/api/admin/summaries">Summaries</a>
         <a href="/api/admin/queue">Queue</a>
+        <button
+          id="theme-toggle"
+          type="button"
+          class="theme-toggle"
+          aria-label="Toggle color theme"
+        >
+          🌙 Dark
+        </button>
       </nav>
       <div class="container">{children}</div>
       <script src="/api/admin/htmx.js"></script>
