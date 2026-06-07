@@ -7,6 +7,7 @@ import {
   upgradeUser,
   cancelSubscription,
   resetMonthlyCount,
+  setMonthlyCount,
 } from "../../services/admin.js";
 
 interface UserRow {
@@ -280,49 +281,7 @@ adminUserRoutes.get("/:id", async (c) => {
       </div>
 
       {/* Actions */}
-      <div class="section">
-        <div id="user-actions" class="card">
-          <h2>Actions</h2>
-          <div class="actions">
-            <button
-              class="btn btn-primary"
-              hx-post={`/api/admin/users/${userId}/upgrade`}
-              hx-target="#user-actions"
-              hx-swap="outerHTML"
-              hx-confirm="Upgrade this user to Pro?"
-            >
-              Upgrade to Pro
-            </button>
-            <button
-              class="btn btn-secondary"
-              hx-post={`/api/admin/users/${userId}/downgrade`}
-              hx-target="#user-actions"
-              hx-swap="outerHTML"
-              hx-confirm="Downgrade this user to Free? This will cancel their Stripe subscription."
-            >
-              Downgrade to Free
-            </button>
-            <button
-              class="btn btn-danger"
-              hx-post={`/api/admin/users/${userId}/cancel-subscription`}
-              hx-target="#user-actions"
-              hx-swap="outerHTML"
-              hx-confirm="Cancel this user's Stripe subscription?"
-            >
-              Cancel subscription
-            </button>
-            <button
-              class="btn btn-secondary"
-              hx-post={`/api/admin/users/${userId}/reset-count`}
-              hx-target="#user-actions"
-              hx-swap="outerHTML"
-              hx-confirm="Reset this user's monthly count to 0?"
-            >
-              Reset monthly count
-            </button>
-          </div>
-        </div>
-      </div>
+      <div class="section">{actionsFragment(userId)}</div>
 
       {/* Recent summaries */}
       <div class="section">
@@ -338,7 +297,9 @@ adminUserRoutes.get("/:id", async (c) => {
           <tbody>
             {(summaries ?? []).map((s: SummaryRow) => (
               <tr key={s.id}>
-                <td>{s.video_title ?? "Untitled"}</td>
+                <td>
+                  <a href={`/api/admin/summaries/${s.id}`}>{s.video_title ?? "Untitled"}</a>
+                </td>
                 <td>
                   <StatusBadge status={s.status} />
                 </td>
@@ -396,6 +357,18 @@ adminUserRoutes.post("/:id/reset-count", async (c) => {
   try {
     await resetMonthlyCount(userId);
     return c.html(actionsFragment(userId, "Monthly count reset."));
+  } catch (err: unknown) {
+    return c.html(actionsFragment(userId, undefined, (err as Error).message));
+  }
+});
+
+adminUserRoutes.post("/:id/set-count", async (c) => {
+  const userId = c.req.param("id");
+  const body = await c.req.parseBody();
+  const count = Number(body["count"]);
+  try {
+    await setMonthlyCount(userId, count);
+    return c.html(actionsFragment(userId, `Monthly count set to ${count}.`));
   } catch (err: unknown) {
     return c.html(actionsFragment(userId, undefined, (err as Error).message));
   }
@@ -464,6 +437,26 @@ function actionsFragment(userId: string, success?: string, error?: string) {
           Reset monthly count
         </button>
       </div>
+      <form
+        class="actions"
+        hx-post={`/api/admin/users/${userId}/set-count`}
+        hx-target="#user-actions"
+        hx-swap="outerHTML"
+        style="align-items:center"
+      >
+        <input
+          type="number"
+          name="count"
+          min="0"
+          step="1"
+          required
+          placeholder="Monthly count"
+          style="width:150px;padding:0.5rem 0.75rem;border:1px solid var(--input-border);border-radius:6px;font-size:0.9rem;background:var(--surface);color:var(--text)"
+        />
+        <button class="btn btn-secondary" type="submit">
+          Set monthly count
+        </button>
+      </form>
     </div>
   );
 }

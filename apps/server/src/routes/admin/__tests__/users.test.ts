@@ -117,6 +117,38 @@ describe("Admin Users", () => {
     });
   });
 
+  it("POST /admin/users/:id/set-count sets monthly count to a specific number", async () => {
+    const chain = mockChain({ error: null });
+    mockFrom.mockReturnValue(chain);
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1/set-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "count=42",
+    });
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Monthly count set to 42.");
+    expect(chain.update).toHaveBeenCalledWith({ monthly_summary_count: 42 });
+  });
+
+  it("POST /admin/users/:id/set-count rejects invalid counts", async () => {
+    mockFrom.mockReturnValue(mockChain({ error: null }));
+
+    const app = await createApp();
+    const res = await app.request("/admin/users/u1/set-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "count=-3",
+    });
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Count must be a non-negative integer");
+  });
+
   it("POST /admin/users/:id/upgrade surfaces DB errors", async () => {
     mockFrom.mockReturnValue(mockChain({ error: { message: "boom" } }));
 

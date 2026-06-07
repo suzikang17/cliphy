@@ -68,10 +68,18 @@ export async function cancelSubscription(userId: string): Promise<void> {
 }
 
 export async function resetMonthlyCount(userId: string): Promise<void> {
+  await setMonthlyCount(userId, 0);
+}
+
+export async function setMonthlyCount(userId: string, count: number): Promise<void> {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error("Count must be a non-negative integer");
+  }
+
   const { error } = await supabase
     .from("users")
-    .update({ monthly_summary_count: 0 })
+    .update({ monthly_summary_count: count })
     .eq("id", userId);
 
-  if (error) throw new Error(`Failed to reset count: ${error.message}`);
+  if (error) throw new Error(`Failed to set count: ${error.message}`);
 }
