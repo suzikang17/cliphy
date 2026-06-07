@@ -182,3 +182,9 @@ export interface SubscriptionUpdateRequest {
 export interface GoogleConnectionStatus {
   connected: boolean;
 }
+
+export type EmailAuthStatus = "new" | "password" | "google";
+
+export interface CheckEmailResponse {
+  status: EmailAuthStatus;
+}

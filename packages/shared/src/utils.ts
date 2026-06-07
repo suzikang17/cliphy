@@ -104,3 +104,8 @@ export function formatTimeSaved(totalSeconds: number): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
+
+/** Lightweight email syntax check (not RFC-exhaustive; good enough for UX gating). */
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
