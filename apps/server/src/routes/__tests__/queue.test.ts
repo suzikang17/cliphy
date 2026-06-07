@@ -71,6 +71,10 @@ vi.mock("../../services/transcript.js", () => ({
   TranscriptNotAvailableError: class extends Error {},
 }));
 
+vi.mock("../../services/metadata.js", () => ({
+  fetchVideoMetadata: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock("../../services/summarizer.js", () => ({
   summarizeTranscript: vi.fn().mockResolvedValue({
     summary: "A summary",

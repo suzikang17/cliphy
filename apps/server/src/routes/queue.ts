@@ -12,6 +12,7 @@ import {
   PRO_FEATURES,
 } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
+import { fetchVideoMetadata } from "../services/metadata.js";
 
 // ─── Routes ────────────────────────────────────────────────
 
@@ -138,6 +139,17 @@ queueRoutes.post("/", async (c) => {
     );
   }
 
+  // Resolve title/channel server-side when the client didn't supply them
+  // (e.g. queued via the right-click context menu, which only knows the URL).
+  // oEmbed is best-effort — on failure we fall back to null / "Untitled Video".
+  let videoTitle = body.videoTitle;
+  let videoChannel = body.videoChannel;
+  if (!videoTitle || !videoChannel) {
+    const meta = await fetchVideoMetadata(body.videoUrl);
+    videoTitle = (videoTitle || meta.title)?.slice(0, MAX_LENGTHS.videoTitle);
+    videoChannel = (videoChannel || meta.channel)?.slice(0, MAX_LENGTHS.videoChannel);
+  }
+
   // Fetch user's preferred summary language
   const { data: settingsRow } = await supabase
     .from("user_settings")
@@ -152,8 +164,8 @@ queueRoutes.post("/", async (c) => {
     .insert({
       user_id: userId,
       youtube_video_id: videoId,
-      video_title: body.videoTitle || null,
-      video_channel: body.videoChannel || null,
+      video_title: videoTitle || null,
+      video_channel: videoChannel || null,
       video_duration_seconds: body.videoDurationSeconds ?? null,
       video_url: body.videoUrl,
       summary_language: summaryLanguage,
@@ -287,14 +299,20 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
     .single();
   const batchSummaryLanguage = (batchSettingsRow?.summary_language as string) ?? "en";
 
+  // Resolve titles/channels server-side (batch only sends URLs). Best-effort,
+  // in parallel — any failures just leave that item without a title.
+  const metas = await Promise.all(cappedInsert.map((v) => fetchVideoMetadata(v.videoUrl)));
+
   // Bulk insert
   const { data: rows, error: insertError } = await supabase
     .from("summaries")
     .insert(
-      cappedInsert.map((v) => ({
+      cappedInsert.map((v, i) => ({
         user_id: userId,
         youtube_video_id: v.videoId,
         video_url: v.videoUrl,
+        video_title: metas[i]?.title?.slice(0, MAX_LENGTHS.videoTitle) || null,
+        video_channel: metas[i]?.channel?.slice(0, MAX_LENGTHS.videoChannel) || null,
         summary_language: batchSummaryLanguage,
         status: "pending" as const,
       })),

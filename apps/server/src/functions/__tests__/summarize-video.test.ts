@@ -75,7 +75,8 @@ let capturedConfig: { onFailure: AnyFn } | null = null;
 
 vi.mock("../../lib/inngest.js", () => ({
   inngest: {
-    createFunction: vi.fn((config, _trigger, handler) => {
+    // Inngest v4: createFunction(config, handler) — triggers live inside config
+    createFunction: vi.fn((config, handler) => {
       capturedConfig = config;
       return handler;
     }),

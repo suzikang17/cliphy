@@ -17,7 +17,12 @@ const log = logger.child({ fn: "summarize-video" });
 function classifyError(message: string): string {
   if (/credit.?balance|billing|insufficient.?funds/i.test(message)) return "billing";
   if (/rate.?limit|429/i.test(message)) return "rate_limit";
-  if (/timeout|ECONNREFUSED|connection/i.test(message)) return "network";
+  if (
+    /timeout|econnrefused|enotfound|econnreset|connect|network|socket|dns|fetch failed/i.test(
+      message,
+    )
+  )
+    return "network";
   if (/parse|json/i.test(message)) return "parse_failure";
   if (/500|503|overloaded|internal/i.test(message)) return "upstream";
   return "unknown";
