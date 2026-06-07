@@ -31,6 +31,10 @@ function classifyError(message: string): string {
     return "network";
   if (/parse|json/i.test(message)) return "parse_failure";
   if (/500|503|overloaded|internal/i.test(message)) return "upstream";
+  if (
+    /captions?|subtitles?|transcript.*(not available|empty)|unavailable or private/i.test(message)
+  )
+    return "no_captions";
   return "unknown";
 }
 
@@ -97,7 +101,7 @@ export const summarizeVideo = inngest.createFunction(
 
       await supabase
         .from("summaries")
-        .update({ status: "failed", error_message: errorMessage })
+        .update({ status: "failed", error_message: errorMessage, error_category: errorCategory })
         .eq("id", summaryId);
 
       // Rollback usage count — failed summaries shouldn't count against the user
