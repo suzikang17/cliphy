@@ -1,6 +1,8 @@
 name: decision
 dir: decisions
 heading: Decisions Log
+id: { strategy: sequential, pad: 4 }
+body: sections
 frontmatter:
   - { name: title, type: string, required: true }
   - { name: date, type: date, required: true }
@@ -10,3 +12,9 @@ sections:
   - Why this choice
   - Options considered
   - Tradeoffs
+index:
+  - { header: "#", source: id }
+  - { header: Date, source: date, format: date }
+  - { header: Decision, source: title, link: true }
+  - { header: Category, source: category }
+  - { header: "Revisit?", source: revisit, format: yesno }

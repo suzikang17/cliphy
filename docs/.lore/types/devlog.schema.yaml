@@ -1,0 +1,15 @@
+name: devlog
+dir: devlog
+heading: Devlog
+id: { strategy: dated }
+body: free
+frontmatter:
+  - { name: title, type: string, required: true }
+  - { name: date, type: date, required: true }
+  - { name: day, type: number }
+  - { name: phase, type: string }
+index:
+  - { header: Day, source: day }
+  - { header: Date, source: date, format: date }
+  - { header: Entry, source: title, link: true }
+  - { header: Phase, source: phase }
