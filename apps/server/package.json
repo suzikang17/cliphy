@@ -7,7 +7,9 @@
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test-proxy": "tsx --env-file=.env.local scripts/test-proxy-fetch.ts"
+    "test-proxy": "tsx --env-file=.env.local scripts/test-proxy-fetch.ts",
+    "migrate": "tsx --env-file=.env.local scripts/migrate.ts",
+    "migrate:check": "tsx scripts/migrate.ts check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -22,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.21.0",
     "promptfoo": "^0.120.26",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

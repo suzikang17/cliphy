@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cliphy/shared": "workspace:*",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo/metro-runtime": "^55.0.9",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -19,6 +20,7 @@
     "expo-clipboard": "~55.0.13",
     "expo-constants": "^55.0.13",
     "expo-crypto": "^55.0.14",
+    "expo-dev-client": "~55.0.35",
     "expo-device": "~55.0.14",
     "expo-font": "^55.0.6",
     "expo-haptics": "^55.0.14",
