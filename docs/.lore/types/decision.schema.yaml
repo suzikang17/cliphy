@@ -1,0 +1,12 @@
+name: decision
+dir: decisions
+heading: Decisions Log
+frontmatter:
+  - { name: title, type: string, required: true }
+  - { name: date, type: date, required: true }
+  - { name: category, type: string }
+  - { name: revisit, type: boolean }
+sections:
+  - Why this choice
+  - Options considered
+  - Tradeoffs
