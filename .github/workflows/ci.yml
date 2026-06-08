@@ -47,6 +47,18 @@ jobs:
       - name: Test
         run: pnpm test:unit -- --run
 
+      # Warns (fails) if a committed migration hasn't been applied to the DB.
+      # Self-skips until the DATABASE_URL secret is added — harmless before then.
+      - name: Check pending migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL secret not set — skipping migration check"
+            exit 0
+          fi
+          pnpm --filter server migrate:check
+
       - name: Load Allure history
         if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
