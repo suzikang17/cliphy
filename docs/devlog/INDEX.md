@@ -25,4 +25,4 @@ Daily build log, migrated verbatim from Notion 2026-06-07. One file per session.
 | 62  | 2026-04-18 | [Day 62 — Move API to api.cliphy.app subdomain](day-62-move-api-to-apicliphyapp-subdomain.md)                                                                                  |
 | —   | 2026-05-23 | [Auto-subscriptions backend — YouTube polling + Google OAuth](2026-05-23-auto-subscriptions-backend-youtube-polling-google-oauth.md)                                           |
 | —   | 2026-05-23 | [Auto-subscriptions UI — web + mobile management pages](2026-05-23-auto-subscriptions-ui-web-mobile-management-pages.md)                                                       |
-| 63  | 2026-06-07 | [Day 63 — Proxy rotation fix, InnerTube titles, Sentry tracing, migration runner](day-63-proxy-rotation-innertube-titles-sentry-tracing-migration-runner.md)                   |
+| 63  | 2026-06-07 | [Day 63 — Proxy rotation fix, InnerTube titles, Sentry tracing, migration runner](2026-06-07-proxy-rotation-innertube-titles-sentry-tracing-migration-runner.md)               |

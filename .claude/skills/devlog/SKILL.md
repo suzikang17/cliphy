@@ -16,7 +16,7 @@ Look at the recent conversation context — commits made, issues hit, tools swit
 
 Write when anything noteworthy happened (task completed, bug fixed, tool/dependency switched, workaround applied, something unexpected learned).
 
-- One file per session: `docs/devlog/day-NN-slug.md`, where `NN` is the next work-session day number (look at `docs/devlog/INDEX.md` for the latest). Day numbers are sequential session counts and match the entry title `Day N`.
+- One file per session, **dated filename**: `docs/devlog/YYYY-MM-DD-slug.md`. Keep the **session number** in frontmatter (`day: N`) and the title (`Day N — …`), where `N` increments the latest entry's number (look at `docs/devlog/INDEX.md`). So: dated filename + sequential session number in title/frontmatter. (Older entries use `day-NN-slug.md` — leave them; only new entries use the dated slug.)
 - If today's entry already exists, **append** to it; otherwise create it.
 - Frontmatter:
   ```
