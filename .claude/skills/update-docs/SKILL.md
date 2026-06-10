@@ -12,15 +12,15 @@ Update the repo's `docs/` markdown based on recent session work. **Do not write 
 
 Look at recent conversation context — commits made, issues hit, tools switched, decisions made — and update the relevant `docs/` files.
 
-### 1. Roadmap / task archive
+### 1. Tasks / backlog
 
 If a task was completed:
 
-1. Find its row in `docs/ROADMAP.md`.
-2. Move the row to `docs/task-archive.md` (the completed table): set the completion date (today, `YYYY-MM-DD`) and write a Notes summary including commit hash(es).
-3. Remove the row from `docs/ROADMAP.md`.
+1. Open its file in `docs/tasks/`.
+2. Set `status: done` + `completed: <today YYYY-MM-DD>`; append/extend a `## Work log` section (summary + commit hashes).
+3. Run `lore reindex task` (`node ~/dev/lore/packages/cli/dist/cli/index.js reindex task` from the repo).
 
-If new work was discovered, add a row to the appropriate status group in `docs/ROADMAP.md`.
+If new work was discovered: add a line to `docs/BACKLOG.md` (`- [ ] title — note`), or if it's immediately real work, create a task file (`lore add task --title ... --field status=open --field owner=human`, or promote: `lore promote task <query>`).
 
 If the argument is "just devlog", skip this step.
 

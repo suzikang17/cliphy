@@ -1,0 +1,26 @@
+name: task
+dir: tasks
+heading: Tasks
+id: { strategy: sequential, pad: 4 }
+body: free
+groupBy: { field: status, order: [open, blocked, done, skipped] }
+frontmatter:
+  - { name: title, type: string, required: true }
+  - { name: status, type: enum, values: [open, blocked, done, skipped], required: true }
+  - { name: owner, type: enum, values: [none, human, ai] }
+  - { name: ai_run, type: boolean }
+  - { name: priority, type: enum, values: [high, medium, low] }
+  - { name: effort, type: enum, values: [quick, small, medium, large] }
+  - { name: type, type: enum, values: [feature, bug, infra, design, marketing, biz, test, chore] }
+  - { name: platform, type: string }
+  - { name: spec, type: reference, target: spec }
+  - { name: plan, type: reference, target: plan }
+  - { name: created, type: date }
+  - { name: completed, type: date }
+index:
+  - { header: "#", source: id }
+  - { header: Task, source: title, link: true }
+  - { header: Owner, source: owner }
+  - { header: Priority, source: priority }
+  - { header: Type, source: type }
+  - { header: Completed, source: completed, format: date }

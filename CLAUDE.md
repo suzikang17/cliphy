@@ -56,7 +56,7 @@ All project context lives as plain markdown in `docs/` — start at [`docs/INDEX
 
 - **Decisions:** `docs/decisions/` — one ADR file per decision (+ `INDEX.md`). Log architectural/tooling choices here.
 - **Devlog:** `docs/devlog/` — one dated file per session (+ `INDEX.md`).
-- **Roadmap / tasks:** open work in `docs/ROADMAP.md`, completed in `docs/task-archive.md`.
+- **Tasks:** `docs/tasks/` — one file per task (status/owner frontmatter, kanban computed); capture lines in `docs/BACKLOG.md`, promoted when real.
 - **Services & cost:** `docs/providers.md` — update whenever a service/provider is added, removed, or changed.
 - **Architecture & ops:** `docs/architecture.md`.
 
@@ -64,14 +64,14 @@ All project context lives as plain markdown in `docs/` — start at [`docs/INDEX
 
 ### Session flow
 
-1. Pick a task from `docs/ROADMAP.md` at start of session
+1. Pick a task from `docs/tasks/` (open + owner: human/ai; see `docs/tasks/INDEX.md`) at start of session
 2. Build → verify it works → commit and push
 3. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
 4. When making a tech choice, check what's industry standard before committing to it
 5. Switch tools early if something's wrong — don't accumulate tech debt on stubs
 6. Commit after each logical chunk, not at the end
-7. When a task is finished, move its row from `docs/ROADMAP.md` to `docs/task-archive.md` (with a Notes summary + commit hashes)
-8. Add follow-up tasks to `docs/ROADMAP.md` when new work is discovered
+7. When a task is finished, set its file's `status: done` + `completed: <date>`, append a `## Work log` (summary + commit hashes), and run `lore reindex task`
+8. Capture discovered work as a line in `docs/BACKLOG.md` (or promote straight to a task file if it's immediately real)
 9. Log a devlog entry in `docs/devlog/` at end of session (what got done, decisions, issues hit)
 
 ### Sequencing
@@ -88,6 +88,15 @@ All project context lives as plain markdown in `docs/` — start at [`docs/INDEX
 - Explain the "why" behind tools and decisions, not just the "what"
 - When presenting options, include what's industry standard and tradeoffs
 - Don't over-explain things that are working — focus on what needs attention
+
+## Agent queue
+
+Tasks in `docs/tasks/` with `status: open, owner: ai` are queued for the agent (see `/work-queue`):
+
+1. Pick up the task; work it as normal session work.
+2. Append a `## Work log` to the task body: what was done, commits, decisions.
+3. On completion set `ai_run: true`, `owner: human` (hands it to Review & QA), run `lore reindex task`, commit.
+4. If stuck: `status: blocked` + a `## Blocked on` note.
 
 ## Auto-logging
 
