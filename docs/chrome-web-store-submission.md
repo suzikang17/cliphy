@@ -151,6 +151,12 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 
 `https://cliphy.app/privacy`
 
+**Where this page lives (verified 2026-06-09):** static HTML, not in the web SPA or its router.
+Source: `apps/server/src/pages/privacy.html`. The Vercel build (`scripts/build-vercel.sh:38`)
+copies it to `.vercel/output/static/privacy/index.html`, served at the clean `/privacy` URL.
+Edit `privacy.html` to change the policy, then redeploy. (Originally a Hono route, migrated to
+static on Day 15 — see `docs/devlog/day-15-landing-page-static-pages-migration.md`.)
+
 ---
 
 ## 5. Limited Use Certification
