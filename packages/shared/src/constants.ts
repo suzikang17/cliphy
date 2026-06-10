@@ -55,6 +55,11 @@ export const SUBSCRIPTION_TYPES = {
 
 export const MAX_SUBSCRIPTIONS_PER_USER = 20;
 
+export const MAX_API_KEYS_PER_USER = 5;
+
+/** iCloud install link for the "Add to Cliphy" Apple Shortcut. Empty until published. */
+export const SHORTCUT_INSTALL_URL = "";
+
 export type ProFeature = (typeof PRO_FEATURES)[keyof typeof PRO_FEATURES];
 
 export const API_ROUTES = {
@@ -102,6 +107,11 @@ export const API_ROUTES = {
     CALLBACK: "/api/auth/google/callback",
     DISCONNECT: "/api/auth/google",
     STATUS: "/api/auth/google/status",
+  },
+  KEYS: {
+    LIST: "/api/keys",
+    CREATE: "/api/keys",
+    ITEM: (id: string) => `/api/keys/${id}`,
   },
 } as const;
 

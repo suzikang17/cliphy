@@ -182,6 +182,20 @@ export interface SubscriptionUpdateRequest {
   isActive?: boolean;
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt?: string;
+  createdAt: string;
+}
+
+export interface ApiKeyCreateResponse {
+  apiKey: ApiKey;
+  /** Full plaintext key — shown once, never retrievable again. */
+  key: string;
+}
+
 export interface GoogleConnectionStatus {
   connected: boolean;
 }
