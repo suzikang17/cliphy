@@ -6,16 +6,17 @@ The map of where project context lives. Human-readable and agent-readable — ev
 
 ## Where things live
 
-| You want…                              | Look in                                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Why a tech/tooling choice was made** | [`decisions/`](decisions/INDEX.md) — 35 ADRs, one per decision                                             |
-| **Day-by-day build history**           | [`devlog/`](devlog/INDEX.md) — 21 dated entries, Day 0 → Day 62                                            |
-| **Open work / ideas / roadmap**        | [`ROADMAP.md`](ROADMAP.md) — 39 open Task Board items                                                      |
-| **Completed work (archive)**           | [`task-archive.md`](task-archive.md) — 66 finished tasks with notes                                        |
-| **Services, infra & cost**             | [`providers.md`](providers.md) — Provider Tracker + Budget + env vars                                      |
-| **Architecture & ops notes**           | [`architecture.md`](architecture.md) — Engineering Doc, Bizops, Workflow Automation                        |
-| **Marketing assets**                   | [`marketing/`](marketing/) — store listing, demo script                                                    |
-| **Feature plans & specs**              | [`plans/`](plans/), [`superpowers/plans/`](superpowers/plans/), [`superpowers/specs/`](superpowers/specs/) |
+| You want…                              | Look in                                                                                                                                                                                            |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Why a tech/tooling choice was made** | [`decisions/`](decisions/INDEX.md) — 35 ADRs, one per decision                                                                                                                                     |
+| **Day-by-day build history**           | [`devlog/`](devlog/INDEX.md) — 21 dated entries, Day 0 → Day 62                                                                                                                                    |
+| **Open work / ideas / roadmap**        | [`ROADMAP.md`](ROADMAP.md) — 39 open Task Board items                                                                                                                                              |
+| **Completed work (archive)**           | [`task-archive.md`](task-archive.md) — 66 finished tasks with notes                                                                                                                                |
+| **Services, infra & cost**             | [`providers.md`](providers.md) — Provider Tracker + Budget + env vars                                                                                                                              |
+| **Architecture & ops notes**           | [`architecture.md`](architecture.md) — Engineering Doc, Bizops, Workflow Automation                                                                                                                |
+| **Marketing assets**                   | [`marketing/`](marketing/) — store listing, demo script                                                                                                                                            |
+| **Chrome Web Store submission**        | [`chrome-web-store-submission.md`](chrome-web-store-submission.md) — dashboard fields, permissions, privacy; [`chrome-store-promo-tools.md`](chrome-store-promo-tools.md) — asset-generation tools |
+| **Feature plans & specs**              | [`plans/`](plans/), [`superpowers/plans/`](superpowers/plans/), [`superpowers/specs/`](superpowers/specs/)                                                                                         |
 
 ## Conventions
 

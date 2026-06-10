@@ -92,6 +92,8 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 - Dark mode off for maximum readability
 - Crop to exact dimensions — CWS rejects mismatched sizes
 
+**Tools for generating these assets:** see [`chrome-store-promo-tools.md`](chrome-store-promo-tools.md) — appicongenerator.org outputs the exact 128/440×280/1280×800 sizes from one screenshot.
+
 ---
 
 ## 4. Privacy Practices (Dashboard Questionnaire)
