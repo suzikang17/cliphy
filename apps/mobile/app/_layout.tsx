@@ -3,7 +3,7 @@ import "../global.css";
 import { useEffect, useRef, useState } from "react";
 import { Alert, View, useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { colors } from "@cliphy/shared";
 import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
@@ -132,7 +132,17 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1, backgroundColor: bg }}>
-        <Slot />
+        {/* Root Stack (not Slot) so pushed screens like summary/[id] get the
+            native iOS edge-swipe-back gesture. headerShown stays off — each
+            group/screen owns its chrome. The auth gate uses router.replace, so
+            (tabs) sits at the stack root with nothing to swipe back to. */}
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            gestureEnabled: true,
+            contentStyle: { backgroundColor: bg },
+          }}
+        />
       </View>
     </SafeAreaProvider>
   );
