@@ -156,7 +156,7 @@ export interface UserSettings {
   summaryLanguage: import("./constants.js").SummaryLanguageCode;
 }
 
-export type SubscriptionType = "channel" | "playlist" | "watch_later";
+export type SubscriptionType = "channel" | "playlist" | "watch_later" | "liked";
 
 export interface Subscription {
   id: string;
