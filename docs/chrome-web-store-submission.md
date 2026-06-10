@@ -71,12 +71,17 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 
 ### Required
 
-| Asset          | Dimensions          | Status                                  |
-| -------------- | ------------------- | --------------------------------------- |
-| Extension icon | 128x128 PNG         | Have it (`public/icons/icon-128.png`)   |
-| Screenshot 1   | 1280x800 or 640x400 | **NEED** — side panel showing a summary |
-| Screenshot 2   | 1280x800 or 640x400 | **NEED** — dashboard with queue items   |
-| Screenshot 3   | 1280x800 or 640x400 | **NEED** — context menu "Add to Cliphy" |
+| Asset          | Dimensions          | Status                                                                 |
+| -------------- | ------------------- | ---------------------------------------------------------------------- |
+| Extension icon | 128x128 PNG         | Have it (`public/icons/icon-128.png`)                                  |
+| Screenshot 1   | 1280x800            | Have it (`docs/store-assets/screenshot-1-summary.png`) — summary panel |
+| Screenshot 2   | 1280x800            | Have it (`docs/store-assets/screenshot-2-queue.png`) — queue + usage   |
+| Screenshot 3   | 1280x800 or 640x400 | Optional — context menu "Add to Cliphy" (capture manually if wanted)   |
+
+Screenshots 1–2 render the **real extension components** (SummaryDetail, QueueList, UsageBar) with demo
+data via the promo harness at `apps/web/promo/` — regenerate with
+`pnpm --filter web exec vite --config vite.promo.config.ts` then screenshot
+`localhost:5179/?scene=shot1|shot2|tile` at exact viewport size.
 
 ### Optional (recommended for discoverability)
 

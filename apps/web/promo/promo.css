@@ -1,0 +1,11 @@
+@import "../../extension/assets/main.css";
+@source "../../extension/components";
+@source "./";
+
+/* Promo scenes are screenshot targets — kill scrollbars and hover artifacts */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
