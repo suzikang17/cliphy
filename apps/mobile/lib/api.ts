@@ -192,7 +192,8 @@ export const deleteApiKey = (id: string) =>
 // Google OAuth
 export const getGoogleStatus = () => apiFetch<GoogleConnectionStatus>("/api/auth/google/status");
 
-export const getGoogleConnectUrl = () => apiFetch<{ url: string }>("/api/auth/google");
+export const getGoogleConnectUrl = () =>
+  apiFetch<{ url: string }>("/api/auth/google?platform=mobile");
 
 export const disconnectGoogle = () =>
   apiFetch<{ disconnected: true }>("/api/auth/google", { method: "DELETE" });

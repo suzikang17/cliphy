@@ -206,8 +206,13 @@ export default function SubscriptionsScreen() {
     setConnectingGoogle(true);
     try {
       const { url } = await getGoogleConnectUrl();
-      await WebBrowser.openBrowserAsync(url);
-      // Reload status after browser closes
+      // Auth session intercepts the com.cliphy.app:// redirect from the
+      // server callback and closes the in-app browser automatically
+      const result = await WebBrowser.openAuthSessionAsync(url, "com.cliphy.app://subscriptions");
+      if (result.type === "success" && result.url.includes("google_error")) {
+        Alert.alert("Error", "Google connection failed — please try again.");
+      }
+      // Re-check status regardless (covers manual dismiss after consenting)
       const res = await getGoogleStatus();
       setGoogleConnected(res.connected);
       if (res.connected) {

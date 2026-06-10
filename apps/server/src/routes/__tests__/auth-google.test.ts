@@ -114,6 +114,26 @@ describe("GET /auth/google", () => {
     expect(body.url).toContain("youtube.readonly");
     expect(body.url).toContain("state=");
   });
+
+  it("stores the initiating platform with the state", async () => {
+    supabaseMock = mockChain({ data: null, error: null });
+
+    const res = await buildApp().request("/auth/google?platform=mobile");
+
+    expect(res.status).toBe(200);
+    expect(supabaseMock.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "mobile" }),
+    );
+  });
+
+  it("falls back to web for unknown platforms", async () => {
+    supabaseMock = mockChain({ data: null, error: null });
+
+    const res = await buildApp().request("/auth/google?platform=smartfridge");
+
+    expect(res.status).toBe(200);
+    expect(supabaseMock.insert).toHaveBeenCalledWith(expect.objectContaining({ platform: "web" }));
+  });
 });
 
 // ── GET /callback ─────────────────────────────────────────────
@@ -146,6 +166,46 @@ describe("GET /auth/google/callback", () => {
     const location = res.headers.get("location") ?? "";
     expect(location).toContain("subscriptions");
     expect(location).toContain("google_connected=true");
+  });
+
+  it("redirects to the app deep link for mobile-initiated flows", async () => {
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        mockChain({ data: { ...validStateRow, platform: "mobile" }, error: null }),
+      ) // state lookup
+      .mockReturnValueOnce(mockChain({ data: null, error: null })) // delete state
+      .mockReturnValueOnce(mockChain({ data: null, error: null })); // upsert tokens
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: "new-access",
+        refresh_token: "new-refresh",
+        expires_in: 3600,
+      }),
+    });
+
+    const res = await buildApp().request("/auth/google/callback?code=auth-code&state=some-state");
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toBe("com.cliphy.app://subscriptions?google_connected=true");
+  });
+
+  it("uses the deep link for mobile error redirects too", async () => {
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        mockChain({ data: { ...validStateRow, platform: "mobile" }, error: null }),
+      )
+      .mockReturnValueOnce(mockChain({ data: null, error: null }));
+
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 400 });
+
+    const res = await buildApp().request("/auth/google/callback?code=bad-code&state=some-state");
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toBe("com.cliphy.app://subscriptions?google_error=token_exchange_failed");
   });
 
   it("redirects with error when state is missing", async () => {
