@@ -421,6 +421,146 @@ describe("Queue", () => {
       );
     });
 
+    it("duplicate check is time-windowed (uses .gte on created_at)", async () => {
+      // The dup check should only look at recently-enqueued rows so a video can
+      // be re-summarized later — verified by the .gte (window lower bound) call.
+      const dupChain = mockChain({ data: null });
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true });
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
+      const row = {
+        id: "sum-new",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+        status: "pending",
+        created_at: "2026-02-20T10:00:00Z",
+        updated_at: "2026-02-20T10:00:00Z",
+      };
+      const insertChain = mockChain({ data: row });
+      const posChain = mockChain({ data: null, count: 0 });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return settingsChain;
+          if (callCount === 4) return insertChain;
+          if (callCount === 5) return posChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockReturnValue(rpcChain),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+      });
+
+      expect(res.status).toBe(201);
+      expect(dupChain.gte).toHaveBeenCalledWith("created_at", expect.any(String));
+    });
+
+    it("stamps dedup_bucket on insert and an idempotent Inngest event id", async () => {
+      const dupChain = mockChain({ data: null });
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true });
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
+      const row = {
+        id: "sum-77",
+        user_id: "test-user-id",
+        youtube_video_id: "dQw4w9WgXcQ",
+        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+        status: "pending",
+        created_at: "2026-02-20T10:00:00Z",
+        updated_at: "2026-02-20T10:00:00Z",
+      };
+      const insertChain = mockChain({ data: row });
+      const posChain = mockChain({ data: null, count: 0 });
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return settingsChain;
+          if (callCount === 4) return insertChain;
+          if (callCount === 5) return posChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockReturnValue(rpcChain),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+      });
+
+      expect(res.status).toBe(201);
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ dedup_bucket: expect.any(Number) }),
+      );
+
+      const { inngest } = await import("../../lib/inngest.js");
+      expect(inngest.send).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "summarize-sum-77" }),
+      );
+    });
+
+    it("returns 409 DUPLICATE when the unique index rejects a concurrent insert", async () => {
+      // The windowed SELECT can't see a sibling row that another in-flight
+      // request hasn't committed yet (TOCTOU). The partial unique index is the
+      // atomic backstop — a 23505 violation must surface as DUPLICATE, not 500.
+      const dupChain = mockChain({ data: null }); // race: no dup visible yet
+      const planChain = mockChain({ data: { plan: "free" } });
+      const rpcChain = mockChain({ data: true });
+      const settingsChain = mockChain({ data: { summary_language: "en" } });
+      const insertChain = mockChain({
+        data: null,
+        error: { code: "23505", message: "duplicate key value" },
+      });
+      const decrementChain = mockChain({});
+
+      let callCount = 0;
+      supabaseMock = {
+        from: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) return dupChain;
+          if (callCount === 2) return planChain;
+          if (callCount === 3) return settingsChain;
+          if (callCount === 4) return insertChain;
+          return mockChain({});
+        }),
+        rpc: vi.fn().mockImplementation((fnName: string) => {
+          if (fnName === "decrement_monthly_count") return decrementChain;
+          return rpcChain;
+        }),
+      } as unknown as ReturnType<typeof mockChain>;
+
+      const app = await createApp();
+      const res = await app.request("/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+      });
+
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.code).toBe("DUPLICATE");
+      // The reserved rate-limit slot must be refunded on the race loss.
+      expect(supabaseMock.rpc as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        "decrement_monthly_count",
+        { p_user_id: "test-user-id" },
+      );
+    });
+
     it("returns 429 when rate limited", async () => {
       const dupChain = mockChain({ data: null }); // no duplicate
       const planChain = mockChain({ data: { plan: "free" } });

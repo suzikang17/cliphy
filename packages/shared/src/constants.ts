@@ -11,6 +11,16 @@ export const FREE_HISTORY_DAYS = 7;
 /** Maximum video duration in seconds (4 hours). Videos longer than this are rejected. */
 export const MAX_VIDEO_DURATION_SECONDS = 4 * 60 * 60;
 
+/**
+ * Dedup window for queueing the same video. Two enqueues of the same (user,
+ * video) within this many seconds are treated as an accidental duplicate
+ * (e.g. the OS share sheet firing the handler multiple times) and collapsed to
+ * one. Enqueues further apart are allowed, so a user can re-summarize a video
+ * later. Used both for the sliding-window check and the bucket the atomic
+ * unique index is keyed on.
+ */
+export const DEDUP_WINDOW_SECONDS = 60;
+
 /** Maximum number of tags per summary. */
 export const MAX_TAGS_PER_SUMMARY = 10;
 

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase.js";
 import { inngest } from "../lib/inngest.js";
 import { MAX_LENGTHS } from "../lib/validation.js";
 import {
+  DEDUP_WINDOW_SECONDS,
   extractVideoId,
   MAX_VIDEO_DURATION_SECONDS,
   PLAN_LIMITS,
@@ -100,7 +101,15 @@ queueRoutes.post("/", async (c) => {
     );
   }
 
-  // Duplicate check: same user + same video + not failed + not deleted
+  // Windowed duplicate check: same user + same video + active, enqueued within
+  // the dedup window. Collapses accidental rapid re-submits (e.g. the share
+  // sheet firing 2-3×) without permanently blocking a later re-summarize. This
+  // is the fast path; the atomic guard is the partial unique index on
+  // (user_id, youtube_video_id, dedup_bucket), which closes the TOCTOU race
+  // below where concurrent requests both pass this check.
+  const dedupBucket = Math.floor(Date.now() / 1000 / DEDUP_WINDOW_SECONDS);
+  const windowStart = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+
   const { data: existing } = await supabase
     .from("summaries")
     .select("id, status")
@@ -108,6 +117,7 @@ queueRoutes.post("/", async (c) => {
     .eq("youtube_video_id", videoId)
     .neq("status", "failed")
     .is("deleted_at", null)
+    .gte("created_at", windowStart)
     .limit(1)
     .maybeSingle();
 
@@ -161,6 +171,7 @@ queueRoutes.post("/", async (c) => {
       video_url: body.videoUrl,
       summary_language: summaryLanguage,
       status: "pending",
+      dedup_bucket: dedupBucket,
     })
     .select("*")
     .single();
@@ -168,11 +179,23 @@ queueRoutes.post("/", async (c) => {
   if (insertError || !row) {
     // Rollback the rate limit increment since the insert failed
     await supabase.rpc("decrement_monthly_count", { p_user_id: userId });
+
+    // A concurrent request already queued this video — the partial unique index
+    // (summaries_user_video_active_uniq) fired. The SELECT-based check above is
+    // racy under concurrency (TOCTOU); this is the authoritative dedup guard.
+    if (insertError?.code === "23505") {
+      return c.json({ error: "Video already queued", code: "DUPLICATE" }, 409);
+    }
     return c.json({ error: "Failed to add to queue" }, 500);
   }
 
-  // Fire Inngest event for async processing
+  // Fire Inngest event for async processing. The event `id` makes ingestion
+  // idempotent: under Inngest's at-least-once delivery, a redelivered enqueue
+  // event won't trigger a second summarization. Keyed on the row id (unique per
+  // enqueue), so it never collides with a retry of the same summary (the retry
+  // path sends its own event) — re-summarizing still runs.
   await inngest.send({
+    id: `summarize-${row.id as string}`,
     name: "video/summarize.requested",
     data: {
       summaryId: row.id as string,
