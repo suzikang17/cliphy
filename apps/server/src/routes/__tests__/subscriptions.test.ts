@@ -71,6 +71,7 @@ vi.mock("../../services/youtube.js", () => ({
     sourceUrl: "https://youtube.com/channel/UCtest",
   }),
   fetchChannelVideos: vi.fn().mockResolvedValue([]),
+  fetchLikedVideos: vi.fn().mockResolvedValue([]),
   fetchPlaylistVideos: vi.fn().mockResolvedValue([]),
 }));
 

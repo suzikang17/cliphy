@@ -2,7 +2,7 @@ import { PLAN_LIMITS } from "@cliphy/shared";
 import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
-import { fetchChannelVideos, fetchPlaylistVideos } from "./youtube.js";
+import { fetchChannelVideos, fetchLikedVideos, fetchPlaylistVideos } from "./youtube.js";
 
 const log = logger.child({ fn: "subscriptions" });
 
@@ -70,12 +70,15 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
   const userId = sub.user_id as string;
   const type = sub.type as string;
 
+  // liked and watch_later require a Google token; playlists use one when
+  // available so private playlists work (falls back to the public API key)
+  const needsToken = type === "watch_later" || type === "liked";
   let accessToken: string | null = null;
-  if (type === "watch_later") {
+  if (needsToken || type === "playlist") {
     accessToken = await refreshGoogleTokenIfNeeded(userId);
-    if (!accessToken) {
+    if (needsToken && !accessToken) {
       await supabase.from("subscriptions").update({ is_active: false }).eq("id", subscriptionId);
-      log.warn("Deactivated watch_later subscription — token refresh failed", { subscriptionId });
+      log.warn("Deactivated subscription — token refresh failed", { subscriptionId, type });
       return;
     }
   }
@@ -84,6 +87,8 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
   try {
     if (type === "channel") {
       videos = await fetchChannelVideos(sub.source_id as string);
+    } else if (type === "liked") {
+      videos = await fetchLikedVideos(accessToken as string);
     } else {
       const playlistId = type === "watch_later" ? "WL" : (sub.source_id as string);
       videos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
