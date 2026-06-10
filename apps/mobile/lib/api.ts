@@ -8,6 +8,8 @@ import type {
   SubscriptionUpdateRequest,
   GoogleConnectionStatus,
   CheckEmailResponse,
+  ApiKey,
+  ApiKeyCreateResponse,
 } from "@cliphy/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
@@ -164,6 +166,18 @@ export const updateSubscription = (id: string, body: SubscriptionUpdateRequest) 
 
 export const deleteSubscription = (id: string) =>
   apiFetch<{ deleted: true }>(`/api/subscriptions/${id}`, { method: "DELETE" });
+
+// API keys (for the Apple Shortcut)
+export const getApiKeys = () => apiFetch<{ apiKeys: ApiKey[] }>("/api/keys");
+
+export const createApiKey = (name?: string) =>
+  apiFetch<ApiKeyCreateResponse>("/api/keys", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+
+export const deleteApiKey = (id: string) =>
+  apiFetch<{ deleted: true }>(`/api/keys/${id}`, { method: "DELETE" });
 
 // Google OAuth
 export const getGoogleStatus = () => apiFetch<GoogleConnectionStatus>("/api/auth/google/status");

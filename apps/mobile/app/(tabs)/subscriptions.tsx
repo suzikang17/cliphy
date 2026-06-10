@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
+import * as Clipboard from "expo-clipboard";
 import type { Subscription, SubscriptionType } from "@cliphy/shared";
 import {
   getSubscriptions,
@@ -22,9 +23,10 @@ import {
   getGoogleConnectUrl,
   disconnectGoogle,
   getUsage,
+  createApiKey,
 } from "../../lib/api";
 import { brutalShadowSm, getTheme } from "../../lib/theme";
-import { neon } from "@cliphy/shared";
+import { neon, SHORTCUT_INSTALL_URL } from "@cliphy/shared";
 
 const YOUTUBE_NON_CHANNEL_PATHS =
   /^\/(feed|trending|gaming|music|live|premium|account|results|shorts|watch|embed)\b/;
@@ -63,6 +65,8 @@ export default function SubscriptionsScreen() {
   const [addUrl, setAddUrl] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [shortcutKey, setShortcutKey] = useState<string | null>(null);
+  const [creatingKey, setCreatingKey] = useState(false);
 
   useEffect(() => {
     load();
@@ -157,6 +161,19 @@ export default function SubscriptionsScreen() {
         },
       },
     ]);
+  }
+
+  async function handleCreateShortcutKey() {
+    setCreatingKey(true);
+    try {
+      const res = await createApiKey("Shortcut");
+      setShortcutKey(res.key);
+      await Clipboard.setStringAsync(res.key);
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to create key");
+    } finally {
+      setCreatingKey(false);
+    }
   }
 
   async function handleConnectGoogle() {
@@ -467,6 +484,80 @@ export default function SubscriptionsScreen() {
             </View>
           </View>
         )}
+
+        {/* Apple Shortcut */}
+        <View
+          className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mt-6"
+          style={brutalShadowSm()}
+        >
+          <Text
+            className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+            style={{ fontFamily: "DMSans" }}
+          >
+            Add from anywhere (Apple Shortcut)
+          </Text>
+          <Text
+            className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
+            style={{ fontFamily: "DMSans" }}
+          >
+            Queue videos from the share sheet, Action Button, or Siri — without
+            opening Cliphy. Generate a key, then install the shortcut.
+          </Text>
+
+          {shortcutKey ? (
+            <View>
+              <Text
+                className="text-xs font-bold text-[#111827] dark:text-white mb-1"
+                style={{ fontFamily: "DMSans" }}
+              >
+                Your key (copied to clipboard — shown only once):
+              </Text>
+              <Text
+                selectable
+                className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
+                style={{ fontFamily: "Menlo" }}
+              >
+                {shortcutKey}
+              </Text>
+              {SHORTCUT_INSTALL_URL ? (
+                <Pressable
+                  onPress={() => WebBrowser.openBrowserAsync(SHORTCUT_INSTALL_URL)}
+                  className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+                  style={({ pressed }) =>
+                    pressed
+                      ? { transform: [{ translateX: 2 }, { translateY: 2 }] }
+                      : brutalShadowSm()
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text
+                    className="font-bold text-sm text-[#111827] dark:text-white"
+                    style={{ fontFamily: "DMSans" }}
+                  >
+                    Install the Shortcut
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : (
+            <Pressable
+              onPress={handleCreateShortcutKey}
+              disabled={creatingKey}
+              className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+              style={({ pressed }) =>
+                pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
+              }
+              accessibilityRole="button"
+            >
+              <Text
+                className="font-bold text-sm text-[#111827] dark:text-white"
+                style={{ fontFamily: "DMSans" }}
+              >
+                {creatingKey ? "Generating…" : "Generate Shortcut key"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
