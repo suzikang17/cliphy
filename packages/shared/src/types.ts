@@ -154,6 +154,8 @@ export interface ChatResponse {
 
 export interface UserSettings {
   summaryLanguage: import("./constants.js").SummaryLanguageCode;
+  /** Auto-subscribe the user's own playlists with "cliphy" in the name. */
+  autoDiscoverPlaylists: boolean;
 }
 
 export type SubscriptionType = "channel" | "playlist" | "watch_later" | "liked";
@@ -176,6 +178,8 @@ export interface Subscription {
 export interface SubscriptionCreateRequest {
   type: SubscriptionType;
   sourceUrl?: string;
+  /** liked-only: queue the N most recent existing likes on creation (0-50). */
+  importCount?: number;
 }
 
 export interface SubscriptionUpdateRequest {

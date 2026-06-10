@@ -5,9 +5,8 @@ vi.stubGlobal("fetch", mockFetch);
 
 afterEach(() => vi.clearAllMocks());
 
-const { fetchChannelVideos, fetchLikedVideos, fetchPlaylistVideos, parseSourceUrl } = await import(
-  "../youtube.js"
-);
+const { fetchChannelVideos, fetchLikedVideos, fetchMyPlaylists, fetchPlaylistVideos, parseSourceUrl } =
+  await import("../youtube.js");
 
 describe("fetchChannelVideos", () => {
   it("parses RSS feed and returns video previews", async () => {
@@ -162,6 +161,39 @@ describe("fetchLikedVideos", () => {
   it("throws on non-ok response", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 403 });
     await expect(fetchLikedVideos("token-abc")).rejects.toThrow("YouTube API error: 403");
+  });
+});
+
+describe("fetchMyPlaylists", () => {
+  it("lists the user's own playlists with OAuth", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        items: [
+          { id: "PLcliphy1", snippet: { title: "Cliphy" } },
+          { id: "PLother", snippet: { title: "Workout Mixes" } },
+        ],
+      }),
+    });
+
+    const playlists = await fetchMyPlaylists("token-abc");
+
+    expect(playlists).toEqual([
+      { playlistId: "PLcliphy1", title: "Cliphy" },
+      { playlistId: "PLother", title: "Workout Mixes" },
+    ]);
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("mine=true");
+    const calledHeaders = (mockFetch.mock.calls[0][1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+    expect(calledHeaders["Authorization"]).toBe("Bearer token-abc");
+  });
+
+  it("throws on non-ok response", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    await expect(fetchMyPlaylists("token-abc")).rejects.toThrow("YouTube API error: 401");
   });
 });
 

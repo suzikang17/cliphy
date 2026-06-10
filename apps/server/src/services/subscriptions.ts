@@ -1,8 +1,13 @@
-import { PLAN_LIMITS } from "@cliphy/shared";
+import { MAX_SUBSCRIPTIONS_PER_USER, PLAN_LIMITS } from "@cliphy/shared";
 import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
-import { fetchChannelVideos, fetchLikedVideos, fetchPlaylistVideos } from "./youtube.js";
+import {
+  fetchChannelVideos,
+  fetchLikedVideos,
+  fetchMyPlaylists,
+  fetchPlaylistVideos,
+} from "./youtube.js";
 
 const log = logger.child({ fn: "subscriptions" });
 
@@ -56,6 +61,94 @@ export async function refreshGoogleTokenIfNeeded(userId: string): Promise<string
     .eq("user_id", userId);
 
   return data.access_token;
+}
+
+const CLIPHY_PLAYLIST_PATTERN = /cliphy/i;
+
+/**
+ * Auto-subscribe the user's own playlists whose title contains "cliphy".
+ * Runs on Google connect and every poll cycle. Respects the
+ * auto_discover_playlists setting, Pro gating, and the subscription cap.
+ * Returns the number of subscriptions created.
+ */
+export async function discoverCliphyPlaylists(userId: string): Promise<number> {
+  const { data: settingsRow } = await supabase
+    .from("user_settings")
+    .select("auto_discover_playlists")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (settingsRow?.auto_discover_playlists === false) return 0;
+
+  // Same Pro gate as manual subscription creation
+  const { data: userRow } = await supabase.from("users").select("plan").eq("id", userId).single();
+  if (userRow?.plan !== "pro") return 0;
+
+  const accessToken = await refreshGoogleTokenIfNeeded(userId);
+  if (!accessToken) return 0;
+
+  let playlists;
+  try {
+    playlists = await fetchMyPlaylists(accessToken);
+  } catch (err) {
+    log.warn("Playlist discovery fetch failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+
+  const matches = playlists.filter((p) => CLIPHY_PLAYLIST_PATTERN.test(p.title));
+  if (matches.length === 0) return 0;
+
+  const { data: existingRows } = await supabase
+    .from("subscriptions")
+    .select("source_id")
+    .eq("user_id", userId)
+    .eq("type", "playlist");
+  const existing = new Set((existingRows ?? []).map((r) => r.source_id as string));
+
+  const { count } = await supabase
+    .from("subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  let slots = MAX_SUBSCRIPTIONS_PER_USER - (count ?? 0);
+
+  let created = 0;
+  for (const playlist of matches) {
+    if (existing.has(playlist.playlistId) || slots <= 0) continue;
+
+    const { data: row, error } = await supabase
+      .from("subscriptions")
+      .insert({
+        user_id: userId,
+        type: "playlist",
+        source_id: playlist.playlistId,
+        source_name: playlist.title,
+        source_url: `https://www.youtube.com/playlist?list=${playlist.playlistId}`,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    if (error || !row) continue;
+    slots--;
+    created++;
+
+    // Snapshot existing videos so only future saves get queued
+    try {
+      const videos = await fetchPlaylistVideos(playlist.playlistId, accessToken);
+      await snapshotSeenVideos(
+        row.id as string,
+        videos.map((v) => v.videoId),
+      );
+    } catch {
+      // Non-fatal: worst case a few old videos get queued on first poll
+    }
+
+    log.info("Auto-discovered Cliphy playlist", { userId, playlistId: playlist.playlistId });
+  }
+
+  return created;
 }
 
 export async function pollAndQueueSubscription(subscriptionId: string): Promise<void> {
