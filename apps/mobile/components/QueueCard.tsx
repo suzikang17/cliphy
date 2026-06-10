@@ -1,4 +1,5 @@
-import { View, Text, Pressable, Image, useColorScheme } from "react-native";
+import { View, Text, Pressable, Image, useColorScheme, Animated } from "react-native";
+import { useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import type { Summary } from "@cliphy/shared";
@@ -23,6 +24,22 @@ export function QueueCard({ item }: { item: Summary }) {
   const isDark = useColorScheme() === "dark";
   const status = STATUS_LABELS[item.status] ?? STATUS_LABELS.pending;
   const statusColor = isDark ? status.darkColor : status.color;
+  const cardBg = isDark ? "#282828" : "#f9fafb";
+
+  // Gentle pulse while summarizing so the corner dot reads as "in progress"
+  // rather than just another colored dot.
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (item.status !== "processing") return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.3, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [item.status, pulse]);
 
   function handlePress() {
     if (item.status === "completed") {
@@ -42,12 +59,30 @@ export function QueueCard({ item }: { item: Summary }) {
       accessibilityHint={item.status === "completed" ? "Opens summary" : STATUS_HINT[item.status]}
     >
       <View className="flex-row gap-3">
-        <Image
-          source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg` }}
-          resizeMode="cover"
-          className="w-28 h-16 rounded-md border-2 border-black dark:border-[#505050] bg-[#e5e7eb] dark:bg-[#1e1e1e]"
-          accessibilityIgnoresInvertColors
-        />
+        <View>
+          <Image
+            source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg` }}
+            resizeMode="cover"
+            className="w-28 h-16 rounded-md border-2 border-black dark:border-[#505050] bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+            accessibilityIgnoresInvertColors
+          />
+          {/* Status dot, top-right corner of the thumbnail. The ring (border in
+              card-bg color) lifts it off the image so it reads on any frame. */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              width: 14,
+              height: 14,
+              borderRadius: 7,
+              backgroundColor: statusColor,
+              borderWidth: 2,
+              borderColor: cardBg,
+              opacity: item.status === "processing" ? pulse : 1,
+            }}
+          />
+        </View>
 
         <View className="flex-1 min-w-0">
           <Text
@@ -68,32 +103,17 @@ export function QueueCard({ item }: { item: Summary }) {
             </Text>
           )}
 
-          <View className="flex-row items-center justify-between mt-2">
-            <View className="flex-row items-center gap-1.5">
-              <View className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
-              <Text
-                className="text-xs font-medium"
-                style={{ fontFamily: "DMSans", color: statusColor }}
-              >
-                {status.label}
-              </Text>
+          {item.tags && item.tags.length > 0 && (
+            <View className="flex-row gap-1 mt-2">
+              {item.tags.slice(0, 2).map((tag) => (
+                <View key={tag} className="bg-[#ede0f8] dark:bg-[#221028] px-2 py-0.5 rounded">
+                  <Text className="text-[10px]" style={{ fontFamily: "DMSans", color: neon[600] }}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
             </View>
-
-            {item.tags && item.tags.length > 0 && (
-              <View className="flex-row gap-1">
-                {item.tags.slice(0, 2).map((tag) => (
-                  <View key={tag} className="bg-[#ede0f8] dark:bg-[#221028] px-2 py-0.5 rounded">
-                    <Text
-                      className="text-[10px]"
-                      style={{ fontFamily: "DMSans", color: neon[600] }}
-                    >
-                      {tag}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
+          )}
         </View>
       </View>
     </Pressable>
