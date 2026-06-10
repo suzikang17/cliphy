@@ -24,6 +24,8 @@ import {
   disconnectGoogle,
   getUsage,
   createApiKey,
+  getSettings,
+  updateSettings,
 } from "../../lib/api";
 import { brutalShadowSm, getTheme } from "../../lib/theme";
 import { neon, SHORTCUT_INSTALL_URL } from "@cliphy/shared";
@@ -67,6 +69,7 @@ export default function SubscriptionsScreen() {
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [shortcutKey, setShortcutKey] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState(false);
+  const [autoDiscover, setAutoDiscover] = useState(true);
 
   useEffect(() => {
     load();
@@ -74,14 +77,16 @@ export default function SubscriptionsScreen() {
 
   async function load() {
     try {
-      const [subsRes, googleRes, usageRes] = await Promise.all([
+      const [subsRes, googleRes, usageRes, settingsRes] = await Promise.all([
         getSubscriptions(),
         getGoogleStatus(),
         getUsage(),
+        getSettings(),
       ]);
       setSubscriptions(subsRes.subscriptions);
       setGoogleConnected(googleRes.connected);
       setIsPro(usageRes.usage.plan === "pro");
+      setAutoDiscover(settingsRes.autoDiscoverPlaylists);
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -122,15 +127,36 @@ export default function SubscriptionsScreen() {
     }
   }
 
-  async function handleAddLiked() {
+  function promptAddLiked() {
+    Alert.alert(
+      "Auto-queue Liked Videos",
+      "Only new likes are queued from now on. Want to import your 10 most recent likes to get started?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Just new likes", onPress: () => handleAddLiked(0) },
+        { text: "Import 10 recent", onPress: () => handleAddLiked(10) },
+      ],
+    );
+  }
+
+  async function handleAddLiked(importCount: number) {
     setAddLoading(true);
     try {
-      const res = await createSubscription({ type: "liked" });
+      const res = await createSubscription({ type: "liked", importCount });
       setSubscriptions((prev) => [...prev, res.subscription]);
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to add Liked Videos");
     } finally {
       setAddLoading(false);
+    }
+  }
+
+  async function handleToggleAutoDiscover(value: boolean) {
+    setAutoDiscover(value);
+    try {
+      await updateSettings({ autoDiscoverPlaylists: value });
+    } catch {
+      setAutoDiscover(!value);
     }
   }
 
@@ -299,11 +325,9 @@ export default function SubscriptionsScreen() {
               className="text-xs text-[#6b7280] dark:text-[#9ca3af]"
               style={{ fontFamily: "DMSans" }}
             >
-              1. In YouTube, create a playlist called "Cliphy" (private works if
-              you connect Google below){"\n"}
-              2. Paste its link in the box below — one time{"\n"}
-              3. From then on: Save → Cliphy on any video. It lands in your
-              queue within ~15 minutes.
+              {googleConnected
+                ? '1. In YouTube, create a playlist with "Cliphy" in the name — we\'ll find it automatically\n2. From then on: Save → Cliphy on any video. It lands in your queue within ~15 minutes.'
+                : '1. In YouTube, create a playlist called "Cliphy" (connect Google below and we\'ll find it automatically — private playlists work too)\n2. Or paste its link in the box below — one time\n3. From then on: Save → Cliphy on any video. It lands in your queue within ~15 minutes.'}
             </Text>
           </View>
         )}
@@ -373,7 +397,7 @@ export default function SubscriptionsScreen() {
             <View className="gap-2">
               {!hasLiked && isPro && (
                 <Pressable
-                  onPress={handleAddLiked}
+                  onPress={promptAddLiked}
                   disabled={addLoading}
                   className="items-center py-2.5 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
                   style={({ pressed }) =>
@@ -411,6 +435,20 @@ export default function SubscriptionsScreen() {
                   </Text>
                 </Pressable>
               )}
+              <View className="flex-row items-center justify-between py-1">
+                <Text
+                  className="text-xs text-[#6b7280] dark:text-[#9ca3af] flex-1 mr-3"
+                  style={{ fontFamily: "DMSans" }}
+                >
+                  Auto-detect playlists named "Cliphy"
+                </Text>
+                <Switch
+                  value={autoDiscover}
+                  onValueChange={handleToggleAutoDiscover}
+                  trackColor={{ false: "#d1d5db", true: neon[500] }}
+                  thumbColor="white"
+                />
+              </View>
               <Pressable
                 onPress={handleDisconnectGoogle}
                 className="items-center py-2.5 border-2 border-red-400 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-950/30"

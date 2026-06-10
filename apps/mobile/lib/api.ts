@@ -10,6 +10,7 @@ import type {
   CheckEmailResponse,
   ApiKey,
   ApiKeyCreateResponse,
+  UserSettings,
 } from "@cliphy/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
@@ -166,6 +167,15 @@ export const updateSubscription = (id: string, body: SubscriptionUpdateRequest) 
 
 export const deleteSubscription = (id: string) =>
   apiFetch<{ deleted: true }>(`/api/subscriptions/${id}`, { method: "DELETE" });
+
+// Settings
+export const getSettings = () => apiFetch<UserSettings>("/api/settings");
+
+export const updateSettings = (body: Partial<UserSettings>) =>
+  apiFetch<UserSettings>("/api/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 
 // API keys (for the Apple Shortcut)
 export const getApiKeys = () => apiFetch<{ apiKeys: ApiKey[] }>("/api/keys");

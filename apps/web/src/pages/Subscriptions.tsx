@@ -126,8 +126,14 @@ export function Subscriptions() {
   async function handleAddLiked() {
     setAddLoading(true);
     setAddError(null);
+    const importRecent = window.confirm(
+      "Also import your 10 most recent likes now? (OK = import, Cancel = only queue new likes from now on)",
+    );
     try {
-      const res = await api.createSubscription({ type: "liked" });
+      const res = await api.createSubscription({
+        type: "liked",
+        importCount: importRecent ? 10 : 0,
+      });
       setSubscriptions((prev) => [...prev, res.subscription]);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : "Failed to add Liked Videos subscription");
