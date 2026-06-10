@@ -54,6 +54,23 @@ value, `api_keys` table). Manual prod verification is the remaining task
 - Capture-card copy now says "name a playlist Cliphy and we'll find it" when
   Google is connected — no link pasting needed.
 
+## Part 3 (same day): mobile deep-link for Google OAuth
+
+- The connect flow now carries a `platform` (web | mobile | extension, stored
+  on `oauth_states`, migration 019). Mobile initiates with `?platform=mobile`
+  and uses `WebBrowser.openAuthSessionAsync` with the
+  `com.cliphy.app://subscriptions` return URL — the server callback 302s to
+  the deep link (success **and** error paths), and the in-app browser closes
+  itself instead of stranding the user on the web subscriptions page.
+- `extension` is accepted and reserved: the extension only uses Google for
+  Supabase *sign-in* today (separate `browser.identity` flow); if it ever gets
+  a subscriptions panel it would use `launchWebAuthFlow`, since Chrome can't
+  receive server redirects to `chrome-extension://`. Until then it falls back
+  to the web app redirect, same as web.
+- Note: CLIP-81 (Supabase sign-in OAuth stuck on empty page in mobile) is the
+  *other* OAuth flow and still open — same fix shape (auth session + deep
+  link) applies.
+
 ## Decisions
 
 - ADR 0041 — liked videos via `myRating=like`, not the `LL` playlist; Watch
