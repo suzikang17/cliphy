@@ -106,6 +106,31 @@ function parseRssFeed(xml: string): YouTubeVideoPreview[] {
     .filter((v) => v.videoId);
 }
 
+/** Fetch the authenticated user's most recently liked videos (max 50). */
+export async function fetchLikedVideos(accessToken: string): Promise<YouTubeVideoPreview[]> {
+  const params = new URLSearchParams({
+    part: "snippet",
+    myRating: "like",
+    maxResults: "50",
+  });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      snippet: { title: string; publishedAt: string; channelTitle?: string };
+    }>;
+  };
+  return (data.items ?? []).map((item) => ({
+    videoId: item.id,
+    title: item.snippet.title,
+    publishedAt: item.snippet.publishedAt,
+    channelTitle: item.snippet.channelTitle,
+  }));
+}
+
 export async function fetchPlaylistVideos(
   playlistId: string,
   accessToken?: string,

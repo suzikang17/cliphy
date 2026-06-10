@@ -5,7 +5,9 @@ vi.stubGlobal("fetch", mockFetch);
 
 afterEach(() => vi.clearAllMocks());
 
-const { fetchChannelVideos, fetchPlaylistVideos, parseSourceUrl } = await import("../youtube.js");
+const { fetchChannelVideos, fetchLikedVideos, fetchPlaylistVideos, parseSourceUrl } = await import(
+  "../youtube.js"
+);
 
 describe("fetchChannelVideos", () => {
   it("parses RSS feed and returns video previews", async () => {
@@ -111,6 +113,55 @@ describe("fetchPlaylistVideos", () => {
   it("throws on non-ok response", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 403 });
     await expect(fetchPlaylistVideos("PLbad")).rejects.toThrow("YouTube API error: 403");
+  });
+});
+
+describe("fetchLikedVideos", () => {
+  it("maps videos.list myRating=like response to previews", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            id: "vid123",
+            snippet: {
+              title: "Liked Video",
+              publishedAt: "2026-01-01T00:00:00Z",
+              channelTitle: "Some Channel",
+            },
+          },
+        ],
+      }),
+    });
+
+    const videos = await fetchLikedVideos("token-abc");
+
+    expect(videos).toEqual([
+      {
+        videoId: "vid123",
+        title: "Liked Video",
+        publishedAt: "2026-01-01T00:00:00Z",
+        channelTitle: "Some Channel",
+      },
+    ]);
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("myRating=like");
+    const calledHeaders = (mockFetch.mock.calls[0][1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+    expect(calledHeaders["Authorization"]).toBe("Bearer token-abc");
+  });
+
+  it("returns empty array when items is absent", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    const videos = await fetchLikedVideos("token-abc");
+    expect(videos).toHaveLength(0);
+  });
+
+  it("throws on non-ok response", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 403 });
+    await expect(fetchLikedVideos("token-abc")).rejects.toThrow("YouTube API error: 403");
   });
 });
 
