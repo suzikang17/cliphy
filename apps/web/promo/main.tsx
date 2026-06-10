@@ -26,7 +26,8 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString(
 const demoSummary: Summary = {
   id: "demo-1",
   userId: "demo",
-  videoId: "demo-video",
+  // Real video IDs so i.ytimg.com serves real thumbnails (blurred via promo.css)
+  videoId: "LXb3EKWsInQ",
   videoTitle: "The Science of Learning Faster",
   videoChannel: "Beyond Curious",
   videoDurationSeconds: 1284,
@@ -67,7 +68,7 @@ const queueSummaries: Summary[] = [
   {
     id: "demo-2",
     userId: "demo",
-    videoId: "demo-video-2",
+    videoId: "M7lc1UVf-VE",
     videoTitle: "Inside the M4 Chip — Explained in 14 Minutes",
     videoChannel: "Silicon Decoded",
     videoDurationSeconds: 845,
@@ -79,7 +80,7 @@ const queueSummaries: Summary[] = [
   {
     id: "demo-3",
     userId: "demo",
-    videoId: "demo-video-3",
+    videoId: "jNQXAC9IVRw",
     videoTitle: "10 Python Tricks I Wish I Knew Earlier",
     videoChannel: "DevSimplified",
     videoDurationSeconds: 598,
@@ -96,7 +97,7 @@ const queueSummaries: Summary[] = [
   {
     id: "demo-4",
     userId: "demo",
-    videoId: "demo-video-4",
+    videoId: "9bZkp7q19f0",
     videoTitle: "The History of the Internet in 12 Minutes",
     videoChannel: "Timeline",
     videoDurationSeconds: 731,
@@ -108,7 +109,7 @@ const queueSummaries: Summary[] = [
 ];
 
 const demoVideo: VideoInfo = {
-  videoId: "current-demo",
+  videoId: "aqz-KE-bpKQ",
   title: "Why Top Athletes Train Less Than You Think",
   url: "https://www.youtube.com/watch?v=demo",
   channel: "Peak Performance Lab",

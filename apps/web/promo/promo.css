@@ -2,6 +2,12 @@
 @source "../../extension/components";
 @source "./";
 
+/* Blur real YouTube thumbnails so demo content reads as real but unidentifiable */
+img[src*="i.ytimg.com"] {
+  filter: blur(2.5px) saturate(1.15);
+  clip-path: inset(0);
+}
+
 /* Promo scenes are screenshot targets — kill scrollbars and hover artifacts */
 html,
 body {
