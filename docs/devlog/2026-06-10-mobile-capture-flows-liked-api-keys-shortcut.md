@@ -37,6 +37,23 @@ value, `api_keys` table). Manual prod verification is the remaining task
   no-Google 403), auth middleware (key auth, hash lookup, JWT fallthrough),
   api-keys routes (create/cap/403/delete). All green.
 
+## Part 2 (same day): onboarding import + playlist auto-discovery
+
+- **Import recent likes on enable**: `POST /subscriptions` accepts
+  `importCount` (liked-only, 0–50). The N most recent likes are left out of
+  the seen-snapshot and an immediate poll is dispatched, so they queue through
+  the normal limit logic. Mobile prompts "Just new likes / Import 10 recent";
+  web uses a confirm dialog.
+- **Cliphy-playlist auto-discovery**: any of the user's own playlists with
+  "cliphy" in the title (case-insensitive, via `playlists.list?mine=true`)
+  auto-subscribes — triggered on Google connect and every 15-min poll cycle
+  (`subscription/discover.requested` Inngest event). Pro-gated, respects the
+  20-subscription cap, snapshot-on-create keeps it forward-only. Configurable
+  via `user_settings.auto_discover_playlists` (default **on**; toggle in the
+  mobile Google card). Migration 018 applied to prod.
+- Capture-card copy now says "name a playlist Cliphy and we'll find it" when
+  Google is connected — no link pasting needed.
+
 ## Decisions
 
 - ADR 0041 — liked videos via `myRating=like`, not the `LL` playlist; Watch
