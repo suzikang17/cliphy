@@ -83,3 +83,40 @@ export async function setMonthlyCount(userId: string, count: number): Promise<vo
 
   if (error) throw new Error(`Failed to set count: ${error.message}`);
 }
+
+// Add (or claw back, with a negative amount) one-off credits to a user's
+// carry-over wallet. The wallet floors at 0. These are spent only after the
+// user's monthly allowance is exhausted, and never auto-reset.
+export async function grantCredits(userId: string, amount: number): Promise<void> {
+  if (!Number.isInteger(amount) || amount === 0) {
+    throw new Error("Amount must be a non-zero integer");
+  }
+
+  const { data: user, error: readErr } = await supabase
+    .from("users")
+    .select("bonus_credits")
+    .eq("id", userId)
+    .single();
+
+  if (readErr || !user) throw new Error(`User not found: ${userId}`);
+
+  const next = Math.max(0, ((user.bonus_credits as number) ?? 0) + amount);
+
+  const { error } = await supabase.from("users").update({ bonus_credits: next }).eq("id", userId);
+
+  if (error) throw new Error(`Failed to grant credits: ${error.message}`);
+}
+
+// Set the recurring monthly bonus — added to the plan limit every month.
+export async function setMonthlyBonus(userId: string, bonus: number): Promise<void> {
+  if (!Number.isInteger(bonus) || bonus < 0) {
+    throw new Error("Monthly bonus must be a non-negative integer");
+  }
+
+  const { error } = await supabase
+    .from("users")
+    .update({ monthly_limit_bonus: bonus })
+    .eq("id", userId);
+
+  if (error) throw new Error(`Failed to set monthly bonus: ${error.message}`);
+}

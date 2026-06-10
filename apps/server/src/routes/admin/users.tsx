@@ -10,6 +10,8 @@ import {
   cancelSubscription,
   resetMonthlyCount,
   setMonthlyCount,
+  grantCredits,
+  setMonthlyBonus,
 } from "../../services/admin.js";
 
 interface UserRow {
@@ -38,11 +40,13 @@ interface UserDetail {
   trial_ends_at: string | null;
   monthly_summary_count: number;
   monthly_count_reset_at: string | null;
+  monthly_limit_bonus: number;
+  bonus_credits: number;
   created_at: string;
 }
 
 const USER_DETAIL_COLUMNS =
-  "id, email, plan, subscription_status, stripe_customer_id, stripe_subscription_id, trial_ends_at, monthly_summary_count, monthly_count_reset_at, created_at";
+  "id, email, plan, subscription_status, stripe_customer_id, stripe_subscription_id, trial_ends_at, monthly_summary_count, monthly_count_reset_at, monthly_limit_bonus, bonus_credits, created_at";
 
 export const adminUserRoutes = new Hono();
 
@@ -298,6 +302,28 @@ adminUserRoutes.post("/:id/set-count", async (c) => {
   return runAction(c, () => setMonthlyCount(userId, count), `Monthly count set to ${count}.`);
 });
 
+adminUserRoutes.post("/:id/grant-credits", async (c) => {
+  const userId = c.req.param("id");
+  const body = await c.req.parseBody();
+  const amount = Number(body["amount"]);
+  return runAction(
+    c,
+    () => grantCredits(userId, amount),
+    `${amount > 0 ? "Granted" : "Removed"} ${Math.abs(amount)} one-off credit(s).`,
+  );
+});
+
+adminUserRoutes.post("/:id/set-monthly-bonus", async (c) => {
+  const userId = c.req.param("id");
+  const body = await c.req.parseBody();
+  const bonus = Number(body["bonus"]);
+  return runAction(
+    c,
+    () => setMonthlyBonus(userId, bonus),
+    `Recurring monthly bonus set to +${bonus}.`,
+  );
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildBaseUrl(params: { plan: string; status: string; search: string }): string {
@@ -471,6 +497,42 @@ function userCards(user: UserDetail, totalSummaries: number, success?: string, e
         <div class="detail-row">
           <span class="label">Count reset at</span>
           <span>{user.monthly_count_reset_at ? formatDate(user.monthly_count_reset_at) : "—"}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label" title="Added to the plan limit every month">
+            Monthly bonus
+          </span>
+          <span class="field-actions">
+            <span>+{user.monthly_limit_bonus ?? 0} / mo</span>
+            <form
+              class="field-actions"
+              hx-post={`/api/admin/users/${userId}/set-monthly-bonus`}
+              {...swap}
+            >
+              <input type="number" name="bonus" min="0" step="1" required placeholder="#" />
+              <button class="btn btn-secondary btn-sm" type="submit">
+                Set
+              </button>
+            </form>
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="label" title="One-off wallet, spent after the monthly allowance runs out">
+            One-off credits
+          </span>
+          <span class="field-actions">
+            <span>{user.bonus_credits ?? 0} left</span>
+            <form
+              class="field-actions"
+              hx-post={`/api/admin/users/${userId}/grant-credits`}
+              {...swap}
+            >
+              <input type="number" name="amount" step="1" required placeholder="+/−" />
+              <button class="btn btn-primary btn-sm" type="submit">
+                Grant
+              </button>
+            </form>
+          </span>
         </div>
         <div class="detail-row">
           <span class="label">Total summaries</span>

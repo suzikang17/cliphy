@@ -94,6 +94,29 @@ describe("Billing", () => {
       expect(json.usage.limit).toBe(100);
     });
 
+    it("adds recurring monthly bonus to the limit and exposes one-off credits", async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      userMockResult = mockChain({
+        data: {
+          plan: "free",
+          monthly_summary_count: 4,
+          monthly_count_reset_at: today,
+          monthly_limit_bonus: 10,
+          bonus_credits: 3,
+        },
+      });
+      summariesMockResult = mockChain({ data: [] });
+
+      const app = await createApp();
+      const res = await app.request("/usage");
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.usage.limit).toBe(15); // plan 5 + recurring bonus 10
+      expect(json.usage.used).toBe(4);
+      expect(json.usage.bonusCredits).toBe(3);
+    });
+
     it("resets count when reset date is in the past", async () => {
       userMockResult = mockChain({
         data: { plan: "free", monthly_summary_count: 5, monthly_count_reset_at: "2026-01-15" },

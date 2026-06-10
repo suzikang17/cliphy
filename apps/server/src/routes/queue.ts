@@ -126,10 +126,16 @@ queueRoutes.post("/", async (c) => {
   }
 
   // Rate limit check — atomic increment via DB function
-  const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
+  const { data: user } = await supabase
+    .from("users")
+    .select("plan, monthly_limit_bonus")
+    .eq("id", userId)
+    .single();
 
   const plan = (user?.plan as "free" | "pro") ?? "free";
-  const limit = PLAN_LIMITS[plan];
+  // Effective monthly cap = plan limit + recurring admin bonus. The RPC draws
+  // from the one-off bonus_credits wallet automatically once this is exhausted.
+  const limit = PLAN_LIMITS[plan] + ((user?.monthly_limit_bonus as number) ?? 0);
 
   const { data: allowed } = await supabase.rpc("increment_monthly_count", {
     p_user_id: userId,
@@ -281,7 +287,12 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   }
 
   // Rate limit check — atomic batch increment via DB function
-  const limit = PLAN_LIMITS.pro;
+  const { data: batchUser } = await supabase
+    .from("users")
+    .select("monthly_limit_bonus")
+    .eq("id", userId)
+    .single();
+  const limit = PLAN_LIMITS.pro + ((batchUser?.monthly_limit_bonus as number) ?? 0);
   const { data: allowed } = await supabase.rpc("increment_monthly_count_batch", {
     p_user_id: userId,
     p_limit: limit,
@@ -386,14 +397,18 @@ queueRoutes.post("/:id/retry", async (c) => {
     row.status === "failed" || (row.status === "completed" && /* free users pay */ true);
 
   if (needsRateLimit) {
-    const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
+    const { data: user } = await supabase
+      .from("users")
+      .select("plan, monthly_limit_bonus")
+      .eq("id", userId)
+      .single();
     const plan = (user?.plan as "free" | "pro") ?? "free";
 
     // Pro users can re-summarize completed items for free
     if (row.status === "completed" && plan === "pro") {
       // no-op: skip rate limit
     } else {
-      const limit = PLAN_LIMITS[plan];
+      const limit = PLAN_LIMITS[plan] + ((user?.monthly_limit_bonus as number) ?? 0);
       const { data: allowed } = await supabase.rpc("increment_monthly_count", {
         p_user_id: userId,
         p_limit: limit,

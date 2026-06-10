@@ -74,10 +74,13 @@ export interface Summary {
 
 export interface UsageInfo {
   used: number;
+  /** Effective monthly cap: plan limit + recurring admin bonus. */
   limit: number;
   plan: PlanTier;
   resetAt: string;
   totalTimeSavedSeconds: number;
+  /** One-off admin-granted credit wallet. Spent only after the monthly allowance runs out. */
+  bonusCredits: number;
 }
 
 // API request/response types

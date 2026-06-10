@@ -61,7 +61,7 @@ export async function refreshGoogleTokenIfNeeded(userId: string): Promise<string
 export async function pollAndQueueSubscription(subscriptionId: string): Promise<void> {
   const { data: sub } = await supabase
     .from("subscriptions")
-    .select("*, users!inner(plan)")
+    .select("*, users!inner(plan, monthly_limit_bonus)")
     .eq("id", subscriptionId)
     .single();
 
@@ -132,8 +132,13 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
     .single();
   const summaryLanguage = (settingsRow?.summary_language as string) ?? "en";
 
-  const plan = ((sub as Record<string, unknown>).users as { plan: string } | null)?.plan;
-  const limit = PLAN_LIMITS[(plan as "free" | "pro") ?? "free"];
+  const subUser = (sub as Record<string, unknown>).users as {
+    plan: string;
+    monthly_limit_bonus?: number;
+  } | null;
+  const plan = subUser?.plan;
+  const limit =
+    PLAN_LIMITS[(plan as "free" | "pro") ?? "free"] + (subUser?.monthly_limit_bonus ?? 0);
   let skippedThisRun = 0;
 
   for (const video of newVideos) {

@@ -529,9 +529,13 @@ summaryRoutes.post("/:id/translate", async (c) => {
   }
 
   // New translation — costs one usage credit
-  const { data: user } = await supabase.from("users").select("plan").eq("id", userId).single();
+  const { data: user } = await supabase
+    .from("users")
+    .select("plan, monthly_limit_bonus")
+    .eq("id", userId)
+    .single();
   const plan = (user?.plan as "free" | "pro") ?? "free";
-  const limit = PLAN_LIMITS[plan];
+  const limit = PLAN_LIMITS[plan] + ((user?.monthly_limit_bonus as number) ?? 0);
 
   const { data: allowed } = await supabase.rpc("increment_monthly_count", {
     p_user_id: userId,

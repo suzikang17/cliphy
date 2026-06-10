@@ -9,7 +9,10 @@ interface UsageBarProps {
 
 export function UsageBar({ usage, onOpenApp }: UsageBarProps) {
   const isFree = usage.plan === "free";
-  const atLimit = isFree && usage.used >= usage.limit;
+  const credits = usage.bonusCredits ?? 0;
+  // One-off credits cover usage after the monthly allowance, so the user is only
+  // truly "at limit" when both the monthly cap and the wallet are exhausted.
+  const atLimit = isFree && usage.used >= usage.limit && credits <= 0;
   const pct = usage.limit > 0 ? Math.min((usage.used / usage.limit) * 100, 100) : 0;
   const hasTimeSaved = usage.totalTimeSavedSeconds > 0;
 
@@ -23,6 +26,11 @@ export function UsageBar({ usage, onOpenApp }: UsageBarProps) {
         <span className={atLimit ? "text-red-600 dark:text-red-400" : ""}>
           {atLimit ? "Limit reached" : `${usage.used} / ${usage.limit} used`}
         </span>
+        {credits > 0 && (
+          <span className="text-neon-600 dark:text-neon-400" title="One-off bonus credits">
+            +{credits} credit{credits === 1 ? "" : "s"}
+          </span>
+        )}
         {hasTimeSaved && (
           <>
             {onOpenApp ? (

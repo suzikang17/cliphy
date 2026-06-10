@@ -15,7 +15,9 @@ usageRoutes.get("/", async (c) => {
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("plan, monthly_summary_count, monthly_count_reset_at")
+    .select(
+      "plan, monthly_summary_count, monthly_count_reset_at, monthly_limit_bonus, bonus_credits",
+    )
     .eq("id", userId)
     .single();
 
@@ -24,7 +26,9 @@ usageRoutes.get("/", async (c) => {
   }
 
   const plan = (user.plan as "free" | "pro") ?? "free";
-  const limit = PLAN_LIMITS[plan];
+  // Effective monthly cap = plan limit + recurring admin bonus.
+  const limit = PLAN_LIMITS[plan] + ((user.monthly_limit_bonus as number) ?? 0);
+  const bonusCredits = (user.bonus_credits as number) ?? 0;
 
   // If the reset date is before the 1st of this month, the count has effectively reset
   const monthStart = new Date();
@@ -52,6 +56,7 @@ usageRoutes.get("/", async (c) => {
     plan,
     resetAt: user.monthly_count_reset_at,
     totalTimeSavedSeconds,
+    bonusCredits,
   };
 
   return c.json({ usage });
