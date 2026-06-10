@@ -50,6 +50,7 @@ const TYPE_LABELS: Record<SubscriptionType, string> = {
   channel: "Channel",
   playlist: "Playlist",
   watch_later: "Watch Later",
+  liked: "Liked Videos",
 };
 
 export default function SubscriptionsScreen() {
@@ -419,11 +420,13 @@ function SubscriptionRow({
     channel: "bg-blue-100 dark:bg-blue-900/30",
     playlist: "bg-purple-100 dark:bg-purple-900/30",
     watch_later: "bg-amber-100 dark:bg-amber-900/30",
+    liked: "bg-rose-100 dark:bg-rose-900/30",
   };
   const typeBadgeText: Record<SubscriptionType, string> = {
     channel: "text-blue-700 dark:text-blue-300",
     playlist: "text-purple-700 dark:text-purple-300",
     watch_later: "text-amber-700 dark:text-amber-300",
+    liked: "text-rose-700 dark:text-rose-300",
   };
 
   return (

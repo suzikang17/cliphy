@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<SubscriptionType, string> = {
   channel: "Channel",
   playlist: "Playlist",
   watch_later: "Watch Later",
+  liked: "Liked Videos",
 };
 
 const TYPE_COLORS: Record<SubscriptionType, string> = {
@@ -38,6 +39,8 @@ const TYPE_COLORS: Record<SubscriptionType, string> = {
     "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
   watch_later:
     "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700",
+  liked:
+    "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700",
 };
 
 export function Subscriptions() {
