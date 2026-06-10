@@ -1,3 +1,8 @@
+---
+title: "Chrome Web Store Promo Asset Tools"
+date: 2026-06-09
+---
+
 # Chrome Web Store Promo Asset Tools
 
 Research on tools for producing Chrome Web Store promotional assets (icon 128×128, small

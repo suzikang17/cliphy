@@ -1,3 +1,8 @@
+---
+title: "YouTube Transcript Fetching — Design"
+date: 2026-02-17
+---
+
 # YouTube Transcript Fetching — Design
 
 ## Summary

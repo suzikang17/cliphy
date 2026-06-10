@@ -1,3 +1,8 @@
+---
+title: "Background Service Worker Design"
+date: 2026-02-21
+---
+
 # Background Service Worker Design
 
 ## Summary

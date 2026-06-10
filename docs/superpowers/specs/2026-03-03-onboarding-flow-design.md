@@ -1,3 +1,8 @@
+---
+title: "Onboarding Flow Design"
+date: 2026-03-03
+---
+
 # Onboarding Flow Design
 
 ## Goal

@@ -1,3 +1,8 @@
+---
+title: "Popup Dashboard & Summary Viewer Design"
+date: 2026-02-21
+---
+
 # Popup Dashboard & Summary Viewer Design
 
 ## Summary

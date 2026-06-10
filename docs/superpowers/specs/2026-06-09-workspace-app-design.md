@@ -1,3 +1,8 @@
+---
+title: "Workspace app — design (working name: 'Atlas', TBD)"
+date: 2026-06-09
+---
+
 # Workspace app — design (working name: "Atlas", TBD)
 
 **Date:** 2026-06-09

@@ -1,3 +1,8 @@
+---
+title: "Demo Recording Script"
+date: 2026-06-07
+---
+
 # Demo Recording Script
 
 ## Setup (before recording)

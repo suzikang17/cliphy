@@ -1,3 +1,8 @@
+---
+title: "`lore` — Git-native project knowledge base (design)"
+date: 2026-06-07
+---
+
 # `lore` — Git-native project knowledge base (design)
 
 **Date:** 2026-06-07

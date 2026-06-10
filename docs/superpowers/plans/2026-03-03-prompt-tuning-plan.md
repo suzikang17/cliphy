@@ -1,3 +1,8 @@
+---
+title: "Prompt Tuning System Implementation Plan"
+date: 2026-03-03
+---
+
 # Prompt Tuning System Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

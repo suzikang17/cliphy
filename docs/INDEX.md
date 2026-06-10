@@ -6,22 +6,22 @@ The map of where project context lives. Human-readable and agent-readable — ev
 
 ## Where things live
 
-| You want…                              | Look in                                                                                                                                                                                            |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Why a tech/tooling choice was made** | [`decisions/`](decisions/INDEX.md) — 35 ADRs, one per decision                                                                                                                                     |
-| **Day-by-day build history**           | [`devlog/`](devlog/INDEX.md) — 21 dated entries, Day 0 → Day 62                                                                                                                                    |
-| **Open work / ideas / roadmap**        | [`ROADMAP.md`](ROADMAP.md) — 39 open Task Board items                                                                                                                                              |
-| **Completed work (archive)**           | [`task-archive.md`](task-archive.md) — 66 finished tasks with notes                                                                                                                                |
-| **Services, infra & cost**             | [`providers.md`](providers.md) — Provider Tracker + Budget + env vars                                                                                                                              |
-| **Architecture & ops notes**           | [`architecture.md`](architecture.md) — Engineering Doc, Bizops, Workflow Automation                                                                                                                |
-| **Mobile app (Expo/RN)**               | [`mobile/`](mobile/INDEX.md) — architecture, feature set, gotchas, build/OTA deployment                                                                                                            |
-| **Marketing assets**                   | [`marketing/`](marketing/) — store listing, demo script                                                                                                                                            |
-| **Chrome Web Store submission**        | [`chrome-web-store-submission.md`](chrome-web-store-submission.md) — dashboard fields, permissions, privacy; [`chrome-store-promo-tools.md`](chrome-store-promo-tools.md) — asset-generation tools |
-| **Feature plans & specs**              | [`plans/`](plans/), [`superpowers/plans/`](superpowers/plans/), [`superpowers/specs/`](superpowers/specs/)                                                                                         |
+| You want…                              | Look in                                                                                                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Why a tech/tooling choice was made** | [`decisions/`](decisions/INDEX.md) — ADRs, one per decision                                                                                          |
+| **Day-by-day build history**           | [`devlog/`](devlog/INDEX.md) — dated entries, Day 0 onward                                                                                           |
+| **Open work / ideas / roadmap**        | [`ROADMAP.md`](ROADMAP.md) — open Task Board items                                                                                                   |
+| **Completed work (archive)**           | [`task-archive.md`](task-archive.md) — finished tasks with notes                                                                                     |
+| **Services, infra & cost**             | [`providers/`](providers/INDEX.md) — one record per provider (why/plan/cost); budget + env-var reference now in [`architecture.md`](architecture.md) |
+| **Architecture & ops notes**           | [`architecture.md`](architecture.md) — Engineering Doc, Bizops, Workflow Automation, services/budget/env reference                                   |
+| **Mobile app (Expo/RN)**               | [`mobile/`](mobile/INDEX.md) — architecture, feature set, gotchas, build/OTA deployment                                                              |
+| **Marketing assets**                   | [`marketing/`](marketing/INDEX.md) — store listing + submission + promo tools, demo script                                                           |
+| **Implementation plans**               | [`superpowers/plans/`](superpowers/plans/INDEX.md) — all plans (legacy `plans/` merged in)                                                           |
+| **Design specs**                       | [`superpowers/specs/`](superpowers/specs/INDEX.md) — all design docs                                                                                 |
 
 ## Conventions
 
-- **Decisions** and **devlog** are one-file-per-record (greppable, individually linkable). Everything else is a consolidated file.
+- Doc types are defined in [`.lore/types/`](.lore/types/) (lore schemas) — decisions, devlog, providers, plans, specs, marketing are one-file-per-record with generated INDEXes (`lore reindex <type>`); ROADMAP/task-archive/architecture stay consolidated.
 - Notes are migrated **verbatim** from Notion — no summarizing.
 - New entries are appended here going forward (see `CLAUDE.md` for the logging workflow). Do not write back to Notion.
 

@@ -1,3 +1,8 @@
+---
+title: "Landing Page + Static Pages Migration"
+date: 2026-03-07
+---
+
 # Landing Page + Static Pages Migration
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

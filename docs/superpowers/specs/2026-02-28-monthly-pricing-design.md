@@ -1,3 +1,8 @@
+---
+title: "Monthly Usage-Based Pricing Model"
+date: 2026-02-28
+---
+
 # Monthly Usage-Based Pricing Model
 
 ## Overview

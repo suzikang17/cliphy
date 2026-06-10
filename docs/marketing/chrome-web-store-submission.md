@@ -1,3 +1,8 @@
+---
+title: "Chrome Web Store Submission — Cliphy"
+date: 2026-03-01
+---
+
 # Chrome Web Store Submission — Cliphy
 
 Everything you need to fill out the Chrome Web Store developer dashboard.

@@ -1,3 +1,8 @@
+---
+title: "Error Tracking with Sentry"
+date: 2026-03-03
+---
+
 # Error Tracking with Sentry
 
 ## Goal

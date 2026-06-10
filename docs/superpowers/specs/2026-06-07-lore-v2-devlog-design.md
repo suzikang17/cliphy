@@ -1,3 +1,8 @@
+---
+title: "lore v2 — generalized doc types + devlog (design)"
+date: 2026-06-07
+---
+
 # lore v2 — generalized doc types + devlog (design)
 
 **Date:** 2026-06-07

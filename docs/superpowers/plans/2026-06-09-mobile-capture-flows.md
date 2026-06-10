@@ -1,3 +1,8 @@
+---
+title: "Mobile Capture Flows Implementation Plan"
+date: 2026-06-09
+---
+
 # Mobile Capture Flows Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -9,8 +14,9 @@
 **Tech Stack:** Hono, Supabase (Postgres + RLS), Vitest, React Native (Expo) + NativeWind, React (web), `@cliphy/shared` workspace package.
 
 **Conventions that matter here:**
+
 - Server imports use `.js` extensions (ESM).
-- Route files mount in `apps/server/src/app.ts` *without* the `/api` prefix (Vercel routing strips it); clients call `/api/...`.
+- Route files mount in `apps/server/src/app.ts` _without_ the `/api` prefix (Vercel routing strips it); clients call `/api/...`.
 - Tests: Vitest, route tests mock supabase with the `mockChain` proxy pattern (see `apps/server/src/routes/__tests__/subscriptions.test.ts:7-94`).
 - Run tests with `pnpm test:unit` (repo root) or `pnpm vitest run <file>` inside `apps/server`.
 - Migrations are plain SQL files in `apps/server/supabase/migrations/`, applied to prod via Supabase MCP `apply_migration`.
@@ -21,10 +27,11 @@
 ### Task 1: Shared types — `liked` subscription type
 
 **Files:**
+
 - Modify: `packages/shared/src/types.ts:159` (`SubscriptionType`)
 - Modify: `packages/shared/src/constants.ts:50-54` (`SUBSCRIPTION_TYPES`)
 
-- [ ] **Step 1: Add the type**
+- [x] **Step 1: Add the type**
 
 ```ts
 // types.ts
@@ -41,39 +48,41 @@ export const SUBSCRIPTION_TYPES = {
 } as const;
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `pnpm --filter @cliphy/shared build` (or `pnpm -r exec tsc --noEmit` if no build script). Expected: clean.
 
-- [ ] **Step 3: Commit** — `add liked subscription type to shared types`
+- [x] **Step 3: Commit** — `add liked subscription type to shared types`
 
 ---
 
 ### Task 2: Migration 016 — `liked` enum value
 
 **Files:**
+
 - Create: `apps/server/supabase/migrations/016_liked_subscriptions.sql`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- Liked-videos auto-subscription: poll videos.list?myRating=like with user OAuth token
 alter type public.subscription_type add value if not exists 'liked';
 ```
 
-- [ ] **Step 2: Apply to prod** via Supabase MCP `apply_migration` (project `umwtegoeewjmxxlihgtm`, name `liked_subscriptions`). Verify: `select unnest(enum_range(null::public.subscription_type));` includes `liked`.
+- [x] **Step 2: Apply to prod** via Supabase MCP `apply_migration` (project `umwtegoeewjmxxlihgtm`, name `liked_subscriptions`). Verify: `select unnest(enum_range(null::public.subscription_type));` includes `liked`.
 
-- [ ] **Step 3: Commit** — `add liked value to subscription_type enum`
+- [x] **Step 3: Commit** — `add liked value to subscription_type enum`
 
 ---
 
 ### Task 3: `fetchLikedVideos` in the YouTube service
 
 **Files:**
+
 - Modify: `apps/server/src/services/youtube.ts` (append)
 - Test: `apps/server/src/services/__tests__/youtube.test.ts` (append)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe("fetchLikedVideos", () => {
@@ -118,9 +127,9 @@ describe("fetchLikedVideos", () => {
 
 (Import `fetchLikedVideos` alongside the existing imports; follow the existing fetch-mock setup in that file.)
 
-- [ ] **Step 2: Run, verify FAIL** — `pnpm vitest run src/services/__tests__/youtube.test.ts` in `apps/server`. Expected: `fetchLikedVideos is not a function`.
+- [x] **Step 2: Run, verify FAIL** — `pnpm vitest run src/services/__tests__/youtube.test.ts` in `apps/server`. Expected: `fetchLikedVideos is not a function`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 /** Fetch the authenticated user's most recently liked videos (max 50). */
@@ -149,72 +158,74 @@ export async function fetchLikedVideos(accessToken: string): Promise<YouTubeVide
 }
 ```
 
-- [ ] **Step 4: Run, verify PASS.**
+- [x] **Step 4: Run, verify PASS.**
 
-- [ ] **Step 5: Commit** — `add fetchLikedVideos to youtube service`
+- [x] **Step 5: Commit** — `add fetchLikedVideos to youtube service`
 
 ---
 
 ### Task 4: Polling service — `liked` support + OAuth token for playlists
 
 **Files:**
+
 - Modify: `apps/server/src/services/subscriptions.ts:73-90` (token + fetch branches)
 
-- [ ] **Step 1: Replace the token/fetch section of `pollAndQueueSubscription`**
+- [x] **Step 1: Replace the token/fetch section of `pollAndQueueSubscription`**
 
 Replace lines 73–98 (the `accessToken` block and the `try/catch` fetch block) with:
 
 ```ts
-  // liked and watch_later require a Google token; playlists use one when
-  // available so private playlists work (falls back to the public API key)
-  const needsToken = type === "watch_later" || type === "liked";
-  let accessToken: string | null = null;
-  if (needsToken || type === "playlist") {
-    accessToken = await refreshGoogleTokenIfNeeded(userId);
-    if (needsToken && !accessToken) {
-      await supabase.from("subscriptions").update({ is_active: false }).eq("id", subscriptionId);
-      log.warn("Deactivated subscription — token refresh failed", { subscriptionId, type });
-      return;
-    }
+// liked and watch_later require a Google token; playlists use one when
+// available so private playlists work (falls back to the public API key)
+const needsToken = type === "watch_later" || type === "liked";
+let accessToken: string | null = null;
+if (needsToken || type === "playlist") {
+  accessToken = await refreshGoogleTokenIfNeeded(userId);
+  if (needsToken && !accessToken) {
+    await supabase.from("subscriptions").update({ is_active: false }).eq("id", subscriptionId);
+    log.warn("Deactivated subscription — token refresh failed", { subscriptionId, type });
+    return;
   }
+}
 
-  let videos;
-  try {
-    if (type === "channel") {
-      videos = await fetchChannelVideos(sub.source_id as string);
-    } else if (type === "liked") {
-      videos = await fetchLikedVideos(accessToken as string);
-    } else {
-      const playlistId = type === "watch_later" ? "WL" : (sub.source_id as string);
-      videos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
-    }
-  } catch (err) {
-    log.error(
-      "Failed to fetch videos from YouTube",
-      err instanceof Error ? err : new Error(String(err)),
-      { subscriptionId },
-    );
-    throw err;
+let videos;
+try {
+  if (type === "channel") {
+    videos = await fetchChannelVideos(sub.source_id as string);
+  } else if (type === "liked") {
+    videos = await fetchLikedVideos(accessToken as string);
+  } else {
+    const playlistId = type === "watch_later" ? "WL" : (sub.source_id as string);
+    videos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
   }
+} catch (err) {
+  log.error(
+    "Failed to fetch videos from YouTube",
+    err instanceof Error ? err : new Error(String(err)),
+    { subscriptionId },
+  );
+  throw err;
+}
 ```
 
 Update the import at the top: `import { fetchChannelVideos, fetchLikedVideos, fetchPlaylistVideos } from "./youtube.js";`
 
-- [ ] **Step 2: Update poll tests if they assert on fetch behavior** — check `apps/server/src/functions/__tests__/poll-subscriptions.test.ts` and `services` tests for mocks of `./youtube.js`; add `fetchLikedVideos: vi.fn().mockResolvedValue([])` to those mock factories so module mocks stay complete.
+- [x] **Step 2: Update poll tests if they assert on fetch behavior** — check `apps/server/src/functions/__tests__/poll-subscriptions.test.ts` and `services` tests for mocks of `./youtube.js`; add `fetchLikedVideos: vi.fn().mockResolvedValue([])` to those mock factories so module mocks stay complete.
 
-- [ ] **Step 3: Run** `pnpm vitest run` in `apps/server`. Expected: all pass.
+- [x] **Step 3: Run** `pnpm vitest run` in `apps/server`. Expected: all pass.
 
-- [ ] **Step 4: Commit** — `poll liked-videos subscriptions; use OAuth token for playlist polls`
+- [x] **Step 4: Commit** — `poll liked-videos subscriptions; use OAuth token for playlist polls`
 
 ---
 
 ### Task 5: POST /subscriptions — accept `liked`
 
 **Files:**
+
 - Modify: `apps/server/src/routes/subscriptions.ts:40-136`
 - Test: `apps/server/src/routes/__tests__/subscriptions.test.ts` (append)
 
-- [ ] **Step 1: Write the failing tests** (append; the existing file mocks `refreshGoogleTokenIfNeeded` to return `"mock-token"` and exposes `supabaseMock`)
+- [x] **Step 1: Write the failing tests** (append; the existing file mocks `refreshGoogleTokenIfNeeded` to return `"mock-token"` and exposes `supabaseMock`)
 
 ```ts
 describe("POST /subscriptions type=liked", () => {
@@ -273,20 +284,20 @@ Also add `fetchLikedVideos: vi.fn().mockResolvedValue([])` to this file's `vi.mo
 
 Note on the mockChain: `single()`/`maybeSingle()` resolve to the same shared result. The "creates" test relies on the duplicate-check `maybeSingle()` returning `{ data: {...} }` — that would trip the 409 path. To keep the chain simple, the duplicate check in the route must run **before** type-specific Google checks only for URL types; for `liked`/`watch_later` order the queries as in Step 2 and make the dup-check tolerate the shared mock by asserting on `source_id`. If the shared-result ambiguity makes the test flaky, mock `maybeSingle` separately: `(supabaseMock.maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: null });` before the request. Pick whichever matches the existing tests' style for the 409 case in this file.
 
-- [ ] **Step 2: Run, verify FAIL** (400: `type must be channel, playlist, or watch_later`).
+- [x] **Step 2: Run, verify FAIL** (400: `type must be channel, playlist, or watch_later`).
 
-- [ ] **Step 3: Implement.** In `routes/subscriptions.ts` POST handler:
+- [x] **Step 3: Implement.** In `routes/subscriptions.ts` POST handler:
 
 ```ts
-  const validTypes = ["channel", "playlist", "watch_later", "liked"];
-  if (!body.type || !validTypes.includes(body.type)) {
-    return c.json({ error: "type must be channel, playlist, watch_later, or liked" }, 400);
-  }
+const validTypes = ["channel", "playlist", "watch_later", "liked"];
+if (!body.type || !validTypes.includes(body.type)) {
+  return c.json({ error: "type must be channel, playlist, watch_later, or liked" }, 400);
+}
 
-  const isGoogleType = body.type === "watch_later" || body.type === "liked";
-  if (!isGoogleType && !body.sourceUrl) {
-    return c.json({ error: "sourceUrl is required for channel and playlist subscriptions" }, 400);
-  }
+const isGoogleType = body.type === "watch_later" || body.type === "liked";
+if (!isGoogleType && !body.sourceUrl) {
+  return c.json({ error: "sourceUrl is required for channel and playlist subscriptions" }, 400);
+}
 ```
 
 Replace the `// Watch Later requires a connected Google account` block's condition with `if (isGoogleType) { ... }` (body unchanged).
@@ -294,19 +305,19 @@ Replace the `// Watch Later requires a connected Google account` block's conditi
 Replace the `// Resolve URL to source metadata` block with:
 
 ```ts
-  // Resolve URL to source metadata
-  let resolved: ResolvedSource;
-  if (body.type === "liked") {
-    resolved = { type: "liked", sourceId: "LIKED", sourceName: "Liked Videos", sourceUrl: null };
-  } else {
-    try {
-      const urlToResolve =
-        body.type === "watch_later" ? "https://www.youtube.com/playlist?list=WL" : body.sourceUrl!;
-      resolved = await parseSourceUrl(urlToResolve, accessToken ?? undefined);
-    } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : "Invalid URL" }, 400);
-    }
+// Resolve URL to source metadata
+let resolved: ResolvedSource;
+if (body.type === "liked") {
+  resolved = { type: "liked", sourceId: "LIKED", sourceName: "Liked Videos", sourceUrl: null };
+} else {
+  try {
+    const urlToResolve =
+      body.type === "watch_later" ? "https://www.youtube.com/playlist?list=WL" : body.sourceUrl!;
+    resolved = await parseSourceUrl(urlToResolve, accessToken ?? undefined);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Invalid URL" }, 400);
   }
+}
 ```
 
 Widen `ResolvedSource` in `services/youtube.ts:11` to `type: "channel" | "playlist" | "watch_later" | "liked";` and import the type in the route file. Duplicate-check fallback becomes `resolved.sourceId ?? "WL"` (unchanged — liked always has `sourceId: "LIKED"`).
@@ -314,97 +325,101 @@ Widen `ResolvedSource` in `services/youtube.ts:11` to `type: "channel" | "playli
 In the snapshot block, add the liked branch:
 
 ```ts
-    let initialVideos;
-    if (resolved.type === "channel") {
-      initialVideos = await fetchChannelVideos(resolved.sourceId!);
-    } else if (resolved.type === "liked") {
-      initialVideos = await fetchLikedVideos(accessToken!);
-    } else {
-      const playlistId = resolved.type === "watch_later" ? "WL" : resolved.sourceId!;
-      initialVideos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
-    }
+let initialVideos;
+if (resolved.type === "channel") {
+  initialVideos = await fetchChannelVideos(resolved.sourceId!);
+} else if (resolved.type === "liked") {
+  initialVideos = await fetchLikedVideos(accessToken!);
+} else {
+  const playlistId = resolved.type === "watch_later" ? "WL" : resolved.sourceId!;
+  initialVideos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
+}
 ```
 
 Import `fetchLikedVideos` in the route file.
 
-- [ ] **Step 4: Run, verify PASS** (whole server suite).
+- [x] **Step 4: Run, verify PASS** (whole server suite).
 
-- [ ] **Step 5: Commit** — `accept liked subscriptions in POST /subscriptions`
+- [x] **Step 5: Commit** — `accept liked subscriptions in POST /subscriptions`
 
 ---
 
 ### Task 6: Google disconnect deactivates `liked` too
 
 **Files:**
+
 - Modify: `apps/server/src/routes/auth-google.ts:130-134`
 - Test: `apps/server/src/routes/__tests__/auth-google.test.ts` (only if it asserts the deactivation filter)
 
-- [ ] **Step 1: Change the deactivation query**
+- [x] **Step 1: Change the deactivation query**
 
 ```ts
-  await supabase
-    .from("subscriptions")
-    .update({ is_active: false })
-    .eq("user_id", userId)
-    .in("type", ["watch_later", "liked"]);
+await supabase
+  .from("subscriptions")
+  .update({ is_active: false })
+  .eq("user_id", userId)
+  .in("type", ["watch_later", "liked"]);
 ```
 
-- [ ] **Step 2: Run server tests; fix any assertion on `.eq("type", "watch_later")`.**
+- [x] **Step 2: Run server tests; fix any assertion on `.eq("type", "watch_later")`.**
 
-- [ ] **Step 3: Commit** — `deactivate liked subscriptions on google disconnect`
+- [x] **Step 3: Commit** — `deactivate liked subscriptions on google disconnect`
 
 ---
 
 ### Task 7: Mobile UI — Liked Videos enable + labels
 
 **Files:**
+
 - Modify: `apps/mobile/app/(tabs)/subscriptions.tsx`
 
-- [ ] **Step 1: Labels and badges.** Add to `TYPE_LABELS` (line 49) `liked: "Liked Videos"`; in `SubscriptionRow`, add to `typeBadgeColors` `liked: "bg-pink-100 dark:bg-pink-900/30"` and to `typeBadgeText` `liked: "text-pink-700 dark:text-pink-300"`.
+- [x] **Step 1: Labels and badges.** Add to `TYPE_LABELS` (line 49) `liked: "Liked Videos"`; in `SubscriptionRow`, add to `typeBadgeColors` `liked: "bg-pink-100 dark:bg-pink-900/30"` and to `typeBadgeText` `liked: "text-pink-700 dark:text-pink-300"`.
 
-- [ ] **Step 2: Enable button.** In `SubscriptionsScreen`, alongside `hasWatchLater` add `const hasLiked = subscriptions.some((s) => s.type === "liked");` and a handler mirroring `handleAddWatchLater`:
+- [x] **Step 2: Enable button.** In `SubscriptionsScreen`, alongside `hasWatchLater` add `const hasLiked = subscriptions.some((s) => s.type === "liked");` and a handler mirroring `handleAddWatchLater`:
 
 ```tsx
-  async function handleAddLiked() {
-    setAddLoading(true);
-    try {
-      const res = await createSubscription({ type: "liked" });
-      setSubscriptions((prev) => [...prev, res.subscription]);
-    } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to add Liked Videos");
-    } finally {
-      setAddLoading(false);
-    }
+async function handleAddLiked() {
+  setAddLoading(true);
+  try {
+    const res = await createSubscription({ type: "liked" });
+    setSubscriptions((prev) => [...prev, res.subscription]);
+  } catch (err) {
+    Alert.alert("Error", err instanceof Error ? err.message : "Failed to add Liked Videos");
+  } finally {
+    setAddLoading(false);
   }
+}
 ```
 
 Rename the "Watch Later" card heading to "Google Account" with subtitle "Connect Google to auto-queue videos you like (and Watch Later)." In the `googleConnected` branch, add an "Auto-queue Liked Videos" `Pressable` (same styles as the Enable button) shown when `!hasLiked && isPro`, calling `handleAddLiked`. Update `handleDisconnectGoogle`'s filter to `prev.filter((s) => s.type !== "watch_later" && s.type !== "liked")` and its Alert copy to "This will also remove your Liked Videos and Watch Later subscriptions."
 
-- [ ] **Step 3: Verify** — `pnpm lint` and a TypeScript check pass; eyeball in Expo if a dev build is running.
+- [x] **Step 3: Verify** — `pnpm lint` and a TypeScript check pass; eyeball in Expo if a dev build is running.
 
-- [ ] **Step 4: Commit** — `mobile: liked-videos subscription UI`
+- [x] **Step 4: Commit** — `mobile: liked-videos subscription UI`
 
 ---
 
 ### Task 8: Web UI — Liked Videos enable + labels
 
 **Files:**
+
 - Modify: `apps/web/src/pages/Subscriptions.tsx`
 
-- [ ] **Step 1: Mirror Task 7 on web:** add `liked: "Liked Videos"` to the `TYPE_LABELS` map (line ~31) and a badge color entry to the badge map (line ~39, use pink classes consistent with that file's pattern); add `hasLiked`, `handleAddLiked` (mirrors `handleAddWatchLater` at line ~114 using `api.createSubscription({ type: "liked" })`), an enable button in the Google-connected section, and include `liked` in the disconnect filter (line ~159).
+- [x] **Step 1: Mirror Task 7 on web:** add `liked: "Liked Videos"` to the `TYPE_LABELS` map (line ~31) and a badge color entry to the badge map (line ~39, use pink classes consistent with that file's pattern); add `hasLiked`, `handleAddLiked` (mirrors `handleAddWatchLater` at line ~114 using `api.createSubscription({ type: "liked" })`), an enable button in the Google-connected section, and include `liked` in the disconnect filter (line ~159).
 
-- [ ] **Step 2: Verify** — `pnpm lint` + `pnpm build:web` pass.
+- [x] **Step 2: Verify** — `pnpm lint` + `pnpm build:web` pass.
 
-- [ ] **Step 3: Commit** — `web: liked-videos subscription UI`
+- [x] **Step 3: Commit** — `web: liked-videos subscription UI`
 
 ---
 
 ### Task 9: Migration 017 — `api_keys` table
 
 **Files:**
+
 - Create: `apps/server/supabase/migrations/017_api_keys.sql`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- Personal API keys (for the "Add to Cliphy" Apple Shortcut and other clients)
@@ -428,20 +443,21 @@ create policy "api_keys_select_own"
   using ((select auth.uid()) = user_id);
 ```
 
-- [ ] **Step 2: Apply to prod** via Supabase MCP `apply_migration` (name `api_keys`). Verify with `select * from api_keys limit 1;`.
+- [x] **Step 2: Apply to prod** via Supabase MCP `apply_migration` (name `api_keys`). Verify with `select * from api_keys limit 1;`.
 
-- [ ] **Step 3: Commit** — `add api_keys table`
+- [x] **Step 3: Commit** — `add api_keys table`
 
 ---
 
 ### Task 10: API-key auth in `authMiddleware`
 
 **Files:**
+
 - Modify: `apps/server/src/middleware/auth.ts`
 - Modify: `apps/server/src/env.ts` (add `authMethod` to context vars)
 - Test: Create `apps/server/src/middleware/__tests__/auth.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -513,9 +529,9 @@ describe("authMiddleware api keys", () => {
 
 (The middleware must look up by `key_hash` = sha256 of the presented token — assert via `HASH` if you want a stricter test.)
 
-- [ ] **Step 2: Run, verify FAIL.**
+- [x] **Step 2: Run, verify FAIL.**
 
-- [ ] **Step 3: Implement.** `env.ts`: add `authMethod: "jwt" | "api_key";` to the context `Variables`. `auth.ts`:
+- [x] **Step 3: Implement.** `env.ts`: add `authMethod: "jwt" | "api_key";` to the context `Variables`. `auth.ts`:
 
 ```ts
 import { createHash } from "crypto";
@@ -578,21 +594,22 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 ```
 
-- [ ] **Step 4: Run, verify PASS** (full server suite — existing route tests mock this middleware, so they're unaffected; if any set only `userId`/`userEmail`, they don't read `authMethod` and still pass).
+- [x] **Step 4: Run, verify PASS** (full server suite — existing route tests mock this middleware, so they're unaffected; if any set only `userId`/`userEmail`, they don't read `authMethod` and still pass).
 
-- [ ] **Step 5: Commit** — `support personal api keys in auth middleware`
+- [x] **Step 5: Commit** — `support personal api keys in auth middleware`
 
 ---
 
 ### Task 11: API-key routes
 
 **Files:**
+
 - Create: `apps/server/src/routes/api-keys.ts`
 - Modify: `apps/server/src/app.ts` (import + `app.route("/keys", apiKeyRoutes);`)
 - Modify: `packages/shared/src/types.ts` (ApiKey types), `packages/shared/src/constants.ts` (`API_ROUTES.KEYS`, `MAX_API_KEYS_PER_USER`)
 - Test: Create `apps/server/src/routes/__tests__/api-keys.test.ts`
 
-- [ ] **Step 1: Shared types**
+- [x] **Step 1: Shared types**
 
 ```ts
 // types.ts
@@ -622,7 +639,7 @@ export const MAX_API_KEYS_PER_USER = 5;
   },
 ```
 
-- [ ] **Step 2: Write the failing tests** (same mockChain pattern as `subscriptions.test.ts`; mock `authMiddleware` to set `userId`, `userEmail`, **and** `authMethod: "jwt"`)
+- [x] **Step 2: Write the failing tests** (same mockChain pattern as `subscriptions.test.ts`; mock `authMiddleware` to set `userId`, `userEmail`, **and** `authMethod: "jwt"`)
 
 ```ts
 describe("POST /keys", () => {
@@ -683,9 +700,9 @@ describe("DELETE /keys/:id", () => {
 
 For `buildAppWithApiKeyAuth`, mock the middleware module with a settable variable: `let mockAuthMethod = "jwt";` and in the mock set `c.set("authMethod", mockAuthMethod)`; flip it in the test and restore in `beforeEach`.
 
-- [ ] **Step 3: Run, verify FAIL.**
+- [x] **Step 3: Run, verify FAIL.**
 
-- [ ] **Step 4: Implement `routes/api-keys.ts`**
+- [x] **Step 4: Implement `routes/api-keys.ts`**
 
 ```ts
 import { Hono } from "hono";
@@ -791,26 +808,27 @@ apiKeyRoutes.delete("/:id", async (c) => {
 
 Mount in `app.ts` after the other routes: `app.route("/keys", apiKeyRoutes);` with `import { apiKeyRoutes } from "./routes/api-keys.js";`.
 
-- [ ] **Step 5: Run, verify PASS.**
+- [x] **Step 5: Run, verify PASS.**
 
-- [ ] **Step 6: Commit** — `add personal api key routes`
+- [x] **Step 6: Commit** — `add personal api key routes`
 
 ---
 
 ### Task 12: Shortcut recipe doc + shared install-link constant
 
 **Files:**
+
 - Create: `docs/shortcuts.md`
 - Modify: `packages/shared/src/constants.ts`
 
-- [ ] **Step 1: Constant** (empty until the shortcut is published; clients hide the install button when empty)
+- [x] **Step 1: Constant** (empty until the shortcut is published; clients hide the install button when empty)
 
 ```ts
 /** iCloud install link for the "Add to Cliphy" Apple Shortcut. Empty until published. */
 export const SHORTCUT_INSTALL_URL = "";
 ```
 
-- [ ] **Step 2: Write `docs/shortcuts.md`** — the exact recipe to build once in the Shortcuts app:
+- [x] **Step 2: Write `docs/shortcuts.md`** — the exact recipe to build once in the Shortcuts app:
 
 ```markdown
 # "Add to Cliphy" Apple Shortcut
@@ -842,17 +860,18 @@ back-tap, or Siri. Works by POSTing to the public API with a personal API key.
 - Action Button: Settings → Action Button → Shortcut → "Add to Cliphy".
 ```
 
-- [ ] **Step 3: Commit** — `add apple shortcut recipe doc and install-link constant`
+- [x] **Step 3: Commit** — `add apple shortcut recipe doc and install-link constant`
 
 ---
 
 ### Task 13: Mobile — Shortcut setup card + API client
 
 **Files:**
+
 - Modify: `apps/mobile/lib/api.ts` (key endpoints)
 - Modify: `apps/mobile/app/(tabs)/subscriptions.tsx` (Shortcut card)
 
-- [ ] **Step 1: API client** (append next to the other endpoint helpers)
+- [x] **Step 1: API client** (append next to the other endpoint helpers)
 
 ```ts
 // API keys (for the Apple Shortcut)
@@ -870,146 +889,147 @@ export const deleteApiKey = (id: string) =>
 
 Import `ApiKey, ApiKeyCreateResponse` from `@cliphy/shared`.
 
-- [ ] **Step 2: Shortcut card.** Add a card at the bottom of the subscriptions screen (below the list), styled like the existing cards (border-2, `brutalShadowSm()`), with state `const [shortcutKey, setShortcutKey] = useState<string | null>(null);`:
+- [x] **Step 2: Shortcut card.** Add a card at the bottom of the subscriptions screen (below the list), styled like the existing cards (border-2, `brutalShadowSm()`), with state `const [shortcutKey, setShortcutKey] = useState<string | null>(null);`:
 
 ```tsx
-        {/* Apple Shortcut */}
-        <View
-          className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mt-6"
-          style={brutalShadowSm()}
+{
+  /* Apple Shortcut */
+}
+<View
+  className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mt-6"
+  style={brutalShadowSm()}
+>
+  <Text
+    className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+    style={{ fontFamily: "DMSans" }}
+  >
+    Add from anywhere (Apple Shortcut)
+  </Text>
+  <Text
+    className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
+    style={{ fontFamily: "DMSans" }}
+  >
+    Queue videos from the share sheet, Action Button, or Siri — without opening Cliphy. Generate a
+    key, then install the shortcut.
+  </Text>
+
+  {shortcutKey ? (
+    <View>
+      <Text
+        className="text-xs font-bold text-[#111827] dark:text-white mb-1"
+        style={{ fontFamily: "DMSans" }}
+      >
+        Your key (copied — shown only once):
+      </Text>
+      <Text
+        selectable
+        className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
+        style={{ fontFamily: "Menlo" }}
+      >
+        {shortcutKey}
+      </Text>
+      {SHORTCUT_INSTALL_URL ? (
+        <Pressable
+          onPress={() => WebBrowser.openBrowserAsync(SHORTCUT_INSTALL_URL)}
+          className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+          style={({ pressed }) =>
+            pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
+          }
+          accessibilityRole="button"
         >
           <Text
-            className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+            className="font-bold text-sm text-[#111827] dark:text-white"
             style={{ fontFamily: "DMSans" }}
           >
-            Add from anywhere (Apple Shortcut)
+            Install the Shortcut
           </Text>
-          <Text
-            className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
-            style={{ fontFamily: "DMSans" }}
-          >
-            Queue videos from the share sheet, Action Button, or Siri — without
-            opening Cliphy. Generate a key, then install the shortcut.
-          </Text>
-
-          {shortcutKey ? (
-            <View>
-              <Text
-                className="text-xs font-bold text-[#111827] dark:text-white mb-1"
-                style={{ fontFamily: "DMSans" }}
-              >
-                Your key (copied — shown only once):
-              </Text>
-              <Text
-                selectable
-                className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
-                style={{ fontFamily: "Menlo" }}
-              >
-                {shortcutKey}
-              </Text>
-              {SHORTCUT_INSTALL_URL ? (
-                <Pressable
-                  onPress={() => WebBrowser.openBrowserAsync(SHORTCUT_INSTALL_URL)}
-                  className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
-                  style={({ pressed }) =>
-                    pressed
-                      ? { transform: [{ translateX: 2 }, { translateY: 2 }] }
-                      : brutalShadowSm()
-                  }
-                  accessibilityRole="button"
-                >
-                  <Text
-                    className="font-bold text-sm text-[#111827] dark:text-white"
-                    style={{ fontFamily: "DMSans" }}
-                  >
-                    Install the Shortcut
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : (
-            <Pressable
-              onPress={handleCreateShortcutKey}
-              disabled={!isPro && false /* available on all plans */}
-              className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
-              style={({ pressed }) =>
-                pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
-              }
-              accessibilityRole="button"
-            >
-              <Text
-                className="font-bold text-sm text-[#111827] dark:text-white"
-                style={{ fontFamily: "DMSans" }}
-              >
-                Generate Shortcut key
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        </Pressable>
+      ) : null}
+    </View>
+  ) : (
+    <Pressable
+      onPress={handleCreateShortcutKey}
+      disabled={!isPro && false /* available on all plans */}
+      className="items-center py-3 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+      style={({ pressed }) =>
+        pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
+      }
+      accessibilityRole="button"
+    >
+      <Text
+        className="font-bold text-sm text-[#111827] dark:text-white"
+        style={{ fontFamily: "DMSans" }}
+      >
+        Generate Shortcut key
+      </Text>
+    </Pressable>
+  )}
+</View>;
 ```
 
 Handler + clipboard copy (uses `expo-clipboard`, already a dependency for the clipboard banner — verify; if the helper in `lib/clipboard.ts` uses it, import `* as Clipboard from "expo-clipboard"`):
 
 ```tsx
-  async function handleCreateShortcutKey() {
-    try {
-      const res = await createApiKey("Shortcut");
-      setShortcutKey(res.key);
-      await Clipboard.setStringAsync(res.key);
-    } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to create key");
-    }
+async function handleCreateShortcutKey() {
+  try {
+    const res = await createApiKey("Shortcut");
+    setShortcutKey(res.key);
+    await Clipboard.setStringAsync(res.key);
+  } catch (err) {
+    Alert.alert("Error", err instanceof Error ? err.message : "Failed to create key");
   }
+}
 ```
 
 Import `SHORTCUT_INSTALL_URL` from `@cliphy/shared` and `createApiKey` from `../../lib/api`. Queueing is not Pro-gated, so the button is enabled regardless of plan (remove the dead `disabled` expression above — keep `disabled={false}` out entirely).
 
-- [ ] **Step 3: Verify** — lint + tsc pass.
+- [x] **Step 3: Verify** — lint + tsc pass.
 
-- [ ] **Step 4: Commit** — `mobile: shortcut key setup card`
+- [x] **Step 4: Commit** — `mobile: shortcut key setup card`
 
 ---
 
 ### Task 14: Mobile — "Queue from inside YouTube" capture card + clipboard onboarding copy
 
 **Files:**
+
 - Modify: `apps/mobile/app/(tabs)/subscriptions.tsx` (capture card)
 - Modify: `apps/mobile/app/(tabs)/index.tsx` (empty-state copy)
 
-- [ ] **Step 1: Capture card.** Above the "Add Channel or Playlist" input card, add an instructional card shown when the user has no `playlist` subscription (`const hasPlaylist = subscriptions.some((s) => s.type === "playlist");`):
+- [x] **Step 1: Capture card.** Above the "Add Channel or Playlist" input card, add an instructional card shown when the user has no `playlist` subscription (`const hasPlaylist = subscriptions.some((s) => s.type === "playlist");`):
 
 ```tsx
-        {/* Save-to-playlist capture flow */}
-        {!hasPlaylist && (
-          <View
-            className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-4"
-            style={brutalShadowSm()}
-          >
-            <Text
-              className="text-sm font-bold text-[#111827] dark:text-white mb-1"
-              style={{ fontFamily: "DMSans" }}
-            >
-              Queue from inside YouTube
-            </Text>
-            <Text
-              className="text-xs text-[#6b7280] dark:text-[#9ca3af]"
-              style={{ fontFamily: "DMSans" }}
-            >
-              1. In YouTube, create a playlist called "Cliphy" (private is fine
-              if you connect Google below){"\n"}
-              2. Paste its link in the box below — one time{"\n"}
-              3. From then on: Save → Cliphy on any video. It lands in your
-              queue within ~15 minutes.
-            </Text>
-          </View>
-        )}
+{
+  /* Save-to-playlist capture flow */
+}
+{
+  !hasPlaylist && (
+    <View
+      className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-4"
+      style={brutalShadowSm()}
+    >
+      <Text
+        className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+        style={{ fontFamily: "DMSans" }}
+      >
+        Queue from inside YouTube
+      </Text>
+      <Text className="text-xs text-[#6b7280] dark:text-[#9ca3af]" style={{ fontFamily: "DMSans" }}>
+        1. In YouTube, create a playlist called "Cliphy" (private is fine if you connect Google
+        below){"\n"}
+        2. Paste its link in the box below — one time{"\n"}
+        3. From then on: Save → Cliphy on any video. It lands in your queue within ~15 minutes.
+      </Text>
+    </View>
+  );
+}
 ```
 
-- [ ] **Step 2: Clipboard onboarding copy.** In `apps/mobile/app/(tabs)/index.tsx`, find the queue empty-state text and extend it to teach the clipboard path, e.g. subtitle becomes: `Copy any YouTube link and open Cliphy — we'll offer to queue it. Or paste it here with Add to Queue.` (Match the empty state's existing tone/structure; keep the "Add to Queue" button label untouched — see commit 480c7cd.)
+- [x] **Step 2: Clipboard onboarding copy.** In `apps/mobile/app/(tabs)/index.tsx`, find the queue empty-state text and extend it to teach the clipboard path, e.g. subtitle becomes: `Copy any YouTube link and open Cliphy — we'll offer to queue it. Or paste it here with Add to Queue.` (Match the empty state's existing tone/structure; keep the "Add to Queue" button label untouched — see commit 480c7cd.)
 
-- [ ] **Step 3: Verify** — lint + tsc; eyeball in Expo if running.
+- [x] **Step 3: Verify** — lint + tsc; eyeball in Expo if running.
 
-- [ ] **Step 4: Commit** — `mobile: save-to-playlist capture card + clipboard onboarding copy`
+- [x] **Step 4: Commit** — `mobile: save-to-playlist capture card + clipboard onboarding copy`
 
 ---
 

@@ -1,3 +1,8 @@
+---
+title: "Summary Eval Pipeline Design"
+date: 2026-02-18
+---
+
 # Summary Eval Pipeline Design
 
 **Date:** 2026-02-18 (Day 3)

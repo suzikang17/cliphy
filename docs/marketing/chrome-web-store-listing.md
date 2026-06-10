@@ -1,3 +1,8 @@
+---
+title: "Chrome Web Store Listing Draft"
+date: 2026-06-07
+---
+
 # Chrome Web Store Listing Draft
 
 ## Extension Name

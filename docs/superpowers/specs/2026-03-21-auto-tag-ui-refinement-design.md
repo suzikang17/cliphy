@@ -1,3 +1,8 @@
+---
+title: "Auto-Tag UI Refinement Design"
+date: 2026-03-21
+---
+
 # Auto-Tag UI Refinement Design
 
 **Date:** 2026-03-21

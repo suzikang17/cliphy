@@ -1,3 +1,8 @@
+---
+title: "Async Processing Architecture Design"
+date: 2026-02-21
+---
+
 # Async Processing Architecture Design
 
 ## Summary

@@ -1,3 +1,8 @@
+---
+title: "Summaries Page Design Pass"
+date: 2026-03-03
+---
+
 # Summaries Page Design Pass
 
 ## Goal

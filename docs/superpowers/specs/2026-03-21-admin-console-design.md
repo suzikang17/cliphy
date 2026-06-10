@@ -1,3 +1,8 @@
+---
+title: "Admin Console Design"
+date: 2026-03-21
+---
+
 # Admin Console Design
 
 **Date:** 2026-03-21

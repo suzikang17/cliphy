@@ -1,3 +1,8 @@
+---
+title: "Multi-Language Summaries"
+date: 2026-04-18
+---
+
 # Multi-Language Summaries
 
 Support video summaries in the user's preferred language, regardless of the video's original language.

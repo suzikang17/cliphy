@@ -1,3 +1,8 @@
+---
+title: "Notion → Repo Markdown Migration"
+date: 2026-06-07
+---
+
 # Notion → Repo Markdown Migration
 
 **Date:** 2026-06-07

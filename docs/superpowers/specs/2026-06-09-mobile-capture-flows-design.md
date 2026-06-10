@@ -1,3 +1,8 @@
+---
+title: "Mobile Capture Flows Design"
+date: 2026-06-09
+---
+
 # Mobile Capture Flows Design
 
 **Date:** 2026-06-09
@@ -25,7 +30,7 @@ New subscription type `liked`. Polling calls `GET https://www.googleapis.com/you
 - Migration `016_liked_subscriptions.sql`: `ALTER TYPE public.subscription_type ADD VALUE 'liked';`
 - `services/youtube.ts`: add `fetchLikedVideos(accessToken)` returning `YouTubeVideoPreview[]` (note: `publishedAt` is the video's publish date, not the like date — irrelevant, dedup is by seen-video snapshot)
 - `services/subscriptions.ts` (`pollAndQueueSubscription`): `liked` requires a Google token, same deactivate-on-refresh-failure handling as `watch_later`
-- `routes/subscriptions.ts` (POST): accept `type: "liked"` with no `sourceUrl`; requires connected Google account (same 403 `google_not_connected` flow); insert with `source_id: "LIKED"`, `source_name: "Liked Videos"`; snapshot current likes on create so only *future* likes get queued
+- `routes/subscriptions.ts` (POST): accept `type: "liked"` with no `sourceUrl`; requires connected Google account (same 403 `google_not_connected` flow); insert with `source_id: "LIKED"`, `source_name: "Liked Videos"`; snapshot current likes on create so only _future_ likes get queued
 - `routes/auth-google.ts` (DELETE): deactivate `liked` subscriptions too, not just `watch_later`
 
 **Shared:** add `"liked"` to `SubscriptionType` and `SUBSCRIPTION_TYPES`.
@@ -40,7 +45,7 @@ Google deprecated API access to the `WL` playlist in September 2016 — `playlis
 
 ## 3. "Save to Cliphy playlist" capture flow
 
-Lowest-friction capture: the user never leaves YouTube. One-time setup: create a playlist named "Cliphy" (unlisted) in YouTube, paste its link into Cliphy once. From then on, *Save → Cliphy* (2 taps in the YouTube app) queues the video within one poll cycle (15 min).
+Lowest-friction capture: the user never leaves YouTube. One-time setup: create a playlist named "Cliphy" (unlisted) in YouTube, paste its link into Cliphy once. From then on, _Save → Cliphy_ (2 taps in the YouTube app) queues the video within one poll cycle (15 min).
 
 This is pure UX on top of existing playlist polling:
 

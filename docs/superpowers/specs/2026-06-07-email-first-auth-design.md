@@ -1,3 +1,8 @@
+---
+title: "Email-First Auth Flow (Mobile)"
+date: 2026-06-07
+---
+
 # Email-First Auth Flow (Mobile)
 
 **Date:** 2026-06-07

@@ -1,3 +1,8 @@
+---
+title: "Batch Tabs — Queue All Open YouTube Tabs"
+date: 2026-03-17
+---
+
 # Batch Tabs — Queue All Open YouTube Tabs
 
 **Date:** 2026-03-17

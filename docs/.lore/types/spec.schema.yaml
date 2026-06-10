@@ -1,0 +1,24 @@
+name: spec
+dir: superpowers/specs
+heading: Specs
+id:
+  strategy: dated
+  pad: 4
+  dateField: date
+body: free
+frontmatter:
+  - name: date
+    type: date
+    required: false
+  - name: title
+    type: string
+    required: false
+sections: []
+index:
+  - header: Date
+    source: date
+    link: false
+    format: date
+  - header: Title
+    source: title
+    link: true

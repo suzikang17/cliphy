@@ -1,3 +1,8 @@
+---
+title: "Background Service Worker Implementation Plan"
+date: 2026-02-21
+---
+
 # Background Service Worker Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

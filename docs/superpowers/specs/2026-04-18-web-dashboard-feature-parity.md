@@ -1,3 +1,8 @@
+---
+title: "Web Dashboard Feature Parity"
+date: 2026-04-18
+---
+
 # Web Dashboard Feature Parity
 
 **Goal:** Port all features from the extension's Cliphub page (`apps/extension/entrypoints/summaries/App.tsx`) into the web app dashboard and summary page. Rename "Your Summaries" to "Your Cliphub". Move two shared UI components to `packages/shared`.

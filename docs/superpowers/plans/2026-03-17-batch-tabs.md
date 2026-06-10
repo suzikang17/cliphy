@@ -1,3 +1,8 @@
+---
+title: "Batch Tabs Implementation Plan"
+date: 2026-03-17
+---
+
 # Batch Tabs Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

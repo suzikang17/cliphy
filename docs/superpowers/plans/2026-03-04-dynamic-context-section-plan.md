@@ -1,3 +1,8 @@
+---
+title: "Dynamic Context Section Implementation Plan"
+date: 2026-03-04
+---
+
 # Dynamic Context Section Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

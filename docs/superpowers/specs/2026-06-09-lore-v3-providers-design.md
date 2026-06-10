@@ -1,3 +1,8 @@
+---
+title: "lore v3 — providers doc type + slug strategy (design)"
+date: 2026-06-09
+---
+
 # lore v3 — providers doc type + slug strategy (design)
 
 **Date:** 2026-06-09

@@ -1,0 +1,24 @@
+name: marketing
+dir: marketing
+heading: Marketing
+id:
+  strategy: slug
+  pad: 4
+  dateField: date
+body: free
+frontmatter:
+  - name: title
+    type: string
+    required: false
+  - name: date
+    type: date
+    required: false
+sections: []
+index:
+  - header: Title
+    source: title
+    link: true
+  - header: Date
+    source: date
+    link: false
+    format: date

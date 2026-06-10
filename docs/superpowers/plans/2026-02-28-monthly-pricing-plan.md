@@ -1,3 +1,8 @@
+---
+title: "Monthly Pricing Model Implementation Plan"
+date: 2026-02-28
+---
+
 # Monthly Pricing Model Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

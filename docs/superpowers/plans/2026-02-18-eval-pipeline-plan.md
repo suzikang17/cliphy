@@ -1,3 +1,8 @@
+---
+title: "Summary Eval Pipeline Implementation Plan"
+date: 2026-02-18
+---
+
 # Summary Eval Pipeline Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

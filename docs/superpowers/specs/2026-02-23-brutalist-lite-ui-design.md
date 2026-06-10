@@ -1,3 +1,8 @@
+---
+title: "Brutalist-Lite Popup UI Redesign"
+date: 2026-02-23
+---
+
 # Brutalist-Lite Popup UI Redesign
 
 ## Goal

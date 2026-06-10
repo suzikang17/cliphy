@@ -1,0 +1,50 @@
+name: provider
+dir: providers
+heading: Providers
+id:
+  strategy: slug
+  pad: 4
+  dateField: date
+body: sections
+frontmatter:
+  - name: title
+    type: string
+    required: true
+  - name: category
+    type: string
+    required: false
+  - name: status
+    type: string
+    required: false
+  - name: plan
+    type: string
+    required: false
+  - name: monthly_cost
+    type: number
+    required: false
+  - name: date_evaluated
+    type: date
+    required: false
+sections:
+  - Why
+  - Cost notes
+index:
+  - header: Title
+    source: title
+    link: true
+  - header: Category
+    source: category
+    link: false
+  - header: Status
+    source: status
+    link: false
+  - header: Plan
+    source: plan
+    link: false
+  - header: Monthly Cost
+    source: monthly_cost
+    link: false
+  - header: Date Evaluated
+    source: date_evaluated
+    link: false
+    format: date
