@@ -26,39 +26,41 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString(
 const demoSummary: Summary = {
   id: "demo-1",
   userId: "demo",
-  // Real video IDs so i.ytimg.com serves real thumbnails (blurred via promo.css)
-  videoId: "LXb3EKWsInQ",
-  videoTitle: "The Science of Learning Faster",
-  videoChannel: "Beyond Curious",
-  videoDurationSeconds: 1284,
+  // Real video IDs so i.ytimg.com serves real thumbnails (blurred via promo.css).
+  // Picked for blurred vibe: lecture halls, chalkboards, talks.
+  videoId: "kYfNvmF0Bqw",
+  videoTitle: "Machine Learning — Lecture 1: Supervised Learning",
+  videoChannel: "Open Course Library",
+  videoDurationSeconds: 4530,
   status: "completed",
-  tags: ["learning", "productivity"],
+  tags: ["lectures", "ml"],
   createdAt: hoursAgo(2),
   updatedAt: hoursAgo(2),
   summaryJson: {
     summary:
-      "Most study advice optimizes for feeling productive, not for retention. This video walks through what cognitive science actually says: spaced repetition beats cramming, testing yourself beats re-reading, and interleaving topics beats blocked practice — then shows how to combine all three into a 30-minute daily system.",
+      "First lecture of the series: what machine learning actually is, and why supervised learning dominates real applications. Covers the difference between regression and classification, how a model 'learns' from labeled examples, and the train/test split that keeps you honest. Ends with course logistics and what's expected for problem set 1.",
     keyPoints: [
-      "Re-reading creates an illusion of mastery — recognition isn't recall",
-      "Spacing reviews 1, 3, and 7 days out doubles long-term retention",
-      "Self-testing is the single highest-leverage study technique",
-      "Interleaving related topics feels harder but transfers better",
+      "Supervised learning = learning a mapping from labeled examples",
+      "Regression predicts continuous values; classification predicts categories",
+      "Never evaluate on data the model trained on — that's the whole point of the test set",
+      "Most production ML is still supervised learning on tabular data",
     ],
     contextSection: {
       title: "Action Items",
       icon: "→",
       items: [
-        "Replace tonight's re-read with a 10-question self-quiz",
-        "Set up spaced reviews: tomorrow, Thursday, next Monday",
-        "Mix two related topics in each study block",
+        "Review the linear regression notes before Thursday",
+        "Start problem set 1 — due in two weeks",
+        "Skim chapter 2 of the course reader",
       ],
     },
     timestamps: [
-      "0:00 — Why cramming fails",
-      "3:12 — Spaced repetition, explained",
-      "8:45 — The testing effect",
-      "14:30 — Building a 30-minute system",
-      "19:02 — Mistakes to avoid",
+      "0:00 — Course logistics and grading",
+      "9:30 — What is machine learning?",
+      "21:15 — Supervised vs unsupervised learning",
+      "38:40 — Regression and classification, with examples",
+      "58:05 — Train/test splits and overfitting",
+      "1:09:20 — Problem set 1 walkthrough",
     ],
   },
 };
@@ -68,10 +70,10 @@ const queueSummaries: Summary[] = [
   {
     id: "demo-2",
     userId: "demo",
-    videoId: "M7lc1UVf-VE",
-    videoTitle: "Inside the M4 Chip — Explained in 14 Minutes",
-    videoChannel: "Silicon Decoded",
-    videoDurationSeconds: 845,
+    videoId: "UF8uR6Z6KLc",
+    videoTitle: "Reading Financial Statements in 20 Minutes",
+    videoChannel: "MBA Essentials",
+    videoDurationSeconds: 1245,
     status: "processing",
     tags: [],
     createdAt: hoursAgo(0.05),
@@ -80,27 +82,27 @@ const queueSummaries: Summary[] = [
   {
     id: "demo-3",
     userId: "demo",
-    videoId: "jNQXAC9IVRw",
-    videoTitle: "10 Python Tricks I Wish I Knew Earlier",
-    videoChannel: "DevSimplified",
-    videoDurationSeconds: 598,
+    videoId: "arj7oStGLkU",
+    videoTitle: "Negotiation Fundamentals: 7 Tactics That Actually Work",
+    videoChannel: "The Leadership Lab",
+    videoDurationSeconds: 1130,
     status: "completed",
-    tags: ["coding"],
+    tags: ["business"],
     createdAt: hoursAgo(26),
     updatedAt: hoursAgo(26),
     summaryJson: {
-      summary: "Ten practical Python idioms.",
-      keyPoints: ["Use enumerate", "Prefer pathlib"],
+      summary: "Seven research-backed negotiation tactics.",
+      keyPoints: ["Anchor first", "Trade, don't concede"],
       timestamps: ["0:00 — Intro"],
     },
   },
   {
     id: "demo-4",
     userId: "demo",
-    videoId: "9bZkp7q19f0",
-    videoTitle: "The History of the Internet in 12 Minutes",
-    videoChannel: "Timeline",
-    videoDurationSeconds: 731,
+    videoId: "ZK3O402wf1c",
+    videoTitle: "Linear Algebra — Exam Review: Eigenvalues & Eigenvectors",
+    videoChannel: "Campus Lectures",
+    videoDurationSeconds: 2940,
     status: "pending",
     tags: [],
     createdAt: hoursAgo(0.01),
@@ -109,11 +111,11 @@ const queueSummaries: Summary[] = [
 ];
 
 const demoVideo: VideoInfo = {
-  videoId: "aqz-KE-bpKQ",
-  title: "Why Top Athletes Train Less Than You Think",
+  videoId: "PHe0bXAIuk0",
+  title: "How to Build a Financial Model from Scratch",
   url: "https://www.youtube.com/watch?v=demo",
-  channel: "Peak Performance Lab",
-  duration: "16:42",
+  channel: "Finance Lab",
+  duration: "31:08",
   isLive: false,
 };
 
@@ -122,7 +124,7 @@ const demoUsage: UsageInfo = {
   limit: 100,
   plan: "pro",
   resetAt: new Date(Date.now() + 14 * 86400_000).toISOString(),
-  totalTimeSavedSeconds: 19_260,
+  totalTimeSavedSeconds: 45_600,
   bonusCredits: 0,
 };
 
@@ -255,7 +257,7 @@ function Shot1() {
           <div className="overflow-hidden">
             <SummaryDetail
               summary={demoSummary}
-              allTags={["learning", "productivity", "coding"]}
+              allTags={["lectures", "ml", "business"]}
               onSeek={noop}
             />
           </div>
