@@ -9,7 +9,6 @@ import {
   upgradeUser,
   cancelSubscription,
   resetMonthlyCount,
-  setMonthlyCount,
   grantCredits,
   setMonthlyBonus,
 } from "../../services/admin.js";
@@ -295,13 +294,6 @@ adminUserRoutes.post("/:id/reset-count", (c) =>
   runAction(c, () => resetMonthlyCount(c.req.param("id")), "Monthly count reset."),
 );
 
-adminUserRoutes.post("/:id/set-count", async (c) => {
-  const userId = c.req.param("id");
-  const body = await c.req.parseBody();
-  const count = Number(body["count"]);
-  return runAction(c, () => setMonthlyCount(userId, count), `Monthly count set to ${count}.`);
-});
-
 adminUserRoutes.post("/:id/grant-credits", async (c) => {
   const userId = c.req.param("id");
   const body = await c.req.parseBody();
@@ -486,12 +478,6 @@ function userCards(user: UserDetail, totalSummaries: number, success?: string, e
             >
               Reset
             </button>
-            <form class="field-actions" hx-post={`/api/admin/users/${userId}/set-count`} {...swap}>
-              <input type="number" name="count" min="0" step="1" required placeholder="#" />
-              <button class="btn btn-secondary btn-sm" type="submit">
-                Set
-              </button>
-            </form>
           </span>
         </div>
         <div class="detail-row">
