@@ -123,6 +123,19 @@ export function Subscriptions() {
     }
   }
 
+  async function handleAddLiked() {
+    setAddLoading(true);
+    setAddError(null);
+    try {
+      const res = await api.createSubscription({ type: "liked" });
+      setSubscriptions((prev) => [...prev, res.subscription]);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to add Liked Videos subscription");
+    } finally {
+      setAddLoading(false);
+    }
+  }
+
   async function handleToggle(id: string, newActive: boolean) {
     setSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, isActive: newActive } : s)));
     try {
@@ -159,7 +172,7 @@ export function Subscriptions() {
     try {
       await api.disconnectGoogle();
       setGoogleConnected(false);
-      setSubscriptions((prev) => prev.filter((s) => s.type !== "watch_later"));
+      setSubscriptions((prev) => prev.filter((s) => s.type !== "watch_later" && s.type !== "liked"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to disconnect Google");
     } finally {
@@ -179,6 +192,7 @@ export function Subscriptions() {
   }
 
   const hasWatchLater = subscriptions.some((s) => s.type === "watch_later");
+  const hasLiked = subscriptions.some((s) => s.type === "liked");
 
   return (
     <div className="max-w-2xl mx-auto px-6 pb-16">
@@ -264,15 +278,15 @@ export function Subscriptions() {
         {addError && <p className="mt-2 text-xs font-semibold text-red-500">{addError}</p>}
       </div>
 
-      {/* Watch Later / Google section */}
+      {/* Google Account section */}
       <div className="mb-6 p-4 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm bg-(--color-surface)">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-sm font-bold m-0">Watch Later</h2>
+            <h2 className="text-sm font-bold m-0">Google Account</h2>
             <p className="text-xs text-(--color-text-muted) mt-0.5 mb-0">
               {googleConnected
                 ? "Google account connected"
-                : "Connect Google to auto-queue your Watch Later list"}
+                : "Connect Google to auto-queue your Watch Later list and Liked Videos"}
             </p>
           </div>
 
@@ -287,7 +301,16 @@ export function Subscriptions() {
                   disabled={addLoading}
                   className="text-xs font-bold px-3 py-1.5 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all disabled:opacity-40"
                 >
-                  Enable
+                  Enable Watch Later
+                </button>
+              )}
+              {!hasLiked && isPro && (
+                <button
+                  onClick={handleAddLiked}
+                  disabled={addLoading}
+                  className="text-xs font-bold px-3 py-1.5 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all disabled:opacity-40"
+                >
+                  Auto-queue Liked Videos
                 </button>
               )}
               <button
