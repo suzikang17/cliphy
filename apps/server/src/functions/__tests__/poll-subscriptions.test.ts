@@ -45,9 +45,11 @@ vi.mock("../../lib/supabase.js", () => ({
 // ── Mock subscriptions service ────────────────────────────────
 
 const mockPollAndQueue = vi.fn().mockResolvedValue(undefined);
+const mockDiscover = vi.fn().mockResolvedValue(0);
 
 vi.mock("../../services/subscriptions.js", () => ({
   pollAndQueueSubscription: (...args: unknown[]) => mockPollAndQueue(...args),
+  discoverCliphyPlaylists: (...args: unknown[]) => mockDiscover(...args),
 }));
 
 // Import after mocks are set up — this triggers createFunction calls
@@ -65,25 +67,36 @@ beforeEach(() => {
 describe("pollSubscriptionsCron", () => {
   const cronHandler = () => capturedHandlers["poll-subscriptions-cron"];
 
-  it("fans out one event per active subscription", async () => {
-    supabaseMock = mockChain({
-      data: [{ id: "sub-1" }, { id: "sub-2" }, { id: "sub-3" }],
-      error: null,
-    });
+  it("fans out one event per active subscription plus discovery per Google user", async () => {
+    supabaseMock = mockChain({ data: [], error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        mockChain({ data: [{ id: "sub-1" }, { id: "sub-2" }, { id: "sub-3" }], error: null }),
+      )
+      .mockReturnValueOnce(mockChain({ data: [{ user_id: "user-1" }], error: null }));
 
-    const result = (await cronHandler()({})) as { dispatched: number };
+    const result = (await cronHandler()({})) as {
+      dispatched: number;
+      discoveryDispatched: number;
+    };
 
     expect(result.dispatched).toBe(3);
-    expect(mockInngestSend).toHaveBeenCalledOnce();
-    const events = mockInngestSend.mock.calls[0][0] as unknown[];
-    expect(events).toHaveLength(3);
-    expect(events[0]).toMatchObject({
+    expect(result.discoveryDispatched).toBe(1);
+    expect(mockInngestSend).toHaveBeenCalledTimes(2);
+    const pollEvents = mockInngestSend.mock.calls[0][0] as unknown[];
+    expect(pollEvents).toHaveLength(3);
+    expect(pollEvents[0]).toMatchObject({
       name: "subscription/poll.requested",
       data: { subscriptionId: "sub-1" },
     });
+    const discoverEvents = mockInngestSend.mock.calls[1][0] as unknown[];
+    expect(discoverEvents[0]).toMatchObject({
+      name: "subscription/discover.requested",
+      data: { userId: "user-1" },
+    });
   });
 
-  it("returns dispatched: 0 when no active subscriptions", async () => {
+  it("returns dispatched: 0 when no active subscriptions and no Google users", async () => {
     supabaseMock = mockChain({ data: [], error: null });
 
     const result = (await cronHandler()({})) as { dispatched: number };
@@ -119,5 +132,22 @@ describe("processSubscriptionPoll", () => {
     await expect(
       workerHandler()({ event: { data: { subscriptionId: "sub-fail" } } }),
     ).rejects.toThrow("YouTube API error");
+  });
+});
+
+// ── processPlaylistDiscovery ──────────────────────────────────
+
+describe("processPlaylistDiscovery", () => {
+  const discoveryHandler = () => capturedHandlers["process-playlist-discovery"];
+
+  it("runs discovery for the user and reports created count", async () => {
+    mockDiscover.mockResolvedValueOnce(2);
+
+    const result = (await discoveryHandler()({
+      event: { data: { userId: "user-7" } },
+    })) as { userId: string; created: number };
+
+    expect(mockDiscover).toHaveBeenCalledWith("user-7");
+    expect(result).toEqual({ userId: "user-7", created: 2 });
   });
 });

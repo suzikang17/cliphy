@@ -2,7 +2,7 @@ import type { EventPayload } from "inngest";
 import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
-import { pollAndQueueSubscription } from "../services/subscriptions.js";
+import { discoverCliphyPlaylists, pollAndQueueSubscription } from "../services/subscriptions.js";
 
 const log = logger.child({ fn: "poll-subscriptions" });
 
@@ -24,17 +24,46 @@ export const pollSubscriptionsCron = inngest.createFunction(
     }
 
     const rows = subs ?? [];
-    if (rows.length === 0) return { dispatched: 0 };
+    if (rows.length > 0) {
+      await inngest.send(
+        rows.map((sub) => ({
+          name: "subscription/poll.requested" as const,
+          data: { subscriptionId: sub.id as string },
+        })),
+      );
+    }
 
-    await inngest.send(
-      rows.map((sub) => ({
-        name: "subscription/poll.requested" as const,
-        data: { subscriptionId: sub.id as string },
-      })),
-    );
+    // Fan out playlist discovery for every user with a connected Google account
+    const { data: tokenRows } = await supabase.from("user_google_tokens").select("user_id");
+    const users = tokenRows ?? [];
+    if (users.length > 0) {
+      await inngest.send(
+        users.map((u) => ({
+          name: "subscription/discover.requested" as const,
+          data: { userId: u.user_id as string },
+        })),
+      );
+    }
 
-    log.info("Dispatched subscription poll events", { count: rows.length });
-    return { dispatched: rows.length };
+    log.info("Dispatched subscription poll events", {
+      count: rows.length,
+      discoveryCount: users.length,
+    });
+    return { dispatched: rows.length, discoveryDispatched: users.length };
+  },
+);
+
+// Worker: scans one user's playlists for "cliphy"-named ones and auto-subscribes
+export const processPlaylistDiscovery = inngest.createFunction(
+  {
+    id: "process-playlist-discovery",
+    retries: 1,
+    triggers: [{ event: "subscription/discover.requested" }],
+  },
+  async ({ event }: { event: EventPayload & { data: { userId: string } } }) => {
+    const { userId } = event.data;
+    const created = await discoverCliphyPlaylists(userId);
+    return { userId, created };
   },
 );
 

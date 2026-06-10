@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { randomUUID } from "crypto";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 
 const GOOGLE_SCOPES = "https://www.googleapis.com/auth/youtube.readonly";
@@ -104,6 +105,16 @@ authGoogleRoutes.get("/callback", async (c) => {
     expires_at: expiresAt,
     scopes: tokens.scope ?? GOOGLE_SCOPES,
   });
+
+  // Kick off playlist auto-discovery right away (also re-runs every poll cycle)
+  try {
+    await inngest.send({
+      name: "subscription/discover.requested",
+      data: { userId },
+    });
+  } catch {
+    // Non-fatal: the next cron cycle will discover anyway
+  }
 
   return c.redirect(`${webAppUrl}/subscriptions?google_connected=true`);
 });

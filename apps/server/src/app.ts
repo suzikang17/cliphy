@@ -9,7 +9,11 @@ import { inngest } from "./lib/inngest.js";
 import { logger } from "./lib/logger.js";
 import { Sentry } from "./lib/sentry.js";
 import { summarizeVideo } from "./functions/summarize-video.js";
-import { pollSubscriptionsCron, processSubscriptionPoll } from "./functions/poll-subscriptions.js";
+import {
+  pollSubscriptionsCron,
+  processPlaylistDiscovery,
+  processSubscriptionPoll,
+} from "./functions/poll-subscriptions.js";
 import { authRoutes } from "./routes/auth.js";
 import { authGoogleRoutes } from "./routes/auth-google.js";
 import { subscriptionRoutes } from "./routes/subscriptions.js";
@@ -69,7 +73,12 @@ app.on(
   "/inngest",
   serve({
     client: inngest,
-    functions: [summarizeVideo, pollSubscriptionsCron, processSubscriptionPoll],
+    functions: [
+      summarizeVideo,
+      pollSubscriptionsCron,
+      processSubscriptionPoll,
+      processPlaylistDiscovery,
+    ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",
   }),

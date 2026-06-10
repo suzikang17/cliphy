@@ -56,6 +56,10 @@ vi.mock("../../middleware/auth.js", () => ({
   }),
 }));
 
+vi.mock("../../lib/inngest.js", () => ({
+  inngest: { send: vi.fn().mockResolvedValue(undefined) },
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
