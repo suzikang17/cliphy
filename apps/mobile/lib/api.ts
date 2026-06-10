@@ -39,6 +39,13 @@ export class ProRequiredError extends Error {
   }
 }
 
+export class DuplicateError extends Error {
+  constructor(message = "Video already queued") {
+    super(message);
+    this.name = "DuplicateError";
+  }
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   let token = await getAccessToken();
 
@@ -82,6 +89,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (res.status === 402) {
     const body = await res.json();
     throw new ProRequiredError(body.feature);
+  }
+
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}));
+    if (body.code === "DUPLICATE") throw new DuplicateError(body.error);
   }
 
   if (!res.ok) {

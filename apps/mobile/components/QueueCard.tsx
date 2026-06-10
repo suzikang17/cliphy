@@ -1,4 +1,4 @@
-import { View, Text, Pressable, useColorScheme } from "react-native";
+import { View, Text, Pressable, Image, useColorScheme } from "react-native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import type { Summary } from "@cliphy/shared";
@@ -41,45 +41,60 @@ export function QueueCard({ item }: { item: Summary }) {
       accessibilityLabel={`${item.videoTitle || item.videoId}, ${status.label}`}
       accessibilityHint={item.status === "completed" ? "Opens summary" : STATUS_HINT[item.status]}
     >
-      <Text
-        className="text-base font-bold text-[#111827] dark:text-white"
-        style={{ fontFamily: "DMSans" }}
-        numberOfLines={2}
-      >
-        {item.videoTitle || `Video ${item.videoId}`}
-      </Text>
+      <View className="flex-row gap-3">
+        <Image
+          source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg` }}
+          resizeMode="cover"
+          className="w-28 h-16 rounded-md border-2 border-black dark:border-[#505050] bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+          accessibilityIgnoresInvertColors
+        />
 
-      {item.videoChannel && (
-        <Text
-          className="text-xs text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
-          style={{ fontFamily: "DMSans" }}
-        >
-          {item.videoChannel}
-        </Text>
-      )}
-
-      <View className="flex-row items-center justify-between mt-2">
-        <View className="flex-row items-center gap-1.5">
-          <View className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+        <View className="flex-1 min-w-0">
           <Text
-            className="text-xs font-medium"
-            style={{ fontFamily: "DMSans", color: statusColor }}
+            className="text-base font-bold text-[#111827] dark:text-white"
+            style={{ fontFamily: "DMSans" }}
+            numberOfLines={2}
           >
-            {status.label}
+            {item.videoTitle || `Video ${item.videoId}`}
           </Text>
-        </View>
 
-        {item.tags && item.tags.length > 0 && (
-          <View className="flex-row gap-1">
-            {item.tags.slice(0, 2).map((tag) => (
-              <View key={tag} className="bg-[#ede0f8] dark:bg-[#221028] px-2 py-0.5 rounded">
-                <Text className="text-[10px]" style={{ fontFamily: "DMSans", color: neon[600] }}>
-                  {tag}
-                </Text>
+          {item.videoChannel && (
+            <Text
+              className="text-xs text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
+              style={{ fontFamily: "DMSans" }}
+              numberOfLines={1}
+            >
+              {item.videoChannel}
+            </Text>
+          )}
+
+          <View className="flex-row items-center justify-between mt-2">
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor }} />
+              <Text
+                className="text-xs font-medium"
+                style={{ fontFamily: "DMSans", color: statusColor }}
+              >
+                {status.label}
+              </Text>
+            </View>
+
+            {item.tags && item.tags.length > 0 && (
+              <View className="flex-row gap-1">
+                {item.tags.slice(0, 2).map((tag) => (
+                  <View key={tag} className="bg-[#ede0f8] dark:bg-[#221028] px-2 py-0.5 rounded">
+                    <Text
+                      className="text-[10px]"
+                      style={{ fontFamily: "DMSans", color: neon[600] }}
+                    >
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
           </View>
-        )}
+        </View>
       </View>
     </Pressable>
   );

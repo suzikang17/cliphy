@@ -1,4 +1,5 @@
-import { View, Text, Pressable, Alert, SafeAreaView } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
 import { signOut } from "../../lib/auth";
@@ -29,7 +30,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
       <View className="flex-1 px-6 pt-6">
         <Text
           className="text-2xl font-bold text-[#111827] dark:text-white mb-6"

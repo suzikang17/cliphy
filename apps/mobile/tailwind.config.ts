@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
-import { colors, neon } from "@cliphy/shared";
+import { colors, neon } from "@cliphy/shared/tokens";
 
 export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],

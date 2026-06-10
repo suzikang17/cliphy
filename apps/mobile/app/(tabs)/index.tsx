@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  RefreshControl,
-  SafeAreaView,
-  AppState,
-  Alert,
-  Pressable,
-  Animated,
-} from "react-native";
+import { View, Text, FlatList, RefreshControl, AppState, Pressable, Animated } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { getQueue, getUsage, addToQueue } from "../../lib/api";
+import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
 import { QueueCard } from "../../components/QueueCard";
@@ -124,7 +116,7 @@ export default function QueueScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       fetchData();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to add");
+      showQueueError(err);
     }
   }
 
@@ -148,7 +140,7 @@ export default function QueueScreen() {
   }, [fetchData]);
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
       <View className="flex-row items-center px-4 py-3 border-b border-[#e5e7eb] dark:border-[#2a2a2a]">
         <Logo size={28} />
         <Text

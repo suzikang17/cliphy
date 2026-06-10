@@ -6,10 +6,10 @@ import {
   TextInput,
   Switch,
   Alert,
-  SafeAreaView,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
 import type { Subscription, SubscriptionType } from "@cliphy/shared";
@@ -186,7 +186,7 @@ export default function SubscriptionsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
+      <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={neon[600]} />
         </View>
@@ -197,7 +197,7 @@ export default function SubscriptionsScreen() {
   const hasWatchLater = subscriptions.some((s) => s.type === "watch_later");
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 24, paddingBottom: 48 }}

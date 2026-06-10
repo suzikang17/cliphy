@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, SafeAreaView, Linking } from "react-native";
+import { View, Text, ScrollView, Pressable, Linking, Image } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { Summary } from "@cliphy/shared";
@@ -23,7 +24,7 @@ export default function SummaryDetailScreen() {
   }, [id]);
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-[#1e1e1e]">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
       {/* Header */}
       <View className="flex-row items-center px-2 py-1 border-b border-[#e5e7eb] dark:border-[#2a2a2a]">
         <Pressable
@@ -58,39 +59,49 @@ export default function SummaryDetailScreen() {
         <ScrollView contentContainerClassName="px-4 py-4">
           {/* Video info header */}
           <View
-            className="border-2 border-black dark:border-[#505050] rounded-lg p-3 mb-5 bg-[#f9fafb] dark:bg-[#282828]"
+            className="border-2 border-black dark:border-[#505050] rounded-lg mb-5 bg-[#f9fafb] dark:bg-[#282828] overflow-hidden"
             style={brutalShadowSm()}
           >
-            <Text
-              className="text-base font-bold text-[#111827] dark:text-white"
-              style={{ fontFamily: "DMSans" }}
-            >
-              {summary.videoTitle}
-            </Text>
-            {summary.videoChannel && (
+            {summary.videoId && (
+              <Image
+                source={{ uri: `https://i.ytimg.com/vi/${summary.videoId}/mqdefault.jpg` }}
+                style={{ width: "100%", aspectRatio: 16 / 9 }}
+                resizeMode="cover"
+                accessibilityLabel="Video thumbnail"
+              />
+            )}
+            <View className="p-3">
               <Text
-                className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
+                className="text-base font-bold text-[#111827] dark:text-white"
                 style={{ fontFamily: "DMSans" }}
               >
-                {summary.videoChannel}
+                {summary.videoTitle}
               </Text>
-            )}
-            {summary.videoUrl && (
-              <Pressable
-                onPress={() => Linking.openURL(summary.videoUrl!)}
-                className="mt-2"
-                style={{ minHeight: 44, justifyContent: "center" }}
-                accessibilityRole="link"
-                accessibilityLabel="Watch on YouTube"
-              >
+              {summary.videoChannel && (
                 <Text
-                  className="text-sm font-bold"
-                  style={{ fontFamily: "DMSans", color: neon[600] }}
+                  className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
+                  style={{ fontFamily: "DMSans" }}
                 >
-                  Watch on YouTube →
+                  {summary.videoChannel}
                 </Text>
-              </Pressable>
-            )}
+              )}
+              {summary.videoUrl && (
+                <Pressable
+                  onPress={() => Linking.openURL(summary.videoUrl!)}
+                  className="mt-2"
+                  style={{ minHeight: 44, justifyContent: "center" }}
+                  accessibilityRole="link"
+                  accessibilityLabel="Watch on YouTube"
+                >
+                  <Text
+                    className="text-sm font-bold"
+                    style={{ fontFamily: "DMSans", color: neon[600] }}
+                  >
+                    Watch on YouTube →
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
 
           <SummaryContent summary={summary} />

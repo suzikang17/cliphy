@@ -8,6 +8,12 @@
     "userInterfaceStyle": "automatic",
     "scheme": "com.cliphy.app",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5af71f4e-b1ca-4cc7-b38d-791e6c965e49"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +21,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cliphy.app"
+      "bundleIdentifier": "com.cliphy.ios",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {

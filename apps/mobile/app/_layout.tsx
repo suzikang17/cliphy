@@ -1,6 +1,8 @@
+import "../polyfills";
 import "../global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, View, useColorScheme } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { colors } from "@cliphy/shared";
 import { useFonts } from "expo-font";
@@ -8,6 +10,7 @@ import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { addToQueue } from "../lib/api";
+import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
 
@@ -18,15 +21,25 @@ export default function RootLayout() {
   const segments = useSegments();
 
   const [fontsLoaded] = useFonts({
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    DMSans: require("../assets/fonts/DMSans-Variable.ttf"),
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    DMSans: require("../assets/fonts/DMSans-Regular.ttf"),
+    "DMSans-Medium": require("../assets/fonts/DMSans-Medium.ttf"),
+    "DMSans-Bold": require("../assets/fonts/DMSans-Bold.ttf"),
+    /* eslint-enable @typescript-eslint/no-require-imports */
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitialized(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+      })
+      .catch((err) => {
+        console.error("getSession failed:", err);
+      })
+      .finally(() => {
+        setInitialized(true);
+      });
 
     const {
       data: { subscription },
@@ -41,10 +54,15 @@ export default function RootLayout() {
     if (!initialized || !fontsLoaded) return;
 
     const inAuth = segments[0] === "(auth)";
+    const atRoot = (segments as string[]).length === 0;
+    // While on the password-reset screen, a recovery session exists but the user
+    // hasn't set their new password yet — don't bounce them into the app.
+    // reset.tsx navigates to (tabs) itself once the password is updated.
+    const onReset = (segments as string[])[1] === "reset";
 
     if (!session && !inAuth) {
       router.replace("/(auth)/login");
-    } else if (session && inAuth) {
+    } else if (session && (inAuth || atRoot) && !onReset) {
       router.replace("/(tabs)");
     }
   }, [session, initialized, fontsLoaded, segments, router]);
@@ -70,29 +88,40 @@ export default function RootLayout() {
   // Handle share intent (YouTube links shared from other apps)
   const { shareIntent, resetShareIntent } = useShareIntent();
 
-  useEffect(() => {
-    if (!shareIntent?.text || !session) return;
+  // Guards against the share-intent effect re-entering while an enqueue is
+  // in flight. expo-share-intent keeps `shareIntent` populated until reset, so
+  // any re-render in that window would otherwise queue the same video again.
+  const processingShareRef = useRef(false);
 
-    const urlMatch = shareIntent.text.match(
+  useEffect(() => {
+    if (!shareIntent?.text || !session || processingShareRef.current) return;
+
+    // Snapshot the text and clear the intent synchronously *before* the async
+    // enqueue, so a re-render can't re-fire this effect for the same share.
+    const sharedText = shareIntent.text;
+    resetShareIntent();
+
+    const urlMatch = sharedText.match(
       /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/,
     );
 
-    if (urlMatch) {
-      const videoUrl = `https://www.youtube.com/watch?v=${urlMatch[1]}`;
-      addToQueue({ videoUrl })
-        .then((res) => {
-          Alert.alert("Added to queue", res.summary.videoTitle || "Video queued for summary");
-        })
-        .catch((err: unknown) => {
-          Alert.alert("Error", err instanceof Error ? err.message : "Failed to add");
-        })
-        .finally(() => {
-          resetShareIntent();
-        });
-    } else {
+    if (!urlMatch) {
       Alert.alert("Not a YouTube URL", "Share a YouTube video link to add it to your queue.");
-      resetShareIntent();
+      return;
     }
+
+    processingShareRef.current = true;
+    const videoUrl = `https://www.youtube.com/watch?v=${urlMatch[1]}`;
+    addToQueue({ videoUrl })
+      .then((res) => {
+        Alert.alert("Added to queue", res.summary.videoTitle || "Video queued for summary");
+      })
+      .catch((err: unknown) => {
+        showQueueError(err);
+      })
+      .finally(() => {
+        processingShareRef.current = false;
+      });
   }, [shareIntent, session, resetShareIntent]);
 
   const colorScheme = useColorScheme();
@@ -101,8 +130,10 @@ export default function RootLayout() {
   if (!fontsLoaded || !initialized) return null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
-      <Slot />
-    </View>
+    <SafeAreaProvider>
+      <View style={{ flex: 1, backgroundColor: bg }}>
+        <Slot />
+      </View>
+    </SafeAreaProvider>
   );
 }
