@@ -79,6 +79,13 @@ vi.mock("../../services/subscriptions.js", () => ({
   snapshotSeenVideos: vi.fn().mockResolvedValue(undefined),
   refreshGoogleTokenIfNeeded: vi.fn().mockResolvedValue("mock-token"),
   pollAndQueueSubscription: vi.fn().mockResolvedValue(undefined),
+  discoverCliphyPlaylists: vi.fn().mockResolvedValue(0),
+}));
+
+const mockInngestSend = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("../../lib/inngest.js", () => ({
+  inngest: { send: (...args: unknown[]) => mockInngestSend(...args) },
 }));
 
 const { subscriptionRoutes } = await import("../subscriptions.js");
@@ -256,6 +263,65 @@ describe("POST /subscriptions", () => {
     };
     expect(body.subscription.type).toBe("liked");
     expect(body.subscription.sourceName).toBe("Liked Videos");
+  });
+
+  it("imports recent likes when importCount is set", async () => {
+    const likedRow = {
+      id: "sub-liked",
+      user_id: "user-123",
+      type: "liked",
+      source_id: "LIKED",
+      source_name: "Liked Videos",
+      source_url: null,
+      is_active: true,
+      last_checked_at: null,
+      skipped_count: 0,
+      last_skipped_at: null,
+      created_at: "2026-06-10T00:00:00Z",
+      updated_at: "2026-06-10T00:00:00Z",
+    };
+    // Sequence: count check → google token row → duplicate check → insert
+    supabaseMock = mockChain({ data: null, error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(mockChain({ data: null, error: null, count: 0 }))
+      .mockReturnValueOnce(mockChain({ data: { user_id: "user-123" }, error: null }))
+      .mockReturnValueOnce(mockChain({ data: null, error: null }))
+      .mockReturnValueOnce(mockChain({ data: likedRow, error: null }));
+
+    const res = await buildApp().request("/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "liked", importCount: 10 }),
+    });
+
+    expect(res.status).toBe(201);
+    // Immediate poll dispatched so the import happens right away
+    expect(mockInngestSend).toHaveBeenCalledWith({
+      name: "subscription/poll.requested",
+      data: { subscriptionId: "sub-liked" },
+    });
+  });
+
+  it("rejects importCount on non-liked subscriptions", async () => {
+    const res = await buildApp().request("/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "channel",
+        sourceUrl: "https://youtube.com/channel/UCtest",
+        importCount: 10,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects out-of-range importCount", async () => {
+    const res = await buildApp().request("/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "liked", importCount: 51 }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("rejects liked subscription without Google connection", async () => {

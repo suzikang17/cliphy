@@ -3,6 +3,7 @@ import { MAX_SUBSCRIPTIONS_PER_USER, PRO_FEATURES } from "@cliphy/shared";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePro } from "../middleware/require-pro.js";
+import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 import { toSubscription } from "../lib/mappers.js";
 import {
@@ -36,7 +37,7 @@ subscriptionRoutes.get("/", async (c) => {
 subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) => {
   const userId = c.get("userId");
 
-  let body: { type?: string; sourceUrl?: string };
+  let body: { type?: string; sourceUrl?: string; importCount?: number };
   try {
     body = await c.req.json();
   } catch {
@@ -51,6 +52,15 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
   const isGoogleType = body.type === "watch_later" || body.type === "liked";
   if (!isGoogleType && !body.sourceUrl) {
     return c.json({ error: "sourceUrl is required for channel and playlist subscriptions" }, 400);
+  }
+
+  if (body.importCount !== undefined) {
+    if (body.type !== "liked") {
+      return c.json({ error: "importCount is only valid for liked subscriptions" }, 400);
+    }
+    if (!Number.isInteger(body.importCount) || body.importCount < 0 || body.importCount > 50) {
+      return c.json({ error: "importCount must be an integer between 0 and 50" }, 400);
+    }
   }
 
   // Enforce per-user subscription limit
@@ -129,7 +139,10 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
     return c.json({ error: "Failed to create subscription" }, 500);
   }
 
-  // Snapshot existing videos so first poll only queues new ones
+  // Snapshot existing videos so first poll only queues new ones. For liked
+  // with importCount, the N most recent likes stay out of the snapshot so the
+  // immediate poll below queues them.
+  const importCount = resolved.type === "liked" ? (body.importCount ?? 0) : 0;
   try {
     let initialVideos;
     if (resolved.type === "channel") {
@@ -140,12 +153,24 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
       const playlistId = resolved.type === "watch_later" ? "WL" : resolved.sourceId!;
       initialVideos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
     }
+    const toSnapshot = importCount > 0 ? initialVideos.slice(importCount) : initialVideos;
     await snapshotSeenVideos(
       row.id as string,
-      initialVideos.map((v) => v.videoId),
+      toSnapshot.map((v) => v.videoId),
     );
   } catch {
     // Non-fatal: worst case a few old videos get queued on first poll
+  }
+
+  if (importCount > 0) {
+    try {
+      await inngest.send({
+        name: "subscription/poll.requested",
+        data: { subscriptionId: row.id as string },
+      });
+    } catch {
+      // Non-fatal: the next cron cycle polls anyway
+    }
   }
 
   return c.json({ subscription: toSubscription(row) }, 201);
