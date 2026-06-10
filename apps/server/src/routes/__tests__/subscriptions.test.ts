@@ -220,6 +220,61 @@ describe("POST /subscriptions", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("creates a liked subscription when Google is connected", async () => {
+    const likedRow = {
+      id: "sub-liked",
+      user_id: "user-123",
+      type: "liked",
+      source_id: "LIKED",
+      source_name: "Liked Videos",
+      source_url: null,
+      is_active: true,
+      last_checked_at: null,
+      skipped_count: 0,
+      last_skipped_at: null,
+      created_at: "2026-06-09T00:00:00Z",
+      updated_at: "2026-06-09T00:00:00Z",
+    };
+    // Sequence: count check → google token row → duplicate check → insert
+    supabaseMock = mockChain({ data: null, error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(mockChain({ data: null, error: null, count: 0 }))
+      .mockReturnValueOnce(mockChain({ data: { user_id: "user-123" }, error: null }))
+      .mockReturnValueOnce(mockChain({ data: null, error: null }))
+      .mockReturnValueOnce(mockChain({ data: likedRow, error: null }));
+
+    const res = await buildApp().request("/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "liked" }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      subscription: { type: string; sourceName: string };
+    };
+    expect(body.subscription.type).toBe("liked");
+    expect(body.subscription.sourceName).toBe("Liked Videos");
+  });
+
+  it("rejects liked subscription without Google connection", async () => {
+    // Sequence: count check → google token row (absent)
+    supabaseMock = mockChain({ data: null, error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(mockChain({ data: null, error: null, count: 0 }))
+      .mockReturnValueOnce(mockChain({ data: null, error: null }));
+
+    const res = await buildApp().request("/subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "liked" }),
+    });
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("google_not_connected");
+  });
 });
 
 // ── PATCH /:id ────────────────────────────────────────────────

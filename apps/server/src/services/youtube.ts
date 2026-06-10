@@ -8,7 +8,7 @@ export interface YouTubeVideoPreview {
 }
 
 export interface ResolvedSource {
-  type: "channel" | "playlist" | "watch_later";
+  type: "channel" | "playlist" | "watch_later" | "liked";
   sourceId: string | null;
   sourceName: string;
   sourceUrl: string | null;

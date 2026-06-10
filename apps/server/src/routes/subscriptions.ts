@@ -5,7 +5,13 @@ import { authMiddleware } from "../middleware/auth.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { supabase } from "../lib/supabase.js";
 import { toSubscription } from "../lib/mappers.js";
-import { fetchChannelVideos, fetchPlaylistVideos, parseSourceUrl } from "../services/youtube.js";
+import {
+  fetchChannelVideos,
+  fetchLikedVideos,
+  fetchPlaylistVideos,
+  parseSourceUrl,
+  type ResolvedSource,
+} from "../services/youtube.js";
 import { refreshGoogleTokenIfNeeded, snapshotSeenVideos } from "../services/subscriptions.js";
 
 export const subscriptionRoutes = new Hono<AppEnv>();
@@ -37,12 +43,13 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
-  const validTypes = ["channel", "playlist", "watch_later"];
+  const validTypes = ["channel", "playlist", "watch_later", "liked"];
   if (!body.type || !validTypes.includes(body.type)) {
-    return c.json({ error: "type must be channel, playlist, or watch_later" }, 400);
+    return c.json({ error: "type must be channel, playlist, watch_later, or liked" }, 400);
   }
 
-  if (body.type !== "watch_later" && !body.sourceUrl) {
+  const isGoogleType = body.type === "watch_later" || body.type === "liked";
+  if (!isGoogleType && !body.sourceUrl) {
     return c.json({ error: "sourceUrl is required for channel and playlist subscriptions" }, 400);
   }
 
@@ -56,9 +63,9 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
     return c.json({ error: `Maximum ${MAX_SUBSCRIPTIONS_PER_USER} subscriptions allowed` }, 422);
   }
 
-  // Watch Later requires a connected Google account
+  // Watch Later and Liked Videos require a connected Google account
   let accessToken: string | null = null;
-  if (body.type === "watch_later") {
+  if (isGoogleType) {
     const { data: tokenRow } = await supabase
       .from("user_google_tokens")
       .select("user_id")
@@ -77,13 +84,17 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
   }
 
   // Resolve URL to source metadata
-  let resolved;
-  try {
-    const urlToResolve =
-      body.type === "watch_later" ? "https://www.youtube.com/playlist?list=WL" : body.sourceUrl!;
-    resolved = await parseSourceUrl(urlToResolve, accessToken ?? undefined);
-  } catch (err) {
-    return c.json({ error: err instanceof Error ? err.message : "Invalid URL" }, 400);
+  let resolved: ResolvedSource;
+  if (body.type === "liked") {
+    resolved = { type: "liked", sourceId: "LIKED", sourceName: "Liked Videos", sourceUrl: null };
+  } else {
+    try {
+      const urlToResolve =
+        body.type === "watch_later" ? "https://www.youtube.com/playlist?list=WL" : body.sourceUrl!;
+      resolved = await parseSourceUrl(urlToResolve, accessToken ?? undefined);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "Invalid URL" }, 400);
+    }
   }
 
   // Check for duplicate subscription
@@ -123,6 +134,8 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
     let initialVideos;
     if (resolved.type === "channel") {
       initialVideos = await fetchChannelVideos(resolved.sourceId!);
+    } else if (resolved.type === "liked") {
+      initialVideos = await fetchLikedVideos(accessToken!);
     } else {
       const playlistId = resolved.type === "watch_later" ? "WL" : resolved.sourceId!;
       initialVideos = await fetchPlaylistVideos(playlistId, accessToken ?? undefined);
