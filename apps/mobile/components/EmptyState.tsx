@@ -15,20 +15,16 @@ export function EmptyState() {
         className="text-base text-[#6b7280] dark:text-[#9ca3af] text-center mt-2 leading-6"
         style={{ fontFamily: "DMSans" }}
       >
-        Open YouTube, tap{" "}
         <Text className="font-bold" style={{ color: neon[600] }}>
-          Share
-        </Text>
-        , then choose{" "}
-        <Text className="font-bold" style={{ color: neon[600] }}>
-          Cliphy
-        </Text>
+          Copy
+        </Text>{" "}
+        a YouTube link and open Cliphy — we'll offer to queue it
       </Text>
       <Text
         className="text-sm text-[#9ca3af] dark:text-[#6b7280] text-center mt-3"
         style={{ fontFamily: "DMSans" }}
       >
-        Or copy a YouTube link — we'll detect it automatically
+        Or share from YouTube: Share → Cliphy
       </Text>
     </View>
   );

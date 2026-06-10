@@ -118,6 +118,18 @@ export default function SubscriptionsScreen() {
     }
   }
 
+  async function handleAddLiked() {
+    setAddLoading(true);
+    try {
+      const res = await createSubscription({ type: "liked" });
+      setSubscriptions((prev) => [...prev, res.subscription]);
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to add Liked Videos");
+    } finally {
+      setAddLoading(false);
+    }
+  }
+
   async function handleToggle(id: string, newActive: boolean) {
     setSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, isActive: newActive } : s)));
     try {
@@ -167,22 +179,28 @@ export default function SubscriptionsScreen() {
   }
 
   async function handleDisconnectGoogle() {
-    Alert.alert("Disconnect Google", "This will also remove your Watch Later subscription.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Disconnect",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await disconnectGoogle();
-            setGoogleConnected(false);
-            setSubscriptions((prev) => prev.filter((s) => s.type !== "watch_later"));
-          } catch (err) {
-            Alert.alert("Error", err instanceof Error ? err.message : "Failed to disconnect");
-          }
+    Alert.alert(
+      "Disconnect Google",
+      "This will also remove your Liked Videos and Watch Later subscriptions.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await disconnectGoogle();
+              setGoogleConnected(false);
+              setSubscriptions(
+                (prev) => prev.filter((s) => s.type !== "watch_later" && s.type !== "liked"),
+              );
+            } catch (err) {
+              Alert.alert("Error", err instanceof Error ? err.message : "Failed to disconnect");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   if (loading) {
@@ -196,6 +214,8 @@ export default function SubscriptionsScreen() {
   }
 
   const hasWatchLater = subscriptions.some((s) => s.type === "watch_later");
+  const hasLiked = subscriptions.some((s) => s.type === "liked");
+  const hasPlaylist = subscriptions.some((s) => s.type === "playlist");
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
@@ -223,7 +243,7 @@ export default function SubscriptionsScreen() {
           className="text-sm text-[#6b7280] dark:text-[#9ca3af] mb-6"
           style={{ fontFamily: "DMSans" }}
         >
-          Auto-queue new videos from channels, playlists, and Watch Later.
+          Auto-queue new videos from channels, playlists, and your liked videos.
         </Text>
 
         {!isPro && (
@@ -242,6 +262,31 @@ export default function SubscriptionsScreen() {
               style={{ fontFamily: "DMSans" }}
             >
               Upgrade to Cliphy Pro to use auto-subscriptions.
+            </Text>
+          </View>
+        )}
+
+        {/* Save-to-playlist capture flow */}
+        {!hasPlaylist && (
+          <View
+            className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-4"
+            style={brutalShadowSm()}
+          >
+            <Text
+              className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+              style={{ fontFamily: "DMSans" }}
+            >
+              Queue from inside YouTube
+            </Text>
+            <Text
+              className="text-xs text-[#6b7280] dark:text-[#9ca3af]"
+              style={{ fontFamily: "DMSans" }}
+            >
+              1. In YouTube, create a playlist called "Cliphy" (private works if
+              you connect Google below){"\n"}
+              2. Paste its link in the box below — one time{"\n"}
+              3. From then on: Save → Cliphy on any video. It lands in your
+              queue within ~15 minutes.
             </Text>
           </View>
         )}
@@ -287,7 +332,7 @@ export default function SubscriptionsScreen() {
           </Pressable>
         </View>
 
-        {/* Watch Later / Google section */}
+        {/* Google account: Liked Videos + Watch Later */}
         <View
           className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-6"
           style={brutalShadowSm()}
@@ -296,7 +341,7 @@ export default function SubscriptionsScreen() {
             className="text-sm font-bold text-[#111827] dark:text-white mb-1"
             style={{ fontFamily: "DMSans" }}
           >
-            Watch Later
+            Google Account
           </Text>
           <Text
             className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
@@ -304,16 +349,16 @@ export default function SubscriptionsScreen() {
           >
             {googleConnected
               ? "Google account connected"
-              : "Connect Google to auto-queue your Watch Later list"}
+              : "Connect Google to auto-queue videos you like (and Watch Later)"}
           </Text>
 
           {googleConnected ? (
-            <View className="flex-row gap-2">
-              {!hasWatchLater && isPro && (
+            <View className="gap-2">
+              {!hasLiked && isPro && (
                 <Pressable
-                  onPress={handleAddWatchLater}
+                  onPress={handleAddLiked}
                   disabled={addLoading}
-                  className="flex-1 items-center py-2.5 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+                  className="items-center py-2.5 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
                   style={({ pressed }) =>
                     pressed
                       ? { transform: [{ translateX: 2 }, { translateY: 2 }] }
@@ -325,13 +370,33 @@ export default function SubscriptionsScreen() {
                     className="font-bold text-sm text-[#111827] dark:text-white"
                     style={{ fontFamily: "DMSans" }}
                   >
-                    Enable
+                    Auto-queue Liked Videos
+                  </Text>
+                </Pressable>
+              )}
+              {!hasWatchLater && isPro && (
+                <Pressable
+                  onPress={handleAddWatchLater}
+                  disabled={addLoading}
+                  className="items-center py-2.5 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
+                  style={({ pressed }) =>
+                    pressed
+                      ? { transform: [{ translateX: 2 }, { translateY: 2 }] }
+                      : brutalShadowSm()
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text
+                    className="font-bold text-sm text-[#111827] dark:text-white"
+                    style={{ fontFamily: "DMSans" }}
+                  >
+                    Auto-queue Watch Later
                   </Text>
                 </Pressable>
               )}
               <Pressable
                 onPress={handleDisconnectGoogle}
-                className="flex-1 items-center py-2.5 border-2 border-red-400 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-950/30"
+                className="items-center py-2.5 border-2 border-red-400 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-950/30"
                 style={({ pressed }) =>
                   pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
                 }
