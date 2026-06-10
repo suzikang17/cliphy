@@ -22,14 +22,14 @@ Everything you need to fill out the Chrome Web Store developer dashboard.
 
 **Detailed description:**
 
-> Cliphy saves you time by summarizing YouTube videos with AI. Click a YouTube video, hit "Summarize", and get a clean summary in seconds — no need to watch the whole thing.
+> Cliphy saves you time by summarizing YouTube videos with AI. On any YouTube video, click "Add to Cliphy" — or open the side panel and hit "Add to Queue" — and get a clean summary in seconds, no need to watch the whole thing.
 >
 > HOW IT WORKS
 >
 > 1. Navigate to any YouTube video
-> 2. Click the Cliphy icon to open the side panel
-> 3. Hit "Summarize" to add the video to your queue
-> 4. Get a summary with key points, action items, and clickable timestamps
+> 2. Click "Add to Cliphy" on the video (or right-click → "Add to Cliphy"), or open the side panel and click "Add to Queue"
+> 3. Cliphy queues the video and generates the summary in the background
+> 4. Read the summary — key points, action items, and clickable timestamps — in the side panel
 >
 > FEATURES
 >
