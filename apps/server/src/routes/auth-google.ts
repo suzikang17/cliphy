@@ -131,7 +131,7 @@ authGoogleRoutes.delete("/", authMiddleware, async (c) => {
     .from("subscriptions")
     .update({ is_active: false })
     .eq("user_id", userId)
-    .eq("type", "watch_later");
+    .in("type", ["watch_later", "liked"]);
 
   return c.json({ disconnected: true });
 });
