@@ -62,9 +62,9 @@ describe("QueueList — CurrentVideoItem", () => {
     expect(screen.getByText(/too long to summarize/i)).toBeTruthy();
   });
 
-  it("shows enabled 'Summarize Video' button for normal videos", () => {
+  it("shows enabled 'Add to Queue' button for normal videos", () => {
     render(<QueueList {...defaultProps} currentVideo={baseVideo} />);
-    const btn = screen.getByRole("button", { name: /summarize video/i });
+    const btn = screen.getByRole("button", { name: /add to queue/i });
     expect(btn).not.toBeDisabled();
   });
 

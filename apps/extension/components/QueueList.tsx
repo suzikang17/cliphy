@@ -86,7 +86,7 @@ export function QueueList({
         <p className="text-2xl mb-2">🎬</p>
         <p className="text-sm font-bold">No videos queued yet</p>
         <p className="text-xs text-(--color-text-faint) mt-1">
-          Visit a YouTube video and click &quot;Summarize Video&quot;
+          Visit a YouTube video and click &quot;Add to Queue&quot;
         </p>
       </div>
     );
