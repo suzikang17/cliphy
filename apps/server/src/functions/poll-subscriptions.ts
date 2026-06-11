@@ -6,13 +6,23 @@ import { discoverCliphyPlaylists, pollAndQueueSubscription } from "../services/s
 
 const log = logger.child({ fn: "poll-subscriptions" });
 
-// Cron: fires every 15 minutes, fans out one event per active subscription
+/** Users inactive longer than this poll daily instead of every cycle. */
+const ACTIVE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+// Cron: fires every 15 minutes, fans out one event per active subscription.
+// YouTube-quota backoff: subscriptions of users dormant >14 days poll only on
+// the daily (00:00 UTC) cycle; playlist discovery runs on hourly cycles only.
+// The app-open refresh endpoint covers returning users instantly either way.
 export const pollSubscriptionsCron = inngest.createFunction(
   { id: "poll-subscriptions-cron", triggers: [{ cron: "*/15 * * * *" }] },
   async () => {
+    const now = new Date();
+    const hourlyCycle = now.getUTCMinutes() < 15;
+    const dailyCycle = hourlyCycle && now.getUTCHours() === 0;
+
     const { data: subs, error } = await supabase
       .from("subscriptions")
-      .select("id")
+      .select("id, users!inner(last_active_at)")
       .eq("is_active", true);
 
     if (error) {
@@ -23,7 +33,13 @@ export const pollSubscriptionsCron = inngest.createFunction(
       throw error;
     }
 
-    const rows = subs ?? [];
+    const activeCutoff = now.getTime() - ACTIVE_WINDOW_MS;
+    const rows = (subs ?? []).filter((sub) => {
+      const lastActive = (sub.users as { last_active_at: string | null } | null)?.last_active_at;
+      // No signal yet (pre-migration users) → keep polling every cycle
+      if (!lastActive) return true;
+      return new Date(lastActive).getTime() >= activeCutoff || dailyCycle;
+    });
     if (rows.length > 0) {
       await inngest.send(
         rows.map((sub) => ({
@@ -33,23 +49,29 @@ export const pollSubscriptionsCron = inngest.createFunction(
       );
     }
 
-    // Fan out playlist discovery for every user with a connected Google account
-    const { data: tokenRows } = await supabase.from("user_google_tokens").select("user_id");
-    const users = tokenRows ?? [];
-    if (users.length > 0) {
-      await inngest.send(
-        users.map((u) => ({
-          name: "subscription/discover.requested" as const,
-          data: { userId: u.user_id as string },
-        })),
-      );
+    // Fan out playlist discovery for every user with a connected Google
+    // account — hourly is plenty for "did they create a Cliphy playlist"
+    let discoveryCount = 0;
+    if (hourlyCycle) {
+      const { data: tokenRows } = await supabase.from("user_google_tokens").select("user_id");
+      const users = tokenRows ?? [];
+      discoveryCount = users.length;
+      if (users.length > 0) {
+        await inngest.send(
+          users.map((u) => ({
+            name: "subscription/discover.requested" as const,
+            data: { userId: u.user_id as string },
+          })),
+        );
+      }
     }
 
     log.info("Dispatched subscription poll events", {
       count: rows.length,
-      discoveryCount: users.length,
+      skipped: (subs ?? []).length - rows.length,
+      discoveryCount,
     });
-    return { dispatched: rows.length, discoveryDispatched: users.length };
+    return { dispatched: rows.length, discoveryDispatched: discoveryCount };
   },
 );
 

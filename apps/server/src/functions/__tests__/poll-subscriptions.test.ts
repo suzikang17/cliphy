@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Capture Inngest handlers ──────────────────────────────────
 
@@ -67,7 +67,13 @@ beforeEach(() => {
 describe("pollSubscriptionsCron", () => {
   const cronHandler = () => capturedHandlers["poll-subscriptions-cron"];
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("fans out one event per active subscription plus discovery per Google user", async () => {
+    // Hourly cycle (minute < 15) → discovery runs
+    vi.useFakeTimers({ now: new Date("2026-06-10T12:00:30Z") });
     supabaseMock = mockChain({ data: [], error: null });
     (supabaseMock.from as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(
@@ -94,6 +100,62 @@ describe("pollSubscriptionsCron", () => {
       name: "subscription/discover.requested",
       data: { userId: "user-1" },
     });
+  });
+
+  it("skips discovery on non-hourly cycles", async () => {
+    vi.useFakeTimers({ now: new Date("2026-06-10T12:30:30Z") });
+    supabaseMock = mockChain({ data: [], error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      mockChain({ data: [{ id: "sub-1" }], error: null }),
+    );
+
+    const result = (await cronHandler()({})) as { discoveryDispatched: number };
+
+    expect(result.discoveryDispatched).toBe(0);
+    // Only the poll fan-out, no discovery send
+    expect(mockInngestSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("backs off subscriptions of dormant users to the daily cycle", async () => {
+    const dormant = "2026-05-01T00:00:00Z"; // >14 days before now
+    const active = "2026-06-09T00:00:00Z";
+
+    // Regular cycle: dormant user's sub skipped
+    vi.useFakeTimers({ now: new Date("2026-06-10T12:30:30Z") });
+    supabaseMock = mockChain({ data: [], error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      mockChain({
+        data: [
+          { id: "sub-dormant", users: { last_active_at: dormant } },
+          { id: "sub-active", users: { last_active_at: active } },
+          { id: "sub-nosignal", users: { last_active_at: null } },
+        ],
+        error: null,
+      }),
+    );
+
+    let result = (await cronHandler()({})) as { dispatched: number };
+    expect(result.dispatched).toBe(2);
+    let events = mockInngestSend.mock.calls[0][0] as Array<{ data: { subscriptionId: string } }>;
+    expect(events.map((e) => e.data.subscriptionId)).toEqual(["sub-active", "sub-nosignal"]);
+
+    // Daily cycle (00:00 UTC): dormant sub included
+    vi.clearAllMocks();
+    vi.useFakeTimers({ now: new Date("2026-06-10T00:00:30Z") });
+    supabaseMock = mockChain({ data: [], error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        mockChain({
+          data: [{ id: "sub-dormant", users: { last_active_at: dormant } }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(mockChain({ data: [], error: null }));
+
+    result = (await cronHandler()({})) as { dispatched: number };
+    expect(result.dispatched).toBe(1);
+    events = mockInngestSend.mock.calls[0][0] as Array<{ data: { subscriptionId: string } }>;
+    expect(events[0].data.subscriptionId).toBe("sub-dormant");
   });
 
   it("returns dispatched: 0 when no active subscriptions and no Google users", async () => {

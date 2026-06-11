@@ -17,6 +17,7 @@ vi.mock("../../lib/supabase.js", () => ({
       const chain: Record<string, unknown> = {};
       chain.select = vi.fn().mockReturnValue(chain);
       chain.update = vi.fn().mockReturnValue(chain);
+      chain.or = vi.fn().mockReturnValue(chain);
       chain.eq = (...a: unknown[]) => {
         eq(...a);
         return chain;

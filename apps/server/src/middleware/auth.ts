@@ -5,6 +5,22 @@ import { supabase } from "../lib/supabase.js";
 
 const API_KEY_PREFIX = "cliphy_sk_";
 
+// Touch users.last_active_at at most ~hourly — fire and forget, single
+// conditional UPDATE (no read). Drives subscription-poll backoff for
+// dormant users.
+function touchLastActive(userId: string): void {
+  const staleCutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  void supabase
+    .from("users")
+    .update({ last_active_at: new Date().toISOString() })
+    .eq("id", userId)
+    .or(`last_active_at.is.null,last_active_at.lt.${staleCutoff}`)
+    .then(
+      () => {},
+      () => {},
+    );
+}
+
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -38,6 +54,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.set("userId", keyRow.user_id as string);
     c.set("userEmail", "");
     c.set("authMethod", "api_key");
+    touchLastActive(keyRow.user_id as string);
     return next();
   }
 
@@ -53,6 +70,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.set("userId", user.id);
   c.set("userEmail", user.email ?? "");
   c.set("authMethod", "jwt");
+  touchLastActive(user.id);
 
   await next();
 };
