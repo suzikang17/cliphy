@@ -343,6 +343,43 @@ describe("POST /subscriptions", () => {
   });
 });
 
+// ── POST /refresh ─────────────────────────────────────────────
+
+describe("POST /subscriptions/refresh", () => {
+  it("dispatches polls for stale active subscriptions only", async () => {
+    const fresh = new Date().toISOString();
+    supabaseMock = mockChain({
+      data: [
+        { id: "sub-stale", last_checked_at: "2026-06-10T00:00:00Z" },
+        { id: "sub-never", last_checked_at: null },
+        { id: "sub-fresh", last_checked_at: fresh },
+      ],
+      error: null,
+    });
+
+    const res = await buildApp().request("/subscriptions/refresh", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ refreshed: 2 });
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    const events = mockInngestSend.mock.calls[0][0] as Array<{ data: { subscriptionId: string } }>;
+    expect(events.map((e) => e.data.subscriptionId)).toEqual(["sub-stale", "sub-never"]);
+  });
+
+  it("dispatches nothing when all subscriptions were checked recently", async () => {
+    supabaseMock = mockChain({
+      data: [{ id: "sub-fresh", last_checked_at: new Date().toISOString() }],
+      error: null,
+    });
+
+    const res = await buildApp().request("/subscriptions/refresh", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ refreshed: 0 });
+    expect(mockInngestSend).not.toHaveBeenCalled();
+  });
+});
+
 // ── PATCH /:id ────────────────────────────────────────────────
 
 describe("PATCH /subscriptions/:id", () => {

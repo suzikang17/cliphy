@@ -176,6 +176,36 @@ subscriptionRoutes.post("/", requirePro(PRO_FEATURES.AUTO_SUBSCRIBE), async (c) 
   return c.json({ subscription: toSubscription(row) }, 201);
 });
 
+// POST /refresh — dispatch immediate polls for the user's active subscriptions.
+// Called by the app on launch/foreground/pull-to-refresh so new likes and
+// playlist saves show up right away instead of waiting for the 15-min cron.
+// Throttled: subscriptions checked within the last 2 minutes are skipped.
+subscriptionRoutes.post("/refresh", async (c) => {
+  const userId = c.get("userId");
+  const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+  const { data: subs } = await supabase
+    .from("subscriptions")
+    .select("id, last_checked_at")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  const due = (subs ?? []).filter(
+    (s) => !s.last_checked_at || (s.last_checked_at as string) < cutoff,
+  );
+
+  if (due.length > 0) {
+    await inngest.send(
+      due.map((s) => ({
+        name: "subscription/poll.requested" as const,
+        data: { subscriptionId: s.id as string },
+      })),
+    );
+  }
+
+  return c.json({ refreshed: due.length });
+});
+
 // PATCH /:id — pause or resume
 subscriptionRoutes.patch("/:id", async (c) => {
   const userId = c.get("userId");

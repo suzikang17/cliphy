@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
-import { getQueue, getUsage, addToQueue } from "../../lib/api";
+import { getQueue, getUsage, addToQueue, refreshSubscriptions } from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
@@ -41,10 +41,14 @@ export default function QueueScreen() {
 
   useEffect(() => {
     fetchData();
+    // Kick subscription polls so fresh likes/saves land without waiting for
+    // the cron — results stream in via Realtime. Server-throttled, best-effort.
+    refreshSubscriptions().catch(() => {});
   }, [fetchData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    refreshSubscriptions().catch(() => {});
     fetchData();
   }, [fetchData]);
 
@@ -123,6 +127,8 @@ export default function QueueScreen() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
       if (state !== "active") return;
+
+      refreshSubscriptions().catch(() => {});
 
       const url = await getYouTubeUrlFromClipboard();
       if (!url || url === lastClipboardUrl.current) return;

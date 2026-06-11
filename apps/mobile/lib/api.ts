@@ -168,6 +168,10 @@ export const updateSubscription = (id: string, body: SubscriptionUpdateRequest) 
 export const deleteSubscription = (id: string) =>
   apiFetch<{ deleted: true }>(`/api/subscriptions/${id}`, { method: "DELETE" });
 
+/** Kick immediate polls of the user's subscriptions (server-throttled). */
+export const refreshSubscriptions = () =>
+  apiFetch<{ refreshed: number }>("/api/subscriptions/refresh", { method: "POST" });
+
 // Settings
 export const getSettings = () => apiFetch<UserSettings>("/api/settings");
 
