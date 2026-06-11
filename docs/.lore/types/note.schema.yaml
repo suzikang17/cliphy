@@ -1,0 +1,11 @@
+name: note
+dir: notes
+heading: Notes
+id: { strategy: dated }
+body: free
+frontmatter:
+  - { name: title, type: string }
+  - { name: date, type: date, required: true }
+index:
+  - { header: Date, source: date, format: date }
+  - { header: Note, source: title, link: true }
