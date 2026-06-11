@@ -34,3 +34,13 @@ title: "Day 66 — Notion→markdown migration, lore engine, Atlas workspace MVP
 - Atlas dev: `cd ~/dev/atlas && pnpm dev --port 4123`; projects in `atlas.config.json`
 - lore CLI: `node ~/dev/lore/packages/cli/dist/cli/index.js <cmd> <type>` (alias needs updating post-monorepo)
 - Parallel sessions write decisions/devlogs concurrently — files-as-truth handles it
+
+---
+
+## Addendum (same day): roadmap — tasks, board, agent queue, links
+
+- lore: `reference` field type (+ validation), computed backlinks + `[[wikilinks]]`, grouped INDEXes, `lore promote` (86 tests)
+- Atlas: kanban board (computed columns), backlog page with promote, reference inputs, "Referenced in" panel, wikilink rendering
+- Migrated 105 CLIP tasks → two-tier model: `docs/tasks/` (12 open + 65 done) + `BACKLOG.md` (31 capture lines); ROADMAP/task-archive retired; `/work-queue` skill added
+- **Dogfooded the agent queue end-to-end:** backlog line → promoted in Atlas → `owner: ai` → agent implemented docs pre-commit validation (`scripts/validate-docs.sh`) → handed back to Review & QA. The new hook validated its own delivery commit.
+- Gotcha: pnpm `file:` deps snapshot at install (stale on lore rebuilds → `pnpm run sync:core`); Turbopack can't traverse symlinks outside the project root (`link:` protocol unusable).
