@@ -20,3 +20,22 @@ allure-report/
 apps/server/eval/results/*.json
 apps/server/eval/results/*.html
 apps/server/eval/output/
+
+# Logo concept scratch files
+logo-concepts/
+.gstack/
+
+# Agent/tool scratch dirs (local, not project)
+.agents/
+skills-lock.json
+.serena/
+.expo/
+.devdash.yml
+.devdash/
+docs/devdash/
+
+# Packaged extension zips
+*.zip
+
+# Backup icons
+apps/extension/icons-backup/

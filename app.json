@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "5af71f4e-b1ca-4cc7-b38d-791e6c965e49"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.cliphy.ios",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
