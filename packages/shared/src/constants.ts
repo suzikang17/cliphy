@@ -24,6 +24,9 @@ export const DEDUP_WINDOW_SECONDS = 60;
 /** Maximum number of tags per summary. */
 export const MAX_TAGS_PER_SUMMARY = 10;
 
+/** Maximum length (characters) of user notes on a summary. */
+export const MAX_NOTES_LENGTH = 10000;
+
 /** Maximum unique tags across all summaries for free users. */
 export const MAX_FREE_UNIQUE_TAGS = 3;
 
@@ -78,6 +81,7 @@ export const API_ROUTES = {
     LIST: "/api/summaries",
     ITEM: (id: string) => `/api/summaries/${id}`,
     TAGS: (id: string) => `/api/summaries/${id}/tags`,
+    NOTES: (id: string) => `/api/summaries/${id}/notes`,
     SEARCH: "/api/summaries/search",
     AUTO_TAG: (id: string) => `/api/summaries/${id}/auto-tag`,
     AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",

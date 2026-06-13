@@ -119,6 +119,13 @@ export async function updateSummaryTags(id: string, tags: string[]) {
   });
 }
 
+export async function updateSummaryNotes(id: string, notes: string) {
+  return request<SummaryResponse>(API_ROUTES.SUMMARIES.NOTES(id), {
+    method: "PATCH",
+    body: JSON.stringify({ notes }),
+  });
+}
+
 export async function getAllTags() {
   return request<TagsResponse>(API_ROUTES.TAGS.LIST);
 }

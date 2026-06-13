@@ -16,6 +16,7 @@ export function toSummary(row: Record<string, unknown>): Summary {
     translations: (row.translations as Summary["translations"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
+    userNotes: (row.user_notes as string) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

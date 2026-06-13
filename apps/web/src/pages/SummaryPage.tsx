@@ -3,6 +3,7 @@ import { TagSuggestions, formatTimeSaved, parseDurationToSeconds } from "@cliphy
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Nav } from "../components/Nav";
+import { YouTubePlayer, type YouTubePlayerHandle } from "../components/YouTubePlayer";
 import * as api from "../lib/api";
 
 function extractTimestamp(text: string): { time: string; seconds: number; label: string } | null {
@@ -26,6 +27,38 @@ export function SummaryPage() {
   const [autoTagLoading, setAutoTagLoading] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [playerError, setPlayerError] = useState(false);
+  const [currentSeconds, setCurrentSeconds] = useState(0);
+  const playerRef = useRef<YouTubePlayerHandle>(null);
+  const playerWrapRef = useRef<HTMLDivElement>(null);
+
+  function handleSeek(seconds: number) {
+    playerRef.current?.seekTo(seconds);
+    playerWrapRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  const [notesEditing, setNotesEditing] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+
+  function startEditNotes() {
+    setNotesDraft(summary?.userNotes ?? "");
+    setNotesEditing(true);
+  }
+
+  async function saveNotes() {
+    if (!id || !summary) return;
+    setNotesSaving(true);
+    try {
+      const res = await api.updateSummaryNotes(id, notesDraft.trim());
+      setSummary((prev) => (prev ? { ...prev, userNotes: res.summary.userNotes } : prev));
+      setNotesEditing(false);
+    } catch {
+      // keep the editor open so the draft isn't lost
+    } finally {
+      setNotesSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -159,6 +192,15 @@ export function SummaryPage() {
       ? { title: "Action Items", icon: "→", items: json.actionItems, groups: undefined }
       : null);
 
+  // Which chapter is currently playing: the last one whose start time has passed.
+  let activeChapterSeconds: number | null = null;
+  if (json) {
+    for (const ts of json.timestamps) {
+      const p = extractTimestamp(ts);
+      if (p && p.seconds <= currentSeconds + 0.5) activeChapterSeconds = p.seconds;
+    }
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-6 pb-12">
       <Nav />
@@ -170,21 +212,38 @@ export function SummaryPage() {
         &larr; Dashboard
       </Link>
 
-      {/* Video metadata + tag editing */}
-      <div className="flex items-start gap-4 mb-8">
-        <a
-          href={`https://youtube.com/watch?v=${summary.videoId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0"
-        >
-          <img
-            src={`https://i.ytimg.com/vi/${summary.videoId}/hqdefault.jpg`}
-            alt=""
-            className="w-48 h-auto rounded-xl border-2 border-(--color-border-hard) shadow-brutal-sm object-cover hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
-          />
-        </a>
-        <div className="min-w-0">
+      {/* Video player + metadata + tag editing */}
+      <div className="mb-8">
+        {playerError ? (
+          <a
+            href={`https://youtube.com/watch?v=${summary.videoId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block no-underline"
+          >
+            <img
+              src={`https://i.ytimg.com/vi/${summary.videoId}/hqdefault.jpg`}
+              alt=""
+              className="w-full aspect-video rounded-xl border-2 border-(--color-border-hard) shadow-brutal-sm object-cover"
+            />
+            <span className="block text-xs text-(--color-text-muted) mt-1.5">
+              Embedding is disabled for this video — open on YouTube ↗
+            </span>
+          </a>
+        ) : (
+          <div
+            ref={playerWrapRef}
+            className="scroll-mt-4 rounded-xl overflow-hidden border-2 border-(--color-border-hard) shadow-brutal-sm bg-black"
+          >
+            <YouTubePlayer
+              ref={playerRef}
+              videoId={summary.videoId}
+              onTimeUpdate={setCurrentSeconds}
+              onError={() => setPlayerError(true)}
+            />
+          </div>
+        )}
+        <div className="min-w-0 mt-4">
           <a
             href={`https://youtube.com/watch?v=${summary.videoId}`}
             target="_blank"
@@ -341,12 +400,24 @@ export function SummaryPage() {
               <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600 mb-2">
                 Jump To
               </h2>
-              <ul className="list-none p-0 m-0 space-y-1.5">
+              <ul className="list-none p-0 m-0 space-y-0.5">
                 {json.timestamps.map((ts, i) => {
                   const parsed = extractTimestamp(ts);
-                  if (parsed) {
+                  if (!parsed) {
                     return (
-                      <li key={i} className="flex items-baseline gap-3 text-sm">
+                      <li key={i} className="text-sm text-(--color-text-body) px-1.5 py-1">
+                        {ts}
+                      </li>
+                    );
+                  }
+                  const isActive = parsed.seconds === activeChapterSeconds;
+                  const rowClass = `flex items-baseline gap-3 text-sm rounded-md -mx-1.5 px-1.5 py-1 transition-colors ${
+                    isActive ? "bg-neon-100 dark:bg-neon-900/30" : "hover:bg-(--color-surface)"
+                  }`;
+                  // No player to drive → fall back to opening YouTube at the timestamp.
+                  if (playerError) {
+                    return (
+                      <li key={i} className={rowClass}>
                         <a
                           href={`https://youtube.com/watch?v=${summary.videoId}&t=${parsed.seconds}`}
                           target="_blank"
@@ -360,8 +431,27 @@ export function SummaryPage() {
                     );
                   }
                   return (
-                    <li key={i} className="text-sm text-(--color-text-body)">
-                      {ts}
+                    <li key={i} className={rowClass}>
+                      <button
+                        onClick={() => handleSeek(parsed.seconds)}
+                        className={`w-16 text-right font-mono text-xs font-bold shrink-0 bg-transparent border-0 p-0 cursor-pointer transition-colors ${
+                          isActive
+                            ? "text-neon-700 dark:text-neon-300"
+                            : "text-neon-600 hover:text-neon-800"
+                        }`}
+                      >
+                        {parsed.time}
+                      </button>
+                      <button
+                        onClick={() => handleSeek(parsed.seconds)}
+                        className={`text-left bg-transparent border-0 p-0 cursor-pointer transition-colors ${
+                          isActive
+                            ? "text-(--color-text) font-semibold"
+                            : "text-(--color-text-body) hover:text-neon-700"
+                        }`}
+                      >
+                        {parsed.label}
+                      </button>
                     </li>
                   );
                 })}
@@ -406,6 +496,63 @@ export function SummaryPage() {
           )}
         </div>
       )}
+
+      {/* My Notes — user's own annotations, independent of the AI summary */}
+      <section className="bg-(--color-surface-raised) rounded-xl p-5 mt-5">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-neon-600">My Notes</h2>
+          {!notesEditing && (
+            <button
+              onClick={startEditNotes}
+              className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-(--color-surface-raised) text-(--color-text-secondary) border-2 border-(--color-border-soft) hover:border-neon-300 hover:text-neon-600 cursor-pointer transition-colors"
+            >
+              {summary.userNotes ? "Edit" : "+ Add note"}
+            </button>
+          )}
+        </div>
+
+        {notesEditing ? (
+          <div>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setNotesEditing(false);
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNotes();
+              }}
+              rows={6}
+              autoFocus
+              placeholder="Add your own notes, takeaways, or reminders…"
+              className="w-full resize-y rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text-body) leading-relaxed focus:outline-none focus:border-neon-400"
+            />
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={saveNotes}
+                disabled={notesSaving}
+                className="text-sm font-bold px-4 py-1.5 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer disabled:opacity-50 transition-all"
+              >
+                {notesSaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => setNotesEditing(false)}
+                disabled={notesSaving}
+                className="text-sm font-semibold px-3 py-1.5 text-(--color-text-muted) hover:text-(--color-text) bg-transparent border-0 cursor-pointer disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <span className="ml-auto text-xs text-(--color-text-faint)">⌘↵ to save</span>
+            </div>
+          </div>
+        ) : summary.userNotes ? (
+          <p className="whitespace-pre-wrap text-sm text-(--color-text-body) leading-relaxed m-0">
+            {summary.userNotes}
+          </p>
+        ) : (
+          <p className="text-sm text-(--color-text-faint) italic m-0">
+            No notes yet — add your own takeaways.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

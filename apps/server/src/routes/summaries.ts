@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase.js";
 import { sanitizeSearchQuery } from "../lib/validation.js";
 import {
   FREE_HISTORY_DAYS,
+  MAX_NOTES_LENGTH,
   MAX_TAGS_PER_SUMMARY,
   MAX_FREE_UNIQUE_TAGS,
   TAG_MAX_LENGTH,
@@ -444,6 +445,40 @@ summaryRoutes.patch("/:id/tags", async (c) => {
   }
 
   return c.json({ tags: (data.tags as string[]) ?? [] });
+});
+
+// ── PATCH /:id/notes — Update user notes on a summary ────────
+
+summaryRoutes.patch("/:id/notes", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const body = await c.req.json<{ notes: unknown }>();
+
+  if (typeof body.notes !== "string") {
+    return c.json({ error: "notes must be a string" }, 400);
+  }
+  if (body.notes.length > MAX_NOTES_LENGTH) {
+    return c.json({ error: `Notes must be ${MAX_NOTES_LENGTH} characters or fewer` }, 400);
+  }
+
+  // Empty string clears notes; store null so the column reads as "no notes".
+  const notes = body.notes.length > 0 ? body.notes : null;
+
+  const { data, error } = await supabase
+    .from("summaries")
+    .update({ user_notes: notes })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  return c.json({ summary: toSummary(data as Record<string, unknown>) });
 });
 
 // ── GET / — Paginated list of user's summaries ───────────────

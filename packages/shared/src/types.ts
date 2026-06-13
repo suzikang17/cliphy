@@ -67,6 +67,8 @@ export interface Summary {
   translations?: Partial<Record<import("./constants.js").SummaryLanguageCode, SummaryJson>>;
   errorMessage?: string;
   tags: string[];
+  /** Freeform user notes, independent of the AI-generated summaryJson. */
+  userNotes?: string;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
