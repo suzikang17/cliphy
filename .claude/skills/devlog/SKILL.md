@@ -16,7 +16,7 @@ Look at the recent conversation context — commits made, issues hit, tools swit
 
 Write when anything noteworthy happened (task completed, bug fixed, tool/dependency switched, workaround applied, something unexpected learned).
 
-- One file per session, **dated filename**: `docs/devlog/YYYY-MM-DD-slug.md`. Keep the **session number** in frontmatter (`day: N`) and the title (`Day N — …`), where `N` increments the latest entry's number (look at `docs/devlog/INDEX.md`). So: dated filename + sequential session number in title/frontmatter. (Older entries use `day-NN-slug.md` — leave them; only new entries use the dated slug.)
+- One file per session, **dated filename**: `docs/devlog/YYYY-MM-DD-slug.md`. Keep the **session number** in frontmatter (`day: N`) and the title (`Day N — …`), where `N` increments the latest entry's number (look at `docs/devlog/index.md`). So: dated filename + sequential session number in title/frontmatter. (Older entries use `day-NN-slug.md` — leave them; only new entries use the dated slug.)
 - If today's entry already exists, **append** to it; otherwise create it.
 - Frontmatter:
   ```
@@ -28,7 +28,7 @@ Write when anything noteworthy happened (task completed, bug fixed, tool/depende
   ---
   ```
 - Body sections (omit empty ones): **What got done** (bullets + commit hashes) · **Decisions** (brief; details go to an ADR) · **Issues** (what broke, root cause, fix) · **What to remember** (gotchas).
-- After writing, add a row to `docs/devlog/INDEX.md`.
+- After writing, add a row to `docs/devlog/index.md`.
 
 ### Decision ADR → `docs/decisions/`
 
@@ -36,7 +36,7 @@ Write when a tech choice was made (tool adopted/rejected, architectural pattern 
 
 - New file `docs/decisions/NNNN-slug.md` — `NNNN` is the next number after the highest in `docs/decisions/` (zero-padded to 4).
 - Frontmatter: `date`, `title`, `category`, `revisit` (true/false). Then sections: **Why this choice**, **Options considered**, **Tradeoffs**.
-- Add a row to `docs/decisions/INDEX.md`.
+- Add a row to `docs/decisions/index.md`.
 
 ## Style
 

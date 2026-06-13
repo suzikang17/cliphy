@@ -54,8 +54,8 @@ Monorepo with pnpm workspaces:
 
 All project context lives as plain markdown in `docs/` — start at [`docs/INDEX.md`](docs/INDEX.md). This repo is the source of truth; the old Notion workspace is a read-only archive (migrated 2026-06-07). Do **not** write to Notion.
 
-- **Decisions:** `docs/decisions/` — one ADR file per decision (+ `INDEX.md`). Log architectural/tooling choices here.
-- **Devlog:** `docs/devlog/` — one dated file per session (+ `INDEX.md`).
+- **Decisions:** `docs/decisions/` — one ADR file per decision (+ `index.md`). Log architectural/tooling choices here.
+- **Devlog:** `docs/devlog/` — one dated file per session (+ `index.md`).
 - **Tasks:** `docs/tasks/` — one file per task (status/owner frontmatter, kanban computed); capture lines in `docs/BACKLOG.md`, promoted when real.
 - **Services & cost:** `docs/providers.md` — update whenever a service/provider is added, removed, or changed.
 - **Architecture & ops:** `docs/architecture.md`.
@@ -64,7 +64,7 @@ All project context lives as plain markdown in `docs/` — start at [`docs/INDEX
 
 ### Session flow
 
-1. Pick a task from `docs/tasks/` (open + owner: human/ai; see `docs/tasks/INDEX.md`) at start of session
+1. Pick a task from `docs/tasks/` (open + owner: human/ai; see `docs/tasks/index.md`) at start of session
 2. Build → verify it works → commit and push
 3. Hit an issue? Research it, understand the "why", then fix — don't just patch blindly
 4. When making a tech choice, check what's industry standard before committing to it

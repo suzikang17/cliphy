@@ -26,7 +26,7 @@ If the argument is "just devlog", skip this step.
 
 ### 2. Devlog → `docs/devlog/`
 
-Find or create today's entry: `docs/devlog/day-NN-slug.md` (next session day number — see `docs/devlog/INDEX.md`). Append if today's exists, create if not. Use these sections in order, omitting empty ones:
+Find or create today's entry: `docs/devlog/day-NN-slug.md` (next session day number — see `docs/devlog/index.md`). Append if today's exists, create if not. Use these sections in order, omitting empty ones:
 
 1. **Session summary** — 2-3 sentence TL;DR at the very top
 2. **What got done** — high-level bullets with commit hashes
@@ -37,11 +37,11 @@ Find or create today's entry: `docs/devlog/day-NN-slug.md` (next session day num
 7. **Task details** — per-task `### Task Name` breakdowns when multiple tasks completed (after a `---` rule)
 8. **Tomorrow's plan** _(optional)_
 
-Then add a row to `docs/devlog/INDEX.md`.
+Then add a row to `docs/devlog/index.md`.
 
 ### 3. Decision ADR → `docs/decisions/`
 
-Only if a tech choice was made (tool adopted/rejected, pattern chosen, approach selected). Add `docs/decisions/NNNN-slug.md` (next number) with frontmatter (`date`, `title`, `category`, `revisit`) and sections: **Why this choice**, **Options considered**, **Tradeoffs**. Add a row to `docs/decisions/INDEX.md`.
+Only if a tech choice was made (tool adopted/rejected, pattern chosen, approach selected). Add `docs/decisions/NNNN-slug.md` (next number) with frontmatter (`date`, `title`, `category`, `revisit`) and sections: **Why this choice**, **Options considered**, **Tradeoffs**. Add a row to `docs/decisions/index.md`.
 
 ### 4. Providers
 

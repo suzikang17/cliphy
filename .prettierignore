@@ -1,4 +1,4 @@
 pnpm-lock.yaml
 .serena/
 # lore-generated index files — managed by `lore reindex`, not hand-authored
-docs/**/INDEX.md
+docs/**/index.md
