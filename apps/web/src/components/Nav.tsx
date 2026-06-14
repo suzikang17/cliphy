@@ -1,7 +1,8 @@
 import { Link } from "react-router";
+import type { ReactNode } from "react";
 import { useAuth } from "../lib/auth-context";
 
-export function Nav() {
+export function Nav({ right }: { right?: ReactNode }) {
   const { user, signOut } = useAuth();
 
   return (
@@ -12,35 +13,36 @@ export function Nav() {
       </Link>
 
       <div className="flex items-center gap-4">
-        {user ? (
-          <>
+        {right ??
+          (user ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/subscriptions"
+                className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
+              >
+                Subscriptions
+              </Link>
+              <button
+                onClick={() => signOut()}
+                className="text-sm font-semibold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
             <Link
-              to="/dashboard"
-              className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
+              to="/login"
+              className="text-sm font-bold px-4 py-2 bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down no-underline transition-all"
             >
-              Dashboard
+              Sign in
             </Link>
-            <Link
-              to="/subscriptions"
-              className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
-            >
-              Subscriptions
-            </Link>
-            <button
-              onClick={() => signOut()}
-              className="text-sm font-semibold text-(--color-text-faint) hover:text-(--color-text) bg-transparent border-0 cursor-pointer transition-colors"
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <Link
-            to="/login"
-            className="text-sm font-bold px-4 py-2 bg-neon-600 text-white border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down no-underline transition-all"
-          >
-            Sign in
-          </Link>
-        )}
+          ))}
       </div>
     </nav>
   );
