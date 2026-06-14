@@ -1,6 +1,6 @@
 ---
 title: "Build admin console"
-status: open
+status: done
 owner: human
 priority: low
 type: feature

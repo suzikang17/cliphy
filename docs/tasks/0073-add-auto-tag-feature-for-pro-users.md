@@ -1,6 +1,6 @@
 ---
 title: "Add Auto-Tag feature for Pro users"
-status: open
+status: in_progress
 spec: superpowers/specs/2026-03-10-auto-tag-design.md
 owner: human
 effort: medium

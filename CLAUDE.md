@@ -119,6 +119,8 @@ Use `/devlog` for a full session summary at the end.
 
 Keep entries concise. Include what happened, why, and what to remember.
 
+**Lore doc format:** Before writing any lore doc (devlog, task, decision, etc.), read `docs/.lore/types/<type>.schema.yaml` and follow its `prompt` field for structure and style.
+
 ## Troubleshooting
 
 - Node version error → fnm should auto-switch via `.nvmrc`. If not: `fnm use 22`
