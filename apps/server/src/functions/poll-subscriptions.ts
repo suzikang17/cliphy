@@ -35,7 +35,9 @@ export const pollSubscriptionsCron = inngest.createFunction(
 
     const activeCutoff = now.getTime() - ACTIVE_WINDOW_MS;
     const rows = (subs ?? []).filter((sub) => {
-      const lastActive = (sub.users as { last_active_at: string | null } | null)?.last_active_at;
+      // Supabase types this to-one join as an array but returns a single object.
+      const lastActive = (sub.users as unknown as { last_active_at: string | null } | null)
+        ?.last_active_at;
       // No signal yet (pre-migration users) → keep polling every cycle
       if (!lastActive) return true;
       return new Date(lastActive).getTime() >= activeCutoff || dailyCycle;
