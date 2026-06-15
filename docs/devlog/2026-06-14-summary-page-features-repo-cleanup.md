@@ -1,8 +1,8 @@
 ---
-day: 68
+day: 66
 date: 2026-06-14
 phase: Growth
-title: "Day 68 — Summary-page features shipped (notes + YouTube player), repo + lint cleanup"
+title: "Day 66 — Summary-page features shipped (notes + YouTube player), repo + lint cleanup"
 ---
 
 ## What got done

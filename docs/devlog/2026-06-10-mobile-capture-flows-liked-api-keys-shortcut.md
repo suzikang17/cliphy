@@ -1,6 +1,7 @@
 ---
-title: "Day 67 — Mobile capture flows: liked-videos auto-queue, save-to-playlist, API keys + Apple Shortcut"
+title: "Day 65 — Mobile capture flows: liked-videos auto-queue, save-to-playlist, API keys + Apple Shortcut"
 date: 2026-06-10
+day: 65
 phase: Growth
 ---
 
@@ -63,12 +64,12 @@ value, `api_keys` table). Manual prod verification is the remaining task
   the deep link (success **and** error paths), and the in-app browser closes
   itself instead of stranding the user on the web subscriptions page.
 - `extension` is accepted and reserved: the extension only uses Google for
-  Supabase *sign-in* today (separate `browser.identity` flow); if it ever gets
+  Supabase _sign-in_ today (separate `browser.identity` flow); if it ever gets
   a subscriptions panel it would use `launchWebAuthFlow`, since Chrome can't
   receive server redirects to `chrome-extension://`. Until then it falls back
   to the web app redirect, same as web.
 - Note: CLIP-81 (Supabase sign-in OAuth stuck on empty page in mobile) is the
-  *other* OAuth flow and still open — same fix shape (auth session + deep
+  _other_ OAuth flow and still open — same fix shape (auth session + deep
   link) applies.
 
 ## Decisions

@@ -1,8 +1,8 @@
 ---
-day: 66
+day: 65
 date: 2026-06-10
 phase: Growth
-title: "Day 66 — Notion→markdown migration, lore engine, Atlas workspace MVP"
+title: "Day 65 — Notion→markdown migration, lore engine, Atlas workspace MVP"
 ---
 
 # Day 66 — Notion→markdown migration, lore engine, Atlas workspace MVP

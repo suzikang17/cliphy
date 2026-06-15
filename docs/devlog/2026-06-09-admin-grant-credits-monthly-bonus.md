@@ -1,9 +1,9 @@
 ---
-day: 65
+day: 64
 date: 2026-06-09
 phase: Growth
 tags: [feature, server, extension, admin, billing]
-title: "Day 65 — Admin grants: one-off credit wallet + recurring monthly bonus"
+title: "Day 64 — Admin grants: one-off credit wallet + recurring monthly bonus"
 ---
 
 ## TL;DR

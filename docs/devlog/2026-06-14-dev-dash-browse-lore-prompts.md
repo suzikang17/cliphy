@@ -1,7 +1,7 @@
 ---
-title: "Day 68 — dev-dash Browse panel polish + lore AI prompt system"
+title: "Day 66 — dev-dash Browse panel polish + lore AI prompt system"
 date: 2026-06-14
-day: 68
+day: 66
 ---
 
 **Built out the Browse type-detail panel in dev-dash and wired AI prompts into lore type schemas so Claude knows how to write each doc type.**
