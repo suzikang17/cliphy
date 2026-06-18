@@ -1,10 +1,12 @@
 ---
 title: "Mobile app — queue + summaries (plan tasks 8-10)"
-status: open
+status: done
+completed: "2026-04-10"
 owner: human
 effort: large
 type: feature
 platform: "mobile"
+category: engineering
 ---
 
 # Mobile app — queue + summaries (plan tasks 8-10)

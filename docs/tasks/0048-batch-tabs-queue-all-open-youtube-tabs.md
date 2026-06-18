@@ -1,11 +1,13 @@
 ---
 title: "Batch tabs — queue all open YouTube tabs"
-status: open
+status: done
+completed: "2026-03-17"
 owner: human
 priority: medium
 effort: medium
 type: feature
 platform: "extension"
+category: engineering
 ---
 
 # Batch tabs — queue all open YouTube tabs

@@ -2,9 +2,10 @@
 title: >-
   Add docs pre-commit validation — run lore validate on staged doc types so bad
   frontmatter never lands
-status: open
+status: done
 owner: human
 ai_run: true
+completed: "2026-06-10"
 created: "2026-06-10"
 ---
 
