@@ -1,11 +1,17 @@
 import type { Summary, Subscription } from "@cliphy/shared";
 
-/** Map a DB row (snake_case) to a Summary object (camelCase). */
-export function toSummary(row: Record<string, unknown>): Summary {
+/** Map a DB row (snake_case) to a Summary/Clip object (camelCase). */
+export function toClip(row: Record<string, unknown>): Summary {
   return {
     id: row.id as string,
     userId: row.user_id as string,
-    videoId: row.youtube_video_id as string,
+    sourceType: (row.source_type as Summary["sourceType"]) ?? "youtube",
+    sourceUrl: (row.source_url as string) ?? undefined,
+    content: (row.content as string) ?? undefined,
+    author: (row.author as string) ?? undefined,
+    publishedAt: (row.published_at as string) ?? undefined,
+    sourceMetadata: (row.source_metadata as Record<string, unknown>) ?? undefined,
+    videoId: (row.youtube_video_id as string) ?? undefined,
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
     videoChannel: (row.video_channel as string) ?? undefined,
@@ -21,6 +27,9 @@ export function toSummary(row: Record<string, unknown>): Summary {
     updatedAt: row.updated_at as string,
   };
 }
+
+// Backwards-compat alias — existing callers keep working
+export const toSummary = toClip;
 
 export function toSubscription(row: Record<string, unknown>): Subscription {
   return {

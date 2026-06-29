@@ -94,13 +94,13 @@ export const summarizeVideo = inngest.createFunction(
 
       // Look up user_id from the summary row to rollback usage count
       const { data: summary } = await supabase
-        .from("summaries")
+        .from("clips")
         .select("user_id")
         .eq("id", summaryId)
         .single();
 
       await supabase
-        .from("summaries")
+        .from("clips")
         .update({ status: "failed", error_message: errorMessage, error_category: errorCategory })
         .eq("id", summaryId);
 
@@ -128,17 +128,17 @@ export const summarizeVideo = inngest.createFunction(
     } = await step.run("fetch-transcript", async () => {
       // Read the requested summary language from the summary row
       const { data: summaryRow } = await supabase
-        .from("summaries")
+        .from("clips")
         .select("summary_language")
         .eq("id", summaryId)
         .single();
       const summaryLang = (summaryRow?.summary_language as string) ?? "en";
 
-      await supabase.from("summaries").update({ status: "processing" }).eq("id", summaryId);
+      await supabase.from("clips").update({ status: "processing" }).eq("id", summaryId);
 
       // Check for a cached transcript from a previous summary of the same video
       const { data: cached } = await supabase
-        .from("summaries")
+        .from("clips")
         .select("transcript")
         .eq("video_id", videoId)
         .not("transcript", "is", null)
@@ -175,7 +175,7 @@ export const summarizeVideo = inngest.createFunction(
         if (result.title) metaUpdate.video_title = result.title;
         if (result.channel) metaUpdate.video_channel = result.channel;
         if (result.durationSeconds) metaUpdate.video_duration_seconds = result.durationSeconds;
-        await supabase.from("summaries").update(metaUpdate).eq("id", summaryId);
+        await supabase.from("clips").update(metaUpdate).eq("id", summaryId);
 
         return {
           text: result.text,
@@ -187,7 +187,7 @@ export const summarizeVideo = inngest.createFunction(
       } catch (err) {
         if (err instanceof TranscriptNotAvailableError) {
           await supabase
-            .from("summaries")
+            .from("clips")
             .update({ status: "failed", error_message: err.message })
             .eq("id", summaryId);
           throw new NonRetriableError(err.message);
@@ -244,7 +244,7 @@ export const summarizeVideo = inngest.createFunction(
     // Step 3: Save result
     await step.run("save-result", async () => {
       await supabase
-        .from("summaries")
+        .from("clips")
         .update({ status: "completed", summary_json: summaryJson, transcript })
         .eq("id", summaryId);
     });

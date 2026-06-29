@@ -38,7 +38,7 @@ usageRoutes.get("/", async (c) => {
 
   // Total time saved: sum of video_duration_seconds for completed summaries
   const { data: timeSaved } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("video_duration_seconds")
     .eq("user_id", userId)
     .eq("status", "completed")

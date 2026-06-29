@@ -26,7 +26,7 @@ queueRoutes.get("/", async (c) => {
   const userId = c.get("userId");
 
   const { data: rows, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*")
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -45,7 +45,7 @@ queueRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
 
   const { data: row, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*")
     .eq("id", id)
     .eq("user_id", userId)
@@ -111,7 +111,7 @@ queueRoutes.post("/", async (c) => {
   const windowStart = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
 
   const { data: existing } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id, status")
     .eq("user_id", userId)
     .eq("youtube_video_id", videoId)
@@ -167,7 +167,7 @@ queueRoutes.post("/", async (c) => {
 
   // Insert new queue item
   const { data: row, error: insertError } = await supabase
-    .from("summaries")
+    .from("clips")
     .insert({
       user_id: userId,
       youtube_video_id: videoId,
@@ -213,7 +213,7 @@ queueRoutes.post("/", async (c) => {
 
   // Calculate queue position (number of pending/processing items created before this one)
   const { count } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .in("status", ["pending", "processing"])
@@ -268,7 +268,7 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
   // Check for existing duplicates in DB
   const videoIds = uniqueVideos.map((v) => v.videoId);
   const { data: existingRows } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("youtube_video_id")
     .eq("user_id", userId)
     .in("youtube_video_id", videoIds)
@@ -327,7 +327,7 @@ queueRoutes.post("/batch", requirePro(PRO_FEATURES.BATCH_QUEUE), async (c) => {
 
   // Bulk insert (titles/channels are backfilled by the worker from InnerTube)
   const { data: rows, error: insertError } = await supabase
-    .from("summaries")
+    .from("clips")
     .insert(
       cappedInsert.map((v) => ({
         user_id: userId,
@@ -378,7 +378,7 @@ queueRoutes.post("/:id/retry", async (c) => {
   const id = c.req.param("id");
 
   const { data: row, error: fetchError } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*")
     .eq("id", id)
     .eq("user_id", userId)
@@ -433,7 +433,7 @@ queueRoutes.post("/:id/retry", async (c) => {
 
   // Reset to pending before re-firing (clear old summary for completed items)
   await supabase
-    .from("summaries")
+    .from("clips")
     .update({
       status: "pending",
       error_message: null,
@@ -464,7 +464,7 @@ queueRoutes.delete("/:id", async (c) => {
 
   // Verify the item exists and belongs to the user
   const { data: row, error: fetchError } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id, status, user_id")
     .eq("id", id)
     .eq("user_id", userId)
@@ -480,7 +480,7 @@ queueRoutes.delete("/:id", async (c) => {
   }
 
   const { error: deleteError } = await supabase
-    .from("summaries")
+    .from("clips")
     .delete()
     .eq("id", id)
     .eq("user_id", userId);

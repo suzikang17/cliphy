@@ -69,7 +69,7 @@ summaryRoutes.get("/search", async (c) => {
 
   // Build the base query — only completed, non-deleted, owned by user
   let query = supabase
-    .from("summaries")
+    .from("clips")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
     .eq("status", "completed")
@@ -105,7 +105,7 @@ summaryRoutes.get("/tags", async (c) => {
   const userId = c.get("userId");
 
   const { data: rows, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("tags")
     .eq("user_id", userId)
     .is("deleted_at", null);
@@ -142,7 +142,7 @@ summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c
 
   // Fetch summaries owned by user
   const { data: rows } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id, summary_json")
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -154,7 +154,7 @@ summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c
 
   // Fetch existing tags
   const { data: allRows } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("tags")
     .eq("user_id", userId)
     .is("deleted_at", null);
@@ -201,7 +201,7 @@ summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c)
   const summaryId = c.req.param("id");
 
   const { data: summary } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id, summary_json")
     .eq("id", summaryId)
     .eq("user_id", userId)
@@ -218,7 +218,7 @@ summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c)
 
   // Fetch existing tags
   const { data: allRows } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("tags")
     .eq("user_id", userId)
     .is("deleted_at", null);
@@ -239,7 +239,7 @@ summaryRoutes.get("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) =>
   const id = c.req.param("id");
 
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("chat_messages")
     .eq("id", id)
     .eq("user_id", userId)
@@ -279,7 +279,7 @@ summaryRoutes.post("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) =
 
   // Fetch summary
   const { data: summary } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*")
     .eq("id", summaryId)
     .eq("user_id", userId)
@@ -309,7 +309,7 @@ summaryRoutes.post("/:id/chat", requirePro(PRO_FEATURES.VIDEO_CHAT), async (c) =
       { role: "assistant" as const, content: result.content },
     ];
 
-    await supabase.from("summaries").update({ chat_messages: updatedMessages }).eq("id", summaryId);
+    await supabase.from("clips").update({ chat_messages: updatedMessages }).eq("id", summaryId);
 
     return c.json(result);
   } catch (err) {
@@ -354,7 +354,7 @@ summaryRoutes.patch("/:id", async (c) => {
   }
 
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .update({ summary_json: sj })
     .eq("id", id)
     .eq("user_id", userId)
@@ -400,7 +400,7 @@ summaryRoutes.patch("/:id/tags", async (c) => {
   if (plan === "free") {
     // Get all existing unique tags for this user (excluding the current summary)
     const { data: rows } = await supabase
-      .from("summaries")
+      .from("clips")
       .select("tags")
       .eq("user_id", userId)
       .neq("id", id)
@@ -432,7 +432,7 @@ summaryRoutes.patch("/:id/tags", async (c) => {
 
   // Update the summary's tags
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .update({ tags })
     .eq("id", id)
     .eq("user_id", userId)
@@ -466,7 +466,7 @@ summaryRoutes.patch("/:id/notes", async (c) => {
   const notes = body.notes.length > 0 ? body.notes : null;
 
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .update({ user_notes: notes })
     .eq("id", id)
     .eq("user_id", userId)
@@ -492,7 +492,7 @@ summaryRoutes.get("/", async (c) => {
   const plan = await getUserPlan(userId);
 
   let query = supabase
-    .from("summaries")
+    .from("clips")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
     .eq("status", statusFilter)
@@ -539,7 +539,7 @@ summaryRoutes.post("/:id/translate", async (c) => {
   }
 
   const { data: summary } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("summary_json, summary_language, translations")
     .eq("id", id)
     .eq("user_id", userId)
@@ -594,7 +594,7 @@ summaryRoutes.post("/:id/translate", async (c) => {
     // Merge into translations JSONB
     const existing = (summary.translations as Record<string, unknown>) ?? {};
     await supabase
-      .from("summaries")
+      .from("clips")
       .update({ translations: { ...existing, [lang]: translated } })
       .eq("id", id);
 
@@ -612,7 +612,7 @@ summaryRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
 
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*")
     .eq("id", id)
     .eq("user_id", userId)
@@ -633,7 +633,7 @@ summaryRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id");
 
   const { data, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", userId)

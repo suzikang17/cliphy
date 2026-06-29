@@ -215,7 +215,7 @@ adminUserRoutes.get("/:id", async (c) => {
   }
 
   const { data: summaries } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id, video_title, status, created_at")
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -223,7 +223,7 @@ adminUserRoutes.get("/:id", async (c) => {
     .range(0, 19);
 
   const { count: totalSummaries } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .is("deleted_at", null);
@@ -339,7 +339,7 @@ async function fetchUserCards(
   if (error || !user) return null;
 
   const { count } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .is("deleted_at", null);

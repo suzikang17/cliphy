@@ -27,28 +27,28 @@ adminQueueRoutes.get("/", async (c) => {
   const [pendingResult, processingResult, failedResult, completedTodayResult, recentResult] =
     await Promise.all([
       supabase
-        .from("summaries")
+        .from("clips")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending")
         .is("deleted_at", null),
       supabase
-        .from("summaries")
+        .from("clips")
         .select("id", { count: "exact", head: true })
         .eq("status", "processing")
         .is("deleted_at", null),
       supabase
-        .from("summaries")
+        .from("clips")
         .select("id", { count: "exact", head: true })
         .eq("status", "failed")
         .is("deleted_at", null),
       supabase
-        .from("summaries")
+        .from("clips")
         .select("id", { count: "exact", head: true })
         .eq("status", "completed")
         .gte("created_at", todayMidnightISO)
         .is("deleted_at", null),
       supabase
-        .from("summaries")
+        .from("clips")
         .select("id, video_title, youtube_video_id, status, created_at, users!inner(email)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })

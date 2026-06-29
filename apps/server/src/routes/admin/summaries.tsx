@@ -49,7 +49,7 @@ adminSummaryRoutes.get("/", async (c) => {
   const to = from + PER_PAGE - 1;
 
   let query = supabase
-    .from("summaries")
+    .from("clips")
     .select("id, video_title, youtube_video_id, status, tags, created_at, users!inner(email)", {
       count: "exact",
     })
@@ -215,7 +215,7 @@ adminSummaryRoutes.get("/:id", async (c) => {
   const summaryId = c.req.param("id");
 
   const { data: summary, error } = await supabase
-    .from("summaries")
+    .from("clips")
     .select("*, users!inner(email, plan, id)")
     .eq("id", summaryId)
     .single();

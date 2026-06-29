@@ -251,7 +251,7 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
     }
 
     const { data: existing } = await supabase
-      .from("summaries")
+      .from("clips")
       .select("id")
       .eq("user_id", userId)
       .eq("youtube_video_id", video.videoId)
@@ -266,7 +266,7 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
     }
 
     const { data: row, error: insertError } = await supabase
-      .from("summaries")
+      .from("clips")
       .insert({
         user_id: userId,
         youtube_video_id: video.videoId,
