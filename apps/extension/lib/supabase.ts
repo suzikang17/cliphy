@@ -19,7 +19,8 @@ export function toSummary(row: Record<string, unknown>): Summary {
   return {
     id: row.id as string,
     userId: row.user_id as string,
-    videoId: row.youtube_video_id as string,
+    sourceType: "youtube" as const,
+    videoId: (row.youtube_video_id as string) ?? undefined,
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
     videoChannel: (row.video_channel as string) ?? undefined,

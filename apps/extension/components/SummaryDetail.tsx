@@ -119,7 +119,7 @@ function toPlainText(summary: Summary): string {
   const json = summary.summaryJson;
   if (!json) return "";
   const lines: string[] = [];
-  lines.push(summary.videoTitle || summary.videoId);
+  lines.push(summary.videoTitle || summary.videoId!);
   if (summary.videoChannel) lines.push(summary.videoChannel);
   lines.push("");
   lines.push("TL;DR:");

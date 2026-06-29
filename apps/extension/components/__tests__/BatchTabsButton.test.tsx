@@ -13,6 +13,7 @@ const mockTabsSendMessage = browserMock.tabs.sendMessage;
 const baseSummaries: Summary[] = [
   {
     id: "1",
+    sourceType: "youtube" as const,
     videoId: "existing1",
     status: "completed",
     userId: "u1",
@@ -22,6 +23,7 @@ const baseSummaries: Summary[] = [
   },
   {
     id: "2",
+    sourceType: "youtube" as const,
     videoId: "existing2",
     status: "pending",
     userId: "u1",
@@ -186,6 +188,7 @@ describe("BatchTabsButton", () => {
       ...baseSummaries,
       {
         id: "3",
+        sourceType: "youtube" as const,
         videoId: "video10",
         status: "failed",
         userId: "u1",

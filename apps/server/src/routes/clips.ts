@@ -24,6 +24,19 @@ clipsRoutes.post("/", async (c) => {
     return c.json({ error: "content is required for tweets" }, 400);
   }
 
+  // Dedup check: reject if this user already has a non-deleted clip at this URL
+  const { data: existing } = await supabase
+    .from("clips")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("source_url", body.sourceUrl)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (existing) {
+    return c.json({ error: "DUPLICATE", message: "Clip already saved" }, 409);
+  }
+
   const { data: row, error } = await supabase
     .from("clips")
     .insert({

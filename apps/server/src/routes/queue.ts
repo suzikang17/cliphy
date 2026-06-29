@@ -14,6 +14,10 @@ import {
 } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
 
+// Columns to select on list/search queries — omits heavy vector + raw transcript columns.
+const CLIP_LIST_COLS =
+  "id, user_id, youtube_video_id, source_type, source_url, content, author, published_at, source_metadata, video_title, video_url, video_channel, video_duration_seconds, status, summary_json, summary_language, translations, error_message, tags, user_notes, deleted_at, created_at, updated_at";
+
 // ─── Routes ────────────────────────────────────────────────
 
 export const queueRoutes = new Hono<AppEnv>();
@@ -27,7 +31,7 @@ queueRoutes.get("/", async (c) => {
 
   const { data: rows, error } = await supabase
     .from("clips")
-    .select("*")
+    .select(CLIP_LIST_COLS)
     .eq("user_id", userId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -46,7 +50,7 @@ queueRoutes.get("/:id", async (c) => {
 
   const { data: row, error } = await supabase
     .from("clips")
-    .select("*")
+    .select(CLIP_LIST_COLS)
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
