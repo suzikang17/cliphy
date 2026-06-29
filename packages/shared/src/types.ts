@@ -56,23 +56,35 @@ export interface SummaryJson {
 export interface Summary {
   id: string;
   userId: string;
-  videoId: string;
+  // Universal fields (all source types)
+  sourceType: "youtube" | "tweet";
+  sourceUrl?: string;
+  content?: string;
+  author?: string;
+  publishedAt?: string;
+  sourceMetadata?: Record<string, unknown>;
+  // YouTube-specific (kept for backwards compat — undefined for tweets)
+  videoId?: string;
   videoTitle?: string;
   videoUrl?: string;
   videoChannel?: string;
   videoDurationSeconds?: number;
+  // Shared processing fields
   status: SummaryStatus;
   summaryJson?: SummaryJson;
   summaryLanguage?: string;
   translations?: Partial<Record<import("./constants.js").SummaryLanguageCode, SummaryJson>>;
   errorMessage?: string;
   tags: string[];
-  /** Freeform user notes, independent of the AI-generated summaryJson. */
   userNotes?: string;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+// Forward alias — use Clip in new code
+export type Clip = Summary;
+export type ClipStatus = SummaryStatus;
 
 export interface UsageInfo {
   used: number;
@@ -97,6 +109,20 @@ export interface QueueAddRequest {
 
 export interface QueueAddResponse {
   summary: Summary;
+}
+
+export interface ClipAddRequest {
+  sourceType: "youtube" | "tweet";
+  sourceUrl: string;
+  content?: string;
+  author?: string;
+  publishedAt?: string;
+  title?: string;
+  sourceMetadata?: Record<string, unknown>;
+}
+
+export interface ClipAddResponse {
+  clip: Summary;
 }
 
 export interface SummaryResponse {

@@ -77,6 +77,9 @@ export const API_ROUTES = {
     RETRY: (id: string) => `/api/queue/${id}/retry`,
     BATCH: "/api/queue/batch",
   },
+  CLIPS: {
+    ADD: "/api/clips",
+  },
   SUMMARIES: {
     LIST: "/api/summaries",
     ITEM: (id: string) => `/api/summaries/${id}`,
