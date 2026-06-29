@@ -1,5 +1,5 @@
 const VOYAGE_API_URL = "https://api.voyageai.com/v1/embeddings";
-const VOYAGE_MODEL = "voyage-3";
+const VOYAGE_MODEL = "voyage-3.5";
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   const res = await fetch(VOYAGE_API_URL, {
