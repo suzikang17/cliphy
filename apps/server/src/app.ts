@@ -26,6 +26,7 @@ import { adminRoutes } from "./routes/admin/index.js";
 import { deviceRoutes } from "./routes/devices.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { apiKeyRoutes } from "./routes/api-keys.js";
+import { clipsRoutes } from "./routes/clips.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -90,6 +91,7 @@ app.route("/auth/google", authGoogleRoutes);
 app.route("/auth", authRoutes);
 app.route("/subscriptions", subscriptionRoutes);
 app.route("/queue", queueRoutes);
+app.route("/clips", clipsRoutes);
 app.route("/summaries", summaryRoutes);
 app.route("/usage", usageRoutes);
 app.route("/billing", billingRoutes);
