@@ -14,6 +14,8 @@ import type {
   SubscriptionCreateRequest,
   SubscriptionUpdateRequest,
   GoogleConnectionStatus,
+  ClipAddRequest,
+  ClipAddResponse,
 } from "@cliphy/shared";
 import { supabase } from "./supabase";
 
@@ -184,6 +186,14 @@ export async function updateSubscription(id: string, body: SubscriptionUpdateReq
 
 export async function deleteSubscription(id: string) {
   return request<{ deleted: true }>(API_ROUTES.SUBSCRIPTIONS.ITEM(id), { method: "DELETE" });
+}
+
+// Clips
+export async function addClip(body: ClipAddRequest) {
+  return request<ClipAddResponse>(API_ROUTES.CLIPS.ADD, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 // Google OAuth

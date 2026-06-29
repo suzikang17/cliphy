@@ -244,7 +244,7 @@ export function SummaryPage() {
     >
       <YouTubePlayer
         ref={playerRef}
-        videoId={summary.videoId}
+        videoId={summary.videoId!}
         onTimeUpdate={setCurrentSeconds}
         onError={() => setPlayerError(true)}
       />
