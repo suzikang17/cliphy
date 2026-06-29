@@ -9,6 +9,7 @@ import { inngest } from "./lib/inngest.js";
 import { logger } from "./lib/logger.js";
 import { Sentry } from "./lib/sentry.js";
 import { summarizeVideo } from "./functions/summarize-video.js";
+import { embedClip } from "./functions/embed-clip.js";
 import {
   pollSubscriptionsCron,
   processPlaylistDiscovery,
@@ -78,6 +79,7 @@ app.on(
       pollSubscriptionsCron,
       processSubscriptionPoll,
       processPlaylistDiscovery,
+      embedClip,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",

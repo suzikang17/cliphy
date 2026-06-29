@@ -249,6 +249,14 @@ export const summarizeVideo = inngest.createFunction(
         .eq("id", summaryId);
     });
 
+    // Step 4: Request embedding generation
+    await step.run("request-embedding", async () => {
+      await inngest.send({
+        name: "clip/embed.requested",
+        data: { clipId: summaryId },
+      });
+    });
+
     return { summaryId, status: "completed" };
   },
 );
