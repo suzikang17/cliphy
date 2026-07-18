@@ -38,6 +38,9 @@ jobs:
       - name: Typecheck server
         run: pnpm --filter server typecheck
 
+      - name: Typecheck mobile
+        run: pnpm --filter mobile typecheck
+
       - name: Build extension
         run: pnpm build:extension
 

@@ -52,9 +52,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5af71f4e-b1ca-4cc7-b38d-791e6c965e49"
+        "projectId": "00c5bde0-16b3-4bc0-a29a-3429a85f8a78",
+        "build": {}
       }
     },
-    "owner": "cliphy"
+    "owner": "suzikang17s-team"
   }
 }
