@@ -55,6 +55,7 @@ const TYPE_LABELS: Record<SubscriptionType, string> = {
   playlist: "Playlist",
   watch_later: "Watch Later",
   liked: "Liked Videos",
+  podcast_feed: "Podcast",
 };
 
 export default function SubscriptionsScreen() {
@@ -239,8 +240,8 @@ export default function SubscriptionsScreen() {
             try {
               await disconnectGoogle();
               setGoogleConnected(false);
-              setSubscriptions(
-                (prev) => prev.filter((s) => s.type !== "watch_later" && s.type !== "liked"),
+              setSubscriptions((prev) =>
+                prev.filter((s) => s.type !== "watch_later" && s.type !== "liked"),
               );
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to disconnect");
@@ -543,8 +544,8 @@ export default function SubscriptionsScreen() {
             className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-3"
             style={{ fontFamily: "DMSans" }}
           >
-            Queue videos from the share sheet, Action Button, or Siri — without
-            opening Cliphy. Generate a key, then install the shortcut.
+            Queue videos from the share sheet, Action Button, or Siri — without opening Cliphy.
+            Generate a key, then install the shortcut.
           </Text>
 
           {shortcutKey ? (
@@ -620,12 +621,14 @@ function SubscriptionRow({
     playlist: "bg-purple-100 dark:bg-purple-900/30",
     watch_later: "bg-amber-100 dark:bg-amber-900/30",
     liked: "bg-rose-100 dark:bg-rose-900/30",
+    podcast_feed: "bg-green-100 dark:bg-green-900/30",
   };
   const typeBadgeText: Record<SubscriptionType, string> = {
     channel: "text-blue-700 dark:text-blue-300",
     playlist: "text-purple-700 dark:text-purple-300",
     watch_later: "text-amber-700 dark:text-amber-300",
     liked: "text-rose-700 dark:text-rose-300",
+    podcast_feed: "text-green-700 dark:text-green-300",
   };
 
   return (

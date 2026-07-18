@@ -54,6 +54,7 @@ export const SUBSCRIPTION_TYPES = {
   PLAYLIST: "playlist",
   WATCH_LATER: "watch_later",
   LIKED: "liked",
+  PODCAST_FEED: "podcast_feed",
 } as const;
 
 export const MAX_SUBSCRIPTIONS_PER_USER = 20;

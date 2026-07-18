@@ -44,6 +44,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="podcasts"
+        options={{
+          title: "Podcasts",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="headset-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",

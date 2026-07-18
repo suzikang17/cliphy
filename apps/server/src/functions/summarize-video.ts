@@ -126,15 +126,28 @@ export const summarizeVideo = inngest.createFunction(
       transcriptLanguage,
       resolvedTitle,
     } = await step.run("fetch-transcript", async () => {
-      // Read the requested summary language from the summary row
+      // Read the requested summary language and source type from the summary row
       const { data: summaryRow } = await supabase
         .from("clips")
-        .select("summary_language")
+        .select("source_type, summary_language, transcript")
         .eq("id", summaryId)
         .single();
       const summaryLang = (summaryRow?.summary_language as string) ?? "en";
 
       await supabase.from("clips").update({ status: "processing" }).eq("id", summaryId);
+
+      // Non-YouTube clips (e.g. podcast episodes) arrive with the transcript
+      // already stored by the transcription function — skip the YouTube fetch.
+      const storedTranscript = summaryRow?.transcript as string | null | undefined;
+      if (summaryRow?.source_type !== "youtube" && storedTranscript) {
+        return {
+          text: storedTranscript,
+          truncated: storedTranscript.length >= MAX_TRANSCRIPT_LENGTH,
+          summaryLanguage: summaryLang,
+          transcriptLanguage: "",
+          resolvedTitle: videoTitle,
+        };
+      }
 
       // Check for a cached transcript from a previous summary of the same video
       const { data: cached } = await supabase

@@ -52,12 +52,14 @@ export interface SummaryJson {
   truncated?: boolean;
 }
 
+export type SourceType = "youtube" | "tweet" | "podcast";
+
 /** Unified queue + result row from the `summaries` table */
 export interface Summary {
   id: string;
   userId: string;
   // Universal fields (all source types)
-  sourceType: "youtube" | "tweet";
+  sourceType: SourceType;
   sourceUrl?: string;
   content?: string;
   author?: string;
@@ -112,7 +114,7 @@ export interface QueueAddResponse {
 }
 
 export interface ClipAddRequest {
-  sourceType: "youtube" | "tweet";
+  sourceType: SourceType;
   sourceUrl: string;
   content?: string;
   author?: string;
@@ -186,7 +188,7 @@ export interface UserSettings {
   autoDiscoverPlaylists: boolean;
 }
 
-export type SubscriptionType = "channel" | "playlist" | "watch_later" | "liked";
+export type SubscriptionType = "channel" | "playlist" | "watch_later" | "liked" | "podcast_feed";
 
 export interface Subscription {
   id: string;
@@ -237,3 +239,48 @@ export type EmailAuthStatus = "new" | "password" | "google";
 export interface CheckEmailResponse {
   status: EmailAuthStatus;
 }
+
+// ── Podcast types ──────────────────────────────────────────────────────────
+
+export type PodcastFeed = {
+  id: string;
+  userId: string;
+  rssUrl: string;
+  title: string;
+  author?: string;
+  artworkUrl?: string;
+  autoQueue: boolean;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
+  lastPolledAt?: string;
+  createdAt: string;
+};
+
+export type PodcastEpisodeStatus =
+  | "pending_approval"
+  | "queued"
+  | "processing"
+  | "done"
+  | "skipped";
+
+export type PodcastEpisode = {
+  id: string;
+  feedId: string;
+  userId: string;
+  guid: string;
+  title: string;
+  description?: string;
+  audioUrl: string;
+  artworkUrl?: string;
+  durationSeconds?: number;
+  publishedAt: string;
+  status: PodcastEpisodeStatus;
+  clipId?: string;
+  createdAt: string;
+};
+
+export type PodcastFeedSettings = {
+  autoQueue?: boolean;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
+};

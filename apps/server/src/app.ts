@@ -27,6 +27,9 @@ import { deviceRoutes } from "./routes/devices.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { apiKeyRoutes } from "./routes/api-keys.js";
 import { clipsRoutes } from "./routes/clips.js";
+import { podcastRoutes } from "./routes/podcasts.js";
+import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
+import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -81,6 +84,9 @@ app.on(
       processSubscriptionPoll,
       processPlaylistDiscovery,
       embedClip,
+      pollPodcastFeedsCron,
+      processPodcastFeedPoll,
+      transcribePodcastEpisode,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",
@@ -99,6 +105,7 @@ app.route("/devices", deviceRoutes);
 app.route("/admin", adminRoutes);
 app.route("/settings", settingsRoutes);
 app.route("/keys", apiKeyRoutes);
+app.route("/podcasts", podcastRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {

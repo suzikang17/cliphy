@@ -11,6 +11,9 @@ import type {
   ApiKey,
   ApiKeyCreateResponse,
   UserSettings,
+  PodcastFeed,
+  PodcastEpisode,
+  PodcastFeedSettings,
 } from "@cliphy/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
@@ -201,6 +204,45 @@ export const getGoogleConnectUrl = () =>
 
 export const disconnectGoogle = () =>
   apiFetch<{ disconnected: true }>("/api/auth/google", { method: "DELETE" });
+
+// Podcasts
+export const getPodcastFeeds = () =>
+  apiFetch<{ feeds: PodcastFeed[] }>("/api/podcasts/feeds").then((d) => d.feeds);
+
+export const createPodcastFeed = (rssUrl: string) =>
+  apiFetch<{ feed: PodcastFeed }>("/api/podcasts/feeds", {
+    method: "POST",
+    body: JSON.stringify({ rssUrl }),
+  }).then((d) => d.feed);
+
+export const updatePodcastFeed = (id: string, settings: PodcastFeedSettings) =>
+  apiFetch<{ feed: PodcastFeed }>(`/api/podcasts/feeds/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(settings),
+  }).then((d) => d.feed);
+
+export const deletePodcastFeed = (id: string) =>
+  apiFetch<{ deleted: true }>(`/api/podcasts/feeds/${id}`, { method: "DELETE" });
+
+export const getPodcastEpisodes = (feedId: string, status?: string) => {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<{ episodes: PodcastEpisode[] }>(
+    `/api/podcasts/feeds/${feedId}/episodes${qs}`,
+  ).then((d) => d.episodes);
+};
+
+export const refreshPodcastFeed = (feedId: string) =>
+  apiFetch<void>(`/api/podcasts/feeds/${feedId}/refresh`, { method: "POST" });
+
+export const queuePodcastEpisode = (episodeId: string) =>
+  apiFetch<{ episode: PodcastEpisode }>(`/api/podcasts/episodes/${episodeId}/queue`, {
+    method: "POST",
+  }).then((d) => d.episode);
+
+export const skipPodcastEpisode = (episodeId: string) =>
+  apiFetch<{ episode: PodcastEpisode }>(`/api/podcasts/episodes/${episodeId}/skip`, {
+    method: "POST",
+  }).then((d) => d.episode);
 
 // Auth (pre-login, no token)
 export async function checkEmail(email: string): Promise<CheckEmailResponse> {
