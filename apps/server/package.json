@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test-proxy": "tsx --env-file=.env.local scripts/test-proxy-fetch.ts",
     "migrate": "tsx --env-file=.env.local scripts/migrate.ts",
-    "migrate:check": "tsx scripts/migrate.ts check"
+    "migrate:check": "tsx scripts/migrate.ts check",
+    "migrate:deploy": "tsx scripts/migrate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

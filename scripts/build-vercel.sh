@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# ── 0. Apply pending DB migrations ──
+# Runs before the build so schema changes always land before the code that
+# depends on them. If this fails, the build fails and the previous (working)
+# deployment keeps serving traffic — nothing half-deploys.
+pnpm --filter server migrate:deploy
+
 # ── 1. Build the web app (static SPA) ──
 pnpm --filter web build
 
