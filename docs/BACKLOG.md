@@ -35,4 +35,3 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Weekly digest — smart notifications about your content — Push notification or in-app digest: "You saved 5 videos about system design this week — here’s a synthesis." Surfaces patterns in consumption. Drives re-e... (was CLIP-90)
 - [ ] (was CLIP-80)
 - [ ] Full multi-tweet / self-thread capture — free syndication + FixTweet endpoints only return the single root tweet (no forward thread children). Revisit via screenshot-OCR (subproject #2) or a paid path. See ADR 0043.
-- [ ] Fix inbox Realtime subscription — `app/(tabs)/index.tsx` listens to `table: "summaries"` but the table was renamed to `clips` in migration 022; live updates don't fire.

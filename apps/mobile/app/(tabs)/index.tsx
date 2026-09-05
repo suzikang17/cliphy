@@ -72,19 +72,19 @@ export default function QueueScreen() {
           {
             event: "*",
             schema: "public",
-            table: "summaries",
+            table: "clips",
             filter: `user_id=eq.${userId}`,
           },
           (payload) => {
-            const updated = payload.new as Summary;
-
-            if (payload.eventType === "INSERT") {
-              setItems((prev) => [updated, ...prev]);
-            } else if (payload.eventType === "UPDATE") {
-              setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-            } else if (payload.eventType === "DELETE") {
+            // Realtime delivers raw snake_case DB rows, not mapped camelCase
+            // Summary objects. Deletes only need the id (same in both shapes),
+            // so remove locally for snappiness; inserts/updates resync from the
+            // API so cards get correctly-mapped fields.
+            if (payload.eventType === "DELETE") {
               const deleted = payload.old as { id: string };
               setItems((prev) => prev.filter((item) => item.id !== deleted.id));
+            } else {
+              fetchData();
             }
           },
         )
@@ -94,7 +94,7 @@ export default function QueueScreen() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchData]);
 
   // Clipboard YouTube URL detection on app focus — non-blocking banner
   const lastClipboardUrl = useRef<string | null>(null);
