@@ -115,6 +115,27 @@ describe("toClip", () => {
     expect(clip.status).toBe("completed");
   });
 
+  it("maps web clip columns (category, hero_image_url, excerpt)", () => {
+    const row = {
+      id: "c1",
+      user_id: "u1",
+      source_type: "web",
+      source_url: "https://example.com/post",
+      status: "completed",
+      category: "reading",
+      hero_image_url: "https://example.com/hero.jpg",
+      excerpt: "A short preview.",
+      tags: [],
+      created_at: "2026-09-05T00:00:00Z",
+      updated_at: "2026-09-05T00:00:00Z",
+    };
+    const clip = toClip(row);
+    expect(clip.sourceType).toBe("web");
+    expect(clip.category).toBe("reading");
+    expect(clip.heroImageUrl).toBe("https://example.com/hero.jpg");
+    expect(clip.excerpt).toBe("A short preview.");
+  });
+
   it("maps YouTube row preserving existing fields", () => {
     const ytRow = {
       ...tweetRow,
