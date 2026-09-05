@@ -57,6 +57,20 @@ export const SUBSCRIPTION_TYPES = {
   PODCAST_FEED: "podcast_feed",
 } as const;
 
+export const SOURCE_TYPES = {
+  YOUTUBE: "youtube",
+  TWEET: "tweet",
+  PODCAST: "podcast",
+  WEB: "web",
+} as const;
+
+export const CLIP_CATEGORIES = {
+  IDEA: "idea",
+  READING: "reading",
+  DESIGN: "design",
+  REFERENCE: "reference",
+} as const;
+
 export const MAX_SUBSCRIPTIONS_PER_USER = 20;
 
 export const MAX_API_KEYS_PER_USER = 5;

@@ -52,7 +52,33 @@ export interface SummaryJson {
   truncated?: boolean;
 }
 
-export type SourceType = "youtube" | "tweet" | "podcast";
+export type SourceType = "youtube" | "tweet" | "podcast" | "web";
+
+export type ClipCategory = "idea" | "reading" | "design" | "reference";
+
+export interface TweetMedia {
+  type: "photo" | "video" | "gif";
+  url: string;
+  previewUrl?: string;
+}
+
+export interface TweetClipMetadata {
+  handle: string;
+  avatarUrl?: string;
+  media?: TweetMedia[];
+  quotedTweet?: { handle: string; text: string } | null;
+  threadTweetIds?: string[];
+  threadTruncated?: boolean;
+  likeCount?: number;
+  retweetCount?: number;
+}
+
+export interface WebClipMetadata {
+  siteName?: string;
+  faviconUrl?: string;
+  readingTimeMin?: number;
+  kind: "article" | "visual";
+}
 
 /** Unified queue + result row from the `summaries` table */
 export interface Summary {
@@ -65,6 +91,10 @@ export interface Summary {
   author?: string;
   publishedAt?: string;
   sourceMetadata?: Record<string, unknown>;
+  // Universal display/triage fields
+  category?: ClipCategory;
+  heroImageUrl?: string;
+  excerpt?: string;
   // YouTube-specific (kept for backwards compat — undefined for tweets)
   videoId?: string;
   videoTitle?: string;
