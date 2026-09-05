@@ -22,6 +22,7 @@
     "production": {
       "ios": {
         "appleId": "sukisoap@icloud.com",
+        "ascAppId": "6792387102",
         "appleTeamId": "X5C7XC8SAV"
       }
     }
