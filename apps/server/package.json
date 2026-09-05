@@ -16,11 +16,13 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@cliphy/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "@mozilla/readability": "^0.6.0",
     "@sentry/node": "^10.42.0",
     "@supabase/supabase-js": "^2.47.0",
     "hono": "^4.12.5",
     "htmx.org": "^2.0.8",
     "inngest": "^4.4.0",
+    "linkedom": "^0.18.13",
     "stripe": "^20.4.0"
   },
   "devDependencies": {
