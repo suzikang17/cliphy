@@ -1,44 +1,36 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
 
-// vi.mock calls are hoisted — must appear before imports of the module under test
-vi.mock("../../lib/supabase.js", () => ({
-  supabase: { from: vi.fn() },
+vi.mock("../../lib/supabase.js", () => ({ supabase: {} }));
+vi.mock("../../lib/inngest.js", () => ({
+  inngest: { createFunction: (_cfg: unknown, fn: unknown) => fn },
 }));
-vi.mock("../../services/embedding.js", () => ({
-  generateEmbedding: vi.fn(),
-}));
+vi.mock("../../services/embedding.js", () => ({ generateEmbedding: vi.fn() }));
+vi.mock("../../services/enrich.js", () => ({ enrichClip: vi.fn() }));
 
-import { buildEmbedText } from "../embed-clip.js";
+const { buildEmbedText } = await import("../embed-clip.js");
 
 describe("buildEmbedText", () => {
   beforeEach(() => {
     layer("unit");
-    epic("Embedding");
-    feature("embed-clip");
+    epic("Enrichment");
+    feature("Embed Text");
   });
 
-  it("builds tweet embed text as '@handle: content'", () => {
-    const text = buildEmbedText({
-      source_type: "tweet",
-      author: "@alice",
-      content: "Hello world",
-      summary_json: null,
-    });
-    expect(text).toBe("@alice: Hello world");
+  it("uses author + content for tweets", () => {
+    expect(
+      buildEmbedText({ source_type: "tweet", author: "jack", content: "hi", summary_json: null }),
+    ).toBe("jack: hi");
   });
 
-  it("builds YouTube embed text from summary and keyPoints", () => {
-    const text = buildEmbedText({
-      source_type: "youtube",
-      author: "Channel",
-      content: null,
-      summary_json: {
-        summary: "Great video about cats",
-        keyPoints: ["cats are fluffy", "cats sleep a lot"],
-        timestamps: [],
-      },
-    });
-    expect(text).toBe("Great video about cats cats are fluffy cats sleep a lot");
+  it("uses summary + key points otherwise", () => {
+    expect(
+      buildEmbedText({
+        source_type: "youtube",
+        author: null,
+        content: null,
+        summary_json: { summary: "S", keyPoints: ["a", "b"], timestamps: [] } as never,
+      }),
+    ).toBe("S a b");
   });
 });
