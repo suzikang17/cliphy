@@ -9,7 +9,7 @@ import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { addToQueue } from "../lib/api";
+import { addClip } from "../lib/api";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
@@ -101,20 +101,17 @@ export default function RootLayout() {
     const sharedText = shareIntent.text;
     resetShareIntent();
 
-    const urlMatch = sharedText.match(
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/,
-    );
+    const urlMatch = sharedText.match(/https?:\/\/[^\s]+/);
 
     if (!urlMatch) {
-      Alert.alert("Not a YouTube URL", "Share a YouTube video link to add it to your queue.");
+      Alert.alert("No link found", "Share a link to save it to Cliphy.");
       return;
     }
 
     processingShareRef.current = true;
-    const videoUrl = `https://www.youtube.com/watch?v=${urlMatch[1]}`;
-    addToQueue({ videoUrl })
+    addClip({ url: urlMatch[0] })
       .then((res) => {
-        Alert.alert("Added to queue", res.summary.videoTitle || "Video queued for summary");
+        Alert.alert("Saved to Cliphy", res.clip.videoTitle || "Clip saved");
       })
       .catch((err: unknown) => {
         showQueueError(err);

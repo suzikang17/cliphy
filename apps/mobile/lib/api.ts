@@ -119,6 +119,13 @@ export const addToQueue = (body: { videoUrl: string; videoTitle?: string }) =>
     body: JSON.stringify(body),
   });
 
+// Universal clip ingest — accepts any URL; the server detects the source type.
+export const addClip = (body: { url: string }) =>
+  apiFetch<{ clip: Summary }>("/api/clips", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
 export const deleteQueueItem = (id: string) =>
   apiFetch<{ deleted: true }>(`/api/queue/${id}`, { method: "DELETE" });
 
