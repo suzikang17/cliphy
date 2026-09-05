@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, RefreshControl, AppState, Pressable, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import type { Summary, UsageInfo } from "@cliphy/shared";
-import { neon } from "@cliphy/shared";
+import type { Summary, UsageInfo, ClipCategory } from "@cliphy/shared";
+import { neon, CLIP_CATEGORIES } from "@cliphy/shared";
 import { getQueue, getUsage, addToQueue, refreshSubscriptions } from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
-import { QueueCard } from "../../components/QueueCard";
+import { ClipCard } from "../../components/ClipCard";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
 import { UsageBar } from "../../components/UsageBar";
@@ -22,7 +22,12 @@ export default function QueueScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [clipboardBanner, setClipboardBanner] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<ClipCategory | null>(null);
   const bannerOpacity = useRef(new Animated.Value(0)).current;
+
+  const visibleItems = selectedCategory
+    ? items.filter((item) => item.category === selectedCategory)
+    : items;
 
   const fetchData = useCallback(async () => {
     try {
@@ -194,16 +199,33 @@ export default function QueueScreen() {
           </Pressable>
         </View>
       ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <QueueCard item={item} />}
-          contentContainerClassName="px-4 py-4 gap-3"
-          ListEmptyComponent={<EmptyState />}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={neon[600]} />
-          }
-        />
+        <>
+          <View className="flex-row gap-2 px-4 pt-3">
+            <CategoryChip
+              label="All"
+              active={selectedCategory === null}
+              onPress={() => setSelectedCategory(null)}
+            />
+            {Object.values(CLIP_CATEGORIES).map((cat) => (
+              <CategoryChip
+                key={cat}
+                label={cat}
+                active={selectedCategory === cat}
+                onPress={() => setSelectedCategory(cat)}
+              />
+            ))}
+          </View>
+          <FlatList
+            data={visibleItems}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <ClipCard item={item} />}
+            contentContainerClassName="px-4 py-4 gap-3"
+            ListEmptyComponent={<EmptyState />}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={neon[600]} />
+            }
+          />
+        </>
       )}
 
       {/* Clipboard detection banner */}
@@ -260,5 +282,34 @@ export default function QueueScreen() {
 
       <UsageBar usage={usage} />
     </SafeAreaView>
+  );
+}
+
+function CategoryChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="px-3 py-1 rounded-full border-2 border-black dark:border-[#505050]"
+      style={active ? { backgroundColor: neon[600] } : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`Filter by ${label}`}
+    >
+      <Text
+        className={
+          active ? "text-white text-xs font-bold" : "text-[#111827] dark:text-white text-xs"
+        }
+        style={{ fontFamily: "DMSans", textTransform: "capitalize" }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
