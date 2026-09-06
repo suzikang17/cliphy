@@ -3,6 +3,7 @@ import type { Runtime } from "wxt/browser";
 import { parseDurationToSeconds, WEB_ROUTES } from "@cliphy/shared";
 import { useEffect, useRef, useState } from "react";
 import { BatchTabsButton } from "../../components/BatchTabsButton";
+import { PinsBoard } from "../../components/pins/PinsBoard";
 import { Logo } from "../../components/Logo";
 import { Onboarding } from "../../components/Onboarding";
 import { QueueList } from "../../components/QueueList";
@@ -39,7 +40,7 @@ import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
 
-type View = "dashboard" | "detail";
+type View = "dashboard" | "detail" | "pins";
 
 async function seekVideo(seconds: number, videoId?: string) {
   try {
@@ -596,7 +597,9 @@ export function App() {
             </button>
           </>
         ) : (
-          <span className="text-lg font-extrabold text-(--color-text)">Summary Queue</span>
+          <span className="text-lg font-extrabold text-(--color-text)">
+            {view === "pins" ? "Pins" : "Summary Queue"}
+          </span>
         )}
       </div>
       {view === "dashboard" && user?.plan === "pro" && (
@@ -952,24 +955,49 @@ export function App() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 pb-2">
-        <QueueList
-          summaries={summaries}
-          currentVideo={currentVideo}
-          videoLoading={videoLoading}
-          loadingVideoId={loadingVideoId}
-          onAddToQueue={handleAddToQueue}
-          isAdding={isAdding}
-          addStatus={addStatus}
-          addError={addError}
-          atLimit={usage ? usage.used >= usage.limit : false}
-          onUpgrade={handleCheckout}
-          onViewSummary={handleViewSummary}
-          onOpenSummary={handleOpenSummary}
-          onRemove={handleRemoveItem}
-          onRetry={handleRetryItem}
-        />
-      </div>
+      {view !== "detail" && (
+        <div className="shrink-0 flex gap-1 border-b border-(--color-border-soft) px-4 py-2">
+          {(["dashboard", "pins"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`text-xs font-bold px-2.5 py-1 border-2 rounded-lg cursor-pointer transition-all ${
+                view === v
+                  ? "border-(--color-border-hard) bg-neon-100 text-neon-700 dark:bg-neon-900/50 dark:text-neon-400 shadow-brutal-sm"
+                  : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
+              }`}
+            >
+              {v === "dashboard" ? "Queue" : "Pins"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === "pins" ? (
+        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
+          {/* One column: the sidepanel is ~400px, so masonry would be unreadable. */}
+          <PinsBoard columns={1} />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto px-4 pb-2">
+          <QueueList
+            summaries={summaries}
+            currentVideo={currentVideo}
+            videoLoading={videoLoading}
+            loadingVideoId={loadingVideoId}
+            onAddToQueue={handleAddToQueue}
+            isAdding={isAdding}
+            addStatus={addStatus}
+            addError={addError}
+            atLimit={usage ? usage.used >= usage.limit : false}
+            onUpgrade={handleCheckout}
+            onViewSummary={handleViewSummary}
+            onOpenSummary={handleOpenSummary}
+            onRemove={handleRemoveItem}
+            onRetry={handleRetryItem}
+          />
+        </div>
+      )}
 
       {usage && (
         <div className="shrink-0 border-t border-(--color-border-soft) px-4 py-2">

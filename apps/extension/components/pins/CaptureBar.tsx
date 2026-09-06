@@ -33,7 +33,7 @@ export function CaptureBar({ onAdded }: CaptureBarProps) {
   }
 
   return (
-    <div className="mb-6 flex items-center gap-2">
+    <div className="mb-4 flex flex-wrap items-center gap-2">
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
@@ -43,7 +43,7 @@ export function CaptureBar({ onAdded }: CaptureBarProps) {
         placeholder="Paste a URL to pin…"
         disabled={busy}
         aria-label="Paste a URL to pin"
-        className="flex-1 rounded-lg border-2 border-black bg-[#f9fafb] px-3 py-2 text-sm shadow-[3px_3px_0_0_rgba(0,0,0,1)] dark:border-[#505050] dark:bg-[#282828] dark:text-white dark:shadow-[3px_3px_0_0_rgba(255,255,255,0.12)]"
+        className="min-w-0 flex-1 rounded-lg border-2 border-black bg-[#f9fafb] px-3 py-2 text-sm shadow-[3px_3px_0_0_rgba(0,0,0,1)] dark:border-[#505050] dark:bg-[#282828] dark:text-white dark:shadow-[3px_3px_0_0_rgba(255,255,255,0.12)]"
       />
       <button
         type="button"
