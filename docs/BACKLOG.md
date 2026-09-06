@@ -35,3 +35,7 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Weekly digest — smart notifications about your content — Push notification or in-app digest: "You saved 5 videos about system design this week — here’s a synthesis." Surfaces patterns in consumption. Drives re-e... (was CLIP-90)
 - [ ] (was CLIP-80)
 - [ ] Full multi-tweet / self-thread capture — free syndication + FixTweet endpoints only return the single root tweet (no forward thread children). Revisit via screenshot-OCR (subproject #2) or a paid path. See ADR 0043.
+- [ ] iOS full-page (PDF) screenshots — render PDF pages → images → vision. Deferred from subproject #2.
+- [ ] Video / screen-recording capture — sample keyframes + transcribe audio (reuse Whisper). Deferred from subproject #2.
+- [ ] Auto-detect recent screenshots on app open — offer to save screenshots since last visit. Deferred from subproject #2.
+- [ ] Orphaned-upload cleanup — periodic job to delete clip-images objects whose POST never landed. Deferred from subproject #2.
