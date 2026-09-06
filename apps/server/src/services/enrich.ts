@@ -5,6 +5,7 @@ export interface EnrichInput {
   sourceType: SourceType;
   title?: string;
   text: string;
+  existingTags?: string[];
 }
 export interface Enrichment {
   summary: string;
@@ -37,11 +38,16 @@ export function parseEnrichment(raw: string): Enrichment {
 }
 
 export async function enrichClip(input: EnrichInput): Promise<Enrichment> {
+  const vocab = input.existingTags?.length
+    ? `\n\nPrefer tags from this list when they fit: ${JSON.stringify(
+        input.existingTags.slice(0, 100),
+      )}. Only invent a new tag when none match.`
+    : "";
   const prompt =
     `You triage saved clips. Return ONLY JSON: {"summary": string (<=2 sentences), ` +
     `"tags": string[] (2-4 lowercase topic tags), "category": one of ${JSON.stringify(
       Object.values(CLIP_CATEGORIES),
-    )}}.\n\n` +
+    )}}.${vocab}\n\n` +
     `Source type: ${input.sourceType}\nTitle: ${input.title ?? ""}\n\nContent:\n${input.text.slice(0, 6000)}`;
   const res = await anthropic.messages.create({
     model: MODEL,
