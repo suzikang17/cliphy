@@ -38,10 +38,15 @@ export const embedClip = inngest.createFunction(
 
     // Web/tweet clips arrive without a summary — enrich them (summary, tags,
     // category) before embedding so the embed text and inbox are populated.
-    if ((clip.source_type === "web" || clip.source_type === "tweet") && !clip.summary_json) {
+    if (
+      (clip.source_type === "web" ||
+        clip.source_type === "tweet" ||
+        clip.source_type === "image") &&
+      !clip.summary_json
+    ) {
       const enrichment = await step.run("enrich-clip", async () => {
         const e = await enrichClip({
-          sourceType: clip.source_type as "web" | "tweet",
+          sourceType: clip.source_type as "web" | "tweet" | "image",
           title: clip.video_title ?? undefined,
           text: clip.content ?? "",
         });

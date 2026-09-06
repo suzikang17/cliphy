@@ -30,6 +30,7 @@ import { clipsRoutes } from "./routes/clips.js";
 import { podcastRoutes } from "./routes/podcasts.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
+import { visionClip } from "./functions/visionClip.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -87,6 +88,7 @@ app.on(
       pollPodcastFeedsCron,
       processPodcastFeedPoll,
       transcribePodcastEpisode,
+      visionClip,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",
