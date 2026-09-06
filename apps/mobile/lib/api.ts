@@ -126,6 +126,14 @@ export const addClip = (body: { url?: string; imagePath?: string }) =>
     body: JSON.stringify(body),
   });
 
+export const getRelatedClips = (id: string) =>
+  apiFetch<{ clips: Summary[] }>(`/api/clips/${id}/related`).then((d) => d.clips);
+
+export const searchClips = (q: string) =>
+  apiFetch<{ summaries: Summary[] }>(`/api/summaries/search?q=${encodeURIComponent(q)}`).then(
+    (d) => d.summaries,
+  );
+
 export const deleteQueueItem = (id: string) =>
   apiFetch<{ deleted: true }>(`/api/queue/${id}`, { method: "DELETE" });
 
