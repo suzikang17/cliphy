@@ -68,6 +68,35 @@ describe("StowTabsPanel", () => {
     expect(onStowed).toHaveBeenCalledWith(2, ["https://linear.app", "https://vercel.com"]);
   });
 
+  it("stows without closing when the close toggle is off for that tab", async () => {
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Close Linear after stowing"));
+    expect(screen.getByText("Stow 2 · close 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Stow 2 · close 1"));
+
+    await waitFor(() => expect(stowTab).toHaveBeenCalledTimes(2));
+    // Both saved; only Vercel closes.
+    expect(browserMock.tabs.remove).toHaveBeenCalledWith([2]);
+    expect(onStowed).toHaveBeenCalledWith(2, ["https://vercel.com"]);
+  });
+
+  it("closes nothing when every close toggle is off", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("✕ Close all"));
+    expect(screen.getByText("Stow 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Stow 2"));
+
+    await waitFor(() => expect(stowTab).toHaveBeenCalledTimes(2));
+    expect(browserMock.tabs.remove).not.toHaveBeenCalled();
+  });
+
   it("never closes a tab whose save failed", async () => {
     stowTab.mockImplementation(async (url: string, summarize: boolean) => {
       if (url === "https://vercel.com") throw new Error("save failed");
