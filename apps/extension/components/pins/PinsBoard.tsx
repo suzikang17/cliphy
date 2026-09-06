@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { CaptureBar } from "./CaptureBar";
+import { StowTabsPanel } from "./StowTabsPanel";
 import { TileStrip } from "./TileStrip";
 import { Panel } from "./Panel";
 import { usePins } from "./usePins";
@@ -11,6 +13,7 @@ import { usePins } from "./usePins";
 export function PinsBoard({ columns = 4 }: { columns?: number }) {
   const {
     panels,
+    inboxClips,
     stale,
     undo,
     urlFor,
@@ -22,6 +25,9 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
     tilePins,
     viewPanels,
   } = usePins();
+
+  const [showStow, setShowStow] = useState(false);
+  const [stowed, setStowed] = useState<{ count: number; urls: string[] } | null>(null);
 
   return (
     <>
@@ -40,7 +46,41 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
         </div>
       )}
 
+      {stowed && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border-2 border-(--color-border-hard) bg-neon-100 px-3 py-2 text-sm dark:bg-neon-900/40">
+          <span>
+            Stowed {stowed.count} tab{stowed.count === 1 ? "" : "s"}.
+          </span>
+          {/* "Reopen", not "Undo": the tabs come back but the clips stay saved. */}
+          <button
+            type="button"
+            onClick={() => {
+              for (const url of stowed.urls) void browser.tabs.create({ url, active: false });
+              setStowed(null);
+            }}
+            className="cursor-pointer font-bold underline"
+          >
+            Reopen
+          </button>
+        </div>
+      )}
+
       <CaptureBar onAdded={addPin} />
+
+      {showStow ? (
+        <StowTabsPanel
+          onClose={() => setShowStow(false)}
+          onStowed={(count, urls) => setStowed({ count, urls })}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowStow(true)}
+          className="mb-4 cursor-pointer rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-1.5 text-xs font-bold text-(--color-text) shadow-brutal-sm hover:shadow-brutal-pressed"
+        >
+          Stow open tabs
+        </button>
+      )}
 
       {tilePins.length > 0 && (
         <section className="mb-6">
@@ -53,7 +93,7 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
         </section>
       )}
 
-      <Panel title="Inbox" clips={panels.inbox ?? []} columns={columns} onArchive={handleArchive} />
+      <Panel title="Inbox" clips={inboxClips} columns={columns} onArchive={handleArchive} />
       {viewPanels.map((pin) => (
         <Panel
           key={pin.id}

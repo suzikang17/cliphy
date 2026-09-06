@@ -1,0 +1,97 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { epic, feature, layer } from "allure-js-commons";
+import "@testing-library/jest-dom/vitest";
+import "../../test/browser-mock";
+import { browserMock } from "../../test/browser-mock";
+
+const stowTab = vi.fn(async (url: string, summarize: boolean) => ({
+  clip: { id: url, summarize },
+}));
+vi.mock("../../lib/api", () => ({
+  stowTab: (...a: unknown[]) => stowTab(...(a as [string, boolean])),
+}));
+
+const { StowTabsPanel } = await import("../pins/StowTabsPanel");
+
+const TABS = [
+  { id: 1, url: "https://linear.app", title: "Linear", favIconUrl: "f1" },
+  { id: 2, url: "https://vercel.com", title: "Vercel", favIconUrl: "f2" },
+  { id: 3, url: "chrome://extensions", title: "Extensions" },
+];
+
+describe("StowTabsPanel", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("New Tab");
+    feature("Stow tabs");
+    vi.clearAllMocks();
+    browserMock.tabs.query.mockResolvedValue(TABS);
+    browserMock.tabs.remove.mockResolvedValue(undefined);
+  });
+  afterEach(cleanup);
+
+  it("lists http tabs and skips chrome:// pages", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+    expect(screen.getByText("Vercel")).toBeInTheDocument();
+    expect(screen.queryByText("Extensions")).not.toBeInTheDocument();
+  });
+
+  it("checks every tab by default", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Stow 2 & close")).toBeInTheDocument());
+  });
+
+  it("stows without AI by default, and with AI when that row is toggled", async () => {
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Queue Linear for AI summary"));
+    fireEvent.click(screen.getByText("Stow 2 & close"));
+
+    await waitFor(() => expect(stowTab).toHaveBeenCalledTimes(2));
+    expect(stowTab).toHaveBeenCalledWith("https://linear.app", true);
+    expect(stowTab).toHaveBeenCalledWith("https://vercel.com", false);
+  });
+
+  it("closes the stowed tabs and reports them for reopening", async () => {
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Stow 2 & close"));
+
+    await waitFor(() => expect(browserMock.tabs.remove).toHaveBeenCalledWith([1, 2]));
+    expect(onStowed).toHaveBeenCalledWith(2, ["https://linear.app", "https://vercel.com"]);
+  });
+
+  it("never closes a tab whose save failed", async () => {
+    stowTab.mockImplementation(async (url: string, summarize: boolean) => {
+      if (url === "https://vercel.com") throw new Error("save failed");
+      return { clip: { id: url, summarize } };
+    });
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Stow 2 & close"));
+
+    // Only the tab that actually saved is closed — a failed save must not eat a tab.
+    await waitFor(() => expect(browserMock.tabs.remove).toHaveBeenCalledWith([1]));
+    expect(onStowed).toHaveBeenCalledWith(1, ["https://linear.app"]);
+  });
+
+  it("skips a deselected tab entirely", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Stow Vercel"));
+    fireEvent.click(screen.getByText("Stow 1 & close"));
+
+    await waitFor(() => expect(stowTab).toHaveBeenCalledTimes(1));
+    expect(stowTab).toHaveBeenCalledWith("https://linear.app", false);
+  });
+});

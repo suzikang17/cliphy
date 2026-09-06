@@ -47,6 +47,7 @@ vi.mock("../../lib/api", () => ({
   archiveClip: (...a: unknown[]) => archiveClip(...(a as [string])),
   unarchiveClip: (...a: unknown[]) => unarchiveClip(...(a as [string])),
   addBookmark: vi.fn(),
+  stowTab: vi.fn(),
 }));
 vi.mock("../../lib/newtab-cache", () => ({
   readSnapshot: vi.fn(async () => null),
@@ -63,7 +64,7 @@ describe("PinsBoard", () => {
     vi.clearAllMocks();
     getPins.mockResolvedValue({ pins: [tilePin] });
     getSummaries.mockResolvedValue({
-      summaries: [clip({ id: "c1", videoTitle: "Pinned Site", sourceUrl: "https://linear.app" })],
+      summaries: [clip({ id: "c2", videoTitle: "Inbox Item", sourceUrl: "https://example.test" })],
     });
     getPinItems.mockResolvedValue({ clips: [] });
   });
@@ -73,7 +74,7 @@ describe("PinsBoard", () => {
     render(<PinsBoard columns={1} />);
     expect(screen.getByLabelText("Paste a URL to pin")).toBeInTheDocument();
     expect(screen.getByText("Inbox")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Pinned Site")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Inbox Item")).toBeInTheDocument());
   });
 
   it("renders a tile for a pinned clip", async () => {
@@ -96,6 +97,19 @@ describe("PinsBoard", () => {
     });
   });
 
+  it("keeps a tile-pinned clip out of the inbox feed", async () => {
+    getSummaries.mockResolvedValue({
+      summaries: [
+        clip({ id: "c1", videoTitle: "Linear", sourceUrl: "https://linear.app" }),
+        clip({ id: "c2", videoTitle: "Inbox Item", sourceUrl: "https://example.test" }),
+      ],
+    });
+    render(<PinsBoard columns={1} />);
+    await waitFor(() => expect(screen.getByText("Inbox Item")).toBeInTheDocument());
+    // "Linear" appears once — as a tile — never as an inbox card.
+    expect(screen.getAllByText("Linear")).toHaveLength(1);
+  });
+
   it("shows a stale notice when the API is unreachable, instead of an error", async () => {
     getPins.mockRejectedValue(new Error("offline"));
     render(<PinsBoard columns={1} />);
@@ -104,19 +118,19 @@ describe("PinsBoard", () => {
 
   it("archives optimistically and offers undo", async () => {
     render(<PinsBoard columns={1} />);
-    await waitFor(() => expect(screen.getByText("Pinned Site")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Inbox Item")).toBeInTheDocument());
 
     // Expand the card (peek inline), then archive from the expanded footer.
-    fireEvent.click(screen.getByText("Pinned Site"));
+    fireEvent.click(screen.getByText("Inbox Item"));
     fireEvent.click(await screen.findByText("Archive"));
 
     await waitFor(() => expect(screen.getByText("Archived.")).toBeInTheDocument());
-    expect(archiveClip).toHaveBeenCalledWith("c1");
-    expect(screen.queryByText("Pinned Site")).not.toBeInTheDocument();
+    expect(archiveClip).toHaveBeenCalledWith("c2");
+    expect(screen.queryByText("Inbox Item")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Undo"));
-    await waitFor(() => expect(screen.getByText("Pinned Site")).toBeInTheDocument());
-    expect(unarchiveClip).toHaveBeenCalledWith("c1");
+    await waitFor(() => expect(screen.getByText("Inbox Item")).toBeInTheDocument());
+    expect(unarchiveClip).toHaveBeenCalledWith("c2");
   });
 
   it("shows an empty state rather than vanishing when there are no clips", async () => {

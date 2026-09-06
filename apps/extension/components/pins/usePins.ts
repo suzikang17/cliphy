@@ -114,9 +114,18 @@ export function usePins() {
     setPins((prev) => [...prev, pin]);
   }
 
+  // A clip pinned as a tile lives in the strip, not the feed. Filtering here
+  // (rather than server-side) keeps the inbox query simple and lets other
+  // surfaces — mobile, the web app — keep showing everything.
+  const tilePinnedClipIds = new Set(
+    pins.filter((p) => p.layout === "tile" && p.clipId).map((p) => p.clipId as string),
+  );
+  const inboxClips = (panels.inbox ?? []).filter((c) => !tilePinnedClipIds.has(c.id));
+
   return {
     pins,
     panels,
+    inboxClips,
     stale,
     undo,
     urlFor,

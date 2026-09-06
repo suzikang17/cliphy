@@ -561,11 +561,11 @@ summaryRoutes.get("/", async (c) => {
     .eq("user_id", userId)
     .eq("status", statusFilter)
     .is("deleted_at", null)
-    // Metadata-tier clips are bookmarks (tiles), not things to triage. Deleting
-    // the enrichment_tier filter below is the one-line way to change that
-    // decision — see the pins & panels spec, "Why these shapes".
+    // Feed visibility is decided by *placement*, not enrichment tier: a stowed
+    // tab is metadata-tier and belongs in the inbox, while a bookmark pinned as
+    // a tile does not. Clients filter tile-pinned clips out client-side, since
+    // they already hold the pin list.
     .is("archived_at", null)
-    .eq("enrichment_tier", "full")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 

@@ -342,6 +342,19 @@ export async function unarchiveClip(id: string) {
 }
 
 /**
+ * Stow an open tab into the inbox. No pin is created — stowing files something
+ * away to deal with later, which is the inbox; tiles are for things you return
+ * to. `summarize` picks the enrichment tier: metadata is instant and makes no
+ * Claude call, full runs the normal pipeline and counts against usage limits.
+ */
+export async function stowTab(url: string, summarize: boolean) {
+  return request<{ clip: Summary }>(API_ROUTES.CLIPS.ADD, {
+    method: "POST",
+    body: JSON.stringify({ url, tier: summarize ? "full" : "metadata" }),
+  });
+}
+
+/**
  * Add a site as a bookmark tile: a metadata-tier clip (no Claude pass, but
  * still embedded so it stays searchable) plus a tile pin pointing at it.
  */

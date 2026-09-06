@@ -8,6 +8,7 @@ export const browserMock = {
     onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
     sendMessage: vi.fn(),
     create: vi.fn(),
+    remove: vi.fn(),
   },
   runtime: {
     onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
