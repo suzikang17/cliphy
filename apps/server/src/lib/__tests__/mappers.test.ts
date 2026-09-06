@@ -136,6 +136,26 @@ describe("toClip", () => {
     expect(clip.excerpt).toBe("A short preview.");
   });
 
+  it("maps an image clip row", () => {
+    const row = {
+      id: "img1",
+      user_id: "u1",
+      source_type: "image",
+      hero_image_url: "u1/abc.jpg",
+      content: "extracted text",
+      excerpt: "extracted text",
+      status: "completed",
+      source_metadata: { kind: "text", storagePath: "u1/abc.jpg" },
+      tags: [],
+      created_at: "2026-09-06T00:00:00Z",
+      updated_at: "2026-09-06T00:00:00Z",
+    };
+    const clip = toClip(row);
+    expect(clip.sourceType).toBe("image");
+    expect(clip.heroImageUrl).toBe("u1/abc.jpg");
+    expect(clip.sourceMetadata).toEqual({ kind: "text", storagePath: "u1/abc.jpg" });
+  });
+
   it("maps YouTube row preserving existing fields", () => {
     const ytRow = {
       ...tweetRow,
