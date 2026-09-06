@@ -97,22 +97,35 @@ export default function SummaryDetailScreen() {
                   {summary.videoChannel}
                 </Text>
               )}
-              {summary.videoUrl && (
-                <Pressable
-                  onPress={() => Linking.openURL(summary.videoUrl!)}
-                  className="mt-2"
-                  style={{ minHeight: 44, justifyContent: "center" }}
-                  accessibilityRole="link"
-                  accessibilityLabel="Watch on YouTube"
-                >
-                  <Text
-                    className="text-sm font-bold"
-                    style={{ fontFamily: "DMSans", color: neon[600] }}
+              {(() => {
+                const openUrl =
+                  summary.sourceType === "youtube" ? summary.videoUrl : summary.sourceUrl;
+                if (!openUrl || summary.sourceType === "image") return null;
+                const label =
+                  summary.sourceType === "youtube"
+                    ? "Watch on YouTube →"
+                    : summary.sourceType === "tweet"
+                      ? "Open on X →"
+                      : summary.sourceType === "podcast"
+                        ? "Open episode →"
+                        : "Open link →";
+                return (
+                  <Pressable
+                    onPress={() => Linking.openURL(openUrl)}
+                    className="mt-2"
+                    style={{ minHeight: 44, justifyContent: "center" }}
+                    accessibilityRole="link"
+                    accessibilityLabel={label}
                   >
-                    Watch on YouTube →
-                  </Text>
-                </Pressable>
-              )}
+                    <Text
+                      className="text-sm font-bold"
+                      style={{ fontFamily: "DMSans", color: neon[600] }}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })()}
             </View>
           </View>
 

@@ -38,6 +38,7 @@ interface SyndicationTweet {
   created_at?: string;
   favorite_count?: number;
   retweet_count?: number;
+  conversation_count?: number;
   user?: { name?: string; screen_name?: string; profile_image_url_https?: string };
   mediaDetails?: SyndicationMedia[];
   quoted_tweet?: { user?: { screen_name?: string }; full_text?: string; text?: string };
@@ -70,7 +71,9 @@ export function mapSyndicationTweet(json: unknown): TweetClip {
     media,
     quotedTweet: quoted,
     threadTweetIds: t.id_str ? [t.id_str] : [],
-    threadTruncated: false,
+    // Free endpoints only return this one tweet; conversation_count > 1 means the
+    // author's thread continues and can't be fetched — surface "open on X" instead.
+    threadTruncated: (t.conversation_count ?? 0) > 1,
     likeCount: t.favorite_count,
     retweetCount: t.retweet_count,
     publishedAt: t.created_at ? new Date(t.created_at).toISOString() : undefined,
