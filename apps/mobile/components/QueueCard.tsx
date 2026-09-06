@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
+import { sourceGlyph } from "../lib/clipGlyph";
 
 const STATUS_LABELS: Record<string, { label: string; color: string; darkColor: string }> = {
   pending: { label: "Queued", color: "#6b7280", darkColor: "#9ca3af" },
@@ -58,12 +59,13 @@ export function QueueCard({ item }: { item: Summary }) {
       accessibilityLabel={`${item.videoTitle || item.videoId}, ${status.label}`}
       accessibilityHint={item.status === "completed" ? "Opens summary" : STATUS_HINT[item.status]}
     >
-      <View className="flex-row gap-3">
+      <View>
         <View>
           <Image
             source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg` }}
             resizeMode="cover"
-            className="w-28 h-16 rounded-md border-2 border-black dark:border-[#505050] bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+            style={{ aspectRatio: 16 / 9 }}
+            className="w-full rounded-md border-2 border-black dark:border-[#505050] mb-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
             accessibilityIgnoresInvertColors
           />
           {/* Status dot, top-right corner of the thumbnail. The ring (border in
@@ -84,24 +86,20 @@ export function QueueCard({ item }: { item: Summary }) {
           />
         </View>
 
-        <View className="flex-1 min-w-0">
+        <View className="min-w-0">
           <Text
-            className="text-base font-bold text-[#111827] dark:text-white"
+            className="text-xs text-[#6b7280] dark:text-[#9ca3af] mb-0.5"
             style={{ fontFamily: "DMSans" }}
-            numberOfLines={2}
+          >
+            {sourceGlyph(item.sourceType)} {item.videoChannel || "YouTube"}
+          </Text>
+          <Text
+            className="text-[15px] font-bold text-[#111827] dark:text-white"
+            style={{ fontFamily: "DMSans", letterSpacing: -0.1 }}
+            numberOfLines={3}
           >
             {item.videoTitle || `Video ${item.videoId}`}
           </Text>
-
-          {item.videoChannel && (
-            <Text
-              className="text-xs text-[#6b7280] dark:text-[#9ca3af] mt-0.5"
-              style={{ fontFamily: "DMSans" }}
-              numberOfLines={1}
-            >
-              {item.videoChannel}
-            </Text>
-          )}
 
           {item.tags && item.tags.length > 0 && (
             <View className="flex-row gap-1 mt-2">

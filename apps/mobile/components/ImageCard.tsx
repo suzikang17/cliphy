@@ -20,7 +20,8 @@ export function ImageCard({ item }: { item: Summary }) {
         <Image
           source={{ uri: item.heroImageUrl }}
           resizeMode="cover"
-          className="w-full h-40 rounded-md border-2 border-black dark:border-[#505050] mb-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+          style={{ aspectRatio: 3 / 4 }}
+          className="w-full rounded-md border-2 border-black dark:border-[#505050] mb-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
           accessibilityIgnoresInvertColors
         />
       ) : null}

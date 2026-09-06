@@ -2,6 +2,7 @@ import { Text, Pressable, Image, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import type { Summary, WebClipMetadata } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
+import { sourceGlyph } from "../lib/clipGlyph";
 
 export function WebCard({ item }: { item: Summary }) {
   const router = useRouter();
@@ -24,7 +25,8 @@ export function WebCard({ item }: { item: Summary }) {
         <Image
           source={{ uri: item.heroImageUrl }}
           resizeMode="cover"
-          className="w-full h-32 rounded-md border-2 border-black dark:border-[#505050] mb-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+          style={{ aspectRatio: 16 / 10 }}
+          className="w-full rounded-md border-2 border-black dark:border-[#505050] mb-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
           accessibilityIgnoresInvertColors
         />
       ) : null}
@@ -40,7 +42,7 @@ export function WebCard({ item }: { item: Summary }) {
         style={{ fontFamily: "DMSans" }}
         numberOfLines={1}
       >
-        {meta.siteName ?? ""}
+        {sourceGlyph(item.sourceType)} {meta.siteName ?? "Link"}
         {meta.readingTimeMin ? ` · ${meta.readingTimeMin} min read` : ""}
       </Text>
       {item.excerpt ? (

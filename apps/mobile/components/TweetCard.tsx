@@ -51,7 +51,8 @@ export function TweetCard({ item }: { item: Summary }) {
         <Image
           source={{ uri: meta.media[0].previewUrl }}
           resizeMode="cover"
-          className="w-full h-40 rounded-md border-2 border-black dark:border-[#505050] mt-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
+          style={{ aspectRatio: 4 / 3 }}
+          className="w-full rounded-md border-2 border-black dark:border-[#505050] mt-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
           accessibilityIgnoresInvertColors
         />
       ) : null}
