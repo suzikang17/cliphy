@@ -16,6 +16,7 @@ import {
 import type { SummaryJson, ChatMessage, SummaryLanguageCode } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
 import { resolveClipImage } from "../lib/storage.js";
+import { semanticSearch } from "../services/search.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
@@ -67,6 +68,16 @@ summaryRoutes.get("/search", async (c) => {
   const limit = clampLimit(c.req.query("limit"));
   const offset = parseOffset(c.req.query("offset"));
   const plan = await getUserPlan(userId);
+
+  // Semantic first; fall back to ILIKE on any failure or empty result.
+  try {
+    const semantic = await semanticSearch(userId, q, limit);
+    if (semantic.length > 0) {
+      return c.json({ summaries: semantic, total: semantic.length, offset, limit });
+    }
+  } catch {
+    // fall through to keyword search
+  }
 
   // Build the base query — only completed, non-deleted, owned by user
   let query = supabase
