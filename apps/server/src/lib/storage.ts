@@ -20,3 +20,13 @@ export async function signImageUrl(path: string): Promise<string | null> {
   if (error || !data) return null;
   return data.signedUrl;
 }
+
+/** Resolve an image clip's storage path to a short-lived signed URL for display. */
+export async function resolveClipImage<T extends { sourceType: string; heroImageUrl?: string }>(
+  clip: T,
+): Promise<T> {
+  if (clip.sourceType === "image" && clip.heroImageUrl) {
+    clip.heroImageUrl = (await signImageUrl(clip.heroImageUrl)) ?? clip.heroImageUrl;
+  }
+  return clip;
+}

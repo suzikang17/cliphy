@@ -8,20 +8,11 @@ import { detectSourceType } from "../services/detectSourceType.js";
 import { extractWebClip } from "../services/extractors/web.js";
 import { extractTweetClip } from "../services/extractors/tweet.js";
 import { signImageUrl } from "../lib/storage.js";
+import { findRelatedClips } from "../services/related.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
 clipsRoutes.use("*", authMiddleware);
-
-/** Resolve an image clip's storage path to a short-lived signed URL for display. */
-export async function resolveClipImage<T extends { sourceType: string; heroImageUrl?: string }>(
-  clip: T,
-): Promise<T> {
-  if (clip.sourceType === "image" && clip.heroImageUrl) {
-    clip.heroImageUrl = (await signImageUrl(clip.heroImageUrl)) ?? clip.heroImageUrl;
-  }
-  return clip;
-}
 
 clipsRoutes.post("/", async (c) => {
   const userId = c.get("userId");
@@ -120,4 +111,18 @@ clipsRoutes.post("/", async (c) => {
 
   await inngest.send({ name: "clip/embed.requested", data: { clipId: row.id } });
   return c.json({ clip: toClip(row) }, 201);
+});
+
+clipsRoutes.get("/:id/related", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data: owned } = await supabase
+    .from("clips")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!owned) return c.json({ clips: [] });
+  const clips = await findRelatedClips(id, userId);
+  return c.json({ clips });
 });

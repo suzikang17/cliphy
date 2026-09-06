@@ -13,7 +13,7 @@ import {
   PRO_FEATURES,
 } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
-import { resolveClipImage } from "./clips.js";
+import { resolveClipImage } from "../lib/storage.js";
 
 // Columns to select on list/search queries — omits heavy vector + raw transcript columns.
 const CLIP_LIST_COLS =

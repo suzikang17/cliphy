@@ -15,7 +15,7 @@ import {
 } from "@cliphy/shared";
 import type { SummaryJson, ChatMessage, SummaryLanguageCode } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
-import { resolveClipImage } from "./clips.js";
+import { resolveClipImage } from "../lib/storage.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
