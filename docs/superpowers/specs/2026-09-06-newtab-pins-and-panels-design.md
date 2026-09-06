@@ -47,8 +47,9 @@ read), so they are independent axes, not one status field.
   the door open to enriching them later on demand.
 - Keep every pinned bookmark **findable by semantic search**.
 - Give clips a real **archive** action, so "inbox" means something.
-- Port the mobile card + masonry design to DOM, landing in `apps/web` as well as
-  the extension.
+- Port the mobile card + masonry design to DOM, built in the shared
+  extension+web component directory so `apps/web` can adopt it next (the web
+  dashboard refactor itself is a follow-up, not part of this phase).
 
 ## Non-Goals (this phase)
 
