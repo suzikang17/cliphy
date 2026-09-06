@@ -19,22 +19,45 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function SummaryContent({ summary }: { summary: Summary }) {
   const json = summary.summaryJson;
-  if (!json) return null;
+  const rawContent = summary.content?.trim();
+  // Tweet/web/image clips carry their captured text in `content`; show it
+  // directly so the detail screen is useful even before (or without) an AI summary.
+  const showRaw =
+    !!rawContent &&
+    (summary.sourceType === "tweet" ||
+      summary.sourceType === "web" ||
+      summary.sourceType === "image");
+  const hasTags = !!summary.tags && summary.tags.length > 0;
+
+  if (!json && !showRaw && !hasTags) return null;
 
   return (
     <View className="gap-1">
+      {showRaw && (
+        <Section title={summary.sourceType === "tweet" ? "Tweet" : "Content"}>
+          <Text
+            className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
+            style={{ fontFamily: "DMSans" }}
+          >
+            {rawContent}
+          </Text>
+        </Section>
+      )}
+
       {/* TL;DR */}
-      <Section title="Summary">
-        <Text
-          className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
-          style={{ fontFamily: "DMSans" }}
-        >
-          {json.summary}
-        </Text>
-      </Section>
+      {json?.summary && (
+        <Section title="Summary">
+          <Text
+            className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
+            style={{ fontFamily: "DMSans" }}
+          >
+            {json.summary}
+          </Text>
+        </Section>
+      )}
 
       {/* Key Points */}
-      {json.keyPoints && json.keyPoints.length > 0 && (
+      {json?.keyPoints && json.keyPoints.length > 0 && (
         <Section title="Highlights">
           <View className="gap-2.5">
             {json.keyPoints.map((point, i) => (
@@ -58,7 +81,7 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       )}
 
       {/* Context Section */}
-      {json.contextSection && (
+      {json?.contextSection && (
         <Section title={`${json.contextSection.icon} ${json.contextSection.title}`}>
           <View className="gap-2">
             {json.contextSection.items?.map((item, i) => (
@@ -75,7 +98,7 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       )}
 
       {/* Timestamps */}
-      {json.timestamps && json.timestamps.length > 0 && (
+      {json?.timestamps && json.timestamps.length > 0 && (
         <Section title="Timestamps">
           <View className="gap-2">
             {json.timestamps.map((ts, i) => (
