@@ -1,4 +1,4 @@
-import type { Summary, Subscription } from "@cliphy/shared";
+import type { Summary, Subscription, PinnedItem } from "@cliphy/shared";
 
 /** Map a DB row (snake_case) to a Summary/Clip object (camelCase). */
 export function toClip(row: Record<string, unknown>): Summary {
@@ -26,6 +26,8 @@ export function toClip(row: Record<string, unknown>): Summary {
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
     userNotes: (row.user_notes as string) ?? undefined,
+    enrichmentTier: (row.enrichment_tier as Summary["enrichmentTier"]) ?? "full",
+    archivedAt: (row.archived_at as string) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -47,6 +49,22 @@ export function toSubscription(row: Record<string, unknown>): Subscription {
     skippedCount: (row.skipped_count as number) ?? 0,
     lastSkippedAt: (row.last_skipped_at as string) ?? undefined,
     createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export function toPinnedItem(row: Record<string, unknown>): PinnedItem {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    kind: row.kind as PinnedItem["kind"],
+    layout: row.layout as PinnedItem["layout"],
+    position: row.position as number,
+    label: (row.label as string) ?? undefined,
+    iconUrl: (row.icon_url as string) ?? undefined,
+    clipId: (row.clip_id as string) ?? undefined,
+    viewQuery: (row.view_query as PinnedItem["viewQuery"]) ?? undefined,
+    pinnedAt: row.pinned_at as string,
     updatedAt: row.updated_at as string,
   };
 }

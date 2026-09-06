@@ -120,6 +120,8 @@ export interface Summary {
   errorMessage?: string;
   tags: string[];
   userNotes?: string;
+  enrichmentTier?: EnrichmentTier;
+  archivedAt?: string;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -325,3 +327,49 @@ export type PodcastFeedSettings = {
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
 };
+
+export type EnrichmentTier = "metadata" | "full";
+export type PinKind = "clip" | "view";
+export type PinLayout = "tile" | "panel";
+
+/**
+ * A saved filter backing a view pin. Deliberately a closed struct — never raw
+ * SQL and never an open filter DSL, because this is user-authored JSON that
+ * becomes a database query. Unknown keys are ignored by the server.
+ */
+export interface ViewQuery {
+  semantic?: string;
+  search?: string;
+  tags?: string[];
+  sourceType?: SourceType[];
+  category?: ClipCategory;
+  author?: string;
+  limit?: number;
+}
+
+export interface PinnedItem {
+  id: string;
+  userId: string;
+  kind: PinKind;
+  layout: PinLayout;
+  position: number;
+  label?: string;
+  iconUrl?: string;
+  clipId?: string;
+  viewQuery?: ViewQuery;
+  pinnedAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Normalized shape every panel renders. Clip panels map from `Summary`; the
+ * indirection exists so one renderer serves all panel types.
+ */
+export interface PanelItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  url: string;
+  image?: string;
+  meta?: string[];
+}
