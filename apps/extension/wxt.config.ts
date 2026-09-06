@@ -11,7 +11,7 @@ export default defineConfig({
     name: "Cliphy",
     description: "Queue YouTube videos and get AI-powered summaries",
     version: "1.0.0",
-    permissions: ["storage", "tabs", "identity", "contextMenus", "sidePanel"],
+    permissions: ["storage", "tabs", "identity", "contextMenus", "sidePanel", "favicon"],
     icons: {
       128: "icons/icon-128.png",
     },
@@ -20,11 +20,21 @@ export default defineConfig({
         128: "icons/icon-128.png",
       },
     },
+    chrome_url_overrides: {
+      newtab: "newtab.html",
+    },
     host_permissions: ["https://www.youtube.com/*"],
     web_accessible_resources: [
       {
         resources: ["icons/icon-128.png"],
         matches: ["https://www.youtube.com/*"],
+      },
+      {
+        // Chrome's own favicon cache, used by the new tab tile strip. Renders
+        // tile icons with no network request and no third-party leak.
+        resources: ["_favicon/*"],
+        matches: ["<all_urls>"],
+        extension_ids: [],
       },
     ],
   },

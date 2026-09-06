@@ -1,5 +1,7 @@
 import { API_ROUTES } from "@cliphy/shared";
 import type {
+  PinnedItem,
+  ViewQuery,
   QueueAddRequest,
   QueueAddResponse,
   SummaryResponse,
@@ -289,4 +291,70 @@ export async function translateSummary(
       body: JSON.stringify({ language }),
     },
   );
+}
+
+// ── New tab: pins, panels, bookmarks, archive ────────────────
+
+export async function getPins() {
+  return request<{ pins: PinnedItem[] }>(API_ROUTES.PINS.LIST);
+}
+
+export async function createPin(body: {
+  kind: "clip" | "view";
+  layout?: "tile" | "panel";
+  label?: string;
+  iconUrl?: string;
+  clipId?: string;
+  viewQuery?: ViewQuery;
+  position?: number;
+}) {
+  return request<{ pin: PinnedItem }>(API_ROUTES.PINS.CREATE, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deletePin(id: string) {
+  return request<{ ok: true }>(API_ROUTES.PINS.ITEM(id), { method: "DELETE" });
+}
+
+export async function reorderPins(ids: string[]) {
+  return request<{ ok: true }>(API_ROUTES.PINS.REORDER, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export async function getPinItems(id: string) {
+  return request<{ clips: Summary[] }>(API_ROUTES.PINS.ITEMS(id));
+}
+
+export async function archiveClip(id: string) {
+  return request<{ id: string; archivedAt: string }>(API_ROUTES.SUMMARIES.ARCHIVE(id), {
+    method: "POST",
+  });
+}
+
+export async function unarchiveClip(id: string) {
+  return request<{ id: string; archivedAt: null }>(API_ROUTES.SUMMARIES.UNARCHIVE(id), {
+    method: "POST",
+  });
+}
+
+/**
+ * Add a site as a bookmark tile: a metadata-tier clip (no Claude pass, but
+ * still embedded so it stays searchable) plus a tile pin pointing at it.
+ */
+export async function addBookmark(url: string, label?: string) {
+  const { clip } = await request<{ clip: Summary }>(API_ROUTES.CLIPS.ADD, {
+    method: "POST",
+    body: JSON.stringify({ url, tier: "metadata" }),
+  });
+  const { pin } = await createPin({
+    kind: "clip",
+    layout: "tile",
+    clipId: clip.id,
+    label: label ?? clip.videoTitle,
+  });
+  return { clip, pin };
 }
