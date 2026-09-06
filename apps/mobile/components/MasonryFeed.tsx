@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import type { Summary } from "@cliphy/shared";
-import { splitColumns } from "../lib/masonry";
+import { splitColumns } from "@cliphy/shared";
 import { ClipCard } from "./ClipCard";
 
 export function MasonryFeed({ items }: { items: Summary[] }) {
