@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   RefreshControl,
   AppState,
   Pressable,
@@ -17,7 +17,7 @@ import { getQueue, getUsage, addToQueue, refreshSubscriptions, searchClips } fro
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
-import { ClipCard } from "../../components/ClipCard";
+import { MasonryFeed } from "../../components/MasonryFeed";
 import { CaptureSheet } from "../../components/CaptureSheet";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
@@ -265,16 +265,13 @@ export default function QueueScreen() {
               ))}
             </View>
           ) : null}
-          <FlatList
-            data={listData}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <ClipCard item={item} />}
-            contentContainerClassName="px-4 py-4 gap-3"
-            ListEmptyComponent={<EmptyState />}
+          <ScrollView
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={neon[600]} />
             }
-          />
+          >
+            {listData.length === 0 ? <EmptyState /> : <MasonryFeed items={listData} />}
+          </ScrollView>
         </>
       )}
 
