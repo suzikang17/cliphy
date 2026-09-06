@@ -29,7 +29,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#7a3fb0"
       },
       "package": "com.cliphy.app",
       "edgeToEdgeEnabled": true,
