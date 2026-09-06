@@ -12,6 +12,11 @@ export default defineConfig({
     description: "Queue YouTube videos and get AI-powered summaries",
     version: "1.0.0",
     permissions: ["storage", "tabs", "identity", "contextMenus", "sidePanel", "favicon"],
+    // Requested at runtime, never at install. Adding "history" to `permissions`
+    // would raise the install warning level, and Chrome DISABLES an
+    // auto-updated extension until every existing user re-accepts — which
+    // would silently switch Cliphy off for the whole install base.
+    optional_permissions: ["history"],
     icons: {
       128: "icons/icon-128.png",
     },

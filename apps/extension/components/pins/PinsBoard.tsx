@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { CaptureBar } from "./CaptureBar";
 import { StowTabsPanel } from "./StowTabsPanel";
+import { SuggestedTiles } from "./SuggestedTiles";
 import { TileStrip } from "./TileStrip";
 import { Panel } from "./Panel";
 import { usePins } from "./usePins";
+import { addBookmark } from "../../lib/api";
 
 /**
  * The pins + panels surface. Rendered by both the new tab page (wide, many
@@ -66,6 +68,14 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
       )}
 
       <CaptureBar onAdded={addPin} />
+
+      <SuggestedTiles
+        pinnedUrls={tilePins.map((p) => p.clipUrl ?? "").filter(Boolean)}
+        onPin={async (site) => {
+          const { pin } = await addBookmark(site.origin, site.host);
+          addPin(pin);
+        }}
+      />
 
       {showStow ? (
         <StowTabsPanel

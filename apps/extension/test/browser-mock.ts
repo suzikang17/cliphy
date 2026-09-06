@@ -15,6 +15,13 @@ export const browserMock = {
     sendMessage: vi.fn(),
     getURL: vi.fn((path: string) => `chrome-extension://fake/${path}`),
   },
+  permissions: {
+    request: vi.fn().mockResolvedValue(true),
+    contains: vi.fn().mockResolvedValue(false),
+  },
+  history: {
+    search: vi.fn().mockResolvedValue([]),
+  },
   storage: {
     local: { get: vi.fn(), set: vi.fn() },
   },
