@@ -96,6 +96,13 @@ export const API_ROUTES = {
   CLIPS: {
     ADD: "/api/clips",
   },
+  PINS: {
+    LIST: "/api/pins",
+    CREATE: "/api/pins",
+    ITEM: (id: string) => `/api/pins/${id}`,
+    REORDER: "/api/pins/reorder",
+    ITEMS: (id: string) => `/api/pins/${id}/items`,
+  },
   SUMMARIES: {
     LIST: "/api/summaries",
     ITEM: (id: string) => `/api/summaries/${id}`,
