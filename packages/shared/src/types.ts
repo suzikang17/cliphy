@@ -356,6 +356,9 @@ export interface PinnedItem {
   label?: string;
   iconUrl?: string;
   clipId?: string;
+  /** Resolved from the referenced clip by GET /api/pins — not stored on the pin. */
+  clipUrl?: string;
+  clipTitle?: string;
   viewQuery?: ViewQuery;
   pinnedAt: string;
   updatedAt: string;

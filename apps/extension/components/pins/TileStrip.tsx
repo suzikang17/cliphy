@@ -40,7 +40,7 @@ export function TileStrip({ pins, urlFor, onReorder, onRemove }: TileStripProps)
     <div className="flex flex-wrap gap-2">
       {pins.map((pin, index) => {
         const href = urlFor(pin);
-        const label = pin.label ?? href ?? "Pin";
+        const label = pin.label ?? pin.clipTitle ?? href ?? "Pin";
         return (
           <a
             key={pin.id}

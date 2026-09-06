@@ -216,6 +216,59 @@ describe("pins routes", () => {
     expect(res.status).toBe(400);
   });
 
+  it("resolves the target url for a clip pin, so tiles are clickable", async () => {
+    // Bookmarks are metadata-tier and excluded from the inbox, so the client
+    // can never learn their URL from panel data — the join has to supply it.
+    const chain = mockChain({
+      data: [
+        {
+          id: "p1",
+          user_id: "test-user-id",
+          kind: "clip",
+          layout: "tile",
+          position: 0,
+          clip_id: "c1",
+          pinned_at: "t",
+          updated_at: "t",
+          clip: { source_url: "https://linear.app", video_url: null, video_title: "Linear" },
+        },
+      ],
+      error: null,
+    });
+    supabaseMock = { from: vi.fn().mockReturnValue(chain) };
+
+    const res = await app().request("/api/pins");
+    const body = (await res.json()) as { pins: { clipUrl?: string; clipTitle?: string }[] };
+
+    expect(chain.select).toHaveBeenCalledWith(expect.stringContaining("clips("));
+    expect(body.pins[0].clipUrl).toBe("https://linear.app");
+    expect(body.pins[0].clipTitle).toBe("Linear");
+  });
+
+  it("falls back to video_url when a pinned clip has no source_url", async () => {
+    const chain = mockChain({
+      data: [
+        {
+          id: "p1",
+          user_id: "test-user-id",
+          kind: "clip",
+          layout: "tile",
+          position: 0,
+          clip_id: "c1",
+          pinned_at: "t",
+          updated_at: "t",
+          clip: { source_url: null, video_url: "https://youtu.be/abc", video_title: "Vid" },
+        },
+      ],
+      error: null,
+    });
+    supabaseMock = { from: vi.fn().mockReturnValue(chain) };
+
+    const res = await app().request("/api/pins");
+    const body = (await res.json()) as { pins: { clipUrl?: string }[] };
+    expect(body.pins[0].clipUrl).toBe("https://youtu.be/abc");
+  });
+
   it("deletes a pin", async () => {
     const chain = mockChain({ data: null, error: null });
     supabaseMock = { from: vi.fn().mockReturnValue(chain) };

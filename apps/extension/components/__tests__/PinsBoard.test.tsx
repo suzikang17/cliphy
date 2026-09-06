@@ -26,6 +26,8 @@ const tilePin: PinnedItem = {
   position: 0,
   label: "Linear",
   clipId: "c1",
+  clipUrl: "https://linear.app",
+  clipTitle: "Linear",
   pinnedAt: "t",
   updatedAt: "t",
 };
@@ -33,8 +35,8 @@ const tilePin: PinnedItem = {
 const getPins = vi.fn();
 const getSummaries = vi.fn();
 const getPinItems = vi.fn();
-const archiveClip = vi.fn(async () => ({ id: "c1", archivedAt: "t" }));
-const unarchiveClip = vi.fn(async () => ({ id: "c1", archivedAt: null }));
+const archiveClip = vi.fn(async (id: string) => ({ id, archivedAt: "t" }));
+const unarchiveClip = vi.fn(async (id: string) => ({ id, archivedAt: null }));
 
 vi.mock("../../lib/api", () => ({
   getPins: (...a: unknown[]) => getPins(...a),
@@ -79,6 +81,18 @@ describe("PinsBoard", () => {
     await waitFor(() => {
       const tiles = screen.getAllByText("Linear");
       expect(tiles.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("gives the tile a working href so it navigates when clicked", async () => {
+    // Regression: tile URLs used to be derived from clips loaded into panels,
+    // but a bookmark is metadata-tier and excluded from the inbox, so it was
+    // never there and every tile rendered dead.
+    render(<PinsBoard columns={1} />);
+    await waitFor(() => {
+      const tile = screen.getAllByRole("link").find((el) => el.textContent?.includes("Linear"));
+      expect(tile).toBeDefined();
+      expect(tile).toHaveAttribute("href", "https://linear.app");
     });
   });
 

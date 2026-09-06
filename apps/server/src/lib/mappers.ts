@@ -53,6 +53,24 @@ export function toSubscription(row: Record<string, unknown>): Subscription {
   };
 }
 
+type JoinedClip = {
+  source_url?: string | null;
+  video_url?: string | null;
+  video_title?: string | null;
+};
+
+function joinedClip(row: Record<string, unknown>): JoinedClip | undefined {
+  // PostgREST returns an embedded to-one relation as an object (or null).
+  const c = row.clip as JoinedClip | JoinedClip[] | null | undefined;
+  if (!c) return undefined;
+  return Array.isArray(c) ? c[0] : c;
+}
+
+function joinedClipUrl(row: Record<string, unknown>): string | undefined {
+  const c = joinedClip(row);
+  return c?.source_url ?? c?.video_url ?? undefined;
+}
+
 export function toPinnedItem(row: Record<string, unknown>): PinnedItem {
   return {
     id: row.id as string,
@@ -63,6 +81,8 @@ export function toPinnedItem(row: Record<string, unknown>): PinnedItem {
     label: (row.label as string) ?? undefined,
     iconUrl: (row.icon_url as string) ?? undefined,
     clipId: (row.clip_id as string) ?? undefined,
+    clipUrl: joinedClipUrl(row),
+    clipTitle: joinedClip(row)?.video_title ?? undefined,
     viewQuery: (row.view_query as PinnedItem["viewQuery"]) ?? undefined,
     pinnedAt: row.pinned_at as string,
     updatedAt: row.updated_at as string,

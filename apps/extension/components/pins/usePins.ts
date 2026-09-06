@@ -64,19 +64,10 @@ export function usePins() {
     };
   }, []);
 
-  const clipById = new Map(
-    Object.values(panels)
-      .flat()
-      .map((c) => [c.id, c]),
-  );
-
-  const urlFor = useCallback(
-    (pin: PinnedItem) => {
-      const clip = pin.clipId ? clipById.get(pin.clipId) : undefined;
-      return clip?.sourceUrl ?? clip?.videoUrl ?? "";
-    },
-    [clipById],
-  );
+  // The API resolves a clip pin's URL via a join. Do NOT derive it from the
+  // loaded panels: bookmarks are metadata-tier and therefore excluded from the
+  // inbox, so they are never present there and the tile would have no href.
+  const urlFor = useCallback((pin: PinnedItem) => pin.clipUrl ?? "", []);
 
   function handleReorder(ids: string[]) {
     setPins(

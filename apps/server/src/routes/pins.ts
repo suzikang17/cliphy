@@ -13,9 +13,11 @@ pinsRoutes.use("*", authMiddleware);
 
 pinsRoutes.get("/", async (c) => {
   const userId = c.get("userId");
+  // Join the referenced clip: a bookmark is metadata-tier and therefore absent
+  // from the inbox, so the client has no other way to learn its URL.
   const { data, error } = await supabase
     .from("pinned_items")
-    .select("*")
+    .select("*, clip:clips(source_url, video_url, video_title)")
     .eq("user_id", userId)
     .order("position", { ascending: true });
   if (error) return c.json({ error: "Failed to load pins" }, 500);
