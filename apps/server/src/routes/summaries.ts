@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
+import { inngest } from "../lib/inngest.js";
 import { sanitizeSearchQuery } from "../lib/validation.js";
 import {
   FREE_HISTORY_DAYS,
@@ -525,6 +526,23 @@ summaryRoutes.post("/:id/unarchive", async (c) => {
     .single();
   if (error || !data) return c.json({ error: "Failed to unarchive clip" }, 500);
   return c.json({ id: data.id, archivedAt: null });
+});
+
+// ── POST /:id/enrich — promote a bookmark to a full clip ──────
+
+summaryRoutes.post("/:id/enrich", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data, error } = await supabase
+    .from("clips")
+    .update({ enrichment_tier: "full", status: "pending" })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id")
+    .single();
+  if (error || !data) return c.json({ error: "Failed to enrich clip" }, 500);
+  await inngest.send({ name: "clip/embed.requested", data: { clipId: id } });
+  return c.json({ ok: true });
 });
 
 // ── GET / — Paginated list of user's summaries ───────────────

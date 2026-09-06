@@ -9,6 +9,7 @@ const log = logger.child({ fn: "embed-clip" });
 
 type ClipRow = {
   source_type: string;
+  enrichment_tier?: string;
   author: string | null;
   content: string | null;
   summary_json?: Summary["summaryJson"] | null;
@@ -22,7 +23,12 @@ export function buildEmbedText(clip: ClipRow): string {
   }
   const sj = clip.summary_json;
   const keyPoints = sj?.keyPoints?.join(" ") ?? "";
-  return `${sj?.summary ?? ""} ${keyPoints}`.trim();
+  const fromSummary = `${sj?.summary ?? ""} ${keyPoints}`.trim();
+  if (fromSummary) return fromSummary;
+  // Bookmark-tier clips never get a Claude pass, so there is no summary to
+  // embed. Fall back to the title — embedding the empty string would produce a
+  // meaningless vector and quietly make every bookmark unsearchable.
+  return (clip.video_title ?? "").trim();
 }
 
 export const embedClip = inngest.createFunction(
@@ -34,7 +40,7 @@ export const embedClip = inngest.createFunction(
       const { data, error } = await supabase
         .from("clips")
         .select(
-          "id, source_type, content, summary_json, author, category, tags, video_title, user_id",
+          "id, source_type, content, summary_json, author, category, tags, video_title, user_id, enrichment_tier",
         )
         .eq("id", clipId)
         .single();
@@ -44,7 +50,11 @@ export const embedClip = inngest.createFunction(
 
     // Web/tweet clips arrive without a summary — enrich them (summary, tags,
     // category) before embedding so the embed text and inbox are populated.
+    // Bookmark-tier clips get an embedding but never a Claude pass — that is
+    // the whole point of the metadata tier. Removing this guard silently
+    // re-introduces a summarization cost on every pinned site.
     if (
+      clip.enrichment_tier !== "metadata" &&
       (clip.source_type === "web" ||
         clip.source_type === "tweet" ||
         clip.source_type === "image") &&

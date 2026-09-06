@@ -33,4 +33,32 @@ describe("buildEmbedText", () => {
       }),
     ).toBe("S a b");
   });
+
+  it("falls back to the title for bookmark-tier clips with no summary", () => {
+    // Metadata-tier bookmarks never get a Claude pass, so summary_json is null.
+    // Without a fallback this embeds the empty string and the bookmark becomes
+    // unfindable by semantic search — which is the whole reason we embed it.
+    expect(
+      buildEmbedText({
+        source_type: "web",
+        author: null,
+        content: null,
+        summary_json: null,
+        video_title: "Linear",
+        enrichment_tier: "metadata",
+      }),
+    ).toBe("Linear");
+  });
+
+  it("never returns an empty string when a title is present", () => {
+    expect(
+      buildEmbedText({
+        source_type: "web",
+        author: null,
+        content: null,
+        summary_json: null,
+        video_title: "Some Bookmarked Site",
+      }),
+    ).not.toBe("");
+  });
 });

@@ -38,6 +38,7 @@ vi.mock("../../lib/supabase.js", () => ({
     },
   ),
 }));
+vi.mock("../../lib/inngest.js", () => ({ inngest: { send: vi.fn() } }));
 vi.mock("../../middleware/auth.js", () => ({
   authMiddleware: vi.fn(
     async (c: { set: (k: string, v: string) => void }, next: () => Promise<void>) => {

@@ -7,6 +7,7 @@ import { toClip } from "../lib/mappers.js";
 import { detectSourceType } from "../services/detectSourceType.js";
 import { extractWebClip } from "../services/extractors/web.js";
 import { extractTweetClip } from "../services/extractors/tweet.js";
+import { extractWebMetadata } from "../services/extractors/webMetadata.js";
 import { signImageUrl } from "../lib/storage.js";
 import { findRelatedClips } from "../services/related.js";
 import { enrichClip } from "../services/enrich.js";
@@ -18,7 +19,11 @@ clipsRoutes.use("*", authMiddleware);
 
 clipsRoutes.post("/", async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ url?: string; imagePath?: string }>();
+  const body = await c.req.json<{
+    url?: string;
+    imagePath?: string;
+    tier?: "metadata" | "full";
+  }>();
 
   // Image capture: run vision synchronously (reliable, no worker dependency) so
   // OCR/description + enrichment land at capture time.
@@ -81,6 +86,35 @@ clipsRoutes.post("/", async (c) => {
     .is("deleted_at", null)
     .maybeSingle();
   if (existing) return c.json({ error: "DUPLICATE", message: "Clip already saved" }, 409);
+
+  // Bookmark tier: head-only metadata, no Readability, no Claude. Still
+  // embedded below, or the bookmark would be invisible to semantic search.
+  if (body.tier === "metadata") {
+    let md: Awaited<ReturnType<typeof extractWebMetadata>>;
+    try {
+      md = await extractWebMetadata(body.url);
+    } catch {
+      md = { title: body.url };
+    }
+    const { data: row, error } = await supabase
+      .from("clips")
+      .insert({
+        user_id: userId,
+        source_type: sourceType,
+        source_url: body.url,
+        enrichment_tier: "metadata",
+        video_title: md.title,
+        hero_image_url: md.heroImageUrl ?? null,
+        source_metadata: { siteName: md.siteName, faviconUrl: md.faviconUrl },
+        status: "completed",
+        tags: [],
+      })
+      .select("*")
+      .single();
+    if (error || !row) return c.json({ error: "Failed to save clip" }, 500);
+    await inngest.send({ name: "clip/embed.requested", data: { clipId: row.id } });
+    return c.json({ clip: toClip(row) }, 201);
+  }
 
   // Build the insert payload from whichever extractor matches.
   const insert: Record<string, unknown> = {
