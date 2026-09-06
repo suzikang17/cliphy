@@ -10,6 +10,7 @@ type ClipRow = {
   content: string | null;
   summary_json?: Summary["summaryJson"] | null;
   video_title?: string | null;
+  user_id?: string;
 };
 
 export function buildEmbedText(clip: ClipRow): string {
@@ -29,7 +30,9 @@ export const embedClip = inngest.createFunction(
     const clip = await step.run("fetch-clip", async () => {
       const { data, error } = await supabase
         .from("clips")
-        .select("id, source_type, content, summary_json, author, category, tags, video_title")
+        .select(
+          "id, source_type, content, summary_json, author, category, tags, video_title, user_id",
+        )
         .eq("id", clipId)
         .single();
       if (error) throw new Error(`Failed to fetch clip ${clipId}: ${error.message}`);
@@ -45,10 +48,22 @@ export const embedClip = inngest.createFunction(
       !clip.summary_json
     ) {
       const enrichment = await step.run("enrich-clip", async () => {
+        const existingTags = await (async () => {
+          const { data } = await supabase
+            .from("clips")
+            .select("tags")
+            .eq("user_id", clip.user_id ?? "")
+            .is("deleted_at", null)
+            .limit(500);
+          const set = new Set<string>();
+          for (const row of data ?? []) for (const t of (row.tags as string[]) ?? []) set.add(t);
+          return [...set];
+        })();
         const e = await enrichClip({
           sourceType: clip.source_type as "web" | "tweet" | "image",
           title: clip.video_title ?? undefined,
           text: clip.content ?? "",
+          existingTags,
         });
         const summaryJson = { summary: e.summary, keyPoints: [], timestamps: [] };
         const { error } = await supabase
