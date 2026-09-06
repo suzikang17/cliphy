@@ -3,9 +3,8 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import type { Summary } from "@cliphy/shared";
-import { neon } from "@cliphy/shared";
+import { neon, sourceGlyph } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
-import { sourceGlyph } from "../lib/clipGlyph";
 
 const STATUS_LABELS: Record<string, { label: string; color: string; darkColor: string }> = {
   pending: { label: "Queued", color: "#6b7280", darkColor: "#9ca3af" },

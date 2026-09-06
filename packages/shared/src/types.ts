@@ -360,16 +360,3 @@ export interface PinnedItem {
   pinnedAt: string;
   updatedAt: string;
 }
-
-/**
- * Normalized shape every panel renders. Clip panels map from `Summary`; the
- * indirection exists so one renderer serves all panel types.
- */
-export interface PanelItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  url: string;
-  image?: string;
-  meta?: string[];
-}

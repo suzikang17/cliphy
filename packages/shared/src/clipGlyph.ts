@@ -1,4 +1,4 @@
-import type { SourceType } from "@cliphy/shared";
+import type { SourceType } from "./types";
 
 const GLYPHS: Record<SourceType, string> = {
   youtube: "▶",

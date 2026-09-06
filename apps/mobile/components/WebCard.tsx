@@ -1,8 +1,8 @@
 import { Text, Pressable, Image, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import type { Summary, WebClipMetadata } from "@cliphy/shared";
+import { sourceGlyph } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
-import { sourceGlyph } from "../lib/clipGlyph";
 
 export function WebCard({ item }: { item: Summary }) {
   const router = useRouter();

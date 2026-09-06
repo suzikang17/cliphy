@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
-import type { PinnedItem, ViewQuery, PanelItem, Summary } from "../index";
+import type { PinnedItem, ViewQuery, Summary } from "../index";
 
 describe("pin types", () => {
   beforeEach(() => {
@@ -40,11 +40,6 @@ describe("pin types", () => {
     };
     expect(pin.viewQuery?.semantic).toBe("design inspiration");
     expect(pin.clipId).toBeUndefined();
-  });
-
-  it("normalizes a panel item", () => {
-    const item: PanelItem = { id: "c1", title: "T", url: "https://x.test" };
-    expect(item.title).toBe("T");
   });
 
   it("allows enrichment tier and archive state on a summary", () => {
