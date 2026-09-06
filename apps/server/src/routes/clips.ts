@@ -10,6 +10,7 @@ import { extractTweetClip } from "../services/extractors/tweet.js";
 import { signImageUrl } from "../lib/storage.js";
 import { findRelatedClips } from "../services/related.js";
 import { enrichClip } from "../services/enrich.js";
+import { runImageVision } from "../services/processImage.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
@@ -19,23 +20,49 @@ clipsRoutes.post("/", async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json<{ url?: string; imagePath?: string }>();
 
-  // Image capture: no URL to classify — create an image clip and hand off to
-  // the vision worker.
+  // Image capture: run vision synchronously (reliable, no worker dependency) so
+  // OCR/description + enrichment land at capture time.
   if (body.imagePath) {
-    const { data: row, error } = await supabase
-      .from("clips")
-      .insert({
-        user_id: userId,
-        source_type: "image",
-        hero_image_url: body.imagePath,
-        source_metadata: { storagePath: body.imagePath },
-        status: "pending",
-        tags: [],
-      })
-      .select("*")
-      .single();
+    const insert: Record<string, unknown> = {
+      user_id: userId,
+      source_type: "image",
+      hero_image_url: body.imagePath,
+      source_metadata: { storagePath: body.imagePath },
+      status: "completed",
+      tags: [],
+    };
+    try {
+      const v = await runImageVision(body.imagePath);
+      insert.content = v.content || null;
+      insert.excerpt = v.excerpt || null;
+      insert.video_title = v.kind === "text" ? "Text capture" : "Image";
+      insert.source_metadata = v.metadata;
+      if (v.content) {
+        try {
+          const { data: tagRows } = await supabase
+            .from("clips")
+            .select("tags")
+            .eq("user_id", userId)
+            .is("deleted_at", null)
+            .limit(500);
+          const existingTags = [
+            ...new Set((tagRows ?? []).flatMap((r) => (r.tags as string[]) ?? [])),
+          ];
+          const e = await enrichClip({ sourceType: "image", text: v.content, existingTags });
+          insert.category = e.category;
+          insert.tags = e.tags;
+          insert.summary_json = { summary: e.summary, keyPoints: [], timestamps: [] };
+        } catch {
+          // leave unenriched
+        }
+      }
+    } catch (err) {
+      insert.status = "failed";
+      insert.error_message = err instanceof Error ? err.message : "Vision failed";
+    }
+
+    const { data: row, error } = await supabase.from("clips").insert(insert).select("*").single();
     if (error || !row) return c.json({ error: "Failed to save clip" }, 500);
-    await inngest.send({ name: "clip/vision.requested", data: { clipId: row.id } });
     const clip = toClip(row);
     clip.heroImageUrl = (await signImageUrl(body.imagePath)) ?? clip.heroImageUrl;
     return c.json({ clip }, 201);

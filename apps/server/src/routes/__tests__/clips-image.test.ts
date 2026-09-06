@@ -37,9 +37,19 @@ vi.mock("../../services/extractors/tweet.js", () => ({ extractTweetClip: vi.fn()
 vi.mock("../../lib/storage.js", () => ({
   signImageUrl: vi.fn(async () => "https://signed.example/a.jpg"),
 }));
+vi.mock("../../services/processImage.js", () => ({
+  runImageVision: vi.fn(async () => ({
+    kind: "text",
+    content: "ocr'd text",
+    excerpt: "ocr'd text",
+    metadata: { kind: "text", storagePath: "u1/a.jpg" },
+  })),
+}));
+vi.mock("../../services/enrich.js", () => ({
+  enrichClip: vi.fn(async () => ({ summary: "s", tags: ["t"], category: "idea" })),
+}));
 
 const { clipsRoutes } = await import("../clips.js");
-const { inngest } = await import("../../lib/inngest.js");
 
 describe("POST /clips image branch", () => {
   beforeEach(() => {
@@ -49,22 +59,27 @@ describe("POST /clips image branch", () => {
     vi.clearAllMocks();
   });
 
-  it("creates an image clip, fires vision, returns signed hero url", async () => {
+  it("runs vision synchronously and saves an enriched image clip", async () => {
     supabaseMock = {
-      from: vi.fn().mockReturnValueOnce(
-        mockChain({
-          data: {
-            id: "c1",
-            source_type: "image",
-            hero_image_url: "u1/a.jpg",
-            status: "pending",
-            tags: [],
-            created_at: "t",
-            updated_at: "t",
-          },
-          error: null,
-        }),
-      ),
+      from: vi
+        .fn()
+        .mockReturnValueOnce(mockChain({ data: [] })) // existing-tags query
+        .mockReturnValueOnce(
+          mockChain({
+            data: {
+              id: "c1",
+              source_type: "image",
+              hero_image_url: "u1/a.jpg",
+              content: "ocr'd text",
+              category: "idea",
+              status: "completed",
+              tags: ["t"],
+              created_at: "t",
+              updated_at: "t",
+            },
+            error: null,
+          }),
+        ), // insert
     };
     const app = new Hono();
     app.route("/clips", clipsRoutes);
@@ -77,9 +92,6 @@ describe("POST /clips image branch", () => {
     const json = await res.json();
     expect(json.clip.sourceType).toBe("image");
     expect(json.clip.heroImageUrl).toBe("https://signed.example/a.jpg");
-    expect(inngest.send).toHaveBeenCalledWith({
-      name: "clip/vision.requested",
-      data: { clipId: "c1" },
-    });
+    expect(json.clip.category).toBe("idea");
   });
 });
