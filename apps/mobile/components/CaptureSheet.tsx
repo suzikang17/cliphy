@@ -1,7 +1,9 @@
-import { View, Text, Pressable, Modal, Alert } from "react-native";
+import { View, Text, Pressable, Modal, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { brutalShadow } from "../lib/theme";
 import { uploadAndClipImage } from "../lib/uploadImage";
+import { addClip } from "../lib/api";
+import { showQueueError } from "../lib/queueError";
 
 export function CaptureSheet({
   visible,
@@ -24,6 +26,33 @@ export function CaptureSheet({
     }
   }
 
+  async function saveLink(url: string) {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    try {
+      await addClip({ url: trimmed });
+      onCaptured();
+    } catch (err) {
+      showQueueError(err);
+    }
+  }
+
+  function promptLink() {
+    onClose();
+    if (Platform.OS === "ios" && Alert.prompt) {
+      Alert.prompt(
+        "Add a link",
+        "Paste a YouTube, article, or tweet URL",
+        (text) => saveLink(text ?? ""),
+        "plain-text",
+        "",
+        "url",
+      );
+    } else {
+      Alert.alert("Add a link", "Share a link to Cliphy from your browser or another app.");
+    }
+  }
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40 justify-end" onPress={onClose}>
@@ -31,6 +60,7 @@ export function CaptureSheet({
           className="bg-white dark:bg-[#282828] border-2 border-black dark:border-[#505050] rounded-t-2xl p-4 gap-3"
           style={brutalShadow()}
         >
+          <SheetButton label="Paste a link" onPress={promptLink} />
           <SheetButton
             label="Choose from library"
             onPress={() =>
