@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, RefreshControl, AppState, Pressable, Animated } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  AppState,
+  Pressable,
+  Animated,
+  TextInput,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo, ClipCategory } from "@cliphy/shared";
 import { neon, CLIP_CATEGORIES } from "@cliphy/shared";
-import { getQueue, getUsage, addToQueue, refreshSubscriptions } from "../../lib/api";
+import { getQueue, getUsage, addToQueue, refreshSubscriptions, searchClips } from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
@@ -25,11 +34,28 @@ export default function QueueScreen() {
   const [clipboardBanner, setClipboardBanner] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<ClipCategory | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Summary[] | null>(null);
   const bannerOpacity = useRef(new Animated.Value(0)).current;
 
   const visibleItems = selectedCategory
     ? items.filter((item) => item.category === selectedCategory)
     : items;
+  const listData = searchResults ?? visibleItems;
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      searchClips(q)
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -172,6 +198,18 @@ export default function QueueScreen() {
         </Pressable>
       </View>
 
+      <View className="px-4 pt-3">
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search your clips"
+          placeholderTextColor="#9ca3af"
+          className="border-2 border-black dark:border-[#505050] rounded-lg px-3 py-2 text-[#111827] dark:text-white bg-[#f9fafb] dark:bg-[#282828]"
+          style={{ fontFamily: "DMSans" }}
+          accessibilityLabel="Search clips"
+        />
+      </View>
+
       {loading ? (
         <View className="px-4 py-4 gap-3">
           <QueueCardSkeleton />
@@ -210,23 +248,25 @@ export default function QueueScreen() {
         </View>
       ) : (
         <>
-          <View className="flex-row gap-2 px-4 pt-3">
-            <CategoryChip
-              label="All"
-              active={selectedCategory === null}
-              onPress={() => setSelectedCategory(null)}
-            />
-            {Object.values(CLIP_CATEGORIES).map((cat) => (
+          {searchResults === null ? (
+            <View className="flex-row gap-2 px-4 pt-3">
               <CategoryChip
-                key={cat}
-                label={cat}
-                active={selectedCategory === cat}
-                onPress={() => setSelectedCategory(cat)}
+                label="All"
+                active={selectedCategory === null}
+                onPress={() => setSelectedCategory(null)}
               />
-            ))}
-          </View>
+              {Object.values(CLIP_CATEGORIES).map((cat) => (
+                <CategoryChip
+                  key={cat}
+                  label={cat}
+                  active={selectedCategory === cat}
+                  onPress={() => setSelectedCategory(cat)}
+                />
+              ))}
+            </View>
+          ) : null}
           <FlatList
-            data={visibleItems}
+            data={listData}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => <ClipCard item={item} />}
             contentContainerClassName="px-4 py-4 gap-3"
