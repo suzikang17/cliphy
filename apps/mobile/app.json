@@ -55,22 +55,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "00c5bde0-16b3-4bc0-a29a-3429a85f8a78",
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "ShareExtension",
-                  "bundleIdentifier": "com.cliphy.ios.share-extension",
-                  "entitlements": {
-                    "com.apple.security.application-groups": ["group.com.cliphy.ios"]
-                  }
-                }
-              ]
-            }
-          }
-        }
+        "projectId": "00c5bde0-16b3-4bc0-a29a-3429a85f8a78"
       }
     },
     "owner": "suzikang17s-team"
