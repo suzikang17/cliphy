@@ -5,8 +5,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
-import { getSummary } from "../../lib/api";
+import { getSummary, getRelatedClips } from "../../lib/api";
 import { SummaryContent } from "../../components/SummaryContent";
+import { ClipCard } from "../../components/ClipCard";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { brutalShadowSm } from "../../lib/theme";
 
@@ -14,6 +15,7 @@ export default function SummaryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [related, setRelated] = useState<Summary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,6 +23,9 @@ export default function SummaryDetailScreen() {
       .then((res) => setSummary(res.summary))
       .catch(console.error)
       .finally(() => setLoading(false));
+    getRelatedClips(id)
+      .then(setRelated)
+      .catch(() => {});
   }, [id]);
 
   return (
@@ -112,6 +117,22 @@ export default function SummaryDetailScreen() {
           </View>
 
           <SummaryContent summary={summary} />
+
+          {related.length > 0 ? (
+            <View className="mt-6">
+              <Text
+                className="text-base font-bold text-[#111827] dark:text-white mb-3"
+                style={{ fontFamily: "DMSans" }}
+              >
+                Related
+              </Text>
+              <View className="gap-3">
+                {related.map((r) => (
+                  <ClipCard key={r.id} item={r} />
+                ))}
+              </View>
+            </View>
+          ) : null}
         </ScrollView>
       ) : (
         <View className="flex-1 items-center justify-center">
