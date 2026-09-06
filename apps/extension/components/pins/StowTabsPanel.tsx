@@ -53,32 +53,56 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
     return next;
   }
 
+  // Invariant: AI summary requires stowing. Summarizing something you are not
+  // saving has nowhere to put the result, so the two controls move together.
+  function toggleStow(id: number) {
+    setSelected((prev) => {
+      const next = toggle(prev, id);
+      if (!next.has(id)) setSummarize((s) => (s.has(id) ? toggle(s, id) : s));
+      return next;
+    });
+  }
+
+  function toggleSummarize(id: number) {
+    setSummarize((prev) => {
+      const next = toggle(prev, id);
+      if (next.has(id)) setSelected((sel) => (sel.has(id) ? sel : new Set(sel).add(id)));
+      return next;
+    });
+  }
+
   async function handleStow() {
-    const chosen = tabs.filter((t) => selected.has(t.id));
-    if (chosen.length === 0) return;
+    const toStow = tabs.filter((t) => selected.has(t.id));
+    if (toStow.length === 0 && closeAfter.size === 0) return;
     setBusy(true);
     setError(null);
 
     const stowed: OpenTab[] = [];
-    for (const tab of chosen) {
+    for (const tab of toStow) {
       try {
         await stowTab(tab.url, summarize.has(tab.id));
         stowed.push(tab);
       } catch {
-        // A duplicate (409) or a failed save — leave that tab open rather than
-        // closing something we did not manage to save.
+        // A duplicate (409) or a failed save. Leave it open — never close a tab
+        // we did not manage to save.
       }
     }
 
-    if (stowed.length === 0) {
+    if (toStow.length > 0 && stowed.length === 0) {
       setError("Couldn't stow those tabs.");
       setBusy(false);
       return;
     }
 
-    // Close only tabs that both saved AND were marked for closing.
-    const toClose = stowed.filter((t) => closeAfter.has(t.id));
+    // Closing is independent of stowing: a tab marked for closing but not for
+    // stowing is just being dismissed, and has nothing to lose. A tab marked
+    // for both closes only if its save actually succeeded.
+    const stowedIds = new Set(stowed.map((t) => t.id));
+    const toClose = tabs.filter(
+      (t) => closeAfter.has(t.id) && (!selected.has(t.id) || stowedIds.has(t.id)),
+    );
     if (toClose.length > 0) await browser.tabs.remove(toClose.map((t) => t.id));
+
     onStowed(
       stowed.length,
       toClose.map((t) => t.url),
@@ -88,13 +112,16 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
   }
 
   const allSelected = tabs.length > 0 && selected.size === tabs.length;
-  const closingCount = [...selected].filter((id) => closeAfter.has(id)).length;
+  const closingCount = closeAfter.size;
+  const sameSet = closingCount === selected.size && [...selected].every((id) => closeAfter.has(id));
   const stowLabel =
-    closingCount === 0
-      ? `Stow ${selected.size}`
-      : closingCount === selected.size
-        ? `Stow ${selected.size} & close`
-        : `Stow ${selected.size} · close ${closingCount}`;
+    selected.size === 0
+      ? `Close ${closingCount}`
+      : closingCount === 0
+        ? `Stow ${selected.size}`
+        : sameSet
+          ? `Stow ${selected.size} & close`
+          : `Stow ${selected.size} · close ${closingCount}`;
 
   return (
     <div className="mb-4 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) p-3 shadow-brutal-sm">
@@ -134,7 +161,7 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
                 <input
                   type="checkbox"
                   checked={selected.has(tab.id)}
-                  onChange={() => setSelected((s) => toggle(s, tab.id))}
+                  onChange={() => toggleStow(tab.id)}
                   aria-label={`Stow ${tab.title}`}
                   className="shrink-0 cursor-pointer"
                 />
@@ -149,18 +176,16 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
                 <input
                   type="checkbox"
                   checked={summarize.has(tab.id)}
-                  onChange={() => setSummarize((s) => toggle(s, tab.id))}
-                  disabled={!selected.has(tab.id)}
+                  onChange={() => toggleSummarize(tab.id)}
                   aria-label={`Queue ${tab.title} for AI summary`}
-                  className="shrink-0 cursor-pointer disabled:opacity-30"
+                  className="shrink-0 cursor-pointer"
                 />
                 <input
                   type="checkbox"
                   checked={closeAfter.has(tab.id)}
                   onChange={() => setCloseAfter((s) => toggle(s, tab.id))}
-                  disabled={!selected.has(tab.id)}
-                  aria-label={`Close ${tab.title} after stowing`}
-                  className="shrink-0 cursor-pointer disabled:opacity-30"
+                  aria-label={`Close ${tab.title}`}
+                  className="shrink-0 cursor-pointer"
                 />
               </li>
             ))}
@@ -170,9 +195,15 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
             <span className="flex gap-3">
               <button
                 type="button"
-                onClick={() =>
-                  setSummarize(summarize.size === selected.size ? new Set() : new Set(selected))
-                }
+                onClick={() => {
+                  if (summarize.size === tabs.length) {
+                    setSummarize(new Set());
+                  } else {
+                    const all = new Set(tabs.map((t) => t.id));
+                    setSummarize(all);
+                    setSelected(all); // AI implies stow
+                  }
+                }}
                 className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text)"
               >
                 ✦ AI for all
@@ -180,7 +211,9 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
               <button
                 type="button"
                 onClick={() =>
-                  setCloseAfter(closeAfter.size === selected.size ? new Set() : new Set(selected))
+                  setCloseAfter(
+                    closeAfter.size === tabs.length ? new Set() : new Set(tabs.map((t) => t.id)),
+                  )
                 }
                 className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text)"
               >
@@ -190,7 +223,7 @@ export function StowTabsPanel({ onClose, onStowed }: StowTabsPanelProps) {
             <button
               type="button"
               onClick={() => void handleStow()}
-              disabled={busy || selected.size === 0}
+              disabled={busy || (selected.size === 0 && closeAfter.size === 0)}
               className="cursor-pointer rounded-lg border-2 border-(--color-border-hard) bg-neon-100 px-3 py-1.5 text-xs font-bold text-neon-700 shadow-brutal-sm disabled:opacity-50 dark:bg-neon-900/50 dark:text-neon-400"
             >
               {busy ? "Stowing…" : stowLabel}

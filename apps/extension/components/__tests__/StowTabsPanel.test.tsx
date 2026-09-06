@@ -68,12 +68,50 @@ describe("StowTabsPanel", () => {
     expect(onStowed).toHaveBeenCalledWith(2, ["https://linear.app", "https://vercel.com"]);
   });
 
+  it("closes a tab without stowing it", async () => {
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    // Deselect both from stowing, but leave Linear marked for closing.
+    fireEvent.click(screen.getByLabelText("Stow Linear"));
+    fireEvent.click(screen.getByLabelText("Stow Vercel"));
+    fireEvent.click(screen.getByLabelText("Close Vercel"));
+
+    fireEvent.click(screen.getByText("Close 1"));
+
+    await waitFor(() => expect(browserMock.tabs.remove).toHaveBeenCalledWith([1]));
+    expect(stowTab).not.toHaveBeenCalled();
+  });
+
+  it("turns stowing on when AI summary is checked, since AI needs somewhere to land", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Stow Linear")); // off
+    expect(screen.getByLabelText("Stow Linear")).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Queue Linear for AI summary"));
+    expect(screen.getByLabelText("Stow Linear")).toBeChecked();
+  });
+
+  it("clears AI summary when stowing is turned off", async () => {
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByLabelText("Queue Linear for AI summary"));
+    expect(screen.getByLabelText("Queue Linear for AI summary")).toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Stow Linear")); // off
+    expect(screen.getByLabelText("Queue Linear for AI summary")).not.toBeChecked();
+  });
+
   it("stows without closing when the close toggle is off for that tab", async () => {
     const onStowed = vi.fn();
     render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
     await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByLabelText("Close Linear after stowing"));
+    fireEvent.click(screen.getByLabelText("Close Linear"));
     expect(screen.getByText("Stow 2 · close 1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Stow 2 · close 1"));
@@ -113,14 +151,18 @@ describe("StowTabsPanel", () => {
     expect(onStowed).toHaveBeenCalledWith(1, ["https://linear.app"]);
   });
 
-  it("skips a deselected tab entirely", async () => {
-    render(<StowTabsPanel onClose={vi.fn()} onStowed={vi.fn()} />);
+  it("saves only stowed tabs, but still closes ones marked for closing", async () => {
+    const onStowed = vi.fn();
+    render(<StowTabsPanel onClose={vi.fn()} onStowed={onStowed} />);
     await waitFor(() => expect(screen.getByText("Linear")).toBeInTheDocument());
 
+    // Vercel: stow off, close still on — dismissed without being saved.
     fireEvent.click(screen.getByLabelText("Stow Vercel"));
-    fireEvent.click(screen.getByText("Stow 1 & close"));
+    fireEvent.click(screen.getByText("Stow 1 · close 2"));
 
     await waitFor(() => expect(stowTab).toHaveBeenCalledTimes(1));
     expect(stowTab).toHaveBeenCalledWith("https://linear.app", false);
+    expect(browserMock.tabs.remove).toHaveBeenCalledWith([1, 2]);
+    expect(onStowed).toHaveBeenCalledWith(1, ["https://linear.app", "https://vercel.com"]);
   });
 });
