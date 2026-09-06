@@ -62,6 +62,7 @@ export const SOURCE_TYPES = {
   TWEET: "tweet",
   PODCAST: "podcast",
   WEB: "web",
+  IMAGE: "image",
 } as const;
 
 export const CLIP_CATEGORIES = {

@@ -52,7 +52,7 @@ export interface SummaryJson {
   truncated?: boolean;
 }
 
-export type SourceType = "youtube" | "tweet" | "podcast" | "web";
+export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image";
 
 export type ClipCategory = "idea" | "reading" | "design" | "reference";
 
@@ -78,6 +78,17 @@ export interface WebClipMetadata {
   faviconUrl?: string;
   readingTimeMin?: number;
   kind: "article" | "visual";
+}
+
+export interface ImageClipMetadata {
+  kind: "text" | "visual";
+  storagePath: string;
+  width?: number;
+  height?: number;
+  tiled?: boolean;
+  partial?: boolean;
+  detectedTweetUrl?: string;
+  tweet?: { handle: string; author: string; text: string };
 }
 
 /** Unified queue + result row from the `summaries` table */
