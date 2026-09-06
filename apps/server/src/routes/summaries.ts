@@ -15,6 +15,7 @@ import {
 } from "@cliphy/shared";
 import type { SummaryJson, ChatMessage, SummaryLanguageCode } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
+import { resolveClipImage } from "./clips.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
@@ -92,7 +93,9 @@ summaryRoutes.get("/search", async (c) => {
   }
 
   return c.json({
-    summaries: (data ?? []).map((r) => toSummary(r as Record<string, unknown>)),
+    summaries: await Promise.all(
+      (data ?? []).map((r) => resolveClipImage(toSummary(r as Record<string, unknown>))),
+    ),
     total: count ?? 0,
     offset,
     limit,
@@ -366,7 +369,7 @@ summaryRoutes.patch("/:id", async (c) => {
     return c.json({ error: "Summary not found" }, 404);
   }
 
-  return c.json({ summary: toSummary(data as Record<string, unknown>) });
+  return c.json({ summary: await resolveClipImage(toSummary(data as Record<string, unknown>)) });
 });
 
 // ── PATCH /:id/tags — Update tags on a summary ──────────────
@@ -478,7 +481,7 @@ summaryRoutes.patch("/:id/notes", async (c) => {
     return c.json({ error: "Summary not found" }, 404);
   }
 
-  return c.json({ summary: toSummary(data as Record<string, unknown>) });
+  return c.json({ summary: await resolveClipImage(toSummary(data as Record<string, unknown>)) });
 });
 
 // ── GET / — Paginated list of user's summaries ───────────────
@@ -519,7 +522,9 @@ summaryRoutes.get("/", async (c) => {
   }
 
   return c.json({
-    summaries: (data ?? []).map((r) => toSummary(r as Record<string, unknown>)),
+    summaries: await Promise.all(
+      (data ?? []).map((r) => resolveClipImage(toSummary(r as Record<string, unknown>))),
+    ),
     total: count ?? 0,
     offset,
     limit,
@@ -623,7 +628,7 @@ summaryRoutes.get("/:id", async (c) => {
     return c.json({ error: "Summary not found" }, 404);
   }
 
-  return c.json({ summary: toSummary(data as Record<string, unknown>) });
+  return c.json({ summary: await resolveClipImage(toSummary(data as Record<string, unknown>)) });
 });
 
 // ── DELETE /:id — Soft-delete a summary ─────────────────────

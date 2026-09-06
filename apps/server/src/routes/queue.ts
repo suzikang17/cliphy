@@ -13,6 +13,7 @@ import {
   PRO_FEATURES,
 } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
+import { resolveClipImage } from "./clips.js";
 
 // Columns to select on list/search queries — omits heavy vector + raw transcript columns.
 const CLIP_LIST_COLS =
@@ -40,7 +41,8 @@ queueRoutes.get("/", async (c) => {
     return c.json({ error: "Failed to fetch queue" }, 500);
   }
 
-  return c.json({ items: (rows ?? []).map(toSummary) });
+  const items = await Promise.all((rows ?? []).map((r) => resolveClipImage(toSummary(r))));
+  return c.json({ items });
 });
 
 // GET /:id — Get specific queue item

@@ -7,14 +7,48 @@ import { toClip } from "../lib/mappers.js";
 import { detectSourceType } from "../services/detectSourceType.js";
 import { extractWebClip } from "../services/extractors/web.js";
 import { extractTweetClip } from "../services/extractors/tweet.js";
+import { signImageUrl } from "../lib/storage.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
 clipsRoutes.use("*", authMiddleware);
 
+/** Resolve an image clip's storage path to a short-lived signed URL for display. */
+export async function resolveClipImage<T extends { sourceType: string; heroImageUrl?: string }>(
+  clip: T,
+): Promise<T> {
+  if (clip.sourceType === "image" && clip.heroImageUrl) {
+    clip.heroImageUrl = (await signImageUrl(clip.heroImageUrl)) ?? clip.heroImageUrl;
+  }
+  return clip;
+}
+
 clipsRoutes.post("/", async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ url?: string }>();
+  const body = await c.req.json<{ url?: string; imagePath?: string }>();
+
+  // Image capture: no URL to classify — create an image clip and hand off to
+  // the vision worker.
+  if (body.imagePath) {
+    const { data: row, error } = await supabase
+      .from("clips")
+      .insert({
+        user_id: userId,
+        source_type: "image",
+        hero_image_url: body.imagePath,
+        source_metadata: { storagePath: body.imagePath },
+        status: "pending",
+        tags: [],
+      })
+      .select("*")
+      .single();
+    if (error || !row) return c.json({ error: "Failed to save clip" }, 500);
+    await inngest.send({ name: "clip/vision.requested", data: { clipId: row.id } });
+    const clip = toClip(row);
+    clip.heroImageUrl = (await signImageUrl(body.imagePath)) ?? clip.heroImageUrl;
+    return c.json({ clip }, 201);
+  }
+
   if (!body.url) return c.json({ error: "url is required" }, 400);
 
   const sourceType = detectSourceType(body.url);
