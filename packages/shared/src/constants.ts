@@ -102,6 +102,8 @@ export const API_ROUTES = {
     TAGS: (id: string) => `/api/summaries/${id}/tags`,
     NOTES: (id: string) => `/api/summaries/${id}/notes`,
     SEARCH: "/api/summaries/search",
+    ARCHIVE: (id: string) => `/api/summaries/${id}/archive`,
+    UNARCHIVE: (id: string) => `/api/summaries/${id}/unarchive`,
     AUTO_TAG: (id: string) => `/api/summaries/${id}/auto-tag`,
     AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",
     CHAT: (id: string) => `/api/summaries/${id}/chat`,

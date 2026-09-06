@@ -495,6 +495,38 @@ summaryRoutes.patch("/:id/notes", async (c) => {
   return c.json({ summary: await resolveClipImage(toSummary(data as Record<string, unknown>)) });
 });
 
+// ── POST /:id/archive — move a clip out of the inbox ──────────
+
+summaryRoutes.post("/:id/archive", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data, error } = await supabase
+    .from("clips")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id, archived_at")
+    .single();
+  if (error || !data) return c.json({ error: "Failed to archive clip" }, 500);
+  return c.json({ id: data.id, archivedAt: data.archived_at });
+});
+
+// ── POST /:id/unarchive — undo an archive ─────────────────────
+
+summaryRoutes.post("/:id/unarchive", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data, error } = await supabase
+    .from("clips")
+    .update({ archived_at: null })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id, archived_at")
+    .single();
+  if (error || !data) return c.json({ error: "Failed to unarchive clip" }, 500);
+  return c.json({ id: data.id, archivedAt: null });
+});
+
 // ── GET / — Paginated list of user's summaries ───────────────
 
 summaryRoutes.get("/", async (c) => {
@@ -511,6 +543,11 @@ summaryRoutes.get("/", async (c) => {
     .eq("user_id", userId)
     .eq("status", statusFilter)
     .is("deleted_at", null)
+    // Metadata-tier clips are bookmarks (tiles), not things to triage. Deleting
+    // the enrichment_tier filter below is the one-line way to change that
+    // decision — see the pins & panels spec, "Why these shapes".
+    .is("archived_at", null)
+    .eq("enrichment_tier", "full")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
