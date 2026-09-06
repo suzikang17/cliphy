@@ -1,8 +1,11 @@
 import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
+import { logger } from "../lib/logger.js";
 import { generateEmbedding } from "../services/embedding.js";
 import { enrichClip } from "../services/enrich.js";
 import type { Summary } from "@cliphy/shared";
+
+const log = logger.child({ fn: "embed-clip" });
 
 type ClipRow = {
   source_type: string;
@@ -77,13 +80,22 @@ export const embedClip = inngest.createFunction(
       clip.summary_json = { summary: enrichment.summary, keyPoints: [], timestamps: [] };
     }
 
-    await step.run("store-embedding", async () => {
-      const embedText = buildEmbedText(clip);
-      const embedding = await generateEmbedding(embedText);
-      const { error } = await supabase.from("clips").update({ embedding }).eq("id", clipId);
-      if (error) throw new Error(`Failed to store embedding for ${clipId}: ${error.message}`);
+    // Embedding only powers semantic search + related-clips; it must not sink the
+    // enrichment above. If it fails (e.g. VOYAGE_API_KEY unset), log and move on so
+    // the clip still lands enriched — search/related just degrade until it's fixed.
+    const embedded = await step.run("store-embedding", async () => {
+      try {
+        const embedText = buildEmbedText(clip);
+        const embedding = await generateEmbedding(embedText);
+        const { error } = await supabase.from("clips").update({ embedding }).eq("id", clipId);
+        if (error) throw new Error(error.message);
+        return true;
+      } catch (err) {
+        log.warn("Embedding skipped", { clipId, error: (err as Error).message });
+        return false;
+      }
     });
 
-    return { clipId, status: "embedded" };
+    return { clipId, status: embedded ? "embedded" : "enriched-no-embedding" };
   },
 );
