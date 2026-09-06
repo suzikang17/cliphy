@@ -12,7 +12,7 @@
       "policy": "fingerprint"
     },
     "updates": {
-      "url": "https://u.expo.dev/5af71f4e-b1ca-4cc7-b38d-791e6c965e49"
+      "url": "https://u.expo.dev/00c5bde0-16b3-4bc0-a29a-3429a85f8a78"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -32,7 +32,8 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.cliphy.app",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": ["android.permission.RECORD_AUDIO", "android.permission.RECORD_AUDIO"]
     },
     "plugins": [
       "expo-router",
@@ -55,7 +56,21 @@
       "router": {},
       "eas": {
         "projectId": "00c5bde0-16b3-4bc0-a29a-3429a85f8a78",
-        "build": {}
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "com.cliphy.ios.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.com.cliphy.ios"]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "suzikang17s-team"

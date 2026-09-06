@@ -28,4 +28,5 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          npx eas update --channel production --message "${{ github.event.head_commit.message }}" --non-interactive
+          npx eas-cli@latest update --channel production --environment production \
+            --message "${{ github.event.head_commit.message }}" --non-interactive

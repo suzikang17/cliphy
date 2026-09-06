@@ -60,6 +60,9 @@ vi.mock("../../services/extractors/web.js", () => ({
   })),
 }));
 vi.mock("../../services/extractors/tweet.js", () => ({ extractTweetClip: vi.fn() }));
+vi.mock("../../services/enrich.js", () => ({
+  enrichClip: vi.fn(async () => ({ summary: "s", tags: ["t"], category: "reading" })),
+}));
 
 const { clipsRoutes } = await import("../clips.js");
 const { inngest } = await import("../../lib/inngest.js");
@@ -84,6 +87,7 @@ describe("POST /clips universal ingest", () => {
       from: vi
         .fn()
         .mockReturnValueOnce(mockChain({ data: null })) // dedup: none
+        .mockReturnValueOnce(mockChain({ data: [] })) // existing-tags query (sync enrichment)
         .mockReturnValueOnce(
           mockChain({
             data: {

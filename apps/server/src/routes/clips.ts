@@ -9,6 +9,7 @@ import { extractWebClip } from "../services/extractors/web.js";
 import { extractTweetClip } from "../services/extractors/tweet.js";
 import { signImageUrl } from "../lib/storage.js";
 import { findRelatedClips } from "../services/related.js";
+import { enrichClip } from "../services/enrich.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
@@ -104,6 +105,37 @@ clipsRoutes.post("/", async (c) => {
     insert.status = "failed";
     insert.error_message = err instanceof Error ? err.message : "Extraction failed";
     insert.video_title = body.url;
+  }
+
+  // Enrich synchronously (summary/tags/category) so the inbox is populated
+  // reliably at capture time, independent of the async embedding worker.
+  // Best-effort: a failure here never blocks saving the clip.
+  if (
+    insert.status === "completed" &&
+    (sourceType === "web" || sourceType === "tweet") &&
+    typeof insert.content === "string" &&
+    insert.content
+  ) {
+    try {
+      const { data: tagRows } = await supabase
+        .from("clips")
+        .select("tags")
+        .eq("user_id", userId)
+        .is("deleted_at", null)
+        .limit(500);
+      const existingTags = [...new Set((tagRows ?? []).flatMap((r) => (r.tags as string[]) ?? []))];
+      const e = await enrichClip({
+        sourceType,
+        title: insert.video_title as string | undefined,
+        text: insert.content,
+        existingTags,
+      });
+      insert.category = e.category;
+      insert.tags = e.tags;
+      insert.summary_json = { summary: e.summary, keyPoints: [], timestamps: [] };
+    } catch {
+      // leave unenriched — the embed worker (or a backfill) can retry later
+    }
   }
 
   const { data: row, error } = await supabase.from("clips").insert(insert).select("*").single();
