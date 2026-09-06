@@ -9,6 +9,7 @@ import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
 import { ClipCard } from "../../components/ClipCard";
+import { CaptureSheet } from "../../components/CaptureSheet";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
 import { UsageBar } from "../../components/UsageBar";
@@ -23,6 +24,7 @@ export default function QueueScreen() {
   const [error, setError] = useState(false);
   const [clipboardBanner, setClipboardBanner] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<ClipCategory | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const bannerOpacity = useRef(new Animated.Value(0)).current;
 
   const visibleItems = selectedCategory
@@ -160,6 +162,14 @@ export default function QueueScreen() {
         >
           Cliphy
         </Text>
+        <Pressable
+          onPress={() => setCaptureOpen(true)}
+          className="ml-auto w-9 h-9 items-center justify-center rounded-full border-2 border-black dark:border-[#505050]"
+          accessibilityRole="button"
+          accessibilityLabel="Add a clip"
+        >
+          <Text className="text-lg font-bold text-[#111827] dark:text-white">＋</Text>
+        </Pressable>
       </View>
 
       {loading ? (
@@ -281,6 +291,12 @@ export default function QueueScreen() {
       )}
 
       <UsageBar usage={usage} />
+
+      <CaptureSheet
+        visible={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onCaptured={fetchData}
+      />
     </SafeAreaView>
   );
 }

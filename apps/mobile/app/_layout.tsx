@@ -10,6 +10,7 @@ import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { addClip } from "../lib/api";
+import { uploadAndClipImage } from "../lib/uploadImage";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
@@ -94,12 +95,29 @@ export default function RootLayout() {
   const processingShareRef = useRef(false);
 
   useEffect(() => {
-    if (!shareIntent?.text || !session || processingShareRef.current) return;
+    const hasText = Boolean(shareIntent?.text);
+    const hasFiles = Boolean(shareIntent?.files?.length);
+    if ((!hasText && !hasFiles) || !session || processingShareRef.current) return;
+
+    // A shared image (screenshot, photo) → upload + OCR pipeline.
+    const sharedImage = shareIntent?.files?.find((f) => f.mimeType?.startsWith("image/"));
+    if (sharedImage) {
+      resetShareIntent();
+      processingShareRef.current = true;
+      uploadAndClipImage(sharedImage.path)
+        .then(() => Alert.alert("Saved to Cliphy", "Image saved"))
+        .catch((err: unknown) => showQueueError(err))
+        .finally(() => {
+          processingShareRef.current = false;
+        });
+      return;
+    }
 
     // Snapshot the text and clear the intent synchronously *before* the async
     // enqueue, so a re-render can't re-fire this effect for the same share.
-    const sharedText = shareIntent.text;
+    const sharedText = shareIntent?.text;
     resetShareIntent();
+    if (!sharedText) return;
 
     const urlMatch = sharedText.match(/https?:\/\/[^\s]+/);
 

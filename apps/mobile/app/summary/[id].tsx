@@ -62,14 +62,21 @@ export default function SummaryDetailScreen() {
             className="border-2 border-black dark:border-[#505050] rounded-lg mb-5 bg-[#f9fafb] dark:bg-[#282828] overflow-hidden"
             style={brutalShadowSm()}
           >
-            {summary.videoId && (
+            {summary.sourceType === "image" && summary.heroImageUrl ? (
+              <Image
+                source={{ uri: summary.heroImageUrl }}
+                style={{ width: "100%", aspectRatio: 3 / 4 }}
+                resizeMode="contain"
+                accessibilityLabel="Captured image"
+              />
+            ) : summary.videoId ? (
               <Image
                 source={{ uri: `https://i.ytimg.com/vi/${summary.videoId}/mqdefault.jpg` }}
                 style={{ width: "100%", aspectRatio: 16 / 9 }}
                 resizeMode="cover"
                 accessibilityLabel="Video thumbnail"
               />
-            )}
+            ) : null}
             <View className="p-3">
               <Text
                 className="text-base font-bold text-[#111827] dark:text-white"

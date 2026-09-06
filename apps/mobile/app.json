@@ -43,11 +43,13 @@
         "expo-share-intent",
         {
           "iosActivationRules": {
-            "NSExtensionActivationSupportsWebURLWithMaxCount": 1
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
           },
-          "androidIntentFilters": ["text/*"]
+          "androidIntentFilters": ["text/*", "image/*"]
         }
-      ]
+      ],
+      "expo-image-picker"
     ],
     "extra": {
       "router": {},
