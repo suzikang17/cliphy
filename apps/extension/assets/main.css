@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "@fontsource-variable/dm-sans";
 
+/* Shared UI (clip cards, masonry) lives in @cliphy/shared, which Tailwind
+   cannot auto-detect: it is a workspace package resolved through node_modules,
+   and node_modules is excluded from source scanning. Without this the shared
+   cards silently lose any class the extension does not also use itself. */
+@source "../../../packages/shared/src";
+
 @theme {
   --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --shadow-brutal: 4px 4px 0px 0px rgba(0, 0, 0, 1);

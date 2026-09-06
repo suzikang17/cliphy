@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Shared UI lives in @cliphy/shared, which Tailwind cannot auto-detect: it is
+   a workspace package resolved through node_modules, and node_modules is
+   excluded from source scanning. Without this, shared components silently lose
+   any class this app does not also use itself. */
+@source "../../../packages/shared/src";
+
 @theme {
   --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --shadow-brutal: 4px 4px 0px 0px rgba(0, 0, 0, 1);
