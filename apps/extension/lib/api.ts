@@ -341,6 +341,30 @@ export async function unarchiveClip(id: string) {
   });
 }
 
+/** Today's date in the user's own timezone, as YYYY-MM-DD. */
+export function localDate(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export async function getTodayNote(date: string) {
+  return request<{ note: Summary | null }>(API_ROUTES.NOTES.TODAY(date));
+}
+
+export async function appendNote(text: string, date: string) {
+  return request<{ note: Summary }>(API_ROUTES.NOTES.APPEND, {
+    method: "POST",
+    body: JSON.stringify({ text, date }),
+  });
+}
+
+export async function updateNote(id: string, content: string) {
+  return request<{ note: Summary }>(API_ROUTES.NOTES.ITEM(id), {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
+  });
+}
+
 /**
  * Stow an open tab into the inbox. No pin is created — stowing files something
  * away to deal with later, which is the inbox; tiles are for things you return

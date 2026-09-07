@@ -52,7 +52,7 @@ export interface SummaryJson {
   truncated?: boolean;
 }
 
-export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image";
+export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image" | "note";
 
 export type ClipCategory = "idea" | "reading" | "design" | "reference";
 
@@ -71,6 +71,11 @@ export interface TweetClipMetadata {
   threadTruncated?: boolean;
   likeCount?: number;
   retweetCount?: number;
+}
+
+export interface NoteClipMetadata {
+  /** The note's day in the user's local timezone, as YYYY-MM-DD. */
+  noteDate: string;
 }
 
 export interface WebClipMetadata {

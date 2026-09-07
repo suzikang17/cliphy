@@ -34,6 +34,18 @@ describe("buildEmbedText", () => {
     ).toBe("S a b");
   });
 
+  it("embeds a note's own text, since it has no summary", () => {
+    expect(
+      buildEmbedText({
+        source_type: "note",
+        author: null,
+        content: "shipped the pins tab\nfixed tailwind scanning",
+        summary_json: null,
+        video_title: "Daily note · 2026-09-07",
+      }),
+    ).toBe("shipped the pins tab\nfixed tailwind scanning");
+  });
+
   it("falls back to the title for bookmark-tier clips with no summary", () => {
     // Metadata-tier bookmarks never get a Claude pass, so summary_json is null.
     // Without a fallback this embeds the empty string and the bookmark becomes

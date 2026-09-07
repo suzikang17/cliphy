@@ -96,6 +96,11 @@ export const API_ROUTES = {
   CLIPS: {
     ADD: "/api/clips",
   },
+  NOTES: {
+    APPEND: "/api/notes/append",
+    TODAY: (date: string) => `/api/notes/today?date=${date}`,
+    ITEM: (id: string) => `/api/notes/${id}`,
+  },
   PINS: {
     LIST: "/api/pins",
     CREATE: "/api/pins",

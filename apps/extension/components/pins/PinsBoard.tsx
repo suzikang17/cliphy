@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CaptureBar } from "./CaptureBar";
 import { StowTabsPanel } from "./StowTabsPanel";
 import { SuggestedTiles } from "./SuggestedTiles";
+import { DailyNote } from "./DailyNote";
 import { TileStrip } from "./TileStrip";
 import { Panel } from "./Panel";
 import { usePins } from "./usePins";
@@ -29,6 +30,7 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
   } = usePins();
 
   const [showStow, setShowStow] = useState(false);
+  const [noteVersion, setNoteVersion] = useState(0);
   const [stowed, setStowed] = useState<{ count: number; urls: string[] } | null>(null);
 
   return (
@@ -67,7 +69,9 @@ export function PinsBoard({ columns = 4 }: { columns?: number }) {
         </div>
       )}
 
-      <CaptureBar onAdded={addPin} />
+      <CaptureBar onAdded={addPin} onNoted={() => setNoteVersion((v) => v + 1)} />
+
+      <DailyNote refreshKey={noteVersion} />
 
       <SuggestedTiles
         pinnedUrls={tilePins.map((p) => p.clipUrl ?? "").filter(Boolean)}

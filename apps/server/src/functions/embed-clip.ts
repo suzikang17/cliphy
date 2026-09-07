@@ -21,6 +21,10 @@ export function buildEmbedText(clip: ClipRow): string {
   if (clip.source_type === "tweet") {
     return `${clip.author ?? ""}: ${clip.content ?? ""}`.trim();
   }
+  // A note IS its text — there is no summary to stand in for it.
+  if (clip.source_type === "note") {
+    return (clip.content ?? "").trim();
+  }
   const sj = clip.summary_json;
   const keyPoints = sj?.keyPoints?.join(" ") ?? "";
   const fromSummary = `${sj?.summary ?? ""} ${keyPoints}`.trim();

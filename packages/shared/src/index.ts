@@ -9,6 +9,7 @@ export * from "./components/cards/WebCard";
 export * from "./components/cards/TweetCard";
 export * from "./components/cards/ImageCard";
 export * from "./components/cards/QueueCard";
+export * from "./components/cards/NoteCard";
 export * from "./components/MasonryGrid";
 export * from "./tokens";
 export * from "./components/TagSuggestions";

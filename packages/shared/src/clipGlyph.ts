@@ -6,6 +6,7 @@ const GLYPHS: Record<SourceType, string> = {
   tweet: "🐦",
   podcast: "🎧",
   image: "🖼",
+  note: "✎",
 };
 
 export function sourceGlyph(t: SourceType): string {

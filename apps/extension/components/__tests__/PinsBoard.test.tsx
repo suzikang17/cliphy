@@ -48,6 +48,10 @@ vi.mock("../../lib/api", () => ({
   unarchiveClip: (...a: unknown[]) => unarchiveClip(...(a as [string])),
   addBookmark: vi.fn(),
   stowTab: vi.fn(),
+  getTodayNote: vi.fn(async () => ({ note: null })),
+  appendNote: vi.fn(async () => ({ note: {} })),
+  updateNote: vi.fn(async () => ({ note: {} })),
+  localDate: () => "2026-09-07",
 }));
 vi.mock("../../lib/newtab-cache", () => ({
   readSnapshot: vi.fn(async () => null),
@@ -72,7 +76,7 @@ describe("PinsBoard", () => {
 
   it("renders the capture bar and the inbox panel", async () => {
     render(<PinsBoard columns={1} />);
-    expect(screen.getByLabelText("Paste a URL to pin")).toBeInTheDocument();
+    expect(screen.getByLabelText("Paste a link, or jot a note")).toBeInTheDocument();
     expect(screen.getByText("Inbox")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Inbox Item")).toBeInTheDocument());
   });
