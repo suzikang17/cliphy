@@ -14,12 +14,22 @@ export function getSupabaseClient(): SupabaseClient {
   return client;
 }
 
-/** Map a DB row (snake_case) from Realtime payload to a Summary (camelCase). */
+/** Map a DB row (snake_case) from a Realtime payload to a Summary (camelCase).
+ * Mirrors the server's toClip so web/tweet/image/note clips keep their real
+ * sourceType, hero image, and generic fields (not coerced to youtube). */
 export function toSummary(row: Record<string, unknown>): Summary {
   return {
     id: row.id as string,
     userId: row.user_id as string,
-    sourceType: "youtube" as const,
+    sourceType: (row.source_type as Summary["sourceType"]) ?? "youtube",
+    sourceUrl: (row.source_url as string) ?? undefined,
+    content: (row.content as string) ?? undefined,
+    author: (row.author as string) ?? undefined,
+    publishedAt: (row.published_at as string) ?? undefined,
+    sourceMetadata: (row.source_metadata as Record<string, unknown>) ?? undefined,
+    category: (row.category as Summary["category"]) ?? undefined,
+    heroImageUrl: (row.hero_image_url as string) ?? undefined,
+    excerpt: (row.excerpt as string) ?? undefined,
     videoId: (row.youtube_video_id as string) ?? undefined,
     videoTitle: (row.video_title as string) ?? undefined,
     videoUrl: (row.video_url as string) ?? undefined,
@@ -29,6 +39,7 @@ export function toSummary(row: Record<string, unknown>): Summary {
     summaryJson: (row.summary_json as Summary["summaryJson"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
+    enrichmentTier: (row.enrichment_tier as Summary["enrichmentTier"]) ?? "full",
     deletedAt: (row.deleted_at as string) ?? undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,

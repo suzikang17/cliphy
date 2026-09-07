@@ -10,11 +10,16 @@ export interface WebMetadata {
 }
 
 function meta(html: string, property: string): string | undefined {
-  const re = new RegExp(
+  // og/meta tags appear in either attribute order; match both.
+  const propThenContent = new RegExp(
     `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`,
     "i",
   );
-  return re.exec(html)?.[1];
+  const contentThenProp = new RegExp(
+    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`,
+    "i",
+  );
+  return propThenContent.exec(html)?.[1] ?? contentThenProp.exec(html)?.[1];
 }
 
 export async function extractWebMetadata(url: string): Promise<WebMetadata> {
