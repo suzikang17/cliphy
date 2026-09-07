@@ -4,7 +4,7 @@ import type { Summary, WebClipMetadata } from "@cliphy/shared";
 import { sourceGlyph } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
 
-export function WebCard({ item }: { item: Summary }) {
+export function WebCard({ item, onArchive }: { item: Summary; onArchive?: (id: string) => void }) {
   const router = useRouter();
   const meta = (item.sourceMetadata ?? {}) as unknown as WebClipMetadata;
 
@@ -16,6 +16,7 @@ export function WebCard({ item }: { item: Summary }) {
   return (
     <Pressable
       onPress={handlePress}
+      onLongPress={onArchive ? () => onArchive(item.id) : undefined}
       className="border-2 border-black dark:border-[#505050] rounded-lg p-3 bg-[#f9fafb] dark:bg-[#282828]"
       style={brutalShadowSm()}
       accessibilityRole="button"

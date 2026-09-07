@@ -3,7 +3,13 @@ import { useRouter } from "expo-router";
 import type { Summary, ImageClipMetadata } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
 
-export function ImageCard({ item }: { item: Summary }) {
+export function ImageCard({
+  item,
+  onArchive,
+}: {
+  item: Summary;
+  onArchive?: (id: string) => void;
+}) {
   const router = useRouter();
   const meta = (item.sourceMetadata ?? {}) as unknown as ImageClipMetadata;
   const processing = item.status === "pending" || item.status === "processing";
@@ -11,6 +17,7 @@ export function ImageCard({ item }: { item: Summary }) {
   return (
     <Pressable
       onPress={() => router.push(`/summary/${item.id}`)}
+      onLongPress={onArchive ? () => onArchive(item.id) : undefined}
       className="border-2 border-black dark:border-[#505050] rounded-lg p-3 bg-[#f9fafb] dark:bg-[#282828]"
       style={brutalShadowSm()}
       accessibilityRole="button"

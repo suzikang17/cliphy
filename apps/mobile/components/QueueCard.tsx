@@ -19,7 +19,13 @@ const STATUS_HINT: Record<string, string> = {
   failed: "Summarization failed",
 };
 
-export function QueueCard({ item }: { item: Summary }) {
+export function QueueCard({
+  item,
+  onArchive,
+}: {
+  item: Summary;
+  onArchive?: (id: string) => void;
+}) {
   const router = useRouter();
   const isDark = useColorScheme() === "dark";
   const status = STATUS_LABELS[item.status] ?? STATUS_LABELS.pending;
@@ -52,6 +58,7 @@ export function QueueCard({ item }: { item: Summary }) {
   return (
     <Pressable
       onPress={handlePress}
+      onLongPress={onArchive ? () => onArchive(item.id) : undefined}
       className="border-2 border-black dark:border-[#505050] rounded-lg p-3 bg-[#f9fafb] dark:bg-[#282828]"
       style={brutalShadowSm()}
       accessibilityRole="button"

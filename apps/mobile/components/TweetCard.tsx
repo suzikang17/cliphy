@@ -3,7 +3,13 @@ import { useRouter } from "expo-router";
 import type { Summary, TweetClipMetadata } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
 
-export function TweetCard({ item }: { item: Summary }) {
+export function TweetCard({
+  item,
+  onArchive,
+}: {
+  item: Summary;
+  onArchive?: (id: string) => void;
+}) {
   const router = useRouter();
   const meta = (item.sourceMetadata ?? {}) as unknown as TweetClipMetadata;
   const threadCount = meta.threadTweetIds?.length ?? 1;
@@ -11,6 +17,7 @@ export function TweetCard({ item }: { item: Summary }) {
   return (
     <Pressable
       onPress={() => router.push(`/summary/${item.id}`)}
+      onLongPress={onArchive ? () => onArchive(item.id) : undefined}
       className="border-2 border-black dark:border-[#505050] rounded-lg p-3 bg-[#f9fafb] dark:bg-[#282828]"
       style={brutalShadowSm()}
       accessibilityRole="button"

@@ -8,12 +8,21 @@ import {
   Pressable,
   Animated,
   TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo, ClipCategory } from "@cliphy/shared";
 import { neon, CLIP_CATEGORIES } from "@cliphy/shared";
-import { getQueue, getUsage, addToQueue, refreshSubscriptions, searchClips } from "../../lib/api";
+import {
+  getQueue,
+  getUsage,
+  addToQueue,
+  refreshSubscriptions,
+  searchClips,
+  archiveClip,
+  unarchiveClip,
+} from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
 import { supabase } from "../../lib/supabase";
@@ -157,6 +166,28 @@ export default function QueueScreen() {
     }
   }
 
+  // Long-press a card to archive it out of the feed, with an undo.
+  function handleArchive(id: string) {
+    const snapshot = items;
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setSearchResults((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    archiveClip(id).catch(() => {
+      setItems(snapshot); // restore on failure
+      showQueueError(new Error("Couldn't archive — try again"));
+    });
+    Alert.alert("Archived", "Removed from your feed.", [
+      {
+        text: "Undo",
+        onPress: () =>
+          unarchiveClip(id)
+            .then(fetchData)
+            .catch(() => {}),
+      },
+      { text: "OK", style: "cancel" },
+    ]);
+  }
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (state) => {
       if (state !== "active") return;
@@ -270,7 +301,11 @@ export default function QueueScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={neon[600]} />
             }
           >
-            {listData.length === 0 ? <EmptyState /> : <MasonryFeed items={listData} />}
+            {listData.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <MasonryFeed items={listData} onArchive={handleArchive} />
+            )}
           </ScrollView>
         </>
       )}
