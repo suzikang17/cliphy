@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Summary } from "@cliphy/shared";
 import { MasonryGrid, ClipCard } from "@cliphy/shared";
+import { TagEditor } from "./TagEditor";
 
 interface PanelProps {
   title: string;
@@ -65,6 +66,7 @@ export function Panel({ title, clips, columns = 4, onArchive }: PanelProps) {
                       </button>
                     )}
                   </div>
+                  <TagEditor clip={clip} />
                 </div>
               )}
             </div>
