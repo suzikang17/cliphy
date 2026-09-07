@@ -14,3 +14,4 @@ export * from "./components/MasonryGrid";
 export * from "./tokens";
 export * from "./components/TagSuggestions";
 export * from "./components/SelectionActionBar";
+export * from "./tags";
