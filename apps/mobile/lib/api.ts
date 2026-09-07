@@ -126,6 +126,12 @@ export const addClip = (body: { url?: string; imagePath?: string }) =>
     body: JSON.stringify(body),
   });
 
+export const updateClipTags = (id: string, tags: string[]) =>
+  apiFetch<{ summary: Summary }>(`/api/summaries/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify({ tags }),
+  });
+
 export const archiveClip = (id: string) =>
   apiFetch<{ id: string; archivedAt: string }>(`/api/summaries/${id}/archive`, { method: "POST" });
 

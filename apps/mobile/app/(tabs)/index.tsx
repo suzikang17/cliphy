@@ -22,6 +22,8 @@ import {
   searchClips,
   archiveClip,
   unarchiveClip,
+  updateClipTags,
+  retryQueueItem,
 } from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
@@ -166,12 +168,10 @@ export default function QueueScreen() {
     }
   }
 
-  // Long-press a card to archive it out of the feed, with an undo.
-  function handleArchive(id: string) {
+  function doArchive(id: string) {
     const snapshot = items;
     setItems((prev) => prev.filter((i) => i.id !== id));
     setSearchResults((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     archiveClip(id).catch(() => {
       setItems(snapshot); // restore on failure
       showQueueError(new Error("Couldn't archive — try again"));
@@ -185,6 +185,45 @@ export default function QueueScreen() {
             .catch(() => {}),
       },
       { text: "OK", style: "cancel" },
+    ]);
+  }
+
+  function applyTag(id: string) {
+    const clip = items.find((i) => i.id === id) ?? searchResults?.find((i) => i.id === id);
+    Alert.prompt?.(
+      "Apply tag",
+      "Use design:color to nest",
+      (text) => {
+        const tag = (text ?? "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s*:\s*/g, ":")
+          .replace(/^:+|:+$/g, "");
+        if (!tag) return;
+        const next = [...new Set([...(clip?.tags ?? []), tag])];
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, tags: next } : i)));
+        updateClipTags(id, next)
+          .then(fetchData)
+          .catch(() => showQueueError(new Error("Couldn't add tag")));
+      },
+      "plain-text",
+    );
+  }
+
+  function reSummarize(id: string) {
+    retryQueueItem(id)
+      .then(() => Alert.alert("Re-summarizing", "This clip is being processed again."))
+      .catch(() => showQueueError(new Error("Couldn't re-summarize this clip")));
+  }
+
+  // Long-press a card to open an action menu.
+  function handleLongPress(id: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert("Clip options", undefined, [
+      { text: "Apply tag", onPress: () => applyTag(id) },
+      { text: "Re-summarize", onPress: () => reSummarize(id) },
+      { text: "Archive", style: "destructive", onPress: () => doArchive(id) },
+      { text: "Cancel", style: "cancel" },
     ]);
   }
 
@@ -304,7 +343,7 @@ export default function QueueScreen() {
             {listData.length === 0 ? (
               <EmptyState />
             ) : (
-              <MasonryFeed items={listData} onArchive={handleArchive} />
+              <MasonryFeed items={listData} onArchive={handleLongPress} />
             )}
           </ScrollView>
         </>
