@@ -22,6 +22,8 @@ export type PanelAction =
   | "closeGroupKeep"
   | "noteGroup"
   | "toggleView"
+  | "moveTabUp"
+  | "moveTabDown"
   | "stowStale"
   | "help";
 
@@ -45,6 +47,8 @@ export const PANEL_SHORTCUTS: PanelShortcut[] = [
   { action: "noteTab", keys: ["n"], label: "Add a note to the tab" },
   { action: "noteGroup", keys: ["N"], label: "Add a note to the group" },
   { action: "toggleView", keys: ["v"], label: "Switch list / tiles" },
+  { action: "moveTabUp", keys: ["K"], label: "Move tab up in its group" },
+  { action: "moveTabDown", keys: ["J"], label: "Move tab down in its group" },
   { action: "pinTab", keys: ["p"], label: "Pin / unpin tab" },
   { action: "editGroup", keys: ["e"], label: "Edit group keywords & hints" },
   { action: "acceptGroup", keys: ["a"], label: "Save suggested group as tag" },

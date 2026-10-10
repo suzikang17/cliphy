@@ -5,7 +5,7 @@ import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { hostOf, type OpenTab } from "../../lib/tabs/types";
 import { tabTimesLabel, tabTimesTitle } from "../../lib/tabs/openedAt";
 import { isStale } from "../../lib/tabs/stale";
-import { setDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
+import { getDraggedTab, setDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
 
 interface TabRowProps {
   tab: OpenTab;
@@ -32,6 +32,8 @@ interface TabRowProps {
   onActivate: (tab: OpenTab) => void;
   onClose: (tab: OpenTab) => void;
   onMove: (tab: OpenTab, key: GroupKey) => void;
+  /** Another tab of this group was dropped on this row: put it here. */
+  onReorderOnto?: (dragged: OpenTab) => void;
   /** Rename the page / set its note. */
   onSetMeta?: (tab: OpenTab, patch: { title?: string; note?: string }) => Promise<void>;
   /** Change when the `r` / `n` shortcuts ask this row to start renaming / noting. */
@@ -60,6 +62,7 @@ export function TabRow({
   onActivate,
   onClose,
   onMove,
+  onReorderOnto,
   onSetMeta,
   renameNonce,
   noteNonce,
@@ -67,6 +70,8 @@ export function TabRow({
   const [moving, setMoving] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
+  /** A tab of this group is being dragged over this row (drop = place it here). */
+  const [reorderOver, setReorderOver] = useState(false);
   const [draft, setDraft] = useState("");
   const name = tab.customTitle || tab.title;
 
@@ -108,8 +113,32 @@ export function TabRow({
         e.dataTransfer.effectAllowed = "move";
         setDraggedTab({ tab, fromKey: groupKey });
       }}
-      onDragEnd={() => setDraggedTab(null)}
+      onDragEnd={() => {
+        setDraggedTab(null);
+        setReorderOver(false);
+      }}
+      onDragOver={(e) => {
+        const d = getDraggedTab();
+        if (!onReorderOnto || !d || d.fromKey !== groupKey || d.tab.id === tab.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        setReorderOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setReorderOver(false);
+      }}
+      onDrop={(e) => {
+        const d = getDraggedTab();
+        setReorderOver(false);
+        if (!onReorderOnto || !d || d.fromKey !== groupKey || d.tab.id === tab.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onReorderOnto(d.tab);
+      }}
       className={`group/row rounded-md px-1.5 py-1 ${
+        reorderOver ? "shadow-[inset_0_2px_0_0_var(--color-neon-500,#8b5cf6)]" : ""
+      } ${
         tab.active ? "bg-neon-100/70 dark:bg-neon-900/30" : ""
       } ${selected ? "ring-2 ring-(--color-border-hard)" : ""} ${dimmed || nested ? "opacity-55" : ""} ${
         nested ? "ml-5 border-l-2 border-(--color-border-soft) pl-2" : ""

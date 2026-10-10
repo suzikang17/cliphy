@@ -409,3 +409,23 @@ describe("TabGroupSection — save button and per-tab saved marks", () => {
     expect(marks[0].closest("li")!.textContent).toContain("Tab 1");
   });
 });
+
+describe("TabGroupSection — sort", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — sort");
+  });
+  afterEach(cleanup);
+
+  it("⋯ → Sort picks how the group orders its tabs, and shows the current one", () => {
+    const onSetSort = vi.fn();
+    renderGroup({}, { sort: "manual", onSetSort });
+    fireEvent.click(screen.getByRole("button", { name: /More actions for project/ }));
+    expect(screen.getByRole("button", { name: "Your order" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "A–Z" }));
+    expect(onSetSort).toHaveBeenCalledWith("name");
+  });
+});

@@ -87,4 +87,40 @@ describe("drag a tab into another group", () => {
     expect(onMove).not.toHaveBeenCalled();
     fireEvent.dragEnd(row, { dataTransfer: dt });
   });
+
+  it("dropping a tab on another tab in the same group puts it there", () => {
+    const onReorderTab = vi.fn();
+    const g = { ...groupA, tabs: [tab(1), tab(2), tab(3)] } as TabGroup;
+    render(
+      <TabGroupSection
+        group={g}
+        collapsed={false}
+        onToggle={vi.fn()}
+        selectedTabId={null}
+        moveTargets={["tag:a", "tag:b"] as GroupKey[]}
+        canStow
+        trackingSince={null}
+        now={0}
+        onActivate={vi.fn()}
+        onMove={vi.fn()}
+        onSaveHints={vi.fn()}
+        onCloseTabs={vi.fn()}
+        onStowTabs={vi.fn()}
+        onSaveAsTag={vi.fn()}
+        onDismiss={vi.fn()}
+        onReorderTab={onReorderTab}
+      />,
+    );
+    const dragged = screen.getByText("Tab 3").closest("li")!;
+    const target = screen.getByText("Tab 1").closest("li")!;
+    const dt = { setData: vi.fn(), effectAllowed: "", types: [TAB_TYPE], dropEffect: "" };
+    fireEvent.dragStart(dragged, { dataTransfer: dt });
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    fireEvent.drop(target, { dataTransfer: dt });
+    expect(onReorderTab).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 3 }),
+      expect.objectContaining({ id: 1 }),
+    );
+    fireEvent.dragEnd(dragged, { dataTransfer: dt });
+  });
 });

@@ -144,6 +144,22 @@ describe("TabsView keyboard shortcuts", () => {
     expect(document.querySelectorAll("li[data-tile]")).toHaveLength(0);
   });
 
+  it("⇧J / ⇧K move the selected tab down / up within its group", async () => {
+    render(<TabsView />);
+    (document.activeElement as HTMLElement)?.blur();
+    const order = () =>
+      [...document.querySelectorAll("li")]
+        .map((li) => li.textContent ?? "")
+        .filter((t) => /A one|A two/.test(t))
+        .map((t) => (t.includes("A one") ? "a1" : "a2"));
+    expect(order()).toEqual(["a1", "a2"]);
+    await press("j"); // a1
+    await press("J");
+    expect(order()).toEqual(["a2", "a1"]);
+    await press("K");
+    expect(order()).toEqual(["a1", "a2"]);
+  });
+
   it("does nothing while typing in the search box", async () => {
     render(<TabsView />);
     const search = screen.getByRole("searchbox");

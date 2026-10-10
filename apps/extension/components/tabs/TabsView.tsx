@@ -12,6 +12,8 @@ import { ClosedGroups } from "./ClosedGroups";
 import { staleTabs } from "../../lib/tabs/stale";
 import { useGroupNotes } from "../../lib/tabs/groupNotes";
 import { useViewMode } from "../../lib/tabs/viewMode";
+import { useTabSort } from "../../lib/tabs/useTabSort";
+import { moveInOrder, sortTabs } from "../../lib/tabs/tabSort";
 import { useTabPreviews } from "../../lib/tabs/previews";
 import { useSavedByTag } from "../../lib/tabs/savedByTag";
 import { openWebApp } from "../../lib/webApp";
@@ -111,7 +113,23 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     searchRef.current?.focus();
   }, [focusSignal]);
 
-  const shown = useMemo(() => filterGroups(org.groups, query), [org.groups, query]);
+  const tabSort = useTabSort();
+  // Each group's own sort (default: your order) applies before search + keyboard order.
+  const shown = useMemo(
+    () =>
+      filterGroups(org.groups, query).map((g) => ({
+        ...g,
+        tabs: sortTabs(g.tabs, tabSort.sortFor(g.key), tabSort.orderFor(g.key)),
+      })),
+    [org.groups, query, tabSort.sortFor, tabSort.orderFor],
+  );
+  /** Put `tab` before `before` (null = end) in its group, switching that group to your order. */
+  const reorderTab = (g: TabGroup, tab: OpenTab, before: OpenTab | null) => {
+    tabSort.setOrder(g.key, moveInOrder(g.tabs, tab, before));
+    tabSort.setSort(g.key, "manual");
+  };
+  const reorderRef = useRef(reorderTab);
+  reorderRef.current = reorderTab;
   const rows = useMemo(() => visibleRows(shown, collapsed, query), [shown, collapsed, query]);
   const targets = useMemo(
     () => computeMoveTargets(org.groups, org.knownTags),
@@ -309,6 +327,18 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         case "stowTab":
           if (tab && org.authed) void org.stowTabs([tab]);
           else if (closed) void trail.promote(closed);
+          break;
+        case "moveTabUp":
+        case "moveTabDown":
+          if (tab && group) {
+            const i = group.tabs.findIndex((t) => t.id === tab.id);
+            const before = action === "moveTabUp" ? group.tabs[i - 1] : (group.tabs[i + 2] ?? null);
+            if (action === "moveTabUp" && i <= 0) break;
+            if (action === "moveTabDown" && i >= group.tabs.length - 1) break;
+            reorderRef.current(group, tab, before ?? null);
+            // The selection travels with the tab you moved.
+            setSelected((sel) => sel + (action === "moveTabUp" ? -1 : 1));
+          }
           break;
         case "moveTab":
           if (tab) setMoveRequest((r) => ({ tabId: tab.id, n: (r?.n ?? 0) + 1 }));
@@ -572,6 +602,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               noteNonce={noteRequest?.key === group.key ? noteRequest.n : undefined}
               view={view}
               previews={previews}
+              sort={tabSort.sortFor(group.key)}
+              onSetSort={(s) => tabSort.setSort(group.key, s)}
+              onReorderTab={(t, before) => reorderTab(group, t, before)}
               saved={group.kind === "tag" ? savedByTag[group.value] : undefined}
               saveStatus={org.saveStatus[group.key]}
               onSaveNow={group.kind === "tag" ? () => void org.saveGroupNow(group) : undefined}

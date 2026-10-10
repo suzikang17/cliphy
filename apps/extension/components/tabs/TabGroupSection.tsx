@@ -6,6 +6,7 @@ import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { TabTile } from "./TabTile";
+import { TAB_SORTS, type TabSort } from "../../lib/tabs/tabSort";
 import type { Summary } from "@cliphy/shared";
 import type { SaveStatus } from "../../lib/tabs/useTabOrganizer";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
@@ -30,6 +31,11 @@ interface TabGroupSectionProps {
   onCloseTabs: (tabs: OpenTab[]) => void;
   onStowTabs: (tabs: OpenTab[]) => Promise<number>;
   onMove: (tab: OpenTab, key: GroupKey) => void;
+  /** How this group orders its tabs. */
+  sort?: TabSort;
+  onSetSort?: (sort: TabSort) => void;
+  /** Put `tab` before `before` in your order. */
+  onReorderTab?: (tab: OpenTab, before: OpenTab) => void;
   onSaveHints: (tag: string, text: string, keywords?: string[]) => Promise<void>;
   onSaveAsTag: (name: string, rename?: string) => Promise<void>;
   /** Why a suggested group belongs together (from Claude). */
@@ -111,6 +117,9 @@ export function TabGroupSection({
   onCloseTabs,
   onStowTabs,
   onMove,
+  sort = "manual",
+  onSetSort,
+  onReorderTab,
   onSaveHints,
   onSaveAsTag,
   onDismiss,
@@ -391,6 +400,31 @@ export function TabGroupSection({
                   <MenuItem onClick={openEditor} kbd="e">
                     Keywords & hints
                   </MenuItem>
+                )}
+                {onSetSort && (
+                  <div className="flex flex-wrap items-center gap-1 px-2 py-1">
+                    <span className="mr-0.5 text-[10px] font-bold text-(--color-text-faint)">
+                      Sort
+                    </span>
+                    {TAB_SORTS.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        aria-pressed={sort === o.value}
+                        onClick={() => {
+                          onSetSort(o.value);
+                          setMenuOpen(false);
+                        }}
+                        className={`cursor-pointer rounded border-0 px-1.5 py-0.5 text-[10px] font-bold ${
+                          sort === o.value
+                            ? "bg-neon-100 text-(--color-text) dark:bg-neon-900/50"
+                            : "bg-transparent text-(--color-text-faint) hover:text-(--color-text)"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 {canNote && (
                   <MenuItem
@@ -794,6 +828,7 @@ export function TabGroupSection({
                 onActivate={onActivate}
                 onClose={(t) => onCloseTabs([t])}
                 onMove={onMove}
+                onReorderOnto={onReorderTab ? (dragged) => onReorderTab(dragged, tab) : undefined}
               />
             )),
           )}
