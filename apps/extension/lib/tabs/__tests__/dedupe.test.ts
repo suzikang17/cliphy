@@ -142,3 +142,39 @@ describe("duplicateIdsToClose", () => {
     ).toEqual([1, 3]);
   });
 });
+
+describe("nestDuplicates", () => {
+  const t = (id: number, url: string, extra: Partial<OpenTab> = {}): OpenTab => ({
+    id,
+    windowId: 1,
+    url,
+    title: url,
+    active: false,
+    lastAccessed: 100 - id,
+    discarded: false,
+    ...extra,
+  });
+
+  it("puts copies of a page under one parent (the keeper), keeping list order", async () => {
+    const { nestDuplicates } = await import("../dedupe");
+    const nested = nestDuplicates([
+      t(1, "https://wix.com/home"),
+      t(2, "https://other.com"),
+      t(3, "https://www.wix.com/home#top"),
+      t(4, "https://wix.com/home", { active: true }),
+    ]);
+    expect(nested.map((n) => [n.parent.id, n.children.map((c) => c.id)])).toEqual([
+      [4, [1, 3]], // active copy is the parent; sits where the page first appeared
+      [2, []],
+    ]);
+  });
+
+  it("leaves unique pages as parents with no children", async () => {
+    const { nestDuplicates } = await import("../dedupe");
+    expect(
+      nestDuplicates([t(1, "https://a.com"), t(2, "https://b.com")]).every(
+        (n) => !n.children.length,
+      ),
+    ).toBe(true);
+  });
+});

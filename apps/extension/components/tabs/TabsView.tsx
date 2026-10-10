@@ -185,7 +185,6 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       <DuplicatesPanel
         showLabels={showLabels}
         tabs={org.tabs}
-        onActivate={(t) => void org.activate(t)}
         onCloseTabs={(ids) => void org.closeTabs(ids)}
       />
 

@@ -5,6 +5,7 @@ import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
 import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
+import { nestDuplicates } from "../../lib/tabs/dedupe";
 
 export const HINTS_MAX = 500;
 
@@ -361,23 +362,28 @@ export function TabGroupSection({
 
       {!collapsed && (
         <ul className="m-0 list-none border-t border-(--color-border-soft) p-1">
-          {group.tabs.map((tab) => (
-            <TabRow
-              key={tab.id}
-              tab={tab}
-              selected={tab.id === selectedTabId}
-              dimmed={isDone}
-              trackingSince={trackingSince}
-              now={now}
-              showLabels={showLabels}
-              moveNonce={moveRequest?.tabId === tab.id ? moveRequest.n : undefined}
-              groupKey={group.key}
-              moveTargets={moveTargets}
-              onActivate={onActivate}
-              onClose={(t) => onCloseTabs([t])}
-              onMove={onMove}
-            />
-          ))}
+          {nestDuplicates(group.tabs).flatMap(({ parent, children }) =>
+            [parent, ...children].map((tab, i) => (
+              <TabRow
+                key={tab.id}
+                tab={tab}
+                selected={tab.id === selectedTabId}
+                dimmed={isDone}
+                nested={i > 0}
+                dupCount={i === 0 ? children.length : 0}
+                onCloseDupes={i === 0 ? () => onCloseTabs(children) : undefined}
+                trackingSince={trackingSince}
+                now={now}
+                showLabels={showLabels}
+                moveNonce={moveRequest?.tabId === tab.id ? moveRequest.n : undefined}
+                groupKey={group.key}
+                moveTargets={moveTargets}
+                onActivate={onActivate}
+                onClose={(t) => onCloseTabs([t])}
+                onMove={onMove}
+              />
+            )),
+          )}
         </ul>
       )}
     </section>

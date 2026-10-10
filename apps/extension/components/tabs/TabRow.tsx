@@ -14,6 +14,11 @@ interface TabRowProps {
   showLabels?: boolean;
   /** Changes when the `m` shortcut asks this row to open its Move picker. */
   moveNonce?: number;
+  /** Parent of duplicate copies: how many extra copies are nested under it. */
+  dupCount?: number;
+  onCloseDupes?: () => void;
+  /** A duplicate copy shown indented under its parent. */
+  nested?: boolean;
   /** Current group, excluded from the Move-to list. */
   groupKey: GroupKey;
   moveTargets: GroupKey[];
@@ -30,6 +35,9 @@ export function TabRow({
   now,
   showLabels = false,
   moveNonce,
+  dupCount = 0,
+  onCloseDupes,
+  nested = false,
   groupKey,
   moveTargets,
   onActivate,
@@ -48,7 +56,9 @@ export function TabRow({
       data-selected={selected || undefined}
       className={`group/row flex items-center gap-2 rounded-md px-1.5 py-1 ${
         tab.active ? "bg-neon-100/70 dark:bg-neon-900/30" : ""
-      } ${selected ? "ring-2 ring-(--color-border-hard)" : ""} ${dimmed ? "opacity-55" : ""}`}
+      } ${selected ? "ring-2 ring-(--color-border-hard)" : ""} ${dimmed || nested ? "opacity-55" : ""} ${
+        nested ? "ml-5 border-l-2 border-(--color-border-soft) pl-2" : ""
+      }`}
     >
       {iconBroken ? (
         <span className="w-4 shrink-0" />
@@ -115,26 +125,38 @@ export function TabRow({
           ))}
         </select>
       ) : (
-        <span className="flex shrink-0 gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-          <button
-            type="button"
-            onClick={() => setMoving(true)}
-            title="Move to…"
-            aria-label={`Move ${tab.title} to another group`}
-            className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-(--color-text)"
-          >
-            ⋯
-          </button>
-          <button
-            type="button"
-            onClick={() => onClose(tab)}
-            title="Close tab"
-            aria-label={`Close ${tab.title}`}
-            className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-red-600"
-          >
-            ✕
-          </button>
-        </span>
+        <>
+          {dupCount > 0 && onCloseDupes && (
+            <button
+              type="button"
+              onClick={onCloseDupes}
+              title={`Close the ${dupCount} duplicate ${dupCount === 1 ? "copy" : "copies"} of this page`}
+              className="shrink-0 cursor-pointer rounded border border-(--color-border-hard) bg-neon-100 px-1.5 text-[10px] font-bold text-neon-700 hover:shadow-brutal-sm dark:bg-neon-900/50 dark:text-neon-400"
+            >
+              ×{dupCount} close dupes
+            </button>
+          )}
+          <span className="flex shrink-0 gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+            <button
+              type="button"
+              onClick={() => setMoving(true)}
+              title="Move to…"
+              aria-label={`Move ${tab.title} to another group`}
+              className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-(--color-text)"
+            >
+              ⋯
+            </button>
+            <button
+              type="button"
+              onClick={() => onClose(tab)}
+              title="Close tab"
+              aria-label={`Close ${tab.title}`}
+              className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-red-600"
+            >
+              ✕
+            </button>
+          </span>
+        </>
       )}
     </li>
   );

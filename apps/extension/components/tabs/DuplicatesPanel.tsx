@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { duplicateIdsToClose, findDuplicates, pickKeeper } from "../../lib/tabs/dedupe";
+import { duplicateIdsToClose, findDuplicates } from "../../lib/tabs/dedupe";
 import {
   isDedupeEnabled,
   LAST_INTERCEPT_KEY,
@@ -15,17 +15,11 @@ const UNDO_WINDOW_MS = 60_000;
 interface DuplicatesPanelProps {
   showLabels?: boolean;
   tabs: OpenTab[];
-  onActivate: (tab: OpenTab) => void;
   onCloseTabs: (ids: number[]) => void;
 }
 
 /** Duplicate tabs at a glance: one-click cleanup, the auto-switch toggle, and Undo. */
-export function DuplicatesPanel({
-  showLabels = false,
-  tabs,
-  onActivate,
-  onCloseTabs,
-}: DuplicatesPanelProps) {
+export function DuplicatesPanel({ showLabels = false, tabs, onCloseTabs }: DuplicatesPanelProps) {
   const dupes = useMemo(() => findDuplicates(tabs), [tabs]);
   const extra = dupes.reduce((n, copies) => n + copies.length - 1, 0);
   const [enabled, setEnabled] = useState(true);
@@ -74,41 +68,19 @@ export function DuplicatesPanel({
       )}
 
       {dupes.length > 0 && (
-        <section className="rounded-lg border-2 border-(--color-border-hard) p-2">
-          <header className="mb-1 flex items-center gap-2">
-            <h3 className="m-0 flex-1 text-xs font-black text-(--color-text)">
-              Duplicates <span className="font-semibold text-(--color-text-faint)">{extra}</span>
-            </h3>
-            <button
-              type="button"
-              onClick={closeDuplicates}
-              className="cursor-pointer rounded-md border-2 border-(--color-border-hard) bg-neon-100 px-2 py-0.5 text-[11px] font-bold text-neon-700 shadow-brutal-sm hover:shadow-brutal-pressed press-down dark:bg-neon-900/50 dark:text-neon-400"
-            >
-              Close duplicates
-              {showLabels && <Kbd>⇧D</Kbd>}
-            </button>
-          </header>
-          <ul className="m-0 list-none p-0">
-            {dupes.map((copies) => {
-              const keep = pickKeeper(copies);
-              return (
-                <li key={keep.id} className="flex items-center gap-2 py-0.5">
-                  <button
-                    type="button"
-                    onClick={() => onActivate(keep)}
-                    title={keep.url}
-                    className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-xs font-semibold text-(--color-text)"
-                  >
-                    {keep.title}
-                  </button>
-                  <span className="shrink-0 text-[11px] font-bold text-(--color-text-faint)">
-                    ×{copies.length}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <p className="m-0 flex items-center gap-2 text-[11px] text-(--color-text-faint)">
+          <span className="flex-1">
+            {extra} duplicate {extra === 1 ? "tab" : "tabs"} — shown under their page in each group
+          </span>
+          <button
+            type="button"
+            onClick={closeDuplicates}
+            className="cursor-pointer rounded-md border-2 border-(--color-border-hard) bg-neon-100 px-2 py-0.5 text-[11px] font-bold text-neon-700 shadow-brutal-sm hover:shadow-brutal-pressed press-down dark:bg-neon-900/50 dark:text-neon-400"
+          >
+            Close all
+            {showLabels && <Kbd>⇧D</Kbd>}
+          </button>
+        </p>
       )}
 
       <label className="flex cursor-pointer items-center gap-2 text-[11px] text-(--color-text-faint)">

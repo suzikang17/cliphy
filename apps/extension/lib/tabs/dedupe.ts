@@ -85,3 +85,29 @@ export function duplicateIdsToClose(tabs: OpenTab[]): number[] {
     return copies.filter((t) => t.id !== keep.id).map((t) => t.id);
   });
 }
+
+export interface NestedTab {
+  /** The copy you keep (active / most recently viewed). */
+  parent: OpenTab;
+  /** Other copies of the same page — what "close dupes" closes. */
+  children: OpenTab[];
+}
+
+/** Within one group: copies of a page nest under their keeper, placed where the page first appears. */
+export function nestDuplicates(tabs: OpenTab[]): NestedTab[] {
+  const byPage = new Map<string, OpenTab[]>();
+  const order: string[] = [];
+  for (const t of tabs) {
+    const key = normalizeUrl(t.url) ?? `id:${t.id}`;
+    if (!byPage.has(key)) {
+      byPage.set(key, []);
+      order.push(key);
+    }
+    byPage.get(key)!.push(t);
+  }
+  return order.map((key) => {
+    const copies = byPage.get(key)!;
+    const parent = pickKeeper(copies);
+    return { parent, children: copies.filter((t) => t.id !== parent.id) };
+  });
+}

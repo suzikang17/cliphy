@@ -1,3 +1,4 @@
+import { nestDuplicates } from "./dedupe";
 import type { TabGroup } from "./organize";
 import type { OpenTab } from "./types";
 
@@ -22,7 +23,12 @@ export function filterGroups(groups: TabGroup[], query: string): TabGroup[] {
  */
 export function visibleRows(groups: TabGroup[], collapsed: Set<string>, query: string): OpenTab[] {
   const searching = !!query.trim();
-  return groups.flatMap((g) => (searching || !collapsed.has(g.key) ? g.tabs : []));
+  // Same order as rendered: each page's keeper, then its duplicate copies.
+  return groups.flatMap((g) =>
+    searching || !collapsed.has(g.key)
+      ? nestDuplicates(g.tabs).flatMap((n) => [n.parent, ...n.children])
+      : [],
+  );
 }
 
 /** ↑/↓: move the selection, clamped to the list. -1 means "nothing selected". */
