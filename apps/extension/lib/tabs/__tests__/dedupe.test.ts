@@ -118,3 +118,27 @@ describe("dedupe", () => {
     });
   });
 });
+
+describe("duplicateIdsToClose", () => {
+  it("closes every copy except the keeper of each duplicated page", async () => {
+    const { duplicateIdsToClose } = await import("../dedupe");
+    const t = (id: number, url: string, extra: Partial<OpenTab> = {}): OpenTab => ({
+      id,
+      windowId: 1,
+      url,
+      title: url,
+      active: false,
+      lastAccessed: id,
+      discarded: false,
+      ...extra,
+    });
+    expect(
+      duplicateIdsToClose([
+        t(1, "https://a.com/x"),
+        t(2, "https://a.com/x#y", { active: true }),
+        t(3, "https://a.com/x"),
+        t(4, "https://b.com"),
+      ]).sort(),
+    ).toEqual([1, 3]);
+  });
+});

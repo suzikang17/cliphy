@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Kbd } from "./Kbd";
+import { labelFor } from "../../lib/tabs/shortcuts";
 import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
 import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
@@ -28,6 +30,11 @@ interface TabGroupSectionProps {
   /** Drag-and-drop reorder; undefined for groups that can't move (Probably done). */
   onReorder?: (from: GroupKey, target: GroupKey, position: "before" | "after") => void;
   onNudge?: (key: GroupKey, dir: -1 | 1) => void;
+  showLabels?: boolean;
+  /** Changes when the `e` shortcut asks this group to open its editor. */
+  editNonce?: number;
+  /** Forwarded to rows: the `m` shortcut asks a row to open its Move picker. */
+  moveRequest?: { tabId: number; n: number } | null;
 }
 
 /** dataTransfer type for a dragged group, so tab/text drags are ignored. */
@@ -56,9 +63,23 @@ export function TabGroupSection({
   onDismiss,
   onReorder,
   onNudge,
+  showLabels = false,
+  editNonce,
+  moveRequest = null,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   const movable = !!onReorder;
+
+  function openEditor() {
+    setDraft(hints ?? "");
+    setKwDraft(keywords);
+    setKwInput("");
+    setEditingHints(true);
+    setMenuOpen(false);
+  }
+  useEffect(() => {
+    if (editNonce !== undefined && isTag) openEditor();
+  }, [editNonce]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingHints, setEditingHints] = useState(false);
   const [draft, setDraft] = useState("");
@@ -170,6 +191,7 @@ export function TabGroupSection({
                 title="Keep this as one of your tags"
               >
                 ＋ Save as tag
+                {showLabels && <Kbd>a</Kbd>}
               </button>
               <button
                 type="button"
@@ -188,6 +210,7 @@ export function TabGroupSection({
             title="Close every tab in this group"
           >
             Close all
+            {showLabels && <Kbd>{labelFor("closeGroup")}</Kbd>}
           </button>
           {canStow && !isDone && (
             <button
@@ -205,6 +228,7 @@ export function TabGroupSection({
               title="Save every tab to your inbox, then close it"
             >
               {busy ? "Stowing…" : "Stow all"}
+              {showLabels && !busy && <Kbd>{labelFor("stowGroup")}</Kbd>}
             </button>
           )}
           {isTag && (
@@ -222,16 +246,11 @@ export function TabGroupSection({
                 <div className="absolute right-0 top-5 z-10 rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) py-1 shadow-brutal-sm">
                   <button
                     type="button"
-                    onClick={() => {
-                      setDraft(hints ?? "");
-                      setKwDraft(keywords);
-                      setKwInput("");
-                      setEditingHints(true);
-                      setMenuOpen(false);
-                    }}
+                    onClick={openEditor}
                     className="block w-full cursor-pointer whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
                   >
                     Keywords & hints
+                    {showLabels && <Kbd>e</Kbd>}
                   </button>
                 </div>
               )}
@@ -350,6 +369,8 @@ export function TabGroupSection({
               dimmed={isDone}
               trackingSince={trackingSince}
               now={now}
+              showLabels={showLabels}
+              moveNonce={moveRequest?.tabId === tab.id ? moveRequest.n : undefined}
               groupKey={group.key}
               moveTargets={moveTargets}
               onActivate={onActivate}

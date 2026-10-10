@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Kbd } from "./Kbd";
 import { faviconUrl } from "../pins/TileStrip";
 import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { hostOf, type OpenTab } from "../../lib/tabs/types";
@@ -10,6 +11,9 @@ interface TabRowProps {
   dimmed?: boolean;
   trackingSince: number | null;
   now: number;
+  showLabels?: boolean;
+  /** Changes when the `m` shortcut asks this row to open its Move picker. */
+  moveNonce?: number;
   /** Current group, excluded from the Move-to list. */
   groupKey: GroupKey;
   moveTargets: GroupKey[];
@@ -24,6 +28,8 @@ export function TabRow({
   dimmed,
   trackingSince,
   now,
+  showLabels = false,
+  moveNonce,
   groupKey,
   moveTargets,
   onActivate,
@@ -33,6 +39,9 @@ export function TabRow({
   const [moving, setMoving] = useState(false);
   const [iconBroken, setIconBroken] = useState(false);
   const targets = moveTargets.filter((k) => k !== groupKey);
+  useEffect(() => {
+    if (moveNonce !== undefined) setMoving(true);
+  }, [moveNonce]);
 
   return (
     <li
@@ -76,6 +85,12 @@ export function TabRow({
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {showLabels && selected && (
+          <span className="mt-0.5 block text-[9px] text-(--color-text-faint)">
+            <Kbd className="ml-0">↵</Kbd> open <Kbd>x</Kbd> close <Kbd>s</Kbd> stow <Kbd>m</Kbd>{" "}
+            move
+          </span>
+        )}
       </button>
 
       {moving ? (

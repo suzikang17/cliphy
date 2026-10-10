@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { findDuplicates, pickKeeper } from "../../lib/tabs/dedupe";
+import { duplicateIdsToClose, findDuplicates, pickKeeper } from "../../lib/tabs/dedupe";
 import {
   isDedupeEnabled,
   LAST_INTERCEPT_KEY,
@@ -8,17 +8,24 @@ import {
   type LastIntercept,
 } from "../../lib/tabs/interceptDupes";
 import type { OpenTab } from "../../lib/tabs/types";
+import { Kbd } from "./Kbd";
 
 const UNDO_WINDOW_MS = 60_000;
 
 interface DuplicatesPanelProps {
+  showLabels?: boolean;
   tabs: OpenTab[];
   onActivate: (tab: OpenTab) => void;
   onCloseTabs: (ids: number[]) => void;
 }
 
 /** Duplicate tabs at a glance: one-click cleanup, the auto-switch toggle, and Undo. */
-export function DuplicatesPanel({ tabs, onActivate, onCloseTabs }: DuplicatesPanelProps) {
+export function DuplicatesPanel({
+  showLabels = false,
+  tabs,
+  onActivate,
+  onCloseTabs,
+}: DuplicatesPanelProps) {
   const dupes = useMemo(() => findDuplicates(tabs), [tabs]);
   const extra = dupes.reduce((n, copies) => n + copies.length - 1, 0);
   const [enabled, setEnabled] = useState(true);
@@ -40,11 +47,7 @@ export function DuplicatesPanel({ tabs, onActivate, onCloseTabs }: DuplicatesPan
   }, []);
 
   function closeDuplicates() {
-    const ids = dupes.flatMap((copies) => {
-      const keep = pickKeeper(copies);
-      return copies.filter((t) => t.id !== keep.id).map((t) => t.id);
-    });
-    onCloseTabs(ids);
+    onCloseTabs(duplicateIdsToClose(tabs));
   }
 
   async function toggle() {
@@ -82,6 +85,7 @@ export function DuplicatesPanel({ tabs, onActivate, onCloseTabs }: DuplicatesPan
               className="cursor-pointer rounded-md border-2 border-(--color-border-hard) bg-neon-100 px-2 py-0.5 text-[11px] font-bold text-neon-700 shadow-brutal-sm hover:shadow-brutal-pressed press-down dark:bg-neon-900/50 dark:text-neon-400"
             >
               Close duplicates
+              {showLabels && <Kbd>⇧D</Kbd>}
             </button>
           </header>
           <ul className="m-0 list-none p-0">

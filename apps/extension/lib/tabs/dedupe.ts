@@ -77,3 +77,11 @@ export function decideIntercept({
   const existing = copies.reduce((best, t) => (t.lastAccessed > best.lastAccessed ? t : best));
   return newTab.active ? { action: "switch", existing } : { action: "closeQuietly", existing };
 }
+
+/** Tab ids to close so each page is open once (keeps the active / most recently viewed copy). */
+export function duplicateIdsToClose(tabs: OpenTab[]): number[] {
+  return findDuplicates(tabs).flatMap((copies) => {
+    const keep = pickKeeper(copies);
+    return copies.filter((t) => t.id !== keep.id).map((t) => t.id);
+  });
+}

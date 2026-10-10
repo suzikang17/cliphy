@@ -4,6 +4,10 @@ import { filterGroups, moveSelection, rowToActivate, visibleRows } from "../../l
 import { useTabOrganizer } from "../../lib/tabs/useTabOrganizer";
 import { TabGroupSection } from "./TabGroupSection";
 import { DuplicatesPanel } from "./DuplicatesPanel";
+import { ShortcutHelp } from "./ShortcutHelp";
+import { Kbd } from "./Kbd";
+import { duplicateIdsToClose } from "../../lib/tabs/dedupe";
+import { isTypingTarget, LABEL_MODIFIER, resolveShortcut } from "../../lib/tabs/shortcuts";
 
 interface TabsViewProps {
   /** Bumped by the parent when the keyboard command asks to focus search. */
@@ -23,6 +27,33 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Shortcut labels show only while ⌘ (Ctrl on Windows) is held.
+  const [showLabels, setShowLabels] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // Keyboard requests to open a row's Move picker / a group's editor (nonce re-triggers).
+  const [moveRequest, setMoveRequest] = useState<{ tabId: number; n: number } | null>(null);
+  const [editRequest, setEditRequest] = useState<{ key: string; n: number } | null>(null);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === LABEL_MODIFIER) setShowLabels(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === LABEL_MODIFIER) setShowLabels(false);
+    };
+    // Releasing ⌘ outside the panel never fires keyup here — reset on blur.
+    const reset = () => setShowLabels(false);
+    document.addEventListener("keydown", down);
+    document.addEventListener("keyup", up);
+    window.addEventListener("blur", reset);
+    document.addEventListener("visibilitychange", reset);
+    return () => {
+      document.removeEventListener("keydown", down);
+      document.removeEventListener("keyup", up);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", reset);
+    };
+  }, []);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -55,9 +86,79 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       if (tab) void org.activate(tab);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setQuery("");
+      if (query) setQuery("");
+      else {
+        searchRef.current?.blur(); // hand off to single-key shortcuts
+        if (selected < 0 && rows.length) setSelected(0);
+      }
     }
   }
+
+  // Single-key shortcuts anywhere in the panel (not while typing in a field).
+  const latest = useRef({ rows, selected, shown, org });
+  latest.current = { rows, selected, shown, org };
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && helpOpen) {
+        setHelpOpen(false);
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
+      const action = resolveShortcut(e);
+      if (!action) return;
+      const { rows, selected, shown, org } = latest.current;
+      const tab = rows[selected] ?? null;
+      const group = tab ? shown.find((g) => g.tabs.some((t) => t.id === tab.id)) : undefined;
+      e.preventDefault();
+      switch (action) {
+        case "focusSearch":
+          searchRef.current?.focus();
+          break;
+        case "next":
+        case "prev":
+          setSelected((i) => moveSelection(i, action === "next" ? 1 : -1, rows.length));
+          break;
+        case "open":
+          if (tab) void org.activate(tab);
+          break;
+        case "closeTab":
+          if (tab) void org.closeTabs([tab.id]);
+          break;
+        case "stowTab":
+          if (tab && org.authed) void org.stowTabs([tab]);
+          break;
+        case "moveTab":
+          if (tab) setMoveRequest((r) => ({ tabId: tab.id, n: (r?.n ?? 0) + 1 }));
+          break;
+        case "editGroup":
+          if (group?.kind === "tag")
+            setEditRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
+          break;
+        case "acceptGroup":
+          if (group?.kind === "proposed") void org.saveAsTag(group.value);
+          break;
+        case "closeGroup":
+          if (group) void org.closeTabs(group.tabs.map((t) => t.id));
+          break;
+        case "stowGroup":
+          if (group && group.kind !== "done" && org.authed) void org.stowTabs(group.tabs);
+          break;
+        case "closeDuplicates":
+          void org.closeTabs(duplicateIdsToClose(org.tabs));
+          break;
+        case "help":
+          setHelpOpen((o) => !o);
+          break;
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [helpOpen]);
+
+  // Keep the selection on a real row after tabs close.
+  useEffect(() => {
+    if (selected >= rows.length) setSelected(rows.length - 1);
+  }, [rows.length, selected]);
 
   function toggle(key: string) {
     setCollapsed((prev) => {
@@ -76,12 +177,13 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={`Search ${org.tabs.length} open tabs`}
+        placeholder={`Search ${org.tabs.length} open tabs${showLabels ? "  ( / )" : ""}`}
         aria-label="Search open tabs"
         className="w-full rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text) shadow-brutal-sm outline-none focus:shadow-brutal-pressed"
       />
 
       <DuplicatesPanel
+        showLabels={showLabels}
         tabs={org.tabs}
         onActivate={(t) => void org.activate(t)}
         onCloseTabs={(ids) => void org.closeTabs(ids)}
@@ -169,10 +271,23 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               onDismiss={(name) => void org.dismissProposal(name)}
               onReorder={group.kind === "done" ? undefined : org.reorder}
               onNudge={group.kind === "done" ? undefined : org.nudge}
+              showLabels={showLabels}
+              editNonce={editRequest?.key === group.key ? editRequest.n : undefined}
+              moveRequest={moveRequest}
             />
           ))
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setHelpOpen(true)}
+        className="self-start cursor-pointer border-0 bg-transparent p-0 text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text)"
+      >
+        Keyboard shortcuts <Kbd>?</Kbd>
+      </button>
+
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }
