@@ -26,7 +26,7 @@ const groupA = {
 } as TabGroup;
 const groupB = { key: "tag:b", kind: "tag", value: "b", label: "beta", tabs: [tab(5)] } as TabGroup;
 
-function renderBoth(onMove: ReturnType<typeof vi.fn>) {
+function renderBoth(onMove: (tab: OpenTab, key: GroupKey) => void) {
   const common = {
     collapsed: false,
     onToggle: vi.fn(),
