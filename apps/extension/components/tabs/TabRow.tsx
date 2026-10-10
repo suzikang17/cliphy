@@ -1,0 +1,110 @@
+import { useState } from "react";
+import { faviconUrl } from "../pins/TileStrip";
+import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
+import { hostOf, type OpenTab } from "../../lib/tabs/types";
+
+interface TabRowProps {
+  tab: OpenTab;
+  selected: boolean;
+  dimmed?: boolean;
+  /** Current group, excluded from the Move-to list. */
+  groupKey: GroupKey;
+  moveTargets: GroupKey[];
+  onActivate: (tab: OpenTab) => void;
+  onClose: (tab: OpenTab) => void;
+  onMove: (tab: OpenTab, key: GroupKey) => void;
+}
+
+export function TabRow({
+  tab,
+  selected,
+  dimmed,
+  groupKey,
+  moveTargets,
+  onActivate,
+  onClose,
+  onMove,
+}: TabRowProps) {
+  const [moving, setMoving] = useState(false);
+  const [iconBroken, setIconBroken] = useState(false);
+  const targets = moveTargets.filter((k) => k !== groupKey);
+
+  return (
+    <li
+      data-selected={selected || undefined}
+      className={`group/row flex items-center gap-2 rounded-md px-1.5 py-1 ${
+        tab.active ? "bg-neon-100/70 dark:bg-neon-900/30" : ""
+      } ${selected ? "ring-2 ring-(--color-border-hard)" : ""} ${dimmed ? "opacity-55" : ""}`}
+    >
+      {iconBroken ? (
+        <span className="w-4 shrink-0" />
+      ) : (
+        <img
+          src={tab.favIconUrl || faviconUrl(tab.url)}
+          alt=""
+          width={16}
+          height={16}
+          className="shrink-0"
+          onError={() => setIconBroken(true)}
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => onActivate(tab)}
+        title={tab.url}
+        className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
+      >
+        <span className="block truncate text-xs font-semibold text-(--color-text)">
+          {tab.title}
+        </span>
+        <span className="block truncate text-[10px] text-(--color-text-faint)">
+          {hostOf(tab.url)}
+        </span>
+      </button>
+
+      {moving ? (
+        <select
+          autoFocus
+          aria-label={`Move ${tab.title} to`}
+          defaultValue=""
+          onBlur={() => setMoving(false)}
+          onChange={(e) => {
+            if (e.target.value) onMove(tab, e.target.value);
+            setMoving(false);
+          }}
+          className="max-w-[45%] shrink-0 rounded border border-(--color-border-hard) bg-(--color-surface) text-[11px] text-(--color-text)"
+        >
+          <option value="" disabled>
+            Move to…
+          </option>
+          {targets.map((k) => (
+            <option key={k} value={k}>
+              {groupLabel(k)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="flex shrink-0 gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+          <button
+            type="button"
+            onClick={() => setMoving(true)}
+            title="Move to…"
+            aria-label={`Move ${tab.title} to another group`}
+            className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-(--color-text)"
+          >
+            ⋯
+          </button>
+          <button
+            type="button"
+            onClick={() => onClose(tab)}
+            title="Close tab"
+            aria-label={`Close ${tab.title}`}
+            className="cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-red-600"
+          >
+            ✕
+          </button>
+        </span>
+      )}
+    </li>
+  );
+}

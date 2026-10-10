@@ -39,8 +39,10 @@ import { LanguageSelector } from "./LanguageSelector";
 import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../../lib/supabase";
+import { useOpenTabsViewSignal } from "../../lib/tabs/openSignal";
+import { TabsView } from "../../components/tabs/TabsView";
 
-type View = "dashboard" | "detail" | "pins";
+type View = "dashboard" | "detail" | "pins" | "tabs";
 
 async function seekVideo(seconds: number, videoId?: string) {
   try {
@@ -102,7 +104,15 @@ export function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
 
+  const [tabsFocusSignal, setTabsFocusSignal] = useState(0);
+
   const realtimeStarted = useRef(false);
+
+  // Keyboard command (Cmd/Ctrl+Shift+K): jump to Tabs with search focused.
+  useOpenTabsViewSignal(() => {
+    setView("tabs");
+    setTabsFocusSignal((n) => n + 1);
+  });
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -598,7 +608,7 @@ export function App() {
           </>
         ) : (
           <span className="text-lg font-extrabold text-(--color-text)">
-            {view === "pins" ? "Pins" : "Summary Queue"}
+            {view === "pins" ? "Pins" : view === "tabs" ? "Tabs" : "Summary Queue"}
           </span>
         )}
       </div>
@@ -957,7 +967,7 @@ export function App() {
 
       {view !== "detail" && (
         <div className="shrink-0 flex gap-1 border-b border-(--color-border-soft) px-4 py-2">
-          {(["dashboard", "pins"] as const).map((v) => (
+          {(["dashboard", "pins", "tabs"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -967,13 +977,17 @@ export function App() {
                   : "border-transparent text-(--color-text-faint) hover:text-(--color-text)"
               }`}
             >
-              {v === "dashboard" ? "Queue" : "Pins"}
+              {v === "dashboard" ? "Queue" : v === "pins" ? "Pins" : "Tabs"}
             </button>
           ))}
         </div>
       )}
 
-      {view === "pins" ? (
+      {view === "tabs" ? (
+        <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
+          <TabsView focusSignal={tabsFocusSignal} />
+        </div>
+      ) : view === "pins" ? (
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
           {/* One column: the sidepanel is ~400px, so masonry would be unreadable. */}
           <PinsBoard columns={1} />

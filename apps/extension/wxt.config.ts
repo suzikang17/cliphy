@@ -16,7 +16,19 @@ export default defineConfig({
     // would raise the install warning level, and Chrome DISABLES an
     // auto-updated extension until every existing user re-accepts — which
     // would silently switch Cliphy off for the whole install base.
-    optional_permissions: ["history"],
+    // "scripting" + <all_urls> power the Tabs view's optional "Organize by page
+    // content" toggle — requested from that toggle, never at install.
+    optional_permissions: ["history", "scripting"],
+    optional_host_permissions: ["<all_urls>"],
+    commands: {
+      "open-tabs-view": {
+        suggested_key: {
+          default: "Ctrl+Shift+K",
+          mac: "Command+Shift+K",
+        },
+        description: "Open Cliphy Tabs",
+      },
+    },
     icons: {
       128: "icons/icon-128.png",
     },

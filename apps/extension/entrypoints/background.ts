@@ -1,10 +1,12 @@
 import type { ExtensionMessage, QueueMetadata, ShowToastMessage } from "@cliphy/shared";
 import { extractVideoId } from "@cliphy/shared";
-import type { Menus, Tabs, Runtime } from "wxt/browser";
+import type { Menus, Tabs, Runtime, Windows } from "wxt/browser";
 import { signIn, signOut, isAuthenticated, getAccessToken, getUserIdFromToken } from "../lib/auth";
 import { addToQueue, RateLimitError, ProRequiredError } from "../lib/api";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
 import { createBackgroundClient } from "../lib/sentry";
+import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
+import type { OpenTabsViewMessage } from "../lib/tabs/openSignal";
 
 const sentryScope = createBackgroundClient();
 
@@ -70,6 +72,33 @@ export default defineBackground(() => {
     if (tab.id) {
       await browser.sidePanel.open({ tabId: tab.id });
     }
+  });
+
+  // ── Keyboard command: open the Tabs view ─────────────────
+  browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
+    if (command !== "open-tabs-view") return;
+    // Flag first: a panel that opens fresh mounts after the message below is
+    // sent, so it reads this flag on mount instead.
+    void browser.storage.session.set({ [OPEN_TABS_VIEW_FLAG]: Date.now() }).catch(() => {});
+    // sidePanel.open must run inside the command's user gesture — don't await
+    // anything before it when the window is known.
+    const opening =
+      tab?.windowId != null
+        ? browser.sidePanel.open({ windowId: tab.windowId })
+        : browser.windows
+            .getLastFocused()
+            .then((w: Windows.Window) =>
+              w.id != null ? browser.sidePanel.open({ windowId: w.id }) : undefined,
+            );
+    void opening
+      .catch(() => {})
+      .then(() =>
+        browser.runtime
+          .sendMessage({ type: "OPEN_TABS_VIEW" } satisfies OpenTabsViewMessage)
+          .catch(() => {
+            // Panel not mounted yet — it picks up the session flag instead.
+          }),
+      );
   });
 
   // ── Context menu ──────────────────────────────────────────

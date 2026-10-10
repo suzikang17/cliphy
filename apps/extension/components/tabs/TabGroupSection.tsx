@@ -1,0 +1,227 @@
+import { useState } from "react";
+import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
+import type { OpenTab } from "../../lib/tabs/types";
+import { TabRow } from "./TabRow";
+
+export const HINTS_MAX = 500;
+
+interface TabGroupSectionProps {
+  group: TabGroup;
+  collapsed: boolean;
+  onToggle: () => void;
+  selectedTabId: number | null;
+  moveTargets: GroupKey[];
+  canStow: boolean;
+  hints?: string;
+  onActivate: (tab: OpenTab) => void;
+  onCloseTabs: (tabs: OpenTab[]) => void;
+  onStowTabs: (tabs: OpenTab[]) => Promise<number>;
+  onMove: (tab: OpenTab, key: GroupKey) => void;
+  onSaveHints: (tag: string, text: string) => Promise<void>;
+  onSaveAsTag: (name: string) => Promise<void>;
+  onDismiss: (name: string) => void;
+}
+
+const linkBtn =
+  "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text) disabled:opacity-50";
+
+export function TabGroupSection({
+  group,
+  collapsed,
+  onToggle,
+  selectedTabId,
+  moveTargets,
+  canStow,
+  hints,
+  onActivate,
+  onCloseTabs,
+  onStowTabs,
+  onMove,
+  onSaveHints,
+  onSaveAsTag,
+  onDismiss,
+}: TabGroupSectionProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editingHints, setEditingHints] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const isTag = group.kind === "tag";
+  const isProposed = group.kind === "proposed";
+  const isDone = group.kind === "done";
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setNote(null);
+    try {
+      await fn();
+    } catch {
+      setNote("Something went wrong — try again");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm">
+      <header className="flex items-center gap-2 px-2.5 py-1.5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+        >
+          <span className="text-[10px] text-(--color-text-faint)">{collapsed ? "▸" : "▾"}</span>
+          <span className="truncate text-xs font-extrabold text-(--color-text)">{group.label}</span>
+          <span className="shrink-0 text-[10px] font-bold text-(--color-text-faint)">
+            {group.tabs.length}
+          </span>
+          {isProposed && (
+            <span className="shrink-0 rounded border border-(--color-border-hard) bg-neon-100 px-1 text-[9px] font-bold uppercase text-neon-700 dark:bg-neon-900/50 dark:text-neon-400">
+              Suggested
+            </span>
+          )}
+        </button>
+
+        <span className="flex shrink-0 items-center gap-2">
+          {isProposed && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void run(() => onSaveAsTag(group.value))}
+                className={linkBtn}
+                title="Keep this as one of your tags"
+              >
+                ＋ Save as tag
+              </button>
+              <button
+                type="button"
+                onClick={() => onDismiss(group.value)}
+                aria-label={`Dismiss suggested group ${group.label}`}
+                className={linkBtn}
+              >
+                ✕
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => onCloseTabs(group.tabs)}
+            className={linkBtn}
+            title="Close every tab in this group"
+          >
+            Close all
+          </button>
+          {canStow && !isDone && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const n = await onStowTabs(group.tabs);
+                  setNote(
+                    n === group.tabs.length ? `Stowed ${n}` : `Stowed ${n} of ${group.tabs.length}`,
+                  );
+                })
+              }
+              className={linkBtn}
+              title="Save every tab to your inbox, then close it"
+            >
+              {busy ? "Stowing…" : "Stow all"}
+            </button>
+          )}
+          {isTag && (
+            <span className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-label={`More actions for ${group.label}`}
+                aria-expanded={menuOpen}
+                className={linkBtn}
+              >
+                ⋯
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-5 z-10 rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) py-1 shadow-brutal-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft(hints ?? "");
+                      setEditingHints(true);
+                      setMenuOpen(false);
+                    }}
+                    className="block w-full cursor-pointer whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
+                  >
+                    Edit hints
+                  </button>
+                </div>
+              )}
+            </span>
+          )}
+        </span>
+      </header>
+
+      {editingHints && (
+        <div className="border-t border-(--color-border-soft) px-2.5 py-2">
+          <label className="mb-1 block text-[10px] font-bold uppercase text-(--color-text-faint)">
+            Hints for {group.label}
+          </label>
+          <textarea
+            autoFocus
+            value={draft}
+            maxLength={HINTS_MAX}
+            rows={3}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="e.g. Linear team ACME, Notion workspace “Acme Corp”, acme.com"
+            className="w-full resize-y rounded border border-(--color-border-hard) bg-(--color-surface) p-1.5 text-xs text-(--color-text)"
+          />
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[10px] text-(--color-text-faint)">
+              {draft.length}/{HINTS_MAX}
+            </span>
+            <span className="flex gap-3">
+              <button type="button" onClick={() => setEditingHints(false)} className={linkBtn}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await onSaveHints(group.value, draft);
+                    setEditingHints(false);
+                  })
+                }
+                className="cursor-pointer rounded-lg border-2 border-(--color-border-hard) bg-neon-100 px-2.5 py-1 text-xs font-bold text-neon-700 shadow-brutal-sm disabled:opacity-50 dark:bg-neon-900/50 dark:text-neon-400"
+              >
+                Save
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {note && <p className="m-0 px-2.5 pb-1 text-[11px] text-(--color-text-faint)">{note}</p>}
+
+      {!collapsed && (
+        <ul className="m-0 list-none border-t border-(--color-border-soft) p-1">
+          {group.tabs.map((tab) => (
+            <TabRow
+              key={tab.id}
+              tab={tab}
+              selected={tab.id === selectedTabId}
+              dimmed={isDone}
+              groupKey={group.key}
+              moveTargets={moveTargets}
+              onActivate={onActivate}
+              onClose={(t) => onCloseTabs([t])}
+              onMove={onMove}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

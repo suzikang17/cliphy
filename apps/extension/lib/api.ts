@@ -15,6 +15,9 @@ import type {
   SummaryJson,
   UserSettings,
   SummaryLanguageCode,
+  TabInput,
+  OrganizeTabsResponse,
+  TabHintsResponse,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -393,4 +396,29 @@ export async function addBookmark(url: string, label?: string) {
     label: label ?? clip.videoTitle,
   });
   return { clip, pin };
+}
+
+// ── Tabs view ────────────────────────────────────────────────
+
+/** Classify open tabs into the user's tags / proposed tags / done. Max 60 per call. */
+export async function organizeTabs(tabs: TabInput[]) {
+  return request<OrganizeTabsResponse>(API_ROUTES.TABS.ORGANIZE, {
+    method: "POST",
+    body: JSON.stringify({ tabs }),
+  });
+}
+
+export async function getTabHints() {
+  return request<TabHintsResponse>(API_ROUTES.TABS.HINTS);
+}
+
+/**
+ * Upsert a tag's classification hints. An empty string deletes the row unless
+ * `keep` is set — "Save as tag" uses `keep` to register a tag that has no clips.
+ */
+export async function putTabHint(tag: string, hints: string, keep?: boolean) {
+  return request<unknown>(API_ROUTES.TABS.HINT(tag), {
+    method: "PUT",
+    body: JSON.stringify(keep ? { hints, keep: true } : { hints }),
+  });
 }
