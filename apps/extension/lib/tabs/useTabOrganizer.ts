@@ -25,6 +25,7 @@ import {
 } from "./groupSnapshots";
 import { pushSnapshots } from "./snapshotSync";
 import { normalizeUrl } from "./dedupe";
+import { createOrderMemo, reseedGroups, stableOrder } from "./stableOrder";
 
 export type SaveStatus = "saving" | "saved" | "local";
 
@@ -384,10 +385,20 @@ export function useTabOrganizer() {
     };
   }, [refreshTabs, reloadState, scheduleOrganize]);
 
-  const groups: TabGroup[] = useMemo(
-    () => applyGroupOrder(mergeGroups(tabs, state, keywords, aliases), groupOrder),
-    [tabs, state, keywords, aliases, groupOrder],
-  );
+  // Order sticks while the panel is open (see stableOrder.ts); your own group
+  // order (drag / reset) re-seeds the group positions.
+  const orderMemo = useRef(createOrderMemo());
+  const lastGroupOrder = useRef(groupOrder);
+  const groups: TabGroup[] = useMemo(() => {
+    if (lastGroupOrder.current !== groupOrder) {
+      lastGroupOrder.current = groupOrder;
+      reseedGroups(orderMemo.current);
+    }
+    return stableOrder(
+      applyGroupOrder(mergeGroups(tabs, state, keywords, aliases), groupOrder),
+      orderMemo.current,
+    );
+  }, [tabs, state, keywords, aliases, groupOrder]);
 
   useEffect(() => {
     void loadGroupOrder().then((o) => mounted.current && setGroupOrder(o));
