@@ -267,14 +267,14 @@ function TrailRow({
         {others.length > 0 && (
           <select
             aria-label={`Reopen ${item.title} into`}
-            title="Reopen into a group"
+            title="Reopen into a group…"
             value=""
             onChange={(e) => {
               if (e.target.value) onReopenInto(e.target.value as GroupKey);
             }}
-            className="h-6 w-28 shrink-0 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) py-0 pr-1 pl-1.5 text-[11px] leading-none text-(--color-text-faint)"
+            className="w-16 shrink-0 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) py-0.5 pr-0.5 pl-1.5 text-[11px] text-(--color-text-faint)"
           >
-            <option value="">Reopen into…</option>
+            <option value="">Into</option>
             {others.map((k) => (
               <option key={k} value={k}>
                 {groupLabel(k)}
