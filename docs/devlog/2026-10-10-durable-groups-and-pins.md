@@ -45,3 +45,11 @@ title: "Day 68 — Durable groups & pins: the Tabs view as a trustworthy tab man
   - Closed-groups local cache drifted → load pushes local-only snapshots, drops older ones, retries unconfirmed resume deletes (`tabs:resumePending`).
 - Deferred minors: resume per-tab error handling; close-under-search snapshots only matches; >100-page snapshots 400; reused clip skips tag/note; `:key` length cap + double-decode; concurrent first pins 500; retention picker saves per keystroke; closed groups not keyboard/search reachable; ⌘⇧P pins not live in panel; "+N from trail" approximations; unpin of pending pin errors.
 - Pushed `0a91659..c18c820`; prod deploy Ready, `/health` 200, new routes 401 unauthenticated, privacy text live. Extension 1.2.0 zipped (Web Store upload pending).
+
+## Later — tabs lost on restart
+
+- The user lost tabs on a browser restart. The Trail had them: 7 different pages, all closed within one second (10:31:42–43). That points to the browser quitting with them open and not restoring them, not to Cliphy (the dupe interceptor only closes a copy of an already-open page).
+- Hardened the duplicate interceptor anyway (`d4fb9ec`):
+  - It ignores tabs created in the first 60s of a browser session, so tabs the browser restores never count as new duplicates. The session start is a `storage.session` key, which the browser wipes on restart.
+  - Duplicate detection uses `dedupeKey`: it keeps the `#fragment` when it's an app route (`#/x`, `#!x`, `#inbox/<id>`), so Gmail threads aren't treated as one page. A plain `#anchor` still counts as the same page.
+- New: **Reopen into…** picker on Recently closed rows (`d810880`). `placeUrl` records the group choice for the address, then the tab reopens and lands in that group.
