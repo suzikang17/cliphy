@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { PageTagRow } from "../page-tags.js";
 import { layer, epic, feature } from "allure-js-commons";
 
 function chain(result: Record<string, unknown> = {}) {
@@ -21,7 +22,7 @@ const {
 } = await import("../page-tags.js");
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
-const row = (over: Record<string, unknown>) => ({
+const row = (over: Partial<PageTagRow>): PageTagRow => ({
   url: "https://a.com/x",
   ai_kind: "tag",
   ai_value: "design",

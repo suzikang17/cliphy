@@ -32,6 +32,8 @@ export const MAX_FREE_UNIQUE_TAGS = 3;
 
 /** Maximum character length for a single tag. */
 export const TAG_MAX_LENGTH = 30;
+/** Trail retention upper bound in days (≈10 years); null = forever. */
+export const MAX_RETENTION_DAYS = 3650;
 
 /** Stripe payment link / upgrade page URL. */
 export const UPGRADE_URL = "https://cliphy.app/pricing";
@@ -105,6 +107,7 @@ export const API_ROUTES = {
     CREATE: "/api/pins",
     ITEM: (id: string) => `/api/pins/${id}`,
     REORDER: "/api/pins/reorder",
+    PAGE: "/api/pins/page",
     ITEMS: (id: string) => `/api/pins/${id}/items`,
   },
   TRAIL: {
@@ -117,6 +120,9 @@ export const API_ROUTES = {
     ORGANIZE: "/api/tabs/organize",
     HINTS: "/api/tabs/hints",
     HINT: (tag: string) => `/api/tabs/hints/${encodeURIComponent(tag)}`,
+    GROUPS_CLOSED: "/api/tabs/groups/closed",
+    GROUP_CLOSE: (key: string) => `/api/tabs/groups/${encodeURIComponent(key)}/close`,
+    GROUP_RESUME: (key: string) => `/api/tabs/groups/${encodeURIComponent(key)}/resume`,
   },
   SUMMARIES: {
     LIST: "/api/summaries",

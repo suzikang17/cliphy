@@ -16,7 +16,8 @@ import { tagsForPages } from "./page-tags.js";
 const log = logger.child({ service: "trail" });
 
 export const MAX_CAPTURE_BATCH = 50;
-export const RETENTION_CHOICES = [7, 30, 90, 365] as const;
+/** Any 1–MAX_RETENTION_DAYS days, or null for forever (re-exported for the route). */
+export { MAX_RETENTION_DAYS } from "@cliphy/shared";
 const JEV_CONCURRENCY = 8;
 
 export function toTrailItem(row: Record<string, unknown>): TrailItem {

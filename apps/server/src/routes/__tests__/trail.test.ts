@@ -22,7 +22,7 @@ const svc = {
 };
 vi.mock("../../services/trail.js", () => ({
   MAX_CAPTURE_BATCH: 50,
-  RETENTION_CHOICES: [7, 30, 90, 365],
+  MAX_RETENTION_DAYS: 3650,
   ...Object.fromEntries(Object.entries(svc).map(([k, fn]) => [k, (...a: unknown[]) => fn(...a)])),
 }));
 const quickSaveMock = vi.fn();
@@ -88,19 +88,18 @@ describe("trail routes", () => {
     expect((await app().request("/trail?before=nope")).status).toBe(400);
   });
 
-  it("settings accept forever (null) or the fixed choices only", async () => {
+  it("settings accept any 1–3650 days or forever, and reject the rest", async () => {
     svc.getRetentionDays.mockResolvedValue(null);
     expect(await (await app().request("/trail/settings")).json()).toEqual({ retentionDays: null });
-    expect(
-      (await app().request("/trail/settings", json("PUT", { retentionDays: 30 }))).status,
-    ).toBe(200);
-    expect(svc.setRetentionDays).toHaveBeenCalledWith("u1", 30);
-    expect(
-      (await app().request("/trail/settings", json("PUT", { retentionDays: 12 }))).status,
-    ).toBe(400);
-    expect(
-      (await app().request("/trail/settings", json("PUT", { retentionDays: null }))).status,
-    ).toBe(200);
+    for (const ok of [1, 21, 180, 3650, null]) {
+      const res = await app().request("/trail/settings", json("PUT", { retentionDays: ok }));
+      expect(res.status).toBe(200);
+      expect(svc.setRetentionDays).toHaveBeenLastCalledWith("u1", ok);
+    }
+    for (const bad of [0, 3651, 2.5, "30", undefined]) {
+      const res = await app().request("/trail/settings", json("PUT", { retentionDays: bad }));
+      expect(res.status).toBe(400);
+    }
   });
 
   it("promote saves to clips then removes the trail entry", async () => {

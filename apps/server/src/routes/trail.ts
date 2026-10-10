@@ -7,7 +7,7 @@ import { toClip } from "../lib/mappers.js";
 import { quickSave } from "../services/quick-save.js";
 import {
   MAX_CAPTURE_BATCH,
-  RETENTION_CHOICES,
+  MAX_RETENTION_DAYS,
   captureTrail,
   deleteTrailItem,
   getRetentionDays,
@@ -91,10 +91,12 @@ trailRoutes.put("/settings", async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
   const days = body.retentionDays;
-  const valid = days === null || (RETENTION_CHOICES as readonly unknown[]).includes(days);
+  const valid =
+    days === null ||
+    (typeof days === "number" && Number.isInteger(days) && days >= 1 && days <= MAX_RETENTION_DAYS);
   if (!valid) {
     return c.json(
-      { error: `retentionDays must be null or one of ${RETENTION_CHOICES.join(", ")}` },
+      { error: `retentionDays must be null or an integer 1–${MAX_RETENTION_DAYS}` },
       400,
     );
   }

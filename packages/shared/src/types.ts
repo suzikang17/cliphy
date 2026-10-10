@@ -474,3 +474,27 @@ export interface TrailSettings {
   /** Auto-delete entries older than this many days; null keeps them forever. */
   retentionDays: number | null;
 }
+
+// ── Durable groups & pins (spec 2026-10-10) ──────────────────
+
+/** A page recorded when a Tabs-view group was closed. Address + title only. */
+export interface ClosedGroupPage {
+  url: string;
+  title: string;
+}
+
+export interface ClosedGroup {
+  /** Tabs-view group key, e.g. "tag:freelance:lotus-bech". */
+  key: string;
+  label: string;
+  pages: ClosedGroupPage[];
+  closedAt: string;
+}
+
+/** POST /api/pins/page — pin a page (bookmark-tier clip + new-tab pin). */
+export interface PinPageResponse {
+  pin: PinnedItem;
+  clip: Summary;
+  /** false when the page was already pinned. */
+  created: boolean;
+}
