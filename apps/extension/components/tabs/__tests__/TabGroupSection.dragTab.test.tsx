@@ -5,7 +5,7 @@ import { epic, feature, layer } from "allure-js-commons";
 import "../../../test/browser-mock";
 import { TabGroupSection } from "../TabGroupSection";
 import type { OpenTab } from "../../../lib/tabs/types";
-import type { TabGroup } from "../../../lib/tabs/organize";
+import type { GroupKey, TabGroup } from "../../../lib/tabs/organize";
 
 const TAB_TYPE = "application/x-cliphy-tab";
 const tab = (id: number): OpenTab => ({
@@ -31,7 +31,7 @@ function renderBoth(onMove: ReturnType<typeof vi.fn>) {
     collapsed: false,
     onToggle: vi.fn(),
     selectedTabId: null,
-    moveTargets: ["tag:a", "tag:b"],
+    moveTargets: ["tag:a", "tag:b"] as GroupKey[],
     canStow: true,
     trackingSince: null,
     now: 0,
