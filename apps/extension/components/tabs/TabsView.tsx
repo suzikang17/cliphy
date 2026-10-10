@@ -38,6 +38,25 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   // Keyboard requests to open a row's Move picker / a group's editor (nonce re-triggers).
   const [moveRequest, setMoveRequest] = useState<{ tabId: number; n: number } | null>(null);
+  const [mergeRequest, setMergeRequest] = useState<{ key: string; n: number } | null>(null);
+  // Last merge, undoable for 10 seconds.
+  const [lastMerge, setLastMerge] = useState<{ text: string; undo: () => Promise<void> } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!lastMerge) return;
+    const id = setTimeout(() => setLastMerge(null), 10_000);
+    return () => clearTimeout(id);
+  }, [lastMerge]);
+
+  async function mergeInto(fromKey: string, intoKey: string) {
+    const source = org.groups.find((g) => g.key === fromKey);
+    const target = org.groups.find((g) => g.key === intoKey);
+    if (!source || !target || source.key === target.key) return;
+    const undo = await org.mergeGroup(source, target);
+    setLastMerge({ text: `Merged ${source.label} into ${target.label}`, undo });
+  }
+
   const [metaRequest, setMetaRequest] = useState<{
     tabId: number;
     kind: "rename" | "note";
@@ -168,6 +187,11 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         case "moveTab":
           if (tab) setMoveRequest((r) => ({ tabId: tab.id, n: (r?.n ?? 0) + 1 }));
           break;
+        case "mergeGroup":
+          if (group && group.kind !== "done") {
+            setMergeRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
+          }
+          break;
         case "renameTab":
         case "noteTab":
           if (tab && "windowId" in tab) {
@@ -271,6 +295,23 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         <p className="m-0 text-[11px] text-(--color-text-faint)">Organizing…</p>
       )}
 
+      {lastMerge && (
+        <p className="m-0 flex items-center gap-2 rounded-lg bg-neon-100/70 px-2.5 py-1.5 text-[11px] text-(--color-text) dark:bg-neon-900/30">
+          <span className="min-w-0 flex-1 truncate">{lastMerge.text}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const { undo } = lastMerge;
+              setLastMerge(null);
+              void undo();
+            }}
+            className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text) underline"
+          >
+            Undo
+          </button>
+        </p>
+      )}
+
       {org.hasManualOrder && (
         <button
           type="button"
@@ -323,6 +364,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               moveRequest={moveRequest}
               metaRequest={metaRequest}
               onSetMeta={org.setMeta}
+              onMergeInto={(from, into) => void mergeInto(from, into)}
+              mergeTargets={org.groups.filter((g) => g.key !== group.key && g.kind !== "done")}
+              mergeNonce={mergeRequest?.key === group.key ? mergeRequest.n : undefined}
             />
           ))
         )}

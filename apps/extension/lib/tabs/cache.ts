@@ -89,3 +89,15 @@ export async function getCachedExtract(url: string): Promise<ExtractResult | nul
 export async function saveExtract(url: string, data: ExtractResult): Promise<void> {
   await session().set({ [K.extract(url)]: data });
 }
+
+/** Undo a Move-to/merge: restore a page's previous override (or none). */
+export async function restoreOverride(url: string, key: GroupKey | undefined): Promise<void> {
+  if (key) {
+    await Promise.all([
+      session().set({ [K.override(url)]: key }),
+      local().set({ [K.override(url)]: key }),
+    ]);
+  } else {
+    await Promise.all([session().remove(K.override(url)), local().remove(K.override(url))]);
+  }
+}

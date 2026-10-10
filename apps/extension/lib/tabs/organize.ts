@@ -2,6 +2,7 @@ import type { OrganizeTabsResponse, TabAssignment, TabInput } from "@cliphy/shar
 import { tagPath, matchKeywordTag } from "@cliphy/shared";
 import { isSkipped, type ExtractResult } from "./extractPage";
 import { siteGroups } from "./siteGroups";
+import { resolveAlias } from "./merge";
 import { hostOf, type OpenTab } from "./types";
 
 /** Max tabs per organize request (server enforces the same cap). */
@@ -66,15 +67,17 @@ export function resolveGroup(
   state: OrganizerState,
   /** Per-tag keywords — a deterministic, instant match that beats the server's answer. */
   keywords: Record<string, string[]> = {},
+  /** Merged tags: { from: to } — the old tag shows under the one it was merged into. */
+  aliases: Record<string, string> = {},
 ): GroupKey {
   const site = groupKey("site", hostOf(tab.url));
   const override = state.overrides[tab.url];
   if (override) return override;
   if (state.done.has(tab.url)) return DONE_GROUP;
   const keywordTag = matchKeywordTag(tab, keywords);
-  if (keywordTag) return groupKey("tag", keywordTag);
+  if (keywordTag) return groupKey("tag", resolveAlias(keywordTag, aliases));
   const a = state.assignments[tab.url];
-  if (a && "tag" in a) return groupKey("tag", a.tag);
+  if (a && "tag" in a) return groupKey("tag", resolveAlias(a.tag, aliases));
   if (a && "proposed" in a && !state.dismissed.has(a.proposed)) {
     return groupKey("proposed", a.proposed);
   }
@@ -92,12 +95,13 @@ export function mergeGroups(
   tabs: OpenTab[],
   state: OrganizerState,
   keywords: Record<string, string[]> = {},
+  aliases: Record<string, string> = {},
 ): TabGroup[] {
   const map = new Map<GroupKey, OpenTab[]>();
   // Site grouping is the base layer; walk it so host parsing lives in one place.
   for (const site of siteGroups(tabs)) {
     for (const tab of site.tabs) {
-      const key = resolveGroup(tab, state, keywords);
+      const key = resolveGroup(tab, state, keywords, aliases);
       const list = map.get(key);
       if (list) list.push(tab);
       else map.set(key, [tab]);

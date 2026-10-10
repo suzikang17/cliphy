@@ -6,6 +6,7 @@ import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { nestDuplicates } from "../../lib/tabs/dedupe";
+import { dropZone, type DropZone } from "../../lib/tabs/merge";
 
 export const HINTS_MAX = 500;
 
@@ -35,6 +36,12 @@ interface TabGroupSectionProps {
   onNudge?: (key: GroupKey, dir: -1 | 1) => void;
   /** Locally computed keyword ideas for this tag group; one click adds one. */
   keywordSuggestions?: string[];
+  /** Merge group `from` into `into` (drag onto the middle of a header, or ⋯ → Merge into…). */
+  onMergeInto?: (from: GroupKey, into: GroupKey) => void;
+  /** Groups this one can be merged into (for the ⋯ menu). */
+  mergeTargets?: TabGroup[];
+  /** Changes when ⇧M asks this group to open its Merge picker. */
+  mergeNonce?: number;
   /** Tells the list a drag started/ended (it collapses groups while dragging). */
   onDragStateChange?: (dragging: boolean) => void;
   showLabels?: boolean;
@@ -79,6 +86,9 @@ export function TabGroupSection({
   onReorder,
   onNudge,
   onDragStateChange,
+  onMergeInto,
+  mergeTargets = [],
+  mergeNonce,
   keywordSuggestions = [],
   reason,
   showLabels = false,
@@ -87,7 +97,8 @@ export function TabGroupSection({
   metaRequest = null,
   onSetMeta,
 }: TabGroupSectionProps) {
-  const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
+  const [dropAt, setDropAt] = useState<DropZone | null>(null);
+  const [mergePicking, setMergePicking] = useState(false);
   // Naming a suggested group before saving it as a tag.
   const [naming, setNaming] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -106,6 +117,9 @@ export function TabGroupSection({
     setEditingHints(true);
     setMenuOpen(false);
   }
+  useEffect(() => {
+    if (mergeNonce !== undefined && onMergeInto && !isDone) setMergePicking(true);
+  }, [mergeNonce]);
   useEffect(() => {
     if (editNonce !== undefined && isTag) openEditor();
   }, [editNonce]);
@@ -161,7 +175,9 @@ export function TabGroupSection({
           return;
         }
         const r = e.currentTarget.getBoundingClientRect();
-        setDropAt(e.clientY < r.top + r.height / 2 ? "before" : "after");
+        // Middle half merges into this group; top/bottom edges reorder.
+        const canMerge = !!onMergeInto && !isDone && draggingKey !== "done";
+        setDropAt(dropZone(e.clientY, r.top, r.height, canMerge));
       }}
       onDragLeave={(e) => {
         // Moving between child elements fires dragleave too — only clear on a real exit.
@@ -173,14 +189,25 @@ export function TabGroupSection({
         setDropAt(null);
         if (movable && from && at) {
           e.preventDefault();
-          onReorder?.(from as GroupKey, group.key, at);
+          if (at === "merge") onMergeInto?.(from as GroupKey, group.key);
+          else onReorder?.(from as GroupKey, group.key, at);
         }
       }}
       className={`group/section relative mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm transition-opacity ${
         isDragging ? "opacity-40" : ""
       }`}
     >
-      {dropAt && <DropLine at={dropAt} />}
+      {(dropAt === "before" || dropAt === "after") && <DropLine at={dropAt} />}
+      {dropAt === "merge" && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center rounded-md ring-4 ring-neon-500"
+        >
+          <span className="-mt-3 rounded-full border-2 border-(--color-border-hard) bg-neon-400 px-2 text-[10px] font-black uppercase leading-[18px] text-neon-900">
+            Merge into {group.label}
+          </span>
+        </div>
+      )}
       <header
         ref={headerRef}
         draggable={movable}
@@ -284,6 +311,17 @@ export function TabGroupSection({
                     Keywords & hints
                   </MenuItem>
                 )}
+                {onMergeInto && !isDone && mergeTargets.length > 0 && (
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMergePicking(true);
+                    }}
+                    kbd={labelFor("mergeGroup")}
+                  >
+                    Merge into…
+                  </MenuItem>
+                )}
                 <MenuItem
                   onClick={() => {
                     setMenuOpen(false);
@@ -309,6 +347,34 @@ export function TabGroupSection({
           </span>
         </span>
       </header>
+
+      {mergePicking && (
+        <div className="mx-2.5 mb-2 flex items-center gap-2">
+          <select
+            autoFocus
+            aria-label={`Merge ${group.label} into`}
+            defaultValue=""
+            onBlur={() => setMergePicking(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setMergePicking(false);
+            }}
+            onChange={(e) => {
+              setMergePicking(false);
+              if (e.target.value) onMergeInto?.(group.key, e.target.value);
+            }}
+            className="h-6 min-w-0 flex-1 rounded border border-(--color-border-hard) bg-(--color-surface) text-[11px] text-(--color-text)"
+          >
+            <option value="" disabled>
+              Merge {group.label} into…
+            </option>
+            {mergeTargets.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isProposed && (
         <div className="mx-2.5 mb-2 rounded-md bg-neon-100/60 px-2 py-1.5 dark:bg-neon-900/25">

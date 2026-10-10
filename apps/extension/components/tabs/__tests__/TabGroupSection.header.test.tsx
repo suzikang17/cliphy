@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { epic, feature, layer } from "allure-js-commons";
 import "../../../test/browser-mock";
 import { TabGroupSection } from "../TabGroupSection";
@@ -203,5 +203,65 @@ describe("TabGroupSection drag start (2026-10-10: upward drags lost the grabber)
     act(() => frames.forEach((cb) => cb(0)));
     expect(onDragStateChange).not.toHaveBeenCalledWith(true);
     raf.mockRestore();
+  });
+});
+
+describe("TabGroupSection drag-to-merge", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — merge");
+  });
+  afterEach(cleanup);
+
+  function dragOverAt(section: HTMLElement, clientY: number) {
+    section.getBoundingClientRect = () =>
+      ({ top: 100, height: 40, bottom: 140, left: 0, right: 300, width: 300 }) as DOMRect;
+    const dataTransfer = {
+      types: ["application/x-cliphy-group"],
+      getData: () => "tag:ai",
+      dropEffect: "",
+    };
+    // jsdom has no DragEvent, so clientY isn't carried by the init dict — set it directly.
+    const event = createEvent.dragOver(section, { dataTransfer });
+    Object.defineProperty(event, "clientY", { value: clientY });
+    fireEvent(section, event);
+    return dataTransfer;
+  }
+
+  it("dropping on the middle of a header merges; near its edge still reorders", () => {
+    const onMergeInto = vi.fn();
+    const onReorder = vi.fn();
+    renderGroup({}, { onReorder, onMergeInto });
+    const section = screen.getByText(/a long name/).closest("section")!;
+
+    const dt = dragOverAt(section, 120); // middle
+    expect(screen.getByText(/Merge into/)).toBeTruthy();
+    fireEvent.drop(section, { dataTransfer: dt });
+    expect(onMergeInto).toHaveBeenCalledWith("tag:ai", "tag:project:lotus-bech");
+    expect(onReorder).not.toHaveBeenCalled();
+
+    const dt2 = dragOverAt(section, 102); // top edge
+    fireEvent.drop(section, { dataTransfer: dt2 });
+    expect(onReorder).toHaveBeenCalledWith("tag:ai", "tag:project:lotus-bech", "before");
+  });
+
+  it("⋯ → Merge into… picks a target", () => {
+    const onMergeInto = vi.fn();
+    renderGroup(
+      {},
+      {
+        onMergeInto,
+        mergeTargets: [
+          { key: "tag:design", label: "design", kind: "tag", value: "design", tabs: [] },
+        ],
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /More actions for project/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Merge into/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: /Merge .* into/ }), {
+      target: { value: "tag:design" },
+    });
+    expect(onMergeInto).toHaveBeenCalledWith("tag:project:lotus-bech", "tag:design");
   });
 });

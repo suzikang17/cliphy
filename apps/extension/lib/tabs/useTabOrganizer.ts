@@ -11,6 +11,7 @@ import {
   saveDismissed,
   saveExtract,
   setOverride,
+  restoreOverride,
 } from "./cache";
 import { extractPage, type ExtractResult } from "./extractPage";
 import {
@@ -29,6 +30,7 @@ import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
 import { closeTabsAndAdvance } from "./nextTab";
 import { activateTab } from "./activate";
+import { combineMeta, loadTagAliases, saveTagAliases } from "./merge";
 import { loadAllTabMeta, metaFor, setTabMeta, type TabMeta } from "./tabMeta";
 import { loadActivity } from "./activity";
 import { buildClusters } from "./clusters";
@@ -135,6 +137,8 @@ export function useTabOrganizer() {
   const [proposalReasons, setProposalReasons] = useState<Record<string, string>>({});
   const [trackingSince, setTrackingSince] = useState<number | null>(null);
   const [groupOrder, setGroupOrder] = useState<GroupKey[]>([]);
+  /** Merged tags: { from: to }. */
+  const [aliases, setAliases] = useState<Record<string, string>>({});
 
   // Listeners and timers read the latest values through refs.
   const tabsRef = useRef(tabs);
@@ -322,12 +326,13 @@ export function useTabOrganizer() {
   }, [refreshTabs, reloadState, scheduleOrganize]);
 
   const groups: TabGroup[] = useMemo(
-    () => applyGroupOrder(mergeGroups(tabs, state, keywords), groupOrder),
-    [tabs, state, keywords, groupOrder],
+    () => applyGroupOrder(mergeGroups(tabs, state, keywords, aliases), groupOrder),
+    [tabs, state, keywords, aliases, groupOrder],
   );
 
   useEffect(() => {
     void loadGroupOrder().then((o) => mounted.current && setGroupOrder(o));
+    void loadTagAliases().then((a) => mounted.current && setAliases(a));
   }, []);
 
   const updateOrder = useCallback((next: GroupKey[]) => {
@@ -431,6 +436,54 @@ export function useTabOrganizer() {
     [reloadState],
   );
 
+  /**
+   * Merge `source` into `target`: its tabs move there; for a tag target, the
+   * source's keywords/hints join the target's and a source tag becomes an alias
+   * of the target. Saved clips are untouched. Returns an undo.
+   */
+  const mergeGroup = useCallback(
+    async (source: TabGroup, target: TabGroup): Promise<() => Promise<void>> => {
+      const prevOverrides = source.tabs.map(
+        (t) => [t.url, stateRef.current.overrides[t.url]] as const,
+      );
+      await Promise.all(source.tabs.map((t) => setOverride(t.url, target.key)));
+
+      let undoMeta = async () => {};
+      if (target.kind === "tag" && (source.kind === "tag" || source.kind === "proposed")) {
+        const before = { hints: hints[target.value] ?? "", keywords: keywords[target.value] ?? [] };
+        const from =
+          source.kind === "tag"
+            ? { hints: hints[source.value] ?? "", keywords: keywords[source.value] ?? [] }
+            : { hints: "", keywords: proposalKeywords[source.value] ?? [] };
+        const combined = combineMeta(before, from);
+        const prevAliases = aliases;
+        await putTabHint(target.value, combined.hints, { keep: true, keywords: combined.keywords });
+        setHints((h) => ({ ...h, [target.value]: combined.hints }));
+        setKeywords((k) => ({ ...k, [target.value]: combined.keywords }));
+        if (source.kind === "tag") {
+          const next = { ...aliases, [source.value]: target.value };
+          setAliases(next);
+          await saveTagAliases(next);
+        }
+        undoMeta = async () => {
+          await putTabHint(target.value, before.hints, { keep: true, keywords: before.keywords });
+          setHints((h) => ({ ...h, [target.value]: before.hints }));
+          setKeywords((k) => ({ ...k, [target.value]: before.keywords }));
+          setAliases(prevAliases);
+          await saveTagAliases(prevAliases);
+        };
+      }
+      await reloadState();
+
+      return async () => {
+        await Promise.all(prevOverrides.map(([url, key]) => restoreOverride(url, key)));
+        await undoMeta();
+        await reloadState();
+      };
+    },
+    [hints, keywords, proposalKeywords, aliases, reloadState],
+  );
+
   /** Rename a page and/or set its note (stored per page, locally). */
   const setMeta = useCallback(
     async (tab: OpenTab, patch: TabMeta) => {
@@ -488,6 +541,7 @@ export function useTabOrganizer() {
     proposalKeywords,
     proposalReasons,
     setMeta,
+    mergeGroup,
     groups,
     hints,
     knownTags,
