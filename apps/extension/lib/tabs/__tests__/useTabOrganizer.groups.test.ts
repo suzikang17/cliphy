@@ -247,4 +247,33 @@ describe("useTabOrganizer — close & resume a group", () => {
     await waitFor(() => expect(organizeTabs).toHaveBeenCalled(), { timeout: 5000 });
     await waitFor(() => expect(result.current.status).not.toBe("organizing"));
   }, 10_000);
+
+  it("save status: a tag group shows Saved once the server has it, and which pages are in it", async () => {
+    const { result } = await ready();
+    await waitFor(() => expect(result.current.saveStatus["tag:lotus"]).toBe("saved"), {
+      timeout: 4000,
+    });
+    expect([...result.current.savedPages["tag:lotus"]]).toEqual(
+      expect.arrayContaining(["https://drive.google.com/x", "https://dashboard.stripe.com/"]),
+    );
+  });
+
+  it("save status: server unreachable → saved on this device only", async () => {
+    api.closeGroupSnapshot.mockRejectedValue(new Error("offline"));
+    const { result } = await ready();
+    await waitFor(() => expect(result.current.saveStatus["tag:lotus"]).toBe("local"), {
+      timeout: 4000,
+    });
+  });
+
+  it("saveGroupNow saves a group to the server right away", async () => {
+    const { result } = await ready();
+    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
+    api.closeGroupSnapshot.mockClear();
+    await act(async () => {
+      await result.current.saveGroupNow(lotus);
+    });
+    expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:lotus", "lotus", expect.any(Array));
+    expect(result.current.saveStatus["tag:lotus"]).toBe("saved");
+  });
 });

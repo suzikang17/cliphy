@@ -24,6 +24,9 @@ import {
   type Snapshots,
 } from "./groupSnapshots";
 import { pushSnapshots } from "./snapshotSync";
+import { normalizeUrl } from "./dedupe";
+
+export type SaveStatus = "saving" | "saved" | "local";
 
 /** Autosaved group changes go to the server after this quiet period. */
 export const AUTOSAVE_PUSH_MS = 1500;
@@ -474,21 +477,51 @@ export function useTabOrganizer() {
   }, []);
 
   // ── Autosaved groups ──────────────────────────────────────
+  /** Per group: saving, saved (on the server), or local (only on this device so far). */
+  const [saveStatus, setSaveStatus] = useState<Record<string, SaveStatus>>({});
+  const markStatus = useCallback((keys: string[], status: SaveStatus) => {
+    if (keys.length === 0 || !mounted.current) return;
+    setSaveStatus((prev) => {
+      const next = { ...prev };
+      for (const k of keys) next[k] = status;
+      return next;
+    });
+  }, []);
+  /** Push now; returns the keys that didn't reach the server. */
+  const pushNow = useCallback(
+    async (snapshots: Snapshots, keys: string[]) => {
+      if (keys.length === 0) return [];
+      markStatus(keys, "saving");
+      const failed = await pushSnapshots(snapshots, keys).catch(() => keys);
+      markStatus(
+        keys.filter((k) => !failed.includes(k)),
+        "saved",
+      );
+      markStatus(failed, "local");
+      return failed;
+    },
+    [markStatus],
+  );
   const pendingPush = useRef(new Set<string>());
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const schedulePush = useCallback((keys: string[]) => {
-    for (const k of keys) pendingPush.current.add(k);
-    if (pushTimer.current) clearTimeout(pushTimer.current);
-    pushTimer.current = setTimeout(() => {
-      pushTimer.current = null;
-      const batch = [...pendingPush.current];
-      pendingPush.current.clear();
-      void loadSnapshots()
-        .then((latest) => pushSnapshots(latest, batch))
-        .then((failed) => failed.forEach((k) => pendingPush.current.add(k)))
-        .catch(() => {});
-    }, AUTOSAVE_PUSH_MS);
-  }, []);
+  const schedulePush = useCallback(
+    (keys: string[]) => {
+      if (keys.length === 0) return;
+      for (const k of keys) pendingPush.current.add(k);
+      markStatus(keys, "saving");
+      if (pushTimer.current) clearTimeout(pushTimer.current);
+      pushTimer.current = setTimeout(() => {
+        pushTimer.current = null;
+        const batch = [...pendingPush.current];
+        pendingPush.current.clear();
+        void loadSnapshots()
+          .then((latest) => pushNow(latest, batch))
+          .then((failed) => failed.forEach((k) => pendingPush.current.add(k)))
+          .catch(() => {});
+      }, AUTOSAVE_PUSH_MS);
+    },
+    [markStatus, pushNow],
+  );
 
   /** Local snapshots ∪ the server's (another device's groups); local-only ones go up. */
   const refreshClosedGroups = useCallback(async () => {
@@ -512,13 +545,14 @@ export function useTabOrganizer() {
           }
         }
         await saveSnapshots(local);
+        markStatus([...onServer], "saved");
         schedulePush(Object.keys(local).filter((k) => !onServer.has(k)));
       } catch {
         // offline — the local copy stands
       }
     }
     if (mounted.current) setSnaps(local);
-  }, [schedulePush]);
+  }, [schedulePush, markStatus]);
 
   useEffect(() => {
     if (authed === null) return;
@@ -568,11 +602,11 @@ export function useTabOrganizer() {
           };
       await saveSnapshots(next);
       setSnaps(next);
-      await pushSnapshots(next, [group.key]).then((failed) => schedulePush(failed));
+      await pushNow(next, [group.key]);
       await closeTabsAndAdvance(group.tabs.map((t) => t.id));
       await refreshTabs(); // so it moves to Closed groups right away
     },
-    [schedulePush, refreshTabs],
+    [pushNow, refreshTabs],
   );
 
   /** Reopen a closed group: its pages + the given pinned pages, minus what's already open. */
@@ -605,6 +639,26 @@ export function useTabOrganizer() {
     setSnaps(next);
     await pushSnapshots(next, [key]);
   }, []);
+
+  /** The save button: fold the group in and send it to the server now. */
+  const saveGroupNow = useCallback(
+    async (group: TabGroup) => {
+      const { next } = autosave(await loadSnapshots(), [group], Date.now());
+      await saveSnapshots(next);
+      if (mounted.current) setSnaps(next);
+      if (next[group.key]) await pushNow(next, [group.key]);
+    },
+    [pushNow],
+  );
+
+  /** Per group: the (normalized) pages in its saved copy — what comes back after a restart. */
+  const savedPages = useMemo(() => {
+    const out: Record<string, Set<string>> = {};
+    for (const s of Object.values(snaps)) {
+      out[s.key] = new Set(s.pages.map((p) => normalizeUrl(p.url) ?? p.url));
+    }
+    return out;
+  }, [snaps]);
 
   // Autosave: whenever the tag groups change, fold them into their snapshots.
   useEffect(() => {
@@ -780,6 +834,9 @@ export function useTabOrganizer() {
     closeGroup,
     resumeGroup,
     forgetGroup,
+    saveGroupNow,
+    saveStatus,
+    savedPages,
     refreshClosedGroups,
     groups,
     hints,

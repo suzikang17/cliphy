@@ -11,6 +11,8 @@ interface TabTileProps {
   /** The page's preview image (og:image), when known. */
   image?: string;
   pinned?: boolean;
+  /** In its group's saved copy. */
+  persisted?: boolean;
   dimmed?: boolean;
   onActivate: (tab: OpenTab) => void;
   onClose: (tab: OpenTab) => void;
@@ -23,6 +25,7 @@ export function TabTile({
   groupKey,
   image,
   pinned = false,
+  persisted = false,
   dimmed = false,
   onActivate,
   onClose,
@@ -96,6 +99,14 @@ export function TabTile({
             {name}
           </span>
           <span className="block truncate text-[8px] text-(--color-text-faint)">
+            {persisted && (
+              <span
+                title="Saved with the group — comes back after a restart"
+                className="mr-0.5 text-neon-600 dark:text-neon-400"
+              >
+                ✓
+              </span>
+            )}
             {hostOf(tab.url)}
           </span>
         </span>

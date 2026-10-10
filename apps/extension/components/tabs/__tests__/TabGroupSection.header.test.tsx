@@ -376,3 +376,36 @@ describe("TabGroupSection — saved summaries", () => {
     expect(screen.queryByText(/^Saved/)).toBeNull();
   });
 });
+
+describe("TabGroupSection — save button and per-tab saved marks", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — durable groups");
+  });
+  afterEach(cleanup);
+
+  it("bottom-right save button shows the group's save state and saves now on click", () => {
+    const onSaveNow = vi.fn();
+    renderGroup({}, { saveStatus: "saved", onSaveNow });
+    const btn = screen.getByRole("button", { name: /Saved/ });
+    expect(btn.textContent).toMatch(/Saved/);
+    fireEvent.click(btn);
+    expect(onSaveNow).toHaveBeenCalled();
+  });
+
+  it("says when it's saving, and when it's only on this device", () => {
+    renderGroup({}, { saveStatus: "saving", onSaveNow: vi.fn() });
+    expect(screen.getByRole("button", { name: /Saving/ })).toBeTruthy();
+    cleanup();
+    renderGroup({}, { saveStatus: "local", onSaveNow: vi.fn() });
+    expect(screen.getByRole("button", { name: /on this device/ })).toBeTruthy();
+  });
+
+  it("each tab in the group's saved copy gets a saved mark", () => {
+    renderGroup({}, { savedUrls: new Set(["https://x.com/1"]), onSaveNow: vi.fn() });
+    const marks = screen.getAllByTitle(/Saved with the group/);
+    expect(marks).toHaveLength(1);
+    expect(marks[0].closest("li")!.textContent).toContain("Tab 1");
+  });
+});

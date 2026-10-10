@@ -23,6 +23,8 @@ interface TabRowProps {
   nested?: boolean;
   /** The page is pinned (shows 📌); onTogglePin pins/unpins. */
   pinned?: boolean;
+  /** In its group's saved copy — comes back with the group after a restart. */
+  persisted?: boolean;
   onTogglePin?: (tab: OpenTab) => void;
   /** Current group, excluded from the Move-to list. */
   groupKey: GroupKey;
@@ -51,6 +53,7 @@ export function TabRow({
   onCloseDupes,
   nested = false,
   pinned = false,
+  persisted = false,
   onTogglePin,
   groupKey,
   moveTargets,
@@ -146,6 +149,14 @@ export function TabRow({
             {name}
           </span>
           <span className="block truncate text-[10px] text-(--color-text-faint)">
+            {persisted && (
+              <span
+                title="Saved with the group — comes back after a restart"
+                className="mr-1 text-neon-600 dark:text-neon-400"
+              >
+                ✓
+              </span>
+            )}
             {[
               hostOf(tab.url),
               tab.otherWindow ? "other window" : "",

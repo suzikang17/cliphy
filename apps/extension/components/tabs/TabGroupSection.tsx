@@ -7,6 +7,7 @@ import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { TabTile } from "./TabTile";
 import type { Summary } from "@cliphy/shared";
+import type { SaveStatus } from "../../lib/tabs/useTabOrganizer";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
 import { getDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
@@ -61,6 +62,12 @@ interface TabGroupSectionProps {
   counts?: { open: number; pinned: number; trail: number };
   /** Close the whole group, keeping it to resume later (⇧C). */
   onCloseGroupKeep?: (group: TabGroup) => void;
+  /** Whether the group's saved copy is on the server, on its way, or only local. */
+  saveStatus?: SaveStatus;
+  /** Save the group now (the bottom-right button). */
+  onSaveNow?: () => void;
+  /** Normalized pages in the group's saved copy — those tabs come back after a restart. */
+  savedUrls?: Set<string>;
   /** Your saved Cliphy clips with this group's tag (summaries, saved pages). */
   saved?: Summary[];
   onOpenSummary?: (id: string) => void;
@@ -127,6 +134,9 @@ export function TabGroupSection({
   onOpenTrail,
   saved = [],
   onOpenSummary,
+  saveStatus,
+  onSaveNow,
+  savedUrls,
   view = "list",
   previews,
   note: groupNote,
@@ -741,6 +751,7 @@ export function TabGroupSection({
               groupKey={group.key}
               image={previews?.[tab.url]}
               pinned={!!pinnedKeys?.has(normalizeUrl(tab.url) ?? tab.url)}
+              persisted={!!savedUrls?.has(normalizeUrl(tab.url) ?? tab.url)}
               dimmed={isDone}
               onActivate={onActivate}
               onClose={(t) => onCloseTabs([t])}
@@ -776,6 +787,7 @@ export function TabGroupSection({
                 }
                 onSetMeta={onSetMeta}
                 pinned={!!pinnedKeys?.has(normalizeUrl(tab.url) ?? tab.url)}
+                persisted={!!savedUrls?.has(normalizeUrl(tab.url) ?? tab.url)}
                 onTogglePin={onTogglePin}
                 groupKey={group.key}
                 moveTargets={moveTargets}
@@ -799,11 +811,16 @@ export function TabGroupSection({
           </ul>
         </div>
       )}
-      {counts && isTag && (
-        <p className="m-0 border-t border-(--color-border-soft) px-2.5 py-1 text-[10px] text-(--color-text-faint)">
-          {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
-          {isTag && saved.length > 0 ? ` · ${saved.length} saved` : ""}
-        </p>
+      {isTag && (counts || onSaveNow) && (
+        <div className="flex items-center gap-2 border-t border-(--color-border-soft) px-2.5 py-1">
+          {counts && (
+            <p className="m-0 min-w-0 flex-1 truncate text-[10px] text-(--color-text-faint)">
+              {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
+              {saved.length > 0 ? ` · ${saved.length} saved` : ""}
+            </p>
+          )}
+          {onSaveNow && <SaveButton status={saveStatus} onClick={onSaveNow} />}
+        </div>
       )}
     </section>
   );
@@ -911,5 +928,34 @@ function SavedRow({ summary, onOpen }: { summary: Summary; onOpen: () => void })
         </span>
       </button>
     </li>
+  );
+}
+
+const SAVE_LABEL: Record<SaveStatus | "none", { text: string; aria: string }> = {
+  saved: { text: "✓ Saved", aria: "Saved to your account — click to save again" },
+  saving: { text: "Saving…", aria: "Saving the group" },
+  local: { text: "Saved on this device", aria: "Saved on this device only — click to retry" },
+  none: { text: "💾 Save", aria: "Save this group" },
+};
+
+/** Bottom-right: the group's save state; click saves now. */
+function SaveButton({ status, onClick }: { status?: SaveStatus; onClick: () => void }) {
+  const l = SAVE_LABEL[status ?? "none"];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={l.aria}
+      title={`${l.aria}. Its tabs come back with the group after a restart.`}
+      className={`ml-auto shrink-0 cursor-pointer rounded-md border-0 px-1.5 py-0.5 text-[10px] font-bold ${
+        status === "local"
+          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+          : status === "saved"
+            ? "bg-transparent text-neon-700 hover:bg-neon-100 dark:text-neon-400 dark:hover:bg-neon-900/40"
+            : "bg-transparent text-(--color-text-faint) hover:text-(--color-text)"
+      }`}
+    >
+      {l.text}
+    </button>
   );
 }
