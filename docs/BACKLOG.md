@@ -48,3 +48,8 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Tabs view: per-site "never read" list for page-content reading (spec 2026-10-09 out of scope).
 - [ ] Tabs view: move `OpenTabsViewMessage` into shared `ExtensionMessage` (defined locally in `lib/tabs/openSignal.ts`).
 - [ ] Browsing memory pieces 2 + 3: Trail (closed tabs → hidden embedded clips) + resurfacing (related-to-current-page, Jev score for ranking). Needs its own spec.
+- [ ] Tabs view: no-AI "Worked on together · 10:02–10:40" fallback groups from local clusters when Claude is unavailable (ADR 0051).
+- [ ] Tabs view: resend cached tabs that share a cluster with new ones, so behavioural evidence reaches Claude.
+- [ ] Eval Haiku 5.5 vs 4.5 (tab grouping, enrich, auto-tag) and Sonnet 5.5 vs 4.6 (summaries) — 10× / ~33% cheaper; switch only if quality holds.
+- [ ] Tabs view: optional "related pages of one site" nesting (e.g. wecuratelife-mockups /c /d /e) distinct from duplicates.
+- [ ] Merge groups: optional "also re-tag saved clips" (library-wide tag merge with confirmation).

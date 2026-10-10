@@ -67,3 +67,31 @@ title: "Day 67 — Jev auto-tagging on every summary (first AI-in-core slice)"
 - Proof: live Jev smoke separated two clients on the same Linear/Notion hosts 4/4 and flagged Google results done (307ms); 498/501 server + 130/130 extension tests; prod deploy Ready, privacy page live; required manifest permissions unchanged.
 - Tuning lesson: Jev's noul is phrasing-sensitive — "is the user finished with this page" scored search/login ~0.2; "is this a transient page the user no longer needs open" scored 0.77–0.95 vs ~0.18 for live work.
 - Not yet done: loading the unpacked build in real Chrome (E2E screenshot) and the Chrome Web Store upload of `extension-1.1.0-chrome.zip`.
+
+---
+
+## 2026-10-10 — Tabs view becomes a browsing memory
+
+Built and shipped across server + extension (commits `12324a4`…`fcd58eb`, all on main):
+
+- **Tabs view features:** open/viewed times per tab; duplicate detection (nested under their page, ×N close dupes) + auto-switch instead of reopening a duplicate (undo); per-tag **keywords** matched locally (spacing-insensitive) + Claude-suggested keywords + one-click "＋ phrase" suggestions from shared tab titles; drag (and ⌥↑/↓) to reorder groups, **merge groups** (drag onto a header / ⋯ / ⇧M, tag aliases, undo); hover-reveal header layout; single-key shortcuts with labels shown while ⌘ is held; rename tabs + quick notes (`r`/`n`).
+- **⌘⇧S** save-this-page: `POST /api/clips/quick`, keywords + Jev tags, Claude only when nothing fits, animated on-page tag toast; `activeTab` added (no install warning).
+- **Trail** (ADR 0050): opt-in closed-tab capture, migrations 033–034 applied, retention forever by default, daily purge cron.
+- **Grouping by how tabs were used** (ADR 0051): local switch/opener log → clusters → evidence for Claude; reasons + rename-on-save; zero groups allowed.
+- **iOS:** YouTube shares were saved as bare links since Sept 5 — fixed in `a3738a1` (yesterday's entry).
+
+Issues hit / fixed:
+
+- **Dia hides unopened sidebar tabs from `chrome.tabs.query`** (8 of ~23 visible) — confirmed; nothing to fix (wiki: chrome-extensions-in-arc-and-dia). User didn't want an in-UI note (reverted `1ea4deb`).
+- **Every window's front tab said "viewing now"** and clicks didn't reach other Dia windows (Dia ignores `windows.update({focused})`) — `active` now means the panel window's front tab; clicks fall back to moving the tab into this window (`3f89d1a`).
+- **Groups stuck faded** after quick drags (deferred fade landed after `dragend`, `527a755`) and **upward drags aborted** (collapsing the list inside `dragstart` — Chromium cancels drags whose source moves then, `54800a5`).
+- **Peek clears done flag**: clicking a Probably-done tab removed it before Close all (`4556096`).
+- **Trail flush rebuilt items from a fixed field list**, silently dropping name/note — caught by a test (`524ece1`).
+- **Claude forced a group** ("Make 1-5 groups") → Drive + Stripe "project:lotus-bech"; replaced by 0-5 groups + reasons + behavioural evidence.
+- Jev's "done" noul is phrasing-sensitive; "transient page" wording scores search/login 0.77–0.95 vs live work ~0.18.
+
+What to remember:
+
+- Cost (current prices): video summary ~$0.02–0.03 (Sonnet 4.6), tab grouping ~$0.001–0.002 per refresh (Haiku 4.5); Haiku 5.5 / Sonnet 5.5 are 10× / ~33% cheaper — needs an eval before switching.
+- Local Anthropic key has no credits; production key balance unverified.
+- Proof gaps: drag/merge/rename UI and Claude reasons verified by tests only, not in a real browser / live Claude.
