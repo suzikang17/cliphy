@@ -187,4 +187,15 @@ describe("TrailSection", () => {
     fireEvent.change(picker, { target: { value: "tag:design" } });
     expect(onReopenInto).toHaveBeenCalledWith(loose, "tag:design");
   });
+
+  it("one click reopens into the group its tag already says (no picker, no new AI call)", async () => {
+    browserMock.storage.local.get.mockResolvedValue({ "trail:noticeSeen": true });
+    render(<Harness />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reopen Type scale notes into design" }),
+    );
+    expect(onReopenInto).toHaveBeenCalledWith(design, "tag:design");
+    // Untagged pages have no suggestion.
+    expect(screen.queryByRole("button", { name: /^Reopen Random blog into/ })).toBeNull();
+  });
 });

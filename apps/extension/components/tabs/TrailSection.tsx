@@ -149,7 +149,8 @@ export function TrailSection({
                       now={now}
                       showLabels={showLabels}
                       onReopen={() => void trail.reopen(item)}
-                      groupTargets={onReopenInto ? groupTargets : []}
+                      canPlace={!!onReopenInto}
+                      groupTargets={groupTargets}
                       onReopenInto={(key) => onReopenInto?.(item, key)}
                       onPromote={() => void trail.promote(item)}
                       onRemove={() => void trail.remove(item)}
@@ -181,11 +182,13 @@ function TrailRow({
   now,
   showLabels,
   onReopen,
+  canPlace,
   groupTargets,
   onReopenInto,
   onPromote,
   onRemove,
 }: {
+  canPlace: boolean;
   item: TrailItem;
   selected: boolean;
   now: number;
@@ -198,6 +201,9 @@ function TrailRow({
 }) {
   const [iconBroken, setIconBroken] = useState(false);
   const closedAt = Date.parse(item.closedAt);
+  // The group its tag (from Jev/keywords at close time) already points to — one click, no new AI call.
+  const suggested: GroupKey | null = canPlace && item.tags[0] ? `tag:${item.tags[0]}` : null;
+  const others = canPlace ? groupTargets.filter((k) => k !== suggested) : [];
   return (
     <li
       data-selected={selected || undefined}
@@ -247,7 +253,18 @@ function TrailRow({
         )}
       </button>
       <span className="flex shrink-0 items-center gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-        {groupTargets.length > 0 && (
+        {suggested && (
+          <button
+            type="button"
+            onClick={() => onReopenInto(suggested)}
+            title={`Reopen into ${groupLabel(suggested)}`}
+            aria-label={`Reopen ${item.title} into ${groupLabel(suggested)}`}
+            className="max-w-28 cursor-pointer truncate rounded border border-(--color-border-soft) bg-neon-100/70 px-1.5 py-0.5 text-[10px] font-bold text-(--color-text) hover:bg-neon-100 dark:bg-neon-900/30"
+          >
+            ↳ {groupLabel(suggested)}
+          </button>
+        )}
+        {others.length > 0 && (
           <select
             aria-label={`Reopen ${item.title} into`}
             title="Reopen into a group"
@@ -258,7 +275,7 @@ function TrailRow({
             className="max-w-24 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) px-1 py-0.5 text-[10px] text-(--color-text-faint)"
           >
             <option value="">Reopen into…</option>
-            {groupTargets.map((k) => (
+            {others.map((k) => (
               <option key={k} value={k}>
                 {groupLabel(k)}
               </option>
