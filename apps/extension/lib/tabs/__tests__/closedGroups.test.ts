@@ -9,6 +9,7 @@ import {
   cacheClosedGroups,
   loadCachedClosedGroups,
   NEW_WINDOW_ABOVE,
+  pinsForGroup,
 } from "../closedGroups";
 import type { TabGroup } from "../organize";
 import type { PagePin } from "../pins";
@@ -102,5 +103,12 @@ describe("closed groups helpers", () => {
       { key: "tag:x", label: "x", pages: [page("https://a.com/")], closedAt: "t" },
     ]);
     expect(NEW_WINDOW_ABOVE).toBe(8);
+  });
+  it("pinsForGroup: only pins tagged with that group's tag — never every pin", () => {
+    const lotus = { ...pin("https://figma.com/lotus"), tags: ["freelance:lotus"] };
+    const other = { ...pin("https://x.com/a"), tags: ["reading"] };
+    const untagged = pin("https://y.com/b");
+    expect(pinsForGroup([lotus, other, untagged], "tag:freelance:lotus")).toEqual([lotus]);
+    expect(pinsForGroup([lotus, other], "site:figma.com")).toEqual([]);
   });
 });

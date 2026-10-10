@@ -190,4 +190,75 @@ describe("useTabOrganizer — close & resume a group", () => {
     });
     expect(result.current.closedGroups).toHaveLength(0);
   });
+
+  it("local-only snapshots are pushed to the server on the next load", async () => {
+    local["tabs:closedGroups"] = [
+      { key: "tag:x", label: "x", pages: [{ url: "https://x.com/", title: "X" }], closedAt: "t" },
+    ];
+    const { result } = await ready();
+    await waitFor(() =>
+      expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:x", "x", [
+        { url: "https://x.com/", title: "X" },
+      ]),
+    );
+    await waitFor(() => expect(local["tabs:closedGroups"]).toEqual([]));
+    expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:x"]);
+  });
+
+  it("a successful close drops an older local-only snapshot of the same group", async () => {
+    local["tabs:closedGroups"] = [
+      {
+        key: "tag:lotus",
+        label: "lotus",
+        pages: [{ url: "https://old.com/", title: "Old" }],
+        closedAt: "t",
+      },
+    ];
+    api.closeGroupSnapshot.mockRejectedValueOnce(new Error("offline")); // the re-push on load fails
+    const { result } = await ready();
+    await waitFor(() => expect(api.closeGroupSnapshot).toHaveBeenCalledTimes(1));
+    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
+    await act(async () => {
+      await result.current.closeGroup(lotus);
+    });
+    expect(local["tabs:closedGroups"]).toEqual([]);
+  });
+
+  it("a resume the server didn't confirm is retried, and the group stays gone", async () => {
+    const row = {
+      key: "tag:lotus",
+      label: "lotus",
+      pages: [{ url: "https://notion.so/lotus", title: "N" }],
+      closedAt: "2026-10-10T10:00:00.000Z",
+    };
+    api.getClosedGroups.mockResolvedValue({ groups: [row] });
+    api.resumeGroup.mockRejectedValueOnce(new Error("Request failed: 500"));
+    const first = await ready();
+    await waitFor(() => expect(first.result.current.closedGroups).toHaveLength(1));
+    await act(async () => {
+      await first.result.current.resumeGroup("tag:lotus", []);
+    });
+    expect(browserMock.tabs.create).toHaveBeenCalledWith({
+      url: "https://notion.so/lotus",
+      active: false,
+    });
+    first.unmount();
+
+    api.resumeGroup.mockResolvedValue({ pages: row.pages });
+    const second = await ready();
+    await waitFor(() => expect(api.resumeGroup).toHaveBeenCalledTimes(2));
+    expect(second.result.current.closedGroups).toHaveLength(0);
+    expect(browserMock.tabs.create).toHaveBeenCalledTimes(1); // the retry doesn't reopen pages
+  });
+
+  it("closing a group again cancels a pending server delete for it", async () => {
+    local["tabs:resumePending"] = ["tag:lotus"];
+    api.getClosedGroups.mockRejectedValue(new Error("offline"));
+    const { result } = await ready();
+    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
+    await act(async () => {
+      await result.current.closeGroup(lotus);
+    });
+    expect(local["tabs:resumePending"]).toEqual([]);
+  });
 });

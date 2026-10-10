@@ -10,7 +10,7 @@ import { ShortcutHelp } from "./ShortcutHelp";
 import { PinnedGroup } from "./PinnedGroup";
 import { ClosedGroups } from "./ClosedGroups";
 import { staleTabs } from "../../lib/tabs/stale";
-import { countByFirstTag, groupCounts } from "../../lib/tabs/closedGroups";
+import { countByFirstTag, groupCounts, pinsForGroup } from "../../lib/tabs/closedGroups";
 import { listTrail } from "../../lib/api";
 import type { TabGroup } from "../../lib/tabs/organize";
 import { usePagePins } from "../../lib/tabs/pins";
@@ -144,7 +144,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     for (const item of r.items) await browser.tabs.create({ url: item.url, active: false });
   };
   const stale = staleTabs(org.tabs, new Set(pagePins.byKey.keys()), now);
-  const resumeClosed = (key: string) => void org.resumeGroup(key, pagePins.pins);
+  const resumeClosed = (key: string) => void org.resumeGroup(key, pinsForGroup(pagePins.pins, key));
   const trail = useTrail({ query, authed: org.authed });
   const closedRows = trail.active ? trail.rows : [];
   const total = off + rows.length + closedRows.length;
@@ -218,6 +218,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     off,
     pagePins,
     stale,
+    togglePin,
+    openPin,
   });
   latest.current = {
     rows,
@@ -230,6 +232,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     off,
     pagePins,
     stale,
+    togglePin,
+    openPin,
   };
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -240,8 +244,20 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       if (isTypingTarget(e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;
-      const { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins, stale } =
-        latest.current;
+      const {
+        rows,
+        selected,
+        shown,
+        org,
+        closedRows,
+        trail,
+        pinnedRows,
+        off,
+        pagePins,
+        stale,
+        togglePin,
+        openPin,
+      } = latest.current;
       const pinRow = selected >= 0 && selected < off ? pinnedRows[selected] : undefined;
       const tab = selected >= off ? (rows[selected - off] ?? null) : null;
       // A selected "Recently closed" row: ↵ reopens, x removes, s saves to clips.

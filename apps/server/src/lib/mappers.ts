@@ -58,6 +58,7 @@ type JoinedClip = {
   source_url?: string | null;
   video_url?: string | null;
   video_title?: string | null;
+  tags?: string[] | null;
 };
 
 function joinedClip(row: Record<string, unknown>): JoinedClip | undefined {
@@ -84,6 +85,7 @@ export function toPinnedItem(row: Record<string, unknown>): PinnedItem {
     clipId: (row.clip_id as string) ?? undefined,
     clipUrl: joinedClipUrl(row),
     clipTitle: joinedClip(row)?.video_title ?? undefined,
+    clipTags: joinedClip(row)?.tags ?? undefined,
     viewQuery: (row.view_query as PinnedItem["viewQuery"]) ?? undefined,
     pinnedAt: row.pinned_at as string,
     updatedAt: row.updated_at as string,

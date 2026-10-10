@@ -1,3 +1,4 @@
+import { extractVideoId } from "@cliphy/shared";
 import { inngest } from "../lib/inngest.js";
 import { toClip, toPinnedItem } from "../lib/mappers.js";
 import { supabase } from "../lib/supabase.js";
@@ -20,13 +21,22 @@ export interface PinPageInput {
  * pin the clip once. Idempotent.
  */
 export async function pinPage({ userId, url, title, note }: PinPageInput) {
-  const { data: existing } = await supabase
+  // Reuse any clip for this page: a summarized video (matched by video id —
+  // video clips carry video_url, not source_url) or a clip saved under the
+  // raw or normalized address.
+  const urls = [...new Set([url, pageKey(url)])].filter((u) => !u.includes('"'));
+  const inList = urls.map((u) => `"${u}"`).join(",");
+  const filters = [`source_url.in.(${inList})`, `video_url.in.(${inList})`];
+  const videoId = extractVideoId(url);
+  if (videoId) filters.unshift(`youtube_video_id.eq.${videoId}`);
+  const { data: matches } = await supabase
     .from("clips")
     .select("*")
     .eq("user_id", userId)
-    .eq("source_url", url)
     .is("deleted_at", null)
-    .maybeSingle();
+    .or(filters.join(","))
+    .limit(1);
+  const existing = (matches as Record<string, unknown>[] | null)?.[0] ?? null;
 
   let clipRow = existing as Record<string, unknown> | null;
   if (!clipRow) {
@@ -60,8 +70,12 @@ export async function pinPage({ userId, url, title, note }: PinPageInput) {
       .catch(() => {});
   }
 
-  // Kept as a clip now → out of the Trail (trail_items.url is the normalized page key).
-  await supabase.from("trail_items").delete().eq("user_id", userId).eq("url", pageKey(url));
+  // Kept as a clip now → out of the Trail (rows hold the raw address; match both forms).
+  await supabase
+    .from("trail_items")
+    .delete()
+    .eq("user_id", userId)
+    .in("url", [...new Set([url, pageKey(url)])]);
 
   const clipId = clipRow.id as string;
   const { data: pinExisting } = await supabase

@@ -8,10 +8,19 @@ import type { PagePin } from "./pins";
 // that nothing is lost either way).
 
 export const CLOSED_GROUPS_KEY = "tabs:closedGroups"; // storage.local
+/** Groups resumed while the server couldn't be told; its row is deleted on the next load. */
+export const RESUME_PENDING_KEY = "tabs:resumePending"; // storage.local
 /** Resume opens a new window when more pages than this would open. */
 export const NEW_WINDOW_ABOVE = 8;
 
 const key = (url: string) => normalizeUrl(url) ?? url;
+
+/** The pins that belong to a group: tagged with its tag. Non-tag groups have none. */
+export function pinsForGroup(pins: PagePin[], groupKey: string): PagePin[] {
+  if (!groupKey.startsWith("tag:")) return [];
+  const tag = groupKey.slice(4);
+  return pins.filter((p) => p.tags?.includes(tag));
+}
 
 /** snapshot ∪ pinned, minus pages already open, one per page, snapshot first. */
 export function pagesToResume(
@@ -69,5 +78,22 @@ export async function loadCachedClosedGroups(): Promise<ClosedGroup[]> {
     return Array.isArray(v) ? (v as ClosedGroup[]) : [];
   } catch {
     return [];
+  }
+}
+
+export async function loadResumePending(): Promise<string[]> {
+  try {
+    const v = (await browser.storage.local.get(RESUME_PENDING_KEY))?.[RESUME_PENDING_KEY];
+    return Array.isArray(v) ? (v as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveResumePending(keys: string[]): Promise<void> {
+  try {
+    await browser.storage.local.set({ [RESUME_PENDING_KEY]: keys });
+  } catch {
+    // best-effort
   }
 }

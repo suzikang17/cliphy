@@ -19,7 +19,9 @@ import {
   NEW_WINDOW_ABOVE,
   cacheClosedGroups,
   loadCachedClosedGroups,
+  loadResumePending,
   pagesToResume,
+  saveResumePending,
 } from "./closedGroups";
 import {
   clearAssignments,
@@ -458,12 +460,44 @@ export function useTabOrganizer() {
     await closeTabsAndAdvance(ids);
   }, []);
 
+  /**
+   * Server list ∪ local fallback. When online, also settles what the server
+   * missed while offline: deletes rows for groups already resumed here, and
+   * pushes snapshots that only exist locally.
+   */
   const refreshClosedGroups = useCallback(async () => {
-    const local = await loadCachedClosedGroups();
+    let local = await loadCachedClosedGroups();
     let server: ClosedGroup[] = [];
     if (authedRef.current) {
       try {
         server = (await getClosedGroups()).groups;
+        const serverKey = new Set(server.map((g) => g.key));
+        // Resumed here but the server never heard: delete its row now, never show it again.
+        const pending = (await loadResumePending()).filter((k) => serverKey.has(k));
+        const stillPending: string[] = [];
+        for (const key of pending) {
+          try {
+            await resumeGroupApi(key);
+          } catch {
+            stillPending.push(key);
+          }
+        }
+        await saveResumePending(stillPending);
+        server = server.filter((g) => !pending.includes(g.key));
+        // A local snapshot newer than the server's (or the only one) goes up; older ones are dropped.
+        const kept: ClosedGroup[] = [];
+        for (const g of local) {
+          const sv = server.find((x) => x.key === g.key);
+          if (sv && sv.closedAt >= g.closedAt) continue;
+          try {
+            await closeGroupSnapshot(g.key, g.label, g.pages);
+            server = [g, ...server.filter((x) => x.key !== g.key)];
+          } catch {
+            kept.push(g);
+          }
+        }
+        if (kept.length !== local.length) await cacheClosedGroups(kept);
+        local = kept;
       } catch {
         // offline — the local copy stands
       }
@@ -500,10 +534,16 @@ export function useTabOrganizer() {
     const entry: ClosedGroup = { key: group.key, label: group.label, pages, closedAt };
     const next = [entry, ...closedRef.current.filter((g) => g.key !== group.key)];
     setClosedGroups(next);
-    // Local copy only when the server didn't get it — that's what Resume falls back to.
-    if (!saved) {
-      const local = await loadCachedClosedGroups();
-      await cacheClosedGroups([entry, ...local.filter((g) => g.key !== group.key)]);
+    // Local copy only while the server doesn't have it — that's what Resume falls back to.
+    const local = await loadCachedClosedGroups();
+    const others = local.filter((g) => g.key !== group.key);
+    if (!saved) await cacheClosedGroups([entry, ...others]);
+    else {
+      if (others.length !== local.length) await cacheClosedGroups(others);
+      // The server row is this new snapshot now — don't delete it on the next load.
+      const pending = await loadResumePending();
+      if (pending.includes(group.key))
+        await saveResumePending(pending.filter((k) => k !== group.key));
     }
     await closeTabsAndAdvance(group.tabs.map((t) => t.id));
   }, []);
@@ -517,6 +557,9 @@ export function useTabOrganizer() {
           snapshot = (await resumeGroupApi(key)).pages;
         } catch {
           snapshot = null;
+          // The server may still hold this group; delete it on the next load.
+          const pending = await loadResumePending();
+          if (!pending.includes(key)) await saveResumePending([...pending, key]);
         }
       }
       if (!snapshot) snapshot = closedRef.current.find((g) => g.key === key)?.pages ?? [];

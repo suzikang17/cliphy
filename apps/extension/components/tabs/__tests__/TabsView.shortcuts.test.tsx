@@ -64,13 +64,14 @@ vi.mock("../DuplicatesPanel", () => ({ DuplicatesPanel: () => null }));
 const pagePins = {
   pins: [],
   byKey: new Map(),
-  isPinned: () => false,
+  isPinned: (() => false) as (url: string) => boolean,
   pin: vi.fn(),
   unpin: vi.fn(),
   undo: null,
   error: null,
 };
-vi.mock("../../../lib/tabs/pins", () => ({ usePagePins: () => pagePins }));
+// A fresh object per render, like the real hook — catches handlers holding an old one.
+vi.mock("../../../lib/tabs/pins", () => ({ usePagePins: () => ({ ...pagePins }) }));
 
 // jsdom has no layout, so no scrollIntoView.
 Element.prototype.scrollIntoView = vi.fn();
@@ -110,6 +111,18 @@ describe("TabsView keyboard shortcuts", () => {
     await press("j");
     await press("p");
     expect(pagePins.pin).toHaveBeenCalledWith({ url: a1.url, title: a1.title });
+  });
+
+  it("p unpins a tab that became pinned after the panel mounted", async () => {
+    const { rerender } = render(<TabsView />);
+    pagePins.isPinned = (url) => url === a1.url; // pins arrive from the server
+    rerender(<TabsView />);
+    (document.activeElement as HTMLElement)?.blur();
+    await press("j");
+    await press("p");
+    expect(pagePins.unpin).toHaveBeenCalledWith(a1.url);
+    expect(pagePins.pin).not.toHaveBeenCalled();
+    pagePins.isPinned = () => false;
   });
 
   it("does nothing while typing in the search box", async () => {

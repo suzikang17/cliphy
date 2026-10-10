@@ -3,7 +3,18 @@ import { layer, epic, feature } from "allure-js-commons";
 
 function chain(result: Record<string, unknown> = {}) {
   const c: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "is", "insert", "delete", "maybeSingle", "single"]) {
+  for (const m of [
+    "select",
+    "eq",
+    "is",
+    "in",
+    "or",
+    "limit",
+    "insert",
+    "delete",
+    "maybeSingle",
+    "single",
+  ]) {
     c[m] = vi.fn().mockReturnValue(c);
   }
   (c as { then: unknown }).then = (resolve: (r: unknown) => void) => resolve(result);
@@ -65,7 +76,7 @@ describe("pinPage", () => {
     const trailDelete = chain({ error: null });
     const insertPin = chain({ data: pinRow(), error: null });
     tables = {
-      clips: [chain({ data: null }), insertClip],
+      clips: [chain({ data: [] }), insertClip],
       trail_items: [trailDelete],
       pinned_items: [chain({ data: null }), insertPin],
     };
@@ -83,7 +94,7 @@ describe("pinPage", () => {
       }),
     );
     expect(trailDelete.delete).toHaveBeenCalled();
-    expect(trailDelete.eq).toHaveBeenCalledWith("url", URL);
+    expect(trailDelete.in).toHaveBeenCalledWith("url", expect.arrayContaining([URL]));
     expect(insertPin.insert).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "clip", clip_id: "c1", user_id: "u1" }),
     );
@@ -95,7 +106,7 @@ describe("pinPage", () => {
     const insertPin = chain();
     tables = {
       clips: [
-        chain({ data: clipRow({ id: "c9", enrichment_tier: "full", tags: ["design"] }) }),
+        chain({ data: [clipRow({ id: "c9", enrichment_tier: "full", tags: ["design"] })] }),
         insertClip,
       ],
       trail_items: [chain({ error: null })],
@@ -111,12 +122,51 @@ describe("pinPage", () => {
     expect(insertPin.insert).not.toHaveBeenCalled();
   });
 
+  it("reuses the summarized clip for a YouTube page (matched by video id, not source_url)", async () => {
+    const lookup = chain({
+      data: [clipRow({ id: "v1", source_url: null, youtube_video_id: "dQw4w9WgXcQ" })],
+    });
+    const insertClip = chain();
+    tables = {
+      clips: [lookup, insertClip],
+      trail_items: [chain({ error: null })],
+      pinned_items: [
+        chain({ data: null }),
+        chain({ data: pinRow({ clip_id: "v1" }), error: null }),
+      ],
+    };
+    const r = await pinPage({
+      userId: "u1",
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42",
+    });
+    expect(lookup.or).toHaveBeenCalledWith(
+      expect.stringContaining("youtube_video_id.eq.dQw4w9WgXcQ"),
+    );
+    expect(insertClip.insert).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ clip: { id: "v1" } });
+  });
+
+  it("removes the trail row whether it holds the raw or the normalized url", async () => {
+    const raw = "https://www.nytimes.com/x/";
+    const trailDelete = chain({ error: null });
+    tables = {
+      clips: [chain({ data: [clipRow({ source_url: raw })] })],
+      trail_items: [trailDelete],
+      pinned_items: [chain({ data: pinRow() })],
+    };
+    await pinPage({ userId: "u1", url: raw });
+    expect(trailDelete.in).toHaveBeenCalledWith(
+      "url",
+      expect.arrayContaining([raw, "https://nytimes.com/x"]),
+    );
+  });
+
   it("falls back to the url as title when metadata fails and no title is given", async () => {
     const { extractWebMetadata } = await import("../extractors/webMetadata.js");
     vi.mocked(extractWebMetadata).mockRejectedValueOnce(new Error("timeout"));
     const insertClip = chain({ data: clipRow(), error: null });
     tables = {
-      clips: [chain({ data: null }), insertClip],
+      clips: [chain({ data: [] }), insertClip],
       trail_items: [chain({ error: null })],
       pinned_items: [chain({ data: null }), chain({ data: pinRow(), error: null })],
     };

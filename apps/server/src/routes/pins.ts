@@ -19,7 +19,7 @@ pinsRoutes.get("/", async (c) => {
   // from the inbox, so the client has no other way to learn its URL.
   const { data, error } = await supabase
     .from("pinned_items")
-    .select("*, clip:clips(source_url, video_url, video_title)")
+    .select("*, clip:clips(source_url, video_url, video_title, tags)")
     .eq("user_id", userId)
     .order("position", { ascending: true });
   if (error) return c.json({ error: "Failed to load pins" }, 500);

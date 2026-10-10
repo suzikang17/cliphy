@@ -14,6 +14,8 @@ export interface PagePin {
   /** normalizeUrl(url) */
   key: string;
   title: string;
+  /** The pinned clip's tags. */
+  tags?: string[];
 }
 
 export function pagePinsFrom(pins: PinnedItem[]): PagePin[] {
@@ -26,6 +28,7 @@ export function pagePinsFrom(pins: PinnedItem[]): PagePin[] {
       url: p.clipUrl,
       key: normalizeUrl(p.clipUrl) ?? p.clipUrl,
       title: p.label || p.clipTitle || p.clipUrl,
+      tags: p.clipTags ?? [],
     });
   }
   return out;

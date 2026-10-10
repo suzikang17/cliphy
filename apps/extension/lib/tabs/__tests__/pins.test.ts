@@ -38,6 +38,11 @@ describe("page pins", () => {
     api.deletePin.mockResolvedValue({ ok: true });
   });
 
+  it("pagePinsFrom carries the clip's tags so Resume can pick a group's pins", () => {
+    const [p] = pagePinsFrom([pin({ clipTags: ["freelance:lotus"] })]);
+    expect(p.tags).toEqual(["freelance:lotus"]);
+  });
+
   it("pagePinsFrom keeps clip pins with a url, keyed by normalized page", () => {
     const out = pagePinsFrom([
       pin({}),
@@ -57,6 +62,7 @@ describe("page pins", () => {
         url: "https://www.a.com/x?utm_source=1",
         key: "https://a.com/x",
         title: "A page",
+        tags: [],
       },
     ]);
   });

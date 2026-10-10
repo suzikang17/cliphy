@@ -368,6 +368,8 @@ export interface PinnedItem {
   /** Resolved from the referenced clip by GET /api/pins — not stored on the pin. */
   clipUrl?: string;
   clipTitle?: string;
+  /** The referenced clip's tags (GET /api/pins) — lets the Tabs view match pins to a group. */
+  clipTags?: string[];
   viewQuery?: ViewQuery;
   pinnedAt: string;
   updatedAt: string;
