@@ -53,7 +53,7 @@ export function TabTile({
         title={`${name}\n${tab.url}`}
         className="block w-full cursor-pointer border-0 bg-transparent p-0 text-left"
       >
-        <span className="flex aspect-[16/9] w-full items-center justify-center overflow-hidden bg-neon-100/60 dark:bg-neon-900/30">
+        <span className="flex aspect-[16/10] w-full items-center justify-center overflow-hidden bg-neon-100/60 dark:bg-neon-900/30">
           {showImage ? (
             <img
               data-preview
@@ -69,17 +69,17 @@ export function TabTile({
               data-favicon
               src={tab.favIconUrl || faviconUrl(tab.url)}
               alt=""
-              width={28}
-              height={28}
+              width={20}
+              height={20}
             />
           )}
         </span>
-        <span className="block px-1.5 pt-1 pb-1.5">
-          <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-(--color-text)">
+        <span className="block px-1 pt-0.5 pb-1">
+          <span className="line-clamp-2 text-[10px] font-semibold leading-tight text-(--color-text)">
             {pinned && <span className="mr-0.5">📌</span>}
             {name}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] text-(--color-text-faint)">
+          <span className="block truncate text-[9px] text-(--color-text-faint)">
             {hostOf(tab.url)}
           </span>
         </span>
@@ -89,7 +89,7 @@ export function TabTile({
         onClick={() => onClose(tab)}
         aria-label={`Close ${name}`}
         title="Close tab"
-        className="absolute top-1 right-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-[10px] text-white opacity-0 group-hover/tile:opacity-100 focus:opacity-100"
+        className="absolute top-0.5 right-0.5 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-[10px] text-white opacity-0 group-hover/tile:opacity-100 focus:opacity-100"
       >
         ✕
       </button>
