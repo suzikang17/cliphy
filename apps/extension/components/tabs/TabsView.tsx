@@ -3,6 +3,7 @@ import { moveTargets as computeMoveTargets } from "../../lib/tabs/organize";
 import { filterGroups, moveSelection, rowToActivate, visibleRows } from "../../lib/tabs/search";
 import { useTabOrganizer } from "../../lib/tabs/useTabOrganizer";
 import { TabGroupSection } from "./TabGroupSection";
+import { DuplicatesPanel } from "./DuplicatesPanel";
 
 interface TabsViewProps {
   /** Bumped by the parent when the keyboard command asks to focus search. */
@@ -78,6 +79,12 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         placeholder={`Search ${org.tabs.length} open tabs`}
         aria-label="Search open tabs"
         className="w-full rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text) shadow-brutal-sm outline-none focus:shadow-brutal-pressed"
+      />
+
+      <DuplicatesPanel
+        tabs={org.tabs}
+        onActivate={(t) => void org.activate(t)}
+        onCloseTabs={(ids) => void org.closeTabs(ids)}
       />
 
       {org.authed && !org.contentGranted && (

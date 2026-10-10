@@ -8,6 +8,7 @@ import { createBackgroundClient } from "../lib/sentry";
 import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
 import type { OpenTabsViewMessage } from "../lib/tabs/openSignal";
 import { ensureTrackingSince, forgetOpened, recordOpened } from "../lib/tabs/openedAt";
+import { registerDupeInterceptor } from "../lib/tabs/interceptDupes";
 
 const sentryScope = createBackgroundClient();
 
@@ -83,6 +84,9 @@ export default defineBackground(() => {
   browser.tabs.onRemoved.addListener((tabId: number) => {
     void forgetOpened(tabId).catch(() => {});
   });
+
+  // ── Duplicate-tab interception ───────────────────────────
+  registerDupeInterceptor();
 
   // ── Keyboard command: open the Tabs view ─────────────────
   browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
