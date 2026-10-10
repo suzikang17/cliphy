@@ -141,7 +141,11 @@ describe("organizeTabs", () => {
       existingTags: ["t"],
       hints: {},
     });
-    expect(r).toEqual({ assignments: { a: { none: true }, b: { none: true } }, done: [] });
+    expect(r).toEqual({
+      assignments: { a: { none: true }, b: { none: true } },
+      done: [],
+      proposalKeywords: {},
+    });
   });
 
   it("without a Jev key, sends everything to Claude and flags nothing done", async () => {
@@ -166,5 +170,66 @@ describe("organizeTabs", () => {
       hints: {},
     });
     expect(r.assignments).toEqual({ a: { none: true }, b: { none: true } });
+  });
+
+  it("keyword matches assign the tag without asking Jev's group question", async () => {
+    jevByKey({ a: { done: noul(0.1) }, b: { group: choice("none", 0.9), done: noul(0) } });
+    createMock.mockResolvedValue(claudeGroups([]));
+    const r = await organizeTabs({
+      tabs: [
+        tab("a", "Mockups", { url: "https://wecuratelife-mockups.vercel.app/a" }),
+        tab("b", "Unrelated"),
+      ],
+      existingTags: ["project:lotus-bech"],
+      hints: {},
+      keywords: { "project:lotus-bech": ["we curate life"] },
+    });
+    expect(r.assignments.a).toEqual({ tag: "project:lotus-bech" });
+    const callA = systemOneMock.mock.calls.find((c) => c[0].state.url.includes("wecuratelife"));
+    expect(callA).toBeDefined();
+    expect(Object.keys(callA![0].questions)).toEqual(["done"]);
+  });
+
+  it("keyword matches still work when Jev fails or isn't configured", async () => {
+    delete process.env.TYPESAFE_API_KEY;
+    const r = await organizeTabs({
+      tabs: [tab("a", "Lotus brand board", { url: "https://x.com/a" })],
+      existingTags: [],
+      hints: {},
+      keywords: { "project:lotus-bech": ["lotus"] },
+    });
+    expect(r.assignments.a).toEqual({ tag: "project:lotus-bech" });
+  });
+
+  it("returns Claude's suggested keywords for proposed (new) groups only", async () => {
+    jevByKey({
+      a: { group: choice("none", 0.9), done: noul(0) },
+      b: { group: choice("none", 0.9), done: noul(0) },
+    });
+    createMock.mockResolvedValue({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            groups: [
+              {
+                name: "project:lotus-bech",
+                ids: ["a"],
+                keywords: ["We Curate Life", "lotus", "docs"],
+              },
+              { name: "cooking", ids: ["b"], keywords: ["ramen"] },
+            ],
+          }),
+        },
+      ],
+    });
+    const r = await organizeTabs({
+      tabs: [tab("a", "x"), tab("b", "y")],
+      existingTags: ["cooking"],
+      hints: {},
+    });
+    expect(r.proposalKeywords).toEqual({
+      "project:lotus-bech": ["we curate life", "lotus", "docs"],
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
 import type { OpenTab } from "../../lib/tabs/types";
+import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 
 export const HINTS_MAX = 500;
@@ -15,11 +16,13 @@ interface TabGroupSectionProps {
   trackingSince: number | null;
   now: number;
   hints?: string;
+  /** Saved keywords for a tag group, or Claude's suggestions for a proposed one. */
+  keywords?: string[];
   onActivate: (tab: OpenTab) => void;
   onCloseTabs: (tabs: OpenTab[]) => void;
   onStowTabs: (tabs: OpenTab[]) => Promise<number>;
   onMove: (tab: OpenTab, key: GroupKey) => void;
-  onSaveHints: (tag: string, text: string) => Promise<void>;
+  onSaveHints: (tag: string, text: string, keywords?: string[]) => Promise<void>;
   onSaveAsTag: (name: string) => Promise<void>;
   onDismiss: (name: string) => void;
 }
@@ -37,6 +40,7 @@ export function TabGroupSection({
   trackingSince,
   now,
   hints,
+  keywords = [],
   onActivate,
   onCloseTabs,
   onStowTabs,
@@ -48,6 +52,17 @@ export function TabGroupSection({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingHints, setEditingHints] = useState(false);
   const [draft, setDraft] = useState("");
+  const [kwDraft, setKwDraft] = useState<string[]>([]);
+  const [kwInput, setKwInput] = useState("");
+
+  function addKeywordsFromInput() {
+    const fresh = kwInput
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+    if (fresh.length) setKwDraft((d) => normalizeKeywords([...d, ...fresh]));
+    setKwInput("");
+  }
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -153,12 +168,14 @@ export function TabGroupSection({
                     type="button"
                     onClick={() => {
                       setDraft(hints ?? "");
+                      setKwDraft(keywords);
+                      setKwInput("");
                       setEditingHints(true);
                       setMenuOpen(false);
                     }}
                     className="block w-full cursor-pointer whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
                   >
-                    Edit hints
+                    Keywords & hints
                   </button>
                 </div>
               )}
@@ -167,13 +184,68 @@ export function TabGroupSection({
         </span>
       </header>
 
+      {(isProposed || (isTag && !editingHints)) && keywords.length > 0 && (
+        <p className="m-0 flex flex-wrap items-center gap-1 px-2.5 pb-1.5 text-[10px] text-(--color-text-faint)">
+          <span>{isProposed ? "Will match:" : "Matches:"}</span>
+          {keywords.map((k) => (
+            <span
+              key={k}
+              className="rounded border border-(--color-border-soft) px-1 font-semibold text-(--color-text)"
+            >
+              {k}
+            </span>
+          ))}
+        </p>
+      )}
+
       {editingHints && (
         <div className="border-t border-(--color-border-soft) px-2.5 py-2">
           <label className="mb-1 block text-[10px] font-bold uppercase text-(--color-text-faint)">
-            Hints for {group.label}
+            Keywords for {group.label}
+          </label>
+          <p className="m-0 mb-1 text-[10px] leading-snug text-(--color-text-faint)">
+            Tabs whose address, title or text contain one of these always land here — instantly, no
+            AI. Spaces and punctuation are ignored: “we curate life” matches wecuratelife.app.
+          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-1 rounded border border-(--color-border-hard) bg-(--color-surface) p-1">
+            {kwDraft.map((k) => (
+              <span
+                key={k}
+                className="inline-flex items-center gap-1 rounded bg-neon-100 px-1.5 py-0.5 text-[11px] font-semibold text-neon-700 dark:bg-neon-900/50 dark:text-neon-400"
+              >
+                {k}
+                <button
+                  type="button"
+                  onClick={() => setKwDraft((d) => d.filter((x) => x !== k))}
+                  aria-label={`Remove keyword ${k}`}
+                  className="cursor-pointer border-0 bg-transparent p-0 text-[10px] text-inherit opacity-70 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            <input
+              autoFocus
+              value={kwInput}
+              onChange={(e) => setKwInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addKeywordsFromInput();
+                } else if (e.key === "Backspace" && !kwInput && kwDraft.length) {
+                  setKwDraft((d) => d.slice(0, -1));
+                }
+              }}
+              onBlur={addKeywordsFromInput}
+              placeholder={kwDraft.length ? "Add…" : "e.g. we curate life, lotus"}
+              aria-label={`Add keyword for ${group.label}`}
+              className="min-w-[6rem] flex-1 border-0 bg-transparent p-0.5 text-xs text-(--color-text) outline-none"
+            />
+          </div>
+          <label className="mb-1 block text-[10px] font-bold uppercase text-(--color-text-faint)">
+            Hints (for AI matching)
           </label>
           <textarea
-            autoFocus
             value={draft}
             maxLength={HINTS_MAX}
             rows={3}
@@ -194,7 +266,10 @@ export function TabGroupSection({
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
-                    await onSaveHints(group.value, draft);
+                    const pending = kwInput.trim()
+                      ? normalizeKeywords([...kwDraft, ...kwInput.split(",")])
+                      : kwDraft;
+                    await onSaveHints(group.value, draft, pending);
                     setEditingHints(false);
                   })
                 }

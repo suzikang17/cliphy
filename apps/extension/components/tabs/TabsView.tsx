@@ -143,6 +143,13 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               trackingSince={org.trackingSince}
               now={now}
               hints={group.kind === "tag" ? org.hints[group.value] : undefined}
+              keywords={
+                group.kind === "tag"
+                  ? org.keywords[group.value]
+                  : group.kind === "proposed"
+                    ? org.proposalKeywords[group.value]
+                    : undefined
+              }
               onActivate={(t) => void org.activate(t)}
               onCloseTabs={(list) => void org.closeTabs(list.map((t) => t.id))}
               onStowTabs={org.stowTabs}

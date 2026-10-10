@@ -175,4 +175,34 @@ describe("organize: what gets sent", () => {
     });
     expect(res.done).toEqual(["https://b.com"]);
   });
+
+  describe("keywords", () => {
+    const kws = { "project:lotus-bech": ["we curate life"] };
+
+    it("a keyword match groups the tab under the tag before any server answer", () => {
+      const t = tab("https://wecuratelife-mockups.vercel.app/a", { title: "Mockups" });
+      expect(resolveGroup(t, state(), kws)).toBe("tag:project:lotus-bech");
+    });
+
+    it("keywords beat a server assignment, but a manual override and done still win", () => {
+      const url = "https://wecuratelife-mockups.vercel.app/a";
+      const t = tab(url, { title: "Mockups" });
+      expect(resolveGroup(t, state({ assignments: { [url]: { tag: "design" } } }), kws)).toBe(
+        "tag:project:lotus-bech",
+      );
+      expect(resolveGroup(t, state({ overrides: { [url]: "tag:design" } }), kws)).toBe(
+        "tag:design",
+      );
+      expect(resolveGroup(t, state({ done: new Set([url]) }), kws)).toBe(DONE_GROUP);
+    });
+
+    it("mergeGroups applies keywords", () => {
+      const groups = mergeGroups(
+        [tab("https://wecuratelife-mockups.vercel.app/a"), tab("https://other.com")],
+        state(),
+        kws,
+      );
+      expect(groups.map((g) => g.key).sort()).toEqual(["site:other.com", "tag:project:lotus-bech"]);
+    });
+  });
 });

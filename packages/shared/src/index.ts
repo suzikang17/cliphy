@@ -16,3 +16,4 @@ export * from "./components/TagSuggestions";
 export * from "./components/SuggestedTags";
 export * from "./components/SelectionActionBar";
 export * from "./tags";
+export * from "./keywords";

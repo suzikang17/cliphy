@@ -1,5 +1,5 @@
 import type { OrganizeTabsResponse, TabAssignment, TabInput } from "@cliphy/shared";
-import { tagPath } from "@cliphy/shared";
+import { tagPath, matchKeywordTag } from "@cliphy/shared";
 import { isSkipped, type ExtractResult } from "./extractPage";
 import { siteGroups } from "./siteGroups";
 import { hostOf, type OpenTab } from "./types";
@@ -61,11 +61,18 @@ export function emptyOrganizerState(): OrganizerState {
  * Where one tab goes. Precedence: manual override > done flag > server
  * assignment > site group. A dismissed proposal falls back to the site group.
  */
-export function resolveGroup(tab: OpenTab, state: OrganizerState): GroupKey {
+export function resolveGroup(
+  tab: OpenTab,
+  state: OrganizerState,
+  /** Per-tag keywords — a deterministic, instant match that beats the server's answer. */
+  keywords: Record<string, string[]> = {},
+): GroupKey {
   const site = groupKey("site", hostOf(tab.url));
   const override = state.overrides[tab.url];
   if (override) return override;
   if (state.done.has(tab.url)) return DONE_GROUP;
+  const keywordTag = matchKeywordTag(tab, keywords);
+  if (keywordTag) return groupKey("tag", keywordTag);
   const a = state.assignments[tab.url];
   if (a && "tag" in a) return groupKey("tag", a.tag);
   if (a && "proposed" in a && !state.dismissed.has(a.proposed)) {
@@ -81,12 +88,16 @@ const byRecent = (a: OpenTab, b: OpenTab) => b.lastAccessed - a.lastAccessed;
  * Order: groups holding an active tab first, then by most recent lastAccessed;
  * "Probably done" always last. Rows by lastAccessed desc.
  */
-export function mergeGroups(tabs: OpenTab[], state: OrganizerState): TabGroup[] {
+export function mergeGroups(
+  tabs: OpenTab[],
+  state: OrganizerState,
+  keywords: Record<string, string[]> = {},
+): TabGroup[] {
   const map = new Map<GroupKey, OpenTab[]>();
   // Site grouping is the base layer; walk it so host parsing lives in one place.
   for (const site of siteGroups(tabs)) {
     for (const tab of site.tabs) {
-      const key = resolveGroup(tab, state);
+      const key = resolveGroup(tab, state, keywords);
       const list = map.get(key);
       if (list) list.push(tab);
       else map.set(key, [tab]);

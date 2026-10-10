@@ -4,7 +4,7 @@ import { Hono } from "hono";
 
 function mockChain(result: Record<string, unknown> = {}) {
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "is", "delete", "upsert"]) {
+  for (const m of ["select", "eq", "is", "delete", "upsert", "maybeSingle"]) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   (chain as { then: unknown }).then = (resolve: (r: unknown) => void) => resolve(result);
@@ -62,7 +62,7 @@ describe("tabs routes", () => {
         ? mockChain({ data: [{ tags: ["b"] }, { tags: ["a", "b"] }] })
         : mockChain({
             data: [
-              { tag: "client:new", hints: "" },
+              { tag: "client:new", hints: "", keywords: ["we curate life"] },
               { tag: "a", hints: "alpha" },
             ],
           });
@@ -74,6 +74,7 @@ describe("tabs routes", () => {
       tabs: [{ key: "1", url: "https://x.com/1", title: "1" }],
       existingTags: ["b", "a", "client:new"],
       hints: { "client:new": "", a: "alpha" },
+      keywords: { "client:new": ["we curate life"] },
     });
   });
 
@@ -109,7 +110,7 @@ describe("tabs routes", () => {
   });
 
   it("PUT /hints/:tag upserts hints", async () => {
-    const chain = mockChain({ error: null });
+    const chain = mockChain({ data: null, error: null });
     fromImpl = () => chain;
     const res = await app().request(`/tabs/hints/${encodeURIComponent("Client:Acme")}`, {
       method: "PUT",
@@ -124,7 +125,7 @@ describe("tabs routes", () => {
   });
 
   it("PUT /hints/:tag with empty hints deletes — unless keep:true registers the tag", async () => {
-    const chain = mockChain({ error: null });
+    const chain = mockChain({ data: null, error: null }); // no existing keywords
     fromImpl = () => chain;
     const put = (body: unknown) =>
       app().request("/tabs/hints/reading", {
@@ -154,8 +155,55 @@ describe("tabs routes", () => {
   });
 
   it("GET /hints returns a tag → hints map", async () => {
-    fromImpl = () => mockChain({ data: [{ tag: "client:acme", hints: "acme.com" }] });
+    fromImpl = () =>
+      mockChain({ data: [{ tag: "client:acme", hints: "acme.com", keywords: ["acme"] }] });
     const res = await app().request("/tabs/hints");
-    expect(await res.json()).toEqual({ hints: { "client:acme": "acme.com" } });
+    expect(await res.json()).toEqual({
+      hints: { "client:acme": "acme.com" },
+      keywords: { "client:acme": ["acme"] },
+    });
+  });
+
+  it("PUT /hints/:tag saves normalized keywords", async () => {
+    const chain = mockChain({ data: null, error: null });
+    fromImpl = () => chain;
+    const res = await app().request("/tabs/hints/project%3Alotus-bech", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hints: "", keywords: [" We Curate Life ", "wecuratelife", "Lotus"] }),
+    });
+    expect(res.status).toBe(200);
+    expect(chain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tag: "project:lotus-bech",
+        hints: "",
+        keywords: ["we curate life", "lotus"],
+      }),
+      { onConflict: "user_id,tag" },
+    );
+    expect(chain.delete).not.toHaveBeenCalled();
+  });
+
+  it("PUT /hints/:tag clearing hints keeps a row that still has keywords", async () => {
+    const chain = mockChain({ data: { keywords: ["lotus"] }, error: null });
+    fromImpl = () => chain;
+    await app().request("/tabs/hints/project%3Alotus-bech", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hints: "" }),
+    });
+    expect(chain.delete).not.toHaveBeenCalled();
+    const row = (chain.upsert as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(row).not.toHaveProperty("keywords"); // omitted → untouched
+  });
+
+  it("PUT /hints/:tag rejects non-array keywords", async () => {
+    fromImpl = () => mockChain({ data: null });
+    const res = await app().request("/tabs/hints/x", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hints: "", keywords: "lotus" }),
+    });
+    expect(res.status).toBe(400);
   });
 });

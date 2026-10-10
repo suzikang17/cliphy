@@ -413,12 +413,21 @@ export async function getTabHints() {
 }
 
 /**
- * Upsert a tag's classification hints. An empty string deletes the row unless
- * `keep` is set — "Save as tag" uses `keep` to register a tag that has no clips.
+ * Upsert a tag's hints and (optionally) keywords. Omitted keywords are left as
+ * they are. The row is deleted when both end up empty unless `keep` is set —
+ * "Save as tag" uses `keep` to register a tag that has no clips.
  */
-export async function putTabHint(tag: string, hints: string, keep?: boolean) {
-  return request<unknown>(API_ROUTES.TABS.HINT(tag), {
+export async function putTabHint(
+  tag: string,
+  hints: string,
+  opts: { keep?: boolean; keywords?: string[] } = {},
+) {
+  return request<{ tag: string; hints: string; keywords: string[] }>(API_ROUTES.TABS.HINT(tag), {
     method: "PUT",
-    body: JSON.stringify(keep ? { hints, keep: true } : { hints }),
+    body: JSON.stringify({
+      hints,
+      ...(opts.keep && { keep: true }),
+      ...(opts.keywords && { keywords: opts.keywords }),
+    }),
   });
 }

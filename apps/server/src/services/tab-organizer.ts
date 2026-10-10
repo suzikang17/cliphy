@@ -5,6 +5,8 @@ import {
   type OrganizeTabsResponse,
   type TabAssignment,
   type TabInput,
+  matchKeywordTag,
+  normalizeKeywords,
 } from "@cliphy/shared";
 import { logger } from "../lib/logger.js";
 import { getJevClient, isTaggerConfigured, JEV_MODEL, MAX_EXISTING_TAGS } from "./tagger.js";
@@ -22,6 +24,7 @@ export const MAX_TABS = 60;
 const JEV_CONCURRENCY = 10;
 const LEFTOVER_TEXT_CHARS = 300;
 const MAX_PROPOSED_GROUPS = 5;
+const MAX_SUGGESTED_KEYWORDS = 4;
 const NONE = "none";
 // Phrasing matters: "is the user finished with…" scored search/login pages ~0.2 on jev-1.13.0.
 const DONE_QUESTION =
@@ -36,6 +39,8 @@ export interface OrganizeTabsInput {
   /** Most-used first; truncated to MAX_EXISTING_TAGS. */
   existingTags: string[];
   hints: Record<string, string>;
+  /** Per-tag keywords; a match assigns the tag with no AI (Jev only checks "done"). */
+  keywords?: Record<string, string[]>;
 }
 
 /** Run fn over items with at most `limit` in flight; preserves order. */
@@ -77,11 +82,13 @@ async function classifyWithJev(
   tab: TabInput,
   tags: string[],
   hints: Record<string, string>,
+  /** Already assigned by keyword — only ask "done". */
+  keywordTag: string | null,
 ): Promise<JevVerdict> {
   const questions: Questions = {
     done: noul(DONE_QUESTION),
   };
-  if (tags.length > 0) {
+  if (tags.length > 0 && !keywordTag) {
     const options: Record<string, string> = { [NONE]: "None of these" };
     tags.forEach((tag, i) => {
       options[`e${i}`] = describeTag(tag, hints);
@@ -97,18 +104,18 @@ async function classifyWithJev(
 
   const done = answers.done?.type === "noul" && answers.done.noul >= DONE_THRESHOLD;
   const g = answers.group;
-  let tag: string | null = null;
-  if (g?.type === "choice" && g.choice !== NONE && g.confidence >= ASSIGN_THRESHOLD) {
+  let tag: string | null = keywordTag;
+  if (!tag && g?.type === "choice" && g.choice !== NONE && g.confidence >= ASSIGN_THRESHOLD) {
     tag = tags[Number(g.choice.slice(1))] ?? null;
   }
   return { tag, done };
 }
 
-/** Claude clusters leftover tabs into named groups. Returns key → group name. */
+/** Claude clusters leftover tabs into named groups: key → group name, plus keywords per group. */
 async function clusterLeftovers(
   tabs: TabInput[],
   existingTags: string[],
-): Promise<Map<string, string>> {
+): Promise<{ byKey: Map<string, string>; keywords: Record<string, string[]> }> {
   const lines = tabs.map(
     (t) =>
       `- id=${t.key} | ${t.title} | ${t.url}${t.text ? ` | ${t.text.slice(0, LEFTOVER_TEXT_CHARS).replace(/\s+/g, " ")}` : ""}`,
@@ -123,7 +130,8 @@ Rules:
 - Make 1-${MAX_PROPOSED_GROUPS} groups. Only group tabs that clearly share a project/client/topic; leave the rest out.
 - Group names are lowercase tags, 1-3 words. Use "parent:child" for clients or projects (e.g. "client:brightline", "trip:tokyo").
 - Reuse one of the user's existing tags if it fits exactly.
-Respond ONLY with JSON: {"groups":[{"name":"...","ids":["..."]}]}`,
+- For each group give 2-4 keywords: distinctive names or phrases that appear in those tabs' URLs, titles or text and would identify future tabs of the same group (product/brand/client/project names, e.g. "we curate life", "lotus"). Never generic words like "docs", "dashboard", "login".
+Respond ONLY with JSON: {"groups":[{"name":"...","ids":["..."],"keywords":["..."]}]}`,
     messages: [
       {
         role: "user",
@@ -134,41 +142,54 @@ Respond ONLY with JSON: {"groups":[{"name":"...","ids":["..."]}]}`,
 
   const text = response.content[0]?.type === "text" ? response.content[0].text : "";
   const parsed = JSON.parse(text.replace(/```json?\n?|```/g, "")) as {
-    groups?: { name?: unknown; ids?: unknown }[];
+    groups?: { name?: unknown; ids?: unknown; keywords?: unknown }[];
   };
   const validKeys = new Set(tabs.map((t) => t.key));
   const result = new Map<string, string>();
+  const keywords: Record<string, string[]> = {};
   for (const g of (parsed.groups ?? []).slice(0, MAX_PROPOSED_GROUPS)) {
     if (typeof g.name !== "string" || !Array.isArray(g.ids)) continue;
     const name = g.name.toLowerCase().trim().slice(0, 30);
     if (!name) continue;
+    if (Array.isArray(g.keywords)) {
+      const kws = normalizeKeywords(g.keywords).slice(0, MAX_SUGGESTED_KEYWORDS);
+      if (kws.length) keywords[name] = kws;
+    }
     for (const id of g.ids) {
       if (typeof id === "string" && validKeys.has(id) && !result.has(id)) result.set(id, name);
     }
   }
-  return result;
+  return { byKey: result, keywords };
 }
 
 export async function organizeTabs({
   tabs,
   existingTags,
   hints,
+  keywords = {},
 }: OrganizeTabsInput): Promise<OrganizeTabsResponse> {
   const tags = existingTags.slice(0, MAX_EXISTING_TAGS);
   const assignments: Record<string, TabAssignment> = {};
   const done: string[] = [];
   const leftovers: TabInput[] = [];
+  let proposalKeywords: Record<string, string[]> = {};
+  // Deterministic keyword rule first — no AI needed to place these.
+  const keywordTags = tabs.map((t) => matchKeywordTag(t, keywords));
 
   const t0 = Date.now();
   if (isTaggerConfigured()) {
-    const verdicts = await mapPool(tabs, JEV_CONCURRENCY, async (tab) => {
-      try {
-        return await classifyWithJev(tab, tags, hints);
-      } catch (err) {
-        log.warn("Jev classify failed", { error: (err as Error).message });
-        return { tag: null, done: false };
-      }
-    });
+    const verdicts = await mapPool(
+      tabs.map((tab, i) => ({ tab, keywordTag: keywordTags[i] })),
+      JEV_CONCURRENCY,
+      async ({ tab, keywordTag }) => {
+        try {
+          return await classifyWithJev(tab, tags, hints, keywordTag);
+        } catch (err) {
+          log.warn("Jev classify failed", { error: (err as Error).message });
+          return { tag: keywordTag, done: false };
+        }
+      },
+    );
     tabs.forEach((tab, i) => {
       const v = verdicts[i];
       if (v.done) done.push(tab.key);
@@ -176,15 +197,22 @@ export async function organizeTabs({
       else leftovers.push(tab);
     });
   } else {
-    leftovers.push(...tabs);
+    tabs.forEach((tab, i) => {
+      const kt = keywordTags[i];
+      if (kt) assignments[tab.key] = { tag: kt };
+      else leftovers.push(tab);
+    });
   }
 
   const jevMs = Date.now() - t0;
   const t1 = Date.now();
   if (leftovers.length >= 2) {
     try {
-      const grouped = await clusterLeftovers(leftovers, tags);
+      const { byKey: grouped, keywords: suggested } = await clusterLeftovers(leftovers, tags);
       const existing = new Set(tags);
+      proposalKeywords = Object.fromEntries(
+        Object.entries(suggested).filter(([name]) => !existing.has(name)),
+      );
       for (const tab of leftovers) {
         const name = grouped.get(tab.key);
         assignments[tab.key] = !name
@@ -204,8 +232,9 @@ export async function organizeTabs({
     assigned: tabs.length - leftovers.length,
     leftovers: leftovers.length,
     done: done.length,
+    keywordMatched: keywordTags.filter(Boolean).length,
     jevMs,
     claudeMs: Date.now() - t1,
   });
-  return { assignments, done };
+  return { assignments, done, proposalKeywords };
 }

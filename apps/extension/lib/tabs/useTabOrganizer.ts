@@ -86,6 +86,9 @@ export function useTabOrganizer() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [status, setStatus] = useState<OrganizeStatus>("idle");
   const [hints, setHints] = useState<Record<string, string>>({});
+  const [keywords, setKeywords] = useState<Record<string, string[]>>({});
+  /** Claude's suggested keywords per proposed group, saved on "＋ Save as tag". */
+  const [proposalKeywords, setProposalKeywords] = useState<Record<string, string[]>>({});
   const [trackingSince, setTrackingSince] = useState<number | null>(null);
 
   // Listeners and timers read the latest values through refs.
@@ -143,6 +146,9 @@ export function useTabOrganizer() {
         serverMs: Math.round(performance.now() - t1),
       });
       const { assignments, done } = applyOrganizeResponse(toSend, res);
+      if (res.proposalKeywords && mounted.current) {
+        setProposalKeywords((p) => ({ ...p, ...res.proposalKeywords }));
+      }
       await saveAssignments(assignments, done);
       await reloadState();
       if (mounted.current) setStatus("idle");
@@ -187,7 +193,11 @@ export function useTabOrganizer() {
       await refreshTabs();
       if (isAuthed) {
         getTabHints()
-          .then((r) => mounted.current && setHints(r.hints ?? {}))
+          .then((r) => {
+            if (!mounted.current) return;
+            setHints(r.hints ?? {});
+            setKeywords(r.keywords ?? {});
+          })
           .catch(() => {});
         void organize();
       }
@@ -249,7 +259,10 @@ export function useTabOrganizer() {
     };
   }, [refreshTabs, reloadState, scheduleOrganize]);
 
-  const groups: TabGroup[] = useMemo(() => mergeGroups(tabs, state), [tabs, state]);
+  const groups: TabGroup[] = useMemo(
+    () => mergeGroups(tabs, state, keywords),
+    [tabs, state, keywords],
+  );
 
   /** Known tags for Move-to: saved hints plus tags the server assigned. */
   const knownTags = useMemo(() => {
@@ -322,7 +335,9 @@ export function useTabOrganizer() {
 
   const saveAsTag = useCallback(
     async (name: string) => {
-      await putTabHint(name, "", true);
+      const suggested = proposalKeywords[name] ?? [];
+      await putTabHint(name, "", { keep: true, keywords: suggested });
+      if (suggested.length) setKeywords((k) => ({ ...k, [name]: suggested }));
       const promoted: Record<string, { tag: string }> = {};
       for (const [url, a] of Object.entries(stateRef.current.assignments)) {
         if ("proposed" in a && a.proposed === name) promoted[url] = { tag: name };
@@ -331,12 +346,20 @@ export function useTabOrganizer() {
       setHints((h) => ({ [name]: "", ...h }));
       await reloadState();
     },
-    [reloadState],
+    [reloadState, proposalKeywords],
   );
 
-  const saveHints = useCallback(async (tag: string, text: string) => {
+  const saveHints = useCallback(async (tag: string, text: string, kws?: string[]) => {
     const trimmed = text.trim();
-    await putTabHint(tag, trimmed);
+    const res = await putTabHint(tag, trimmed, kws ? { keywords: kws } : {});
+    if (kws) {
+      setKeywords((k) => {
+        const next = { ...k };
+        if (res.keywords?.length) next[tag] = res.keywords;
+        else delete next[tag];
+        return next;
+      });
+    }
     setHints((h) => {
       const next = { ...h };
       if (trimmed) next[tag] = trimmed;
@@ -348,6 +371,8 @@ export function useTabOrganizer() {
   return {
     tabs,
     trackingSince,
+    keywords,
+    proposalKeywords,
     groups,
     hints,
     knownTags,

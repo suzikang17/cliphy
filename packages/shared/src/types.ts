@@ -394,8 +394,12 @@ export interface OrganizeTabsResponse {
   assignments: Record<string, TabAssignment>;
   /** Keys of tabs judged "probably done". */
   done: string[];
+  /** Claude-suggested keywords per proposed group name, saved on "＋ Save as tag". */
+  proposalKeywords?: Record<string, string[]>;
 }
 
 export interface TabHintsResponse {
   hints: Record<string, string>;
+  /** Per-tag keywords that deterministically match tabs (see keywords.ts). */
+  keywords: Record<string, string[]>;
 }
