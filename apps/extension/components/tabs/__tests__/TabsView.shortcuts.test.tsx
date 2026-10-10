@@ -61,6 +61,7 @@ const org = {
 };
 vi.mock("../../../lib/tabs/useTabOrganizer", () => ({ useTabOrganizer: () => org }));
 vi.mock("../DuplicatesPanel", () => ({ DuplicatesPanel: () => null }));
+vi.mock("../../../lib/tabs/savedByTag", () => ({ useSavedByTag: () => ({}) }));
 vi.mock("../../../lib/tabs/groupNotes", () => ({
   useGroupNotes: () => ({ notes: {}, save: vi.fn(), error: null }),
 }));

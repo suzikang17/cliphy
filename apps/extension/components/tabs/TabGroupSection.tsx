@@ -6,6 +6,7 @@ import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { TabTile } from "./TabTile";
+import type { Summary } from "@cliphy/shared";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
 import { getDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
@@ -60,6 +61,9 @@ interface TabGroupSectionProps {
   counts?: { open: number; pinned: number; trail: number };
   /** Close the whole group, keeping it to resume later (⇧C). */
   onCloseGroupKeep?: (group: TabGroup) => void;
+  /** Your saved Cliphy clips with this group's tag (summaries, saved pages). */
+  saved?: Summary[];
+  onOpenSummary?: (id: string) => void;
   /** List (default) or tiles. */
   view?: "list" | "tiles";
   /** url → preview image, for tiles. */
@@ -121,6 +125,8 @@ export function TabGroupSection({
   counts,
   onCloseGroupKeep,
   onOpenTrail,
+  saved = [],
+  onOpenSummary,
   view = "list",
   previews,
   note: groupNote,
@@ -781,9 +787,22 @@ export function TabGroupSection({
           )}
         </ul>
       )}
+      {!collapsed && isTag && saved.length > 0 && (
+        <div className="border-t border-(--color-border-soft) px-1 pt-1 pb-1">
+          <p className="m-0 px-1.5 pb-0.5 text-[10px] font-bold uppercase text-(--color-text-faint)">
+            Saved <span className="font-normal">{saved.length}</span>
+          </p>
+          <ul className="m-0 list-none p-0">
+            {saved.map((s) => (
+              <SavedRow key={s.id} summary={s} onOpen={() => onOpenSummary?.(s.id)} />
+            ))}
+          </ul>
+        </div>
+      )}
       {counts && isTag && (
         <p className="m-0 border-t border-(--color-border-soft) px-2.5 py-1 text-[10px] text-(--color-text-faint)">
           {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
+          {isTag && saved.length > 0 ? ` · ${saved.length} saved` : ""}
         </p>
       )}
     </section>
@@ -861,5 +880,36 @@ function MenuItem({
       {children}
       {kbd ? <Kbd>{kbd}</Kbd> : null}
     </button>
+  );
+}
+
+/** First sentence of a summary, for a one-line preview. */
+function firstSentence(text: string): string {
+  const m = text.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : text).trim();
+}
+
+function SavedRow({ summary, onOpen }: { summary: Summary; onOpen: () => void }) {
+  const title = summary.videoTitle || summary.sourceUrl || summary.videoUrl || "Saved clip";
+  const gist = summary.summaryJson?.summary ? firstSentence(summary.summaryJson.summary) : "";
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Open in Cliphy"
+        className="flex w-full cursor-pointer items-start gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left hover:bg-(--color-surface-raised)"
+      >
+        <span aria-hidden className="mt-px w-4 shrink-0 text-center text-[11px]">
+          {summary.sourceType === "youtube" ? "▶" : "📄"}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-semibold text-(--color-text)">{title}</span>
+          {gist && (
+            <span className="block truncate text-[10px] text-(--color-text-faint)">{gist}</span>
+          )}
+        </span>
+      </button>
+    </li>
   );
 }

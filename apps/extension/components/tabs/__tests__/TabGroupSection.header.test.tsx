@@ -331,3 +331,48 @@ describe("TabGroupSection — tile view", () => {
     );
   });
 });
+
+describe("TabGroupSection — saved summaries", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — saved in groups");
+  });
+  afterEach(cleanup);
+
+  const saved = [
+    {
+      id: "c1",
+      sourceType: "youtube",
+      videoTitle: "How we price interiors",
+      summaryJson: {
+        summary: "Price by room, not by hour. More detail follows here.",
+        keyPoints: [],
+      },
+      tags: ["project:lotus-bech"],
+      status: "completed",
+    },
+    {
+      id: "c2",
+      sourceType: "web",
+      videoTitle: "Lotus brief",
+      tags: ["project:lotus-bech"],
+      status: "completed",
+    },
+  ];
+
+  it("lists the group's saved summaries; clicking one opens it", () => {
+    const onOpenSummary = vi.fn();
+    renderGroup({}, { saved, onOpenSummary });
+    expect(screen.getByText(/Saved/)).toBeTruthy();
+    expect(screen.getByText("How we price interiors")).toBeTruthy();
+    expect(screen.getByText(/Price by room, not by hour/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Lotus brief/ }));
+    expect(onOpenSummary).toHaveBeenCalledWith("c2");
+  });
+
+  it("shows nothing extra when the group has no saved clips", () => {
+    renderGroup({}, { saved: [], onOpenSummary: vi.fn() });
+    expect(screen.queryByText(/^Saved/)).toBeNull();
+  });
+});

@@ -13,6 +13,9 @@ import { staleTabs } from "../../lib/tabs/stale";
 import { useGroupNotes } from "../../lib/tabs/groupNotes";
 import { useViewMode } from "../../lib/tabs/viewMode";
 import { useTabPreviews } from "../../lib/tabs/previews";
+import { useSavedByTag } from "../../lib/tabs/savedByTag";
+import { openWebApp } from "../../lib/webApp";
+import { WEB_ROUTES } from "@cliphy/shared";
 import { countByFirstTag, groupCounts, pinsForGroup } from "../../lib/tabs/closedGroups";
 import { listTrail } from "../../lib/api";
 import type { TabGroup } from "../../lib/tabs/organize";
@@ -119,6 +122,10 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const groupNotes = useGroupNotes(org.authed);
   const { view, choose: chooseView } = useViewMode();
   const previews = useTabPreviews(org.tabs, view === "tiles");
+  const savedByTag = useSavedByTag(
+    org.groups.filter((g) => g.kind === "tag").map((g) => g.value),
+    org.authed,
+  );
   const viewRef = useRef(view);
   viewRef.current = view;
   const openByKey = useMemo(
@@ -565,6 +572,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               noteNonce={noteRequest?.key === group.key ? noteRequest.n : undefined}
               view={view}
               previews={previews}
+              saved={group.kind === "tag" ? savedByTag[group.value] : undefined}
+              onOpenSummary={(id) => void openWebApp(WEB_ROUTES.SUMMARY(id))}
             />
           ))
         )}

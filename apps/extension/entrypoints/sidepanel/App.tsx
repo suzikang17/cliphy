@@ -29,12 +29,12 @@ import {
 } from "../../lib/api";
 import {
   getAccessToken,
-  getRefreshToken,
   getUserIdFromToken,
   signUpWithEmail,
   signInWithEmail,
 } from "../../lib/auth";
 import { isActiveTab } from "../../lib/is-active-tab";
+import { openWebApp } from "../../lib/webApp";
 import { LanguageSelector } from "./LanguageSelector";
 import { openCheckout } from "../../lib/checkout";
 import { get as storageGet, set as storageSet } from "../../lib/storage";
@@ -517,16 +517,6 @@ export function App() {
       setSelectedSummary(s);
       setView("detail");
     }
-  }
-
-  async function openWebApp(path: string) {
-    const base = (import.meta.env.VITE_WEB_URL as string) || "https://cliphy.app";
-    const [accessToken, refreshToken] = await Promise.all([getAccessToken(), getRefreshToken()]);
-    const hash =
-      accessToken && refreshToken
-        ? `#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`
-        : "";
-    browser.tabs.create({ url: `${base}${path}${hash}` });
   }
 
   function handleOpenSummary(id: string) {

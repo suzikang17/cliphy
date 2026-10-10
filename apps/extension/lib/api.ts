@@ -197,11 +197,14 @@ export async function getSummary(id: string) {
   return request<SummaryResponse>(API_ROUTES.SUMMARIES.ITEM(id));
 }
 
-export async function getSummaries(tag?: string) {
-  const url = tag
-    ? `${API_ROUTES.SUMMARIES.LIST}?tag=${encodeURIComponent(tag)}`
-    : API_ROUTES.SUMMARIES.LIST;
-  return request<{ summaries: Summary[] }>(url);
+export async function getSummaries(tag?: string, limit?: number) {
+  const params = new URLSearchParams();
+  if (tag) params.set("tag", tag);
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString();
+  return request<{ summaries: Summary[] }>(
+    qs ? `${API_ROUTES.SUMMARIES.LIST}?${qs}` : API_ROUTES.SUMMARIES.LIST,
+  );
 }
 
 export async function getUsage() {
