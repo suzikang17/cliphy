@@ -9,6 +9,7 @@ import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
 import type { OpenTabsViewMessage } from "../lib/tabs/openSignal";
 import { ensureTrackingSince, forgetOpened, recordOpened } from "../lib/tabs/openedAt";
 import { registerDupeInterceptor } from "../lib/tabs/interceptDupes";
+import { registerActivityTracker } from "../lib/tabs/activity";
 import { registerTrailTracker } from "../lib/trail/tracker";
 import { runQuickSave, type QuickSaveDeps } from "../lib/save/quickSave";
 import { showSaveToast, updateSaveToast, type SaveToastState } from "../lib/save/saveToast";
@@ -129,6 +130,9 @@ export default defineBackground(() => {
 
   // ── Duplicate-tab interception ───────────────────────────
   registerDupeInterceptor();
+
+  // ── Activity: tab switches + openers, for "worked on together" clusters ──
+  registerActivityTracker();
 
   // ── Trail: closed tabs saved quietly (opt-in) ────────────
   registerTrailTracker();

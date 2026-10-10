@@ -22,6 +22,7 @@ import type {
   TrailCaptureItem,
   TrailListResponse,
   TrailSettings,
+  TabCluster,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -405,10 +406,11 @@ export async function addBookmark(url: string, label?: string) {
 // ── Tabs view ────────────────────────────────────────────────
 
 /** Classify open tabs into the user's tags / proposed tags / done. Max 60 per call. */
-export async function organizeTabs(tabs: TabInput[]) {
+/** `clusters`: tabs worked on together (local activity), sent as grouping evidence. */
+export async function organizeTabs(tabs: TabInput[], clusters: TabCluster[] = []) {
   return request<OrganizeTabsResponse>(API_ROUTES.TABS.ORGANIZE, {
     method: "POST",
-    body: JSON.stringify({ tabs }),
+    body: JSON.stringify(clusters.length ? { tabs, clusters } : { tabs }),
   });
 }
 

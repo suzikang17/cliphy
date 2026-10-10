@@ -29,6 +29,8 @@ import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
 import { closeTabsAndAdvance } from "./nextTab";
 import { activateTab } from "./activate";
+import { loadActivity } from "./activity";
+import { buildClusters } from "./clusters";
 import {
   applyGroupOrder,
   loadGroupOrder,
@@ -179,8 +181,11 @@ export function useTabOrganizer() {
       const inputs = await Promise.all(
         toSend.map(async (t) => buildTabInput(t, await extractFor(t, granted))),
       );
+      // Evidence for grouping: which tabs were actually worked on together (local log).
+      const activity = await loadActivity();
+      const clusters = buildClusters(tabsRef.current, activity, Date.now());
       const t1 = performance.now();
-      const res = await organizeTabs(inputs);
+      const res = await organizeTabs(inputs, clusters);
       console.debug("[Cliphy tabs] organize", {
         tabs: toSend.length,
         withText: inputs.filter((i) => i.text).length,
