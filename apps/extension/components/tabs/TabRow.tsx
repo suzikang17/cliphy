@@ -19,6 +19,9 @@ interface TabRowProps {
   onCloseDupes?: () => void;
   /** A duplicate copy shown indented under its parent. */
   nested?: boolean;
+  /** The page is pinned (shows 📌); onTogglePin pins/unpins. */
+  pinned?: boolean;
+  onTogglePin?: (tab: OpenTab) => void;
   /** Current group, excluded from the Move-to list. */
   groupKey: GroupKey;
   moveTargets: GroupKey[];
@@ -45,6 +48,8 @@ export function TabRow({
   dupCount = 0,
   onCloseDupes,
   nested = false,
+  pinned = false,
+  onTogglePin,
   groupKey,
   moveTargets,
   onActivate,
@@ -122,7 +127,14 @@ export function TabRow({
             .join("\n")}
           className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
         >
-          <span className="block truncate text-xs font-semibold text-(--color-text)">{name}</span>
+          <span className="block truncate text-xs font-semibold text-(--color-text)">
+            {pinned && (
+              <span title="Pinned" aria-label="Pinned" className="mr-1">
+                📌
+              </span>
+            )}
+            {name}
+          </span>
           <span className="block truncate text-[10px] text-(--color-text-faint)">
             {[
               hostOf(tab.url),
@@ -207,6 +219,17 @@ export function TabRow({
                     >
                       Move to…
                     </RowMenuItem>
+                    {onTogglePin && (
+                      <RowMenuItem
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onTogglePin(tab);
+                        }}
+                        kbd="p"
+                      >
+                        {pinned ? "Unpin" : "Pin"}
+                      </RowMenuItem>
+                    )}
                     {onSetMeta && (
                       <>
                         <RowMenuItem onClick={() => startEditing("rename")} kbd="r">

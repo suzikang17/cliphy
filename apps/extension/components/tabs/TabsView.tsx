@@ -7,6 +7,11 @@ import { TabGroupSection } from "./TabGroupSection";
 import { TrailSection } from "./TrailSection";
 import { DuplicatesPanel } from "./DuplicatesPanel";
 import { ShortcutHelp } from "./ShortcutHelp";
+import { PinnedGroup } from "./PinnedGroup";
+import { usePagePins } from "../../lib/tabs/pins";
+import { normalizeUrl } from "../../lib/tabs/dedupe";
+import { matchesQuery } from "../../lib/tabs/search";
+import type { OpenTab } from "../../lib/tabs/types";
 import { Kbd } from "./Kbd";
 import { duplicateIdsToClose } from "../../lib/tabs/dedupe";
 import { suggestKeywords } from "../../lib/tabs/keywordSuggest";
@@ -95,11 +100,34 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     () => computeMoveTargets(org.groups, org.knownTags),
     [org.groups, org.knownTags],
   );
-  // Recently closed rows follow the open tabs in the keyboard order.
+  // Keyboard order: closed pinned pages, then open tabs, then Recently closed.
+  const pagePins = usePagePins(org.authed);
+  const openByKey = useMemo(
+    () => new Map(org.tabs.map((t) => [normalizeUrl(t.url) ?? t.url, t])),
+    [org.tabs],
+  );
+  const pinnedRows = useMemo(
+    () =>
+      pagePins.pins.filter(
+        (p) => !openByKey.has(p.key) && matchesQuery({ url: p.url, title: p.title }, query),
+      ),
+    [pagePins.pins, openByKey, query],
+  );
+  const off = pinnedRows.length;
   const trail = useTrail({ query, authed: org.authed });
   const closedRows = trail.active ? trail.rows : [];
-  const total = rows.length + closedRows.length;
-  const selectedTabId = rows[selected]?.id ?? null;
+  const total = off + rows.length + closedRows.length;
+  const selectedPinId = selected >= 0 && selected < off ? pinnedRows[selected].pinId : null;
+  const selectedTabId = selected >= off ? (rows[selected - off]?.id ?? null) : null;
+  const openPin = (pin: { url: string }) => void browser.tabs.create({ url: pin.url });
+  const togglePin = (t: OpenTab) =>
+    pagePins.isPinned(t.url)
+      ? void pagePins.unpin(t.url)
+      : void pagePins.pin({
+          url: t.url,
+          title: t.customTitle || t.title,
+          ...(t.note && { note: t.note }),
+        });
 
   // One-click keyword ideas per tag group, from phrases its tabs share (local, no AI).
   const keywordIdeas = useMemo(() => {
@@ -113,7 +141,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     return ideas;
   }, [org.groups, org.keywords]);
   const selectedTrailId =
-    selected >= rows.length ? (closedRows[selected - rows.length]?.id ?? null) : null;
+    selected >= off + rows.length ? (closedRows[selected - off - rows.length]?.id ?? null) : null;
 
   // A new query highlights the top match; clearing it clears the highlight.
   useEffect(() => {
@@ -130,9 +158,12 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       setSelected((i) => moveSelection(i, e.key === "ArrowDown" ? 1 : -1, total));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const closed = selected >= rows.length ? closedRows[selected - rows.length] : undefined;
-      const tab = closed ? null : rowToActivate(rows, selected);
-      if (tab) void org.activate(tab);
+      const pinRow = selected >= 0 && selected < off ? pinnedRows[selected] : undefined;
+      const closed =
+        selected >= off + rows.length ? closedRows[selected - off - rows.length] : undefined;
+      const tab = pinRow || closed ? null : rowToActivate(rows, selected - off);
+      if (pinRow) openPin(pinRow);
+      else if (tab) void org.activate(tab);
       else if (closed ?? closedRows[0]) void trail.reopen(closed ?? closedRows[0]);
     } else if (e.key === "Escape") {
       e.preventDefault();
@@ -145,8 +176,18 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   }
 
   // Single-key shortcuts anywhere in the panel (not while typing in a field).
-  const latest = useRef({ rows, selected, shown, org, closedRows, trail });
-  latest.current = { rows, selected, shown, org, closedRows, trail };
+  const latest = useRef({
+    rows,
+    selected,
+    shown,
+    org,
+    closedRows,
+    trail,
+    pinnedRows,
+    off,
+    pagePins,
+  });
+  latest.current = { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins };
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && helpOpen) {
@@ -156,10 +197,12 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       if (isTypingTarget(e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;
-      const { rows, selected, shown, org, closedRows, trail } = latest.current;
-      const tab = rows[selected] ?? null;
+      const { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins } =
+        latest.current;
+      const pinRow = selected >= 0 && selected < off ? pinnedRows[selected] : undefined;
+      const tab = selected >= off ? (rows[selected - off] ?? null) : null;
       // A selected "Recently closed" row: ↵ reopens, x removes, s saves to clips.
-      const closed = tab ? undefined : closedRows[selected - rows.length];
+      const closed = tab || pinRow ? undefined : closedRows[selected - off - rows.length];
       const group = tab ? shown.find((g) => g.tabs.some((t) => t.id === tab.id)) : undefined;
       e.preventDefault();
       switch (action) {
@@ -169,10 +212,18 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         case "next":
         case "prev":
           setSelected((i) =>
-            moveSelection(i, action === "next" ? 1 : -1, rows.length + closedRows.length),
+            moveSelection(i, action === "next" ? 1 : -1, off + rows.length + closedRows.length),
           );
           break;
+        case "pinTab":
+          if (pinRow) void pagePins.unpin(pinRow.url);
+          else if (tab && "windowId" in tab) togglePin(tab);
+          break;
         case "open":
+          if (pinRow) {
+            openPin(pinRow);
+            break;
+          }
           if (tab) void org.activate(tab);
           else if (closed) void trail.reopen(closed);
           break;
@@ -250,6 +301,28 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         aria-label="Search open tabs"
         className="w-full rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text) shadow-brutal-sm outline-none focus:shadow-brutal-pressed"
       />
+
+      <PinnedGroup
+        pins={pagePins.pins}
+        openByKey={openByKey}
+        selectedPinId={selectedPinId}
+        showLabels={showLabels}
+        onOpen={openPin}
+        onUnpin={(pin) => void pagePins.unpin(pin.url)}
+      />
+      {pagePins.undo && (
+        <p className="m-0 flex items-center gap-2 rounded-lg bg-neon-100/70 px-2.5 py-1.5 text-[11px] text-(--color-text) dark:bg-neon-900/30">
+          <span className="min-w-0 flex-1 truncate">{pagePins.undo.text}</span>
+          <button
+            type="button"
+            onClick={() => void pagePins.undo?.run()}
+            className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text) underline"
+          >
+            Undo
+          </button>
+        </p>
+      )}
+      {pagePins.error && <p className="m-0 text-[11px] text-red-600">{pagePins.error}</p>}
 
       <DuplicatesPanel
         showLabels={showLabels}
@@ -364,6 +437,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               moveRequest={moveRequest}
               metaRequest={metaRequest}
               onSetMeta={org.setMeta}
+              pinnedKeys={new Set(pagePins.byKey.keys())}
+              onTogglePin={togglePin}
               onMergeInto={(from, into) => void mergeInto(from, into)}
               mergeTargets={org.groups.filter((g) => g.key !== group.key && g.kind !== "done")}
               mergeNonce={mergeRequest?.key === group.key ? mergeRequest.n : undefined}

@@ -45,6 +45,13 @@ export default defineConfig({
         },
         description: "Save this page to Cliphy",
       },
+      "pin-page": {
+        suggested_key: {
+          default: "Ctrl+Shift+P",
+          mac: "Command+Shift+P",
+        },
+        description: "Pin this page to Cliphy",
+      },
     },
     icons: {
       128: "icons/icon-128.png",

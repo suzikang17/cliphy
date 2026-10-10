@@ -12,6 +12,7 @@ export type PanelAction =
   | "moveTab"
   | "renameTab"
   | "noteTab"
+  | "pinTab"
   | "editGroup"
   | "acceptGroup"
   | "closeGroup"
@@ -38,6 +39,7 @@ export const PANEL_SHORTCUTS: PanelShortcut[] = [
   { action: "moveTab", keys: ["m"], label: "Move tab to group…" },
   { action: "renameTab", keys: ["r"], label: "Rename tab" },
   { action: "noteTab", keys: ["n"], label: "Add a note to the tab" },
+  { action: "pinTab", keys: ["p"], label: "Pin / unpin tab" },
   { action: "editGroup", keys: ["e"], label: "Edit group keywords & hints" },
   { action: "acceptGroup", keys: ["a"], label: "Save suggested group as tag" },
   { action: "closeGroup", keys: ["X"], label: "Close all in group" },

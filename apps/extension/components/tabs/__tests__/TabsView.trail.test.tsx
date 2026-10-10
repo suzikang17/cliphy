@@ -68,6 +68,9 @@ const api = vi.hoisted(() => ({
   getTrailSettings: vi.fn(),
   putTrailSettings: vi.fn(),
   captureTrail: vi.fn(),
+  getPins: vi.fn().mockResolvedValue({ pins: [] }),
+  pinPage: vi.fn(),
+  deletePin: vi.fn(),
 }));
 vi.mock("../../../lib/api", () => api);
 

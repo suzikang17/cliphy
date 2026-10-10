@@ -1,5 +1,5 @@
 import type { QuickSaveBody, QuickSaveResponse } from "./save/quickSave";
-import type { PageOverrideItem } from "@cliphy/shared";
+import type { PageOverrideItem, PinPageResponse } from "@cliphy/shared";
 import { API_ROUTES } from "@cliphy/shared";
 import type {
   PinnedItem,
@@ -497,6 +497,14 @@ export async function putTrailSettings(retentionDays: number | null) {
 /** ⌘⇧S: save the current page with what the extension sees; returns applied tags. */
 export async function quickSaveClip(body: QuickSaveBody) {
   return request<QuickSaveResponse>("/api/clips/quick", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Pin a page: bookmark-tier clip + new-tab tile, out of the trail. Idempotent. */
+export async function pinPage(body: { url: string; title?: string; note?: string }) {
+  return request<PinPageResponse>(API_ROUTES.PINS.PAGE, {
     method: "POST",
     body: JSON.stringify(body),
   });

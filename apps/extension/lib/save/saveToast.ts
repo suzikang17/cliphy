@@ -5,8 +5,16 @@
 // injections); later calls just pass new state to it.
 
 export type SaveToastState =
-  | { phase: "saving"; title: string }
-  | { phase: "saved"; title: string; tags: string[]; suggested: string[]; video?: boolean }
+  | { phase: "saving"; title: string; label?: string }
+  | {
+      phase: "saved";
+      title: string;
+      tags: string[];
+      suggested: string[];
+      video?: boolean;
+      /** Headline override, e.g. "Pinned". */
+      label?: string;
+    }
   | { phase: "duplicate"; title: string; tags: string[] }
   | { phase: "error"; message: string };
 
@@ -93,7 +101,7 @@ export function showSaveToast(state: SaveToastState): void {
     }
     title.textContent = s.title;
     if (s.phase === "saving") {
-      msg.textContent = "Saving to Cliphy…";
+      msg.textContent = s.label ?? "Saving to Cliphy…";
       scheduleClose(20000); // safety net if no update ever comes
       return;
     }
@@ -103,7 +111,7 @@ export function showSaveToast(state: SaveToastState): void {
       scheduleClose(3000);
       return;
     }
-    msg.textContent = s.video ? "Saved — summarizing…" : "Saved to Cliphy";
+    msg.textContent = s.label ?? (s.video ? "Saved — summarizing…" : "Saved to Cliphy");
     chips(s.tags, false, 80);
     chips(s.suggested, true, 80 + s.tags.length * 90);
     scheduleClose(3500 + (s.tags.length + s.suggested.length) * 90);

@@ -58,6 +58,16 @@ const org = {
 };
 vi.mock("../../../lib/tabs/useTabOrganizer", () => ({ useTabOrganizer: () => org }));
 vi.mock("../DuplicatesPanel", () => ({ DuplicatesPanel: () => null }));
+const pagePins = {
+  pins: [],
+  byKey: new Map(),
+  isPinned: () => false,
+  pin: vi.fn(),
+  unpin: vi.fn(),
+  undo: null,
+  error: null,
+};
+vi.mock("../../../lib/tabs/pins", () => ({ usePagePins: () => pagePins }));
 
 // jsdom has no layout, so no scrollIntoView.
 Element.prototype.scrollIntoView = vi.fn();
@@ -89,6 +99,14 @@ describe("TabsView keyboard shortcuts", () => {
     await press("k");
     await press("x");
     expect(org.closeTabs).toHaveBeenCalledWith([a1.id]);
+  });
+
+  it("p pins the selected tab with its url and title", async () => {
+    render(<TabsView />);
+    (document.activeElement as HTMLElement)?.blur();
+    await press("j");
+    await press("p");
+    expect(pagePins.pin).toHaveBeenCalledWith({ url: a1.url, title: a1.title });
   });
 
   it("does nothing while typing in the search box", async () => {

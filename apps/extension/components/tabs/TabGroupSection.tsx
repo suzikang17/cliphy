@@ -5,7 +5,7 @@ import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
 import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
-import { nestDuplicates } from "../../lib/tabs/dedupe";
+import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
 
 export const HINTS_MAX = 500;
@@ -52,6 +52,9 @@ interface TabGroupSectionProps {
   /** Forwarded to rows: the `r` / `n` shortcuts ask a row to rename / add a note. */
   metaRequest?: { tabId: number; kind: "rename" | "note"; n: number } | null;
   onSetMeta?: (tab: OpenTab, patch: { title?: string; note?: string }) => Promise<void>;
+  /** Normalized page keys that are pinned. */
+  pinnedKeys?: Set<string>;
+  onTogglePin?: (tab: OpenTab) => void;
 }
 
 /** dataTransfer type for a dragged group, so tab/text drags are ignored. */
@@ -96,6 +99,8 @@ export function TabGroupSection({
   moveRequest = null,
   metaRequest = null,
   onSetMeta,
+  pinnedKeys,
+  onTogglePin,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<DropZone | null>(null);
   const [mergePicking, setMergePicking] = useState(false);
@@ -601,6 +606,8 @@ export function TabGroupSection({
                     : undefined
                 }
                 onSetMeta={onSetMeta}
+                pinned={!!pinnedKeys?.has(normalizeUrl(tab.url) ?? tab.url)}
+                onTogglePin={onTogglePin}
                 groupKey={group.key}
                 moveTargets={moveTargets}
                 onActivate={onActivate}

@@ -14,7 +14,8 @@ import { registerTrailTracker } from "../lib/trail/tracker";
 import { runQuickSave, type QuickSaveDeps } from "../lib/save/quickSave";
 import { showSaveToast, updateSaveToast, type SaveToastState } from "../lib/save/saveToast";
 import { extractPage, type ExtractResult } from "../lib/tabs/extractPage";
-import { quickSaveClip } from "../lib/api";
+import { quickSaveClip, pinPage as pinPageApi } from "../lib/api";
+import { runPinPage } from "../lib/save/pinPage";
 import { getTabMeta } from "../lib/tabs/tabMeta";
 
 /** Real browser wiring for ⌘⇧S (activeTab is granted by the keyboard command). */
@@ -150,6 +151,21 @@ export default defineBackground(() => {
   browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
     if (command !== "save-page" || tab?.id == null) return;
     void runQuickSave({ id: tab.id, url: tab.url, title: tab.title }, quickSaveDeps);
+  });
+
+  // ── Keyboard command: pin this page (⌘⇧P) ────────────────
+  browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
+    if (command !== "pin-page" || tab?.id == null) return;
+    void runPinPage(
+      { id: tab.id, url: tab.url, title: tab.title },
+      {
+        isAuthed: quickSaveDeps.isAuthed,
+        toast: quickSaveDeps.toast,
+        meta: (url) => getTabMeta(url),
+        pin: (body) => pinPageApi(body),
+        badge: quickSaveDeps.badge,
+      },
+    );
   });
 
   // ── Keyboard command: open the Tabs view ─────────────────
