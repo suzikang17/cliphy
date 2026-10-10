@@ -19,6 +19,7 @@ export type PanelAction =
   | "stowGroup"
   | "closeDuplicates"
   | "mergeGroup"
+  | "closeGroupKeep"
   | "help";
 
 export interface PanelShortcut {
@@ -46,6 +47,7 @@ export const PANEL_SHORTCUTS: PanelShortcut[] = [
   { action: "stowGroup", keys: ["S"], label: "Stow all in group" },
   { action: "closeDuplicates", keys: ["D"], label: "Close duplicates" },
   { action: "mergeGroup", keys: ["M"], label: "Merge group into…" },
+  { action: "closeGroupKeep", keys: ["C"], label: "Close group (keep it to resume later)" },
   { action: "help", keys: ["?"], label: "All shortcuts" },
 ];
 

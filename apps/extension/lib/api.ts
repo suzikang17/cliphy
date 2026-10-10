@@ -1,5 +1,10 @@
 import type { QuickSaveBody, QuickSaveResponse } from "./save/quickSave";
-import type { PageOverrideItem, PinPageResponse } from "@cliphy/shared";
+import type {
+  ClosedGroup,
+  ClosedGroupPage,
+  PageOverrideItem,
+  PinPageResponse,
+} from "@cliphy/shared";
 import { API_ROUTES } from "@cliphy/shared";
 import type {
   PinnedItem,
@@ -462,11 +467,13 @@ export async function captureTrail(items: TrailCaptureItem[]) {
 /** Newest first. `q` matches title, URL and tags; `before` is the previous page's `nextBefore`. */
 export async function listTrail({
   q,
+  tag,
   before,
   limit = 50,
-}: { q?: string; before?: string; limit?: number } = {}) {
+}: { q?: string; tag?: string; before?: string; limit?: number } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (q?.trim()) params.set("q", q.trim());
+  if (tag) params.set("tag", tag);
   if (before) params.set("before", before);
   return request<TrailListResponse>(`${API_ROUTES.TRAIL.LIST}?${params}`);
 }
@@ -507,5 +514,26 @@ export async function pinPage(body: { url: string; title?: string; note?: string
   return request<PinPageResponse>(API_ROUTES.PINS.PAGE, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+// ── Closed groups ────────────────────────────────────────────
+
+export async function getClosedGroups() {
+  return request<{ groups: ClosedGroup[] }>(API_ROUTES.TABS.GROUPS_CLOSED);
+}
+
+/** Snapshot what was open in a group before closing it. */
+export async function closeGroupSnapshot(key: string, label: string, pages: ClosedGroupPage[]) {
+  return request<{ closedAt: string }>(API_ROUTES.TABS.GROUP_CLOSE(key), {
+    method: "PUT",
+    body: JSON.stringify({ label, pages }),
+  });
+}
+
+/** Returns the snapshot and removes it server-side. */
+export async function resumeGroup(key: string) {
+  return request<{ pages: ClosedGroupPage[] }>(API_ROUTES.TABS.GROUP_RESUME(key), {
+    method: "POST",
   });
 }

@@ -54,6 +54,12 @@ interface TabGroupSectionProps {
   onSetMeta?: (tab: OpenTab, patch: { title?: string; note?: string }) => Promise<void>;
   /** Normalized page keys that are pinned. */
   pinnedKeys?: Set<string>;
+  /** "6 open · 2 pinned · 14 in trail" for tag groups. */
+  counts?: { open: number; pinned: number; trail: number };
+  /** Close the whole group, keeping it to resume later (⇧C). */
+  onCloseGroupKeep?: (group: TabGroup) => void;
+  /** Open the group's trail pages. */
+  onOpenTrail?: (group: TabGroup) => void;
   onTogglePin?: (tab: OpenTab) => void;
 }
 
@@ -101,6 +107,9 @@ export function TabGroupSection({
   onSetMeta,
   pinnedKeys,
   onTogglePin,
+  counts,
+  onCloseGroupKeep,
+  onOpenTrail,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<DropZone | null>(null);
   const [mergePicking, setMergePicking] = useState(false);
@@ -316,6 +325,28 @@ export function TabGroupSection({
                     Keywords & hints
                   </MenuItem>
                 )}
+                {onCloseGroupKeep && !isDone && (
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onCloseGroupKeep(group);
+                    }}
+                    kbd={labelFor("closeGroupKeep")}
+                  >
+                    Close group (keep)
+                  </MenuItem>
+                )}
+                {onOpenTrail && isTag && (counts?.trail ?? 0) > 0 && (
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onOpenTrail(group);
+                    }}
+                    kbd=""
+                  >
+                    Open {counts!.trail} from trail
+                  </MenuItem>
+                )}
                 {onMergeInto && !isDone && mergeTargets.length > 0 && (
                   <MenuItem
                     onClick={() => {
@@ -352,6 +383,12 @@ export function TabGroupSection({
           </span>
         </span>
       </header>
+
+      {counts && isTag && (
+        <p className="m-0 px-2.5 pb-1 text-[10px] text-(--color-text-faint)">
+          {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
+        </p>
+      )}
 
       {mergePicking && (
         <div className="mx-2.5 mb-2 flex items-center gap-2">
@@ -691,7 +728,7 @@ function MenuItem({
       className="flex w-full cursor-pointer items-center justify-between gap-3 whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
     >
       {children}
-      {kbd && <Kbd>{kbd}</Kbd>}
+      {kbd ? <Kbd>{kbd}</Kbd> : null}
     </button>
   );
 }

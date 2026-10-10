@@ -4,12 +4,23 @@ import { isAuthenticated } from "../auth";
 import {
   AuthError,
   RateLimitError,
+  closeGroupSnapshot,
+  getClosedGroups,
   getTabHints,
   organizeTabs,
   putPageOverrides,
   putTabHint,
+  resumeGroup as resumeGroupApi,
   stowTab,
 } from "../api";
+import type { ClosedGroup, ClosedGroupPage } from "@cliphy/shared";
+import type { PagePin } from "./pins";
+import {
+  NEW_WINDOW_ABOVE,
+  cacheClosedGroups,
+  loadCachedClosedGroups,
+  pagesToResume,
+} from "./closedGroups";
 import {
   clearAssignments,
   clearDone,
@@ -150,6 +161,10 @@ export function useTabOrganizer() {
   const [groupOrder, setGroupOrder] = useState<GroupKey[]>([]);
   /** Merged tags: { from: to }. */
   const [aliases, setAliases] = useState<Record<string, string>>({});
+  /** Groups closed as a whole (server list ∪ local fallback), newest first. */
+  const [closedGroups, setClosedGroups] = useState<ClosedGroup[]>([]);
+  const closedRef = useRef<ClosedGroup[]>([]);
+  closedRef.current = closedGroups;
 
   // Listeners and timers read the latest values through refs.
   const tabsRef = useRef(tabs);
@@ -443,6 +458,88 @@ export function useTabOrganizer() {
     await closeTabsAndAdvance(ids);
   }, []);
 
+  const refreshClosedGroups = useCallback(async () => {
+    const local = await loadCachedClosedGroups();
+    let server: ClosedGroup[] = [];
+    if (authedRef.current) {
+      try {
+        server = (await getClosedGroups()).groups;
+      } catch {
+        // offline — the local copy stands
+      }
+    }
+    const keys = new Set(server.map((g) => g.key));
+    const merged = [...server, ...local.filter((g) => !keys.has(g.key))].sort((a, b) =>
+      b.closedAt.localeCompare(a.closedAt),
+    );
+    if (mounted.current) setClosedGroups(merged);
+  }, []);
+
+  useEffect(() => {
+    if (authed === null) return;
+    void refreshClosedGroups();
+  }, [authed, refreshClosedGroups]);
+
+  /**
+   * Close a whole group: snapshot its open pages (server, best-effort; local
+   * copy on failure), then close the tabs. The Trail captures them regardless.
+   */
+  const closeGroup = useCallback(async (group: TabGroup) => {
+    const pages = group.tabs.map((t) => ({ url: t.url, title: t.customTitle || t.title }));
+    if (pages.length === 0) return;
+    let closedAt = new Date().toISOString();
+    let saved = false;
+    if (authedRef.current) {
+      try {
+        closedAt = (await closeGroupSnapshot(group.key, group.label, pages)).closedAt;
+        saved = true;
+      } catch {
+        saved = false;
+      }
+    }
+    const entry: ClosedGroup = { key: group.key, label: group.label, pages, closedAt };
+    const next = [entry, ...closedRef.current.filter((g) => g.key !== group.key)];
+    setClosedGroups(next);
+    // Local copy only when the server didn't get it — that's what Resume falls back to.
+    if (!saved) {
+      const local = await loadCachedClosedGroups();
+      await cacheClosedGroups([entry, ...local.filter((g) => g.key !== group.key)]);
+    }
+    await closeTabsAndAdvance(group.tabs.map((t) => t.id));
+  }, []);
+
+  /** Reopen a closed group: its snapshot + the given pinned pages, minus what's already open. */
+  const resumeGroup = useCallback(
+    async (key: string, pinned: PagePin[]) => {
+      let snapshot: ClosedGroupPage[] | null = null;
+      if (authedRef.current) {
+        try {
+          snapshot = (await resumeGroupApi(key)).pages;
+        } catch {
+          snapshot = null;
+        }
+      }
+      if (!snapshot) snapshot = closedRef.current.find((g) => g.key === key)?.pages ?? [];
+      const pages = pagesToResume(
+        snapshot,
+        pinned,
+        tabsRef.current.map((t) => t.url),
+      );
+      if (pages.length > NEW_WINDOW_ABOVE) {
+        await browser.windows.create({ url: pages.map((p) => p.url) });
+      } else {
+        for (const p of pages) await browser.tabs.create({ url: p.url, active: false });
+      }
+      const next = closedRef.current.filter((g) => g.key !== key);
+      setClosedGroups(next);
+      const local = await loadCachedClosedGroups();
+      if (local.some((g) => g.key === key))
+        await cacheClosedGroups(local.filter((g) => g.key !== key));
+      await refreshTabs();
+    },
+    [refreshTabs],
+  );
+
   /** Stow each tab to the inbox, then close only the ones that saved. */
   const stowTabs = useCallback(async (list: OpenTab[]) => {
     const saved: OpenTab[] = [];
@@ -590,6 +687,10 @@ export function useTabOrganizer() {
     proposalReasons,
     setMeta,
     mergeGroup,
+    closedGroups,
+    closeGroup,
+    resumeGroup,
+    refreshClosedGroups,
     groups,
     hints,
     knownTags,

@@ -45,6 +45,9 @@ const org = {
   hasManualOrder: false,
   activate: vi.fn(),
   closeTabs: vi.fn(),
+  closedGroups: [],
+  closeGroup: vi.fn(),
+  resumeGroup: vi.fn(),
   stowTabs: vi.fn().mockResolvedValue(1),
   moveTo: vi.fn(),
   saveAsTag: vi.fn(),
@@ -126,6 +129,14 @@ describe("TabsView keyboard shortcuts", () => {
     await press("j"); // b1 (proposed)
     await press("a");
     expect(org.saveAsTag).toHaveBeenCalledWith("client:brightline");
+  });
+
+  it("⇧C closes the selected row's group, keeping it to resume", async () => {
+    render(<TabsView />);
+    (document.activeElement as HTMLElement)?.blur();
+    await press("j"); // a1 (site:a.com)
+    await press("C");
+    expect(org.closeGroup).toHaveBeenCalledWith(expect.objectContaining({ key: "site:a.com" }));
   });
 
   it("shortcut labels appear only while the modifier is held", async () => {

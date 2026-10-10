@@ -8,6 +8,10 @@ import { TrailSection } from "./TrailSection";
 import { DuplicatesPanel } from "./DuplicatesPanel";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { PinnedGroup } from "./PinnedGroup";
+import { ClosedGroups } from "./ClosedGroups";
+import { countByFirstTag, groupCounts } from "../../lib/tabs/closedGroups";
+import { listTrail } from "../../lib/api";
+import type { TabGroup } from "../../lib/tabs/organize";
 import { usePagePins } from "../../lib/tabs/pins";
 import { normalizeUrl } from "../../lib/tabs/dedupe";
 import { matchesQuery } from "../../lib/tabs/search";
@@ -114,6 +118,26 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     [pagePins.pins, openByKey, query],
   );
   const off = pinnedRows.length;
+  // "N in trail" per tag group — one list fetch per panel open, grouped by first tag.
+  const [trailCounts, setTrailCounts] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!org.authed) return;
+    let live = true;
+    void listTrail({ limit: 100 })
+      .then((r) => live && setTrailCounts(countByFirstTag(r.items)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [org.authed]);
+  const openTrail = async (group: TabGroup) => {
+    const r = await listTrail({ tag: group.value, limit: 50 }).catch(() => null);
+    if (!r || r.items.length === 0) return;
+    if (r.items.length > 10 && !window.confirm(`Open ${r.items.length} pages from the trail?`))
+      return;
+    for (const item of r.items) await browser.tabs.create({ url: item.url, active: false });
+  };
+  const resumeClosed = (key: string) => void org.resumeGroup(key, pagePins.pins);
   const trail = useTrail({ query, authed: org.authed });
   const closedRows = trail.active ? trail.rows : [];
   const total = off + rows.length + closedRows.length;
@@ -242,6 +266,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           if (group && group.kind !== "done") {
             setMergeRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
           }
+          break;
+        case "closeGroupKeep":
+          if (group && group.kind !== "done") void org.closeGroup(group);
           break;
         case "renameTab":
         case "noteTab":
@@ -439,12 +466,27 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               onSetMeta={org.setMeta}
               pinnedKeys={new Set(pagePins.byKey.keys())}
               onTogglePin={togglePin}
+              counts={
+                group.kind === "tag"
+                  ? groupCounts(group, pagePins.pins, trailCounts.get(group.value) ?? 0)
+                  : undefined
+              }
+              onCloseGroupKeep={(g) => void org.closeGroup(g)}
+              onOpenTrail={(g) => void openTrail(g)}
               onMergeInto={(from, into) => void mergeInto(from, into)}
               mergeTargets={org.groups.filter((g) => g.key !== group.key && g.kind !== "done")}
               mergeNonce={mergeRequest?.key === group.key ? mergeRequest.n : undefined}
             />
           ))
         )}
+
+        <ClosedGroups
+          groups={org.closedGroups}
+          now={now}
+          selectedKey={null}
+          showLabels={showLabels}
+          onResume={resumeClosed}
+        />
 
         <TrailSection
           trail={trail}
