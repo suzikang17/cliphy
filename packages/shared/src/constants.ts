@@ -123,6 +123,8 @@ export const API_ROUTES = {
     GROUPS_CLOSED: "/api/tabs/groups/closed",
     GROUP_CLOSE: (key: string) => `/api/tabs/groups/${encodeURIComponent(key)}/close`,
     GROUP_RESUME: (key: string) => `/api/tabs/groups/${encodeURIComponent(key)}/resume`,
+    NOTES: "/api/tabs/notes",
+    NOTE: (tag: string) => `/api/tabs/notes/${encodeURIComponent(tag)}`,
   },
   SUMMARIES: {
     LIST: "/api/summaries",

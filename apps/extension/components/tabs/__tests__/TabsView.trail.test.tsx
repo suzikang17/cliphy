@@ -72,6 +72,8 @@ const api = vi.hoisted(() => ({
   putTrailSettings: vi.fn(),
   captureTrail: vi.fn(),
   getPins: vi.fn().mockResolvedValue({ pins: [] }),
+  getGroupNotes: vi.fn().mockResolvedValue({ notes: {} }),
+  putGroupNote: vi.fn(),
   pinPage: vi.fn(),
   deletePin: vi.fn(),
 }));

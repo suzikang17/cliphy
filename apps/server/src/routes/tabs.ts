@@ -266,6 +266,54 @@ tabsRoutes.post("/groups/:key/resume", async (c) => {
   return g ? c.json({ pages: g.pages }) : c.json({ error: "Not found" }, 404);
 });
 
+// ── Group notes — your note per tag group ────────────────────
+const MAX_NOTE = 4000;
+
+tabsRoutes.get("/notes", async (c) => {
+  const { data, error } = await supabase
+    .from("tag_notes")
+    .select("tag, note")
+    .eq("user_id", c.get("userId"));
+  if (error) return c.json({ error: "Failed to fetch notes" }, 500);
+  const notes: Record<string, string> = {};
+  for (const r of data ?? []) notes[r.tag as string] = r.note as string;
+  return c.json({ notes });
+});
+
+// Body: { note: string }. An empty note deletes it.
+tabsRoutes.put("/notes/:tag", async (c) => {
+  const userId = c.get("userId");
+  const tag = c.req.param("tag").toLowerCase().trim(); // Hono already decoded it
+  if (!tag || tag.length > MAX_TAG) return c.json({ error: "Invalid tag" }, 400);
+  let body: { note?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof body.note !== "string" || body.note.length > MAX_NOTE) {
+    return c.json({ error: `note must be a string (max ${MAX_NOTE})` }, 400);
+  }
+  const note = body.note.trim();
+  if (!note) {
+    const { error } = await supabase
+      .from("tag_notes")
+      .delete()
+      .eq("user_id", userId)
+      .eq("tag", tag);
+    if (error) return c.json({ error: "Failed to save note" }, 500);
+    return c.json({ tag, note: "" });
+  }
+  const { error } = await supabase
+    .from("tag_notes")
+    .upsert(
+      { user_id: userId, tag, note, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,tag" },
+    );
+  if (error) return c.json({ error: "Failed to save note" }, 500);
+  return c.json({ tag, note });
+});
+
 // ── GET /hints — per-tag hints + keywords ────────────────────
 
 tabsRoutes.get("/hints", async (c) => {

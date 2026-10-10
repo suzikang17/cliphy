@@ -61,6 +61,9 @@ const org = {
 };
 vi.mock("../../../lib/tabs/useTabOrganizer", () => ({ useTabOrganizer: () => org }));
 vi.mock("../DuplicatesPanel", () => ({ DuplicatesPanel: () => null }));
+vi.mock("../../../lib/tabs/groupNotes", () => ({
+  useGroupNotes: () => ({ notes: {}, save: vi.fn(), error: null }),
+}));
 const pagePins = {
   pins: [],
   byKey: new Map(),

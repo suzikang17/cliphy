@@ -265,3 +265,52 @@ describe("TabGroupSection drag-to-merge", () => {
     expect(onMergeInto).toHaveBeenCalledWith("tag:project:lotus-bech", "tag:design");
   });
 });
+
+describe("TabGroupSection — group note", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — group notes");
+  });
+  afterEach(cleanup);
+
+  it("shows the group's note and edits it from the ⋯ menu", () => {
+    const onSaveNote = vi.fn();
+    renderGroup({}, { note: "invoice due Fri", onSaveNote });
+    expect(screen.getByText(/invoice due Fri/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /More actions for project/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Edit note/ }));
+    const box = screen.getByRole("textbox", { name: /Note for project/ });
+    fireEvent.change(box, { target: { value: "paid ✓" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    expect(onSaveNote).toHaveBeenCalledWith("project:lotus-bech", "paid ✓");
+  });
+
+  it("⌘/Ctrl+Enter saves", () => {
+    const onSaveNote = vi.fn();
+    renderGroup({}, { onSaveNote, noteNonce: 1 });
+    const box = screen.getByRole("textbox", { name: /Note for project/ });
+    fireEvent.change(box, { target: { value: "line one" } });
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    expect(onSaveNote).toHaveBeenCalledWith("project:lotus-bech", "line one");
+  });
+
+  it("Esc cancels (the N shortcut opens the editor)", () => {
+    const onSaveNote = vi.fn();
+    renderGroup({}, { onSaveNote, noteNonce: 1 }); // N shortcut opens the editor
+    const box = screen.getByRole("textbox", { name: /Note for project/ });
+    fireEvent.change(box, { target: { value: "draft" } });
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: /Note for project/ })).toBeNull();
+    expect(onSaveNote).not.toHaveBeenCalled();
+  });
+
+  it("site groups don't offer notes", () => {
+    renderGroup(
+      { key: "site:x.com", kind: "site", value: "x.com", label: "x.com" },
+      { onSaveNote: vi.fn() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /More actions for x.com/ }));
+    expect(screen.queryByRole("button", { name: /note/i })).toBeNull();
+  });
+});

@@ -59,6 +59,11 @@ interface TabGroupSectionProps {
   counts?: { open: number; pinned: number; trail: number };
   /** Close the whole group, keeping it to resume later (⇧C). */
   onCloseGroupKeep?: (group: TabGroup) => void;
+  /** Your note for this tag group. */
+  note?: string;
+  onSaveNote?: (tag: string, note: string) => void;
+  /** Bumped by the N shortcut to open the note editor. */
+  noteNonce?: number;
   /** Open the group's trail pages. */
   onOpenTrail?: (group: TabGroup) => void;
   onTogglePin?: (tab: OpenTab) => void;
@@ -111,6 +116,9 @@ export function TabGroupSection({
   counts,
   onCloseGroupKeep,
   onOpenTrail,
+  note: groupNote,
+  onSaveNote,
+  noteNonce,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<DropZone | null>(null);
   /** A tab row is being dragged over this group (drop = move it here). */
@@ -158,6 +166,16 @@ export function TabGroupSection({
   const [note, setNote] = useState<string | null>(null);
 
   const isTag = group.kind === "tag";
+  const canNote = isTag && !!onSaveNote;
+  const [noteDraft, setNoteDraft] = useState<string | null>(null); // null = not editing
+  useEffect(() => {
+    if (noteNonce !== undefined && canNote) setNoteDraft(groupNote ?? "");
+  }, [noteNonce]);
+  const saveNote = () => {
+    if (noteDraft === null) return;
+    onSaveNote?.(group.value, noteDraft);
+    setNoteDraft(null);
+  };
   const isProposed = group.kind === "proposed";
   const isDone = group.kind === "done";
 
@@ -358,6 +376,17 @@ export function TabGroupSection({
                     Keywords & hints
                   </MenuItem>
                 )}
+                {canNote && (
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setNoteDraft(groupNote ?? "");
+                    }}
+                    kbd={labelFor("noteGroup")}
+                  >
+                    {groupNote ? "Edit note" : "Add note…"}
+                  </MenuItem>
+                )}
                 {onCloseGroupKeep && !isDone && (
                   <MenuItem
                     onClick={() => {
@@ -417,6 +446,52 @@ export function TabGroupSection({
         </span>
       </header>
 
+      {canNote && groupNote && noteDraft === null && (
+        <p
+          className="m-0 cursor-text whitespace-pre-wrap px-2.5 pb-1 text-[11px] italic text-(--color-text)"
+          onClick={() => setNoteDraft(groupNote)}
+          title="Click to edit"
+        >
+          📝 {groupNote}
+        </p>
+      )}
+      {canNote && noteDraft !== null && (
+        <form
+          className="flex items-start gap-1.5 px-2.5 pb-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveNote();
+          }}
+        >
+          <textarea
+            autoFocus
+            rows={2}
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setNoteDraft(null);
+              } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                saveNote();
+              }
+            }}
+            maxLength={4000}
+            aria-label={`Note for ${group.label}`}
+            placeholder="Note for this group… (⌘↵ to save)"
+            className="min-w-0 flex-1 resize-y rounded border border-(--color-border-hard) bg-(--color-surface) px-1.5 py-1 text-[11px] text-(--color-text) outline-none"
+          />
+          <button
+            type="submit"
+            aria-label="Save note"
+            className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-neon-600 px-2 text-[11px] font-bold text-white hover:bg-neon-700"
+          >
+            Save
+          </button>
+        </form>
+      )}
       {counts && isTag && (
         <p className="m-0 px-2.5 pb-1 text-[10px] text-(--color-text-faint)">
           {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail

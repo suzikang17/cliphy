@@ -10,6 +10,7 @@ import { ShortcutHelp } from "./ShortcutHelp";
 import { PinnedGroup } from "./PinnedGroup";
 import { ClosedGroups } from "./ClosedGroups";
 import { staleTabs } from "../../lib/tabs/stale";
+import { useGroupNotes } from "../../lib/tabs/groupNotes";
 import { countByFirstTag, groupCounts, pinsForGroup } from "../../lib/tabs/closedGroups";
 import { listTrail } from "../../lib/api";
 import type { TabGroup } from "../../lib/tabs/organize";
@@ -54,6 +55,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   // Keyboard requests to open a row's Move picker / a group's editor (nonce re-triggers).
   const [moveRequest, setMoveRequest] = useState<{ tabId: number; n: number } | null>(null);
   const [mergeRequest, setMergeRequest] = useState<{ key: string; n: number } | null>(null);
+  const [noteRequest, setNoteRequest] = useState<{ key: string; n: number } | null>(null);
   // Last merge, undoable for 10 seconds.
   const [lastMerge, setLastMerge] = useState<{ text: string; undo: () => Promise<void> } | null>(
     null,
@@ -112,6 +114,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   );
   // Keyboard order: closed pinned pages, then open tabs, then Recently closed.
   const pagePins = usePagePins(org.authed);
+  const groupNotes = useGroupNotes(org.authed);
   const openByKey = useMemo(
     () => new Map(org.tabs.map((t) => [normalizeUrl(t.url) ?? t.url, t])),
     [org.tabs],
@@ -305,6 +308,10 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         case "stowStale":
           if (org.authed && stale.length > 0) void org.stowTabs(stale);
           break;
+        case "noteGroup":
+          if (group?.kind === "tag")
+            setNoteRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
+          break;
         case "closeGroupKeep":
           if (group && group.kind !== "done") void org.closeGroup(group);
           break;
@@ -388,6 +395,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         </p>
       )}
       {pagePins.error && <p className="m-0 text-[11px] text-red-600">{pagePins.error}</p>}
+      {groupNotes.error && <p className="m-0 text-[11px] text-red-600">{groupNotes.error}</p>}
 
       {org.authed && stale.length > 0 && (
         <button
@@ -525,6 +533,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               onMergeInto={(from, into) => void mergeInto(from, into)}
               mergeTargets={org.groups.filter((g) => g.key !== group.key && g.kind !== "done")}
               mergeNonce={mergeRequest?.key === group.key ? mergeRequest.n : undefined}
+              note={group.kind === "tag" ? groupNotes.notes[group.value] : undefined}
+              onSaveNote={(tag, text) => void groupNotes.save(tag, text)}
+              noteNonce={noteRequest?.key === group.key ? noteRequest.n : undefined}
             />
           ))
         )}

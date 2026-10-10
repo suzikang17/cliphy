@@ -319,6 +319,44 @@ describe("tabs routes", () => {
     expect(organizeMock).not.toHaveBeenCalled();
   });
 
+  it("GET /notes returns a tag → note map", async () => {
+    fromImpl = () => mockChain({ data: [{ tag: "client:acme", note: "invoice due Fri" }] });
+    const res = await app().request("/tabs/notes");
+    expect(await res.json()).toEqual({ notes: { "client:acme": "invoice due Fri" } });
+  });
+
+  it("PUT /notes/:tag saves a trimmed note for the tag; empty deletes it", async () => {
+    const chain = mockChain({ data: null, error: null });
+    fromImpl = () => chain;
+    const put = (body: unknown) =>
+      app().request(`/tabs/notes/${encodeURIComponent("Client:Acme")}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await put({ note: "  invoice due Fri  " })).status).toBe(200);
+    expect(chain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "u1", tag: "client:acme", note: "invoice due Fri" }),
+      { onConflict: "user_id,tag" },
+    );
+    await put({ note: "   " });
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith("user_id", "u1");
+  });
+
+  it("PUT /notes/:tag rejects a non-string or overlong note, and a tag with % is fine", async () => {
+    const put = (tag: string, body: unknown) =>
+      app().request(`/tabs/notes/${encodeURIComponent(tag)}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await put("x", { note: 5 })).status).toBe(400);
+    expect((await put("x", { note: "x".repeat(4001) })).status).toBe(400);
+    fromImpl = () => mockChain({ data: null, error: null });
+    expect((await put("100% done", { note: "ok" })).status).toBe(200);
+  });
+
   it("PUT /hints/:tag upserts hints", async () => {
     const chain = mockChain({ data: null, error: null });
     fromImpl = () => chain;

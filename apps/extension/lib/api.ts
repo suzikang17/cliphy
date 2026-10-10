@@ -537,3 +537,17 @@ export async function resumeGroup(key: string) {
     method: "POST",
   });
 }
+
+// ── Group notes ──────────────────────────────────────────────
+
+export async function getGroupNotes() {
+  return request<{ notes: Record<string, string> }>(API_ROUTES.TABS.NOTES);
+}
+
+/** An empty note deletes it. */
+export async function putGroupNote(tag: string, note: string) {
+  return request<{ tag: string; note: string }>(API_ROUTES.TABS.NOTE(tag), {
+    method: "PUT",
+    body: JSON.stringify({ note }),
+  });
+}
