@@ -62,3 +62,5 @@ title: "Day 68 — Durable groups & pins: the Tabs view as a trustworthy tab man
   - Group stats moved to the card bottom and ✕ to the far right (`e8a4979`).
   - Compact "Into" dropdown on Recently closed rows (`5050c84`). Checked with a headless-Chrome screenshot using the built CSS.
   - **Tile view** (`08d6996`): List / Tiles toggle, **v** to switch, remembered in `tabs:view`. Tiles show the page's `og:image`, read only while tiles are on, with a 1.5s timeout per tab. The image address is kept locally (`tabs:previews`, 500 max) and never sent anywhere. Pages without one show the site icon.
+- **Tiles**: masonry with 4 columns (`f5352b8`). Banner/logo-shaped previews (aspect ratio >2.4 or <0.5) sit whole in a fixed box instead of a thin strip (`9a69bfa`).
+- **Saved summaries in groups** (`HEAD`): each tag group lists your saved Cliphy clips with that tag (▶ video / 📄 article, title, first sentence of the summary; click opens it on cliphy.app). It uses the existing `GET /api/summaries?tag=&limit=12`, cached in `tabs:savedByTag`. `openWebApp` moved to `lib/webApp.ts`.
