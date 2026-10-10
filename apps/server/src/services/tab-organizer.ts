@@ -159,6 +159,7 @@ export async function organizeTabs({
   const done: string[] = [];
   const leftovers: TabInput[] = [];
 
+  const t0 = Date.now();
   if (isTaggerConfigured()) {
     const verdicts = await mapPool(tabs, JEV_CONCURRENCY, async (tab) => {
       try {
@@ -178,6 +179,8 @@ export async function organizeTabs({
     leftovers.push(...tabs);
   }
 
+  const jevMs = Date.now() - t0;
+  const t1 = Date.now();
   if (leftovers.length >= 2) {
     try {
       const grouped = await clusterLeftovers(leftovers, tags);
@@ -201,6 +204,8 @@ export async function organizeTabs({
     assigned: tabs.length - leftovers.length,
     leftovers: leftovers.length,
     done: done.length,
+    jevMs,
+    claudeMs: Date.now() - t1,
   });
   return { assignments, done };
 }

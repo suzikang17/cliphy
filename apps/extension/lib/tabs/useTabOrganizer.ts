@@ -122,10 +122,18 @@ export function useTabOrganizer() {
     let more = false;
     try {
       const granted = grantedRef.current;
+      const t0 = performance.now();
       const inputs = await Promise.all(
         toSend.map(async (t) => buildTabInput(t, await extractFor(t, granted))),
       );
+      const t1 = performance.now();
       const res = await organizeTabs(inputs);
+      console.debug("[Cliphy tabs] organize", {
+        tabs: toSend.length,
+        withText: inputs.filter((i) => i.text).length,
+        extractMs: Math.round(t1 - t0),
+        serverMs: Math.round(performance.now() - t1),
+      });
       const { assignments, done } = applyOrganizeResponse(toSend, res);
       await saveAssignments(assignments, done);
       await reloadState();
