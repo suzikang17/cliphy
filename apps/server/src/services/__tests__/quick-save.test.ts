@@ -141,4 +141,14 @@ describe("quickSave", () => {
     expect(tagClipMock).not.toHaveBeenCalled();
     expect(r).toMatchObject({ ok: true, tags: ["project:lotus-bech"] });
   });
+
+  it("saves your note as the clip's notes", async () => {
+    const insert = setup({});
+    tagClipMock.mockResolvedValue({ apply: [], suggest: [] });
+    enrichMock.mockResolvedValue({ summary: "s", tags: [], category: "reading" });
+    await quickSave({ ...page, url: "https://n.com", note: "follow up Friday" });
+    expect(insert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_notes: "follow up Friday" }),
+    );
+  });
 });

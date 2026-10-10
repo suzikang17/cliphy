@@ -20,6 +20,8 @@ export interface QuickSaveInput {
   title: string;
   description?: string;
   text?: string;
+  /** Your note on the page → the clip's notes. */
+  note?: string;
 }
 
 export type QuickSaveResult =
@@ -122,6 +124,7 @@ export async function quickSave(input: QuickSaveInput): Promise<QuickSaveResult>
       status: "completed",
       tags,
       suggested_tags: suggestedTags,
+      ...(input.note && { user_notes: input.note }),
       ...(enrichment && {
         category: enrichment.category,
         summary_json: { summary: enrichment.summary, keyPoints: [], timestamps: [] },

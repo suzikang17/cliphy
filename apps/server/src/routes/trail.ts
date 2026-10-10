@@ -32,6 +32,8 @@ function parseItem(raw: unknown): TrailCaptureItem | null {
     title: typeof r.title === "string" ? r.title : "",
     closedAt: r.closedAt,
     ...(typeof r.openedAt === "number" && Number.isFinite(r.openedAt) && { openedAt: r.openedAt }),
+    ...(typeof r.customTitle === "string" && { customTitle: r.customTitle.trim().slice(0, 200) }),
+    ...(typeof r.note === "string" && { note: r.note.trim().slice(0, 500) }),
   };
 }
 
@@ -117,7 +119,12 @@ trailRoutes.post("/:id/promote", async (c) => {
   const userId = c.get("userId");
   const item = await getTrailItem(userId, c.req.param("id"));
   if (!item) return c.json({ error: "Not found" }, 404);
-  const r = await quickSave({ userId, url: item.url, title: item.title });
+  const r = await quickSave({
+    userId,
+    url: item.url,
+    title: item.customTitle || item.title,
+    note: item.note,
+  });
   if (!r.ok) return c.json(r.body, r.status);
   await deleteTrailItem(userId, item.id);
   return c.json({ clip: toClip(r.clip), tags: r.tags }, r.duplicate ? 200 : 201);

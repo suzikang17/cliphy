@@ -28,6 +28,8 @@ export function toTrailItem(row: Record<string, unknown>): TrailItem {
     openedAt: (row.opened_at as string) ?? undefined,
     closedAt: row.closed_at as string,
     closeCount: (row.close_count as number) ?? 1,
+    ...(row.custom_title ? { customTitle: row.custom_title as string } : {}),
+    ...(row.note ? { note: row.note as string } : {}),
   };
 }
 
@@ -81,6 +83,9 @@ export async function captureTrail(userId: string, raw: TrailCaptureItem[]): Pro
           title: item.title.slice(0, 500),
           closed_at: iso(item.closedAt),
           close_count: ((row.close_count as number) ?? 1) + 1,
+          // Only overwrite your name/note when the tab carried one.
+          ...(item.customTitle !== undefined && { custom_title: item.customTitle || null }),
+          ...(item.note !== undefined && { note: item.note || null }),
         })
         .eq("id", row.id as string);
       if (!error) count++;
@@ -100,6 +105,8 @@ export async function captureTrail(userId: string, raw: TrailCaptureItem[]): Pro
       tags: tags[i],
       opened_at: item.openedAt ? iso(item.openedAt) : null,
       closed_at: iso(item.closedAt),
+      custom_title: item.customTitle || null,
+      note: item.note || null,
     })),
   );
   if (error) {
@@ -128,7 +135,8 @@ async function tagFresh(userId: string, items: TrailCaptureItem[]): Promise<stri
   async function worker() {
     while (next < items.length) {
       const i = next++;
-      const { url, title } = items[i];
+      const { url } = items[i];
+      const title = [items[i].customTitle, items[i].title].filter(Boolean).join(" — ");
       const kw = matchAllKeywordTags({ url, title }, keywords);
       let jev: string[] = [];
       if (useJev) {
@@ -169,7 +177,9 @@ export async function listTrail(
   const q = opts.q ? sanitize(opts.q) : "";
   if (q) {
     const tag = q.toLowerCase().replace(/[{}"]/g, "");
-    query = query.or(`title.ilike.%${q}%,url.ilike.%${q}%,tags.cs.{"${tag}"}`);
+    query = query.or(
+      `title.ilike.%${q}%,url.ilike.%${q}%,custom_title.ilike.%${q}%,note.ilike.%${q}%,tags.cs.{"${tag}"}`,
+    );
   }
   const { data, error } = await query;
   if (error) throw new Error("Failed to list trail");

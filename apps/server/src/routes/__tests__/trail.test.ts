@@ -114,7 +114,12 @@ describe("trail routes", () => {
     const res = await app().request("/trail/t1/promote", { method: "POST" });
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ clip: { id: "c1" }, tags: ["design"] });
-    expect(quickSaveMock).toHaveBeenCalledWith({ userId: "u1", url: "https://a.com", title: "A" });
+    expect(quickSaveMock).toHaveBeenCalledWith({
+      userId: "u1",
+      url: "https://a.com",
+      title: "A",
+      note: undefined,
+    });
     expect(svc.deleteTrailItem).toHaveBeenCalledWith("u1", "t1");
   });
 
@@ -123,5 +128,41 @@ describe("trail routes", () => {
     expect((await app().request("/trail/x/promote", { method: "POST" })).status).toBe(404);
     svc.deleteTrailItem.mockResolvedValue(false);
     expect((await app().request("/trail/x", { method: "DELETE" })).status).toBe(404);
+  });
+
+  it("promote keeps your name as the clip title and your note as its notes", async () => {
+    svc.getTrailItem.mockResolvedValue({
+      id: "t2",
+      url: "https://dashboard.stripe.com",
+      title: "Dashboard – Stripe",
+      customTitle: "Lotus invoice #3",
+      note: "waiting on client",
+    });
+    quickSaveMock.mockResolvedValue({
+      ok: true,
+      clip: { id: "c2", tags: [], created_at: "t", updated_at: "t" },
+      tags: [],
+      suggestedTags: [],
+    });
+    await app().request("/trail/t2/promote", { method: "POST" });
+    expect(quickSaveMock).toHaveBeenCalledWith({
+      userId: "u1",
+      url: "https://dashboard.stripe.com",
+      title: "Lotus invoice #3",
+      note: "waiting on client",
+    });
+  });
+
+  it("POST / accepts a name and note per item", async () => {
+    svc.captureTrail.mockResolvedValue(1);
+    await app().request(
+      "/trail",
+      json("POST", {
+        items: [
+          { url: "https://a.com", title: "A", closedAt: 1, customTitle: " Mine ", note: "n" },
+        ],
+      }),
+    );
+    expect(svc.captureTrail.mock.calls[0][1][0]).toMatchObject({ customTitle: "Mine", note: "n" });
   });
 });

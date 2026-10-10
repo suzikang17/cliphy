@@ -438,6 +438,10 @@ export interface TrailItem {
   closedAt: string;
   /** How many times this page was closed (one row per URL). */
   closeCount: number;
+  /** Your own name for the page, set in the Tabs view. */
+  customTitle?: string;
+  /** Your quick note on the page. */
+  note?: string;
 }
 
 /** POST /api/trail body — sent by the extension in small batches. */
@@ -447,6 +451,8 @@ export interface TrailCaptureItem {
   /** ms since epoch */
   openedAt?: number;
   closedAt: number;
+  customTitle?: string;
+  note?: string;
 }
 
 export interface TrailListResponse {

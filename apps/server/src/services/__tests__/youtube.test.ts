@@ -5,8 +5,13 @@ vi.stubGlobal("fetch", mockFetch);
 
 afterEach(() => vi.clearAllMocks());
 
-const { fetchChannelVideos, fetchLikedVideos, fetchMyPlaylists, fetchPlaylistVideos, parseSourceUrl } =
-  await import("../youtube.js");
+const {
+  fetchChannelVideos,
+  fetchLikedVideos,
+  fetchMyPlaylists,
+  fetchPlaylistVideos,
+  parseSourceUrl,
+} = await import("../youtube.js");
 
 describe("fetchChannelVideos", () => {
   it("parses RSS feed and returns video previews", async () => {

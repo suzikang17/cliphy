@@ -42,14 +42,12 @@ vi.mock("../../lib/supabase.js", () => ({
 let mockAuthMethod: "jwt" | "api_key" = "jwt";
 
 vi.mock("../../middleware/auth.js", () => ({
-  authMiddleware: vi.fn(
-    (c: { set: (k: string, v: string) => void }, next: () => unknown) => {
-      c.set("userId", "user-123");
-      c.set("userEmail", "test@example.com");
-      c.set("authMethod", mockAuthMethod);
-      return next();
-    },
-  ),
+  authMiddleware: vi.fn((c: { set: (k: string, v: string) => void }, next: () => unknown) => {
+    c.set("userId", "user-123");
+    c.set("userEmail", "test@example.com");
+    c.set("authMethod", mockAuthMethod);
+    return next();
+  }),
 }));
 
 const { apiKeyRoutes } = await import("../api-keys.js");

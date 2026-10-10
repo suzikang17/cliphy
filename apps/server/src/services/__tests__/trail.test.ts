@@ -143,4 +143,36 @@ describe("trail service", () => {
     expect(await purgeExpiredTrail(T0)).toBe(2);
     expect(del.lt).toHaveBeenCalledWith("closed_at", new Date(T0 - 30 * 86_400_000).toISOString());
   });
+
+  it("stores your name and note for a page, and only overwrites them when the tab carried one", async () => {
+    const insert = chain({ error: null });
+    tables = {
+      clips: [chain({ data: [] }), chain({ data: [] })],
+      trail_items: [chain({ data: [] }), insert],
+      tag_hints: [chain({ data: [] })],
+    };
+    await captureTrail("u1", [
+      {
+        url: "https://dashboard.stripe.com",
+        title: "Dashboard – Stripe",
+        customTitle: "Lotus invoice #3",
+        note: "waiting on client",
+        closedAt: T0,
+      },
+    ]);
+    expect((insert.insert as ReturnType<typeof vi.fn>).mock.calls[0][0][0]).toMatchObject({
+      custom_title: "Lotus invoice #3",
+      note: "waiting on client",
+    });
+
+    const update = chain({ error: null });
+    tables = {
+      clips: [chain({ data: [] })],
+      trail_items: [chain({ data: [{ id: "t1", url: "https://a.com", close_count: 1 }] }), update],
+    };
+    await captureTrail("u1", [{ url: "https://a.com", title: "A", closedAt: T0 }]);
+    const patch = (update.update as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(patch).not.toHaveProperty("note");
+    expect(patch).not.toHaveProperty("custom_title");
+  });
 });

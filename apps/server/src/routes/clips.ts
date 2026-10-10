@@ -28,7 +28,13 @@ const QUICK_LIMIT_PER_HOUR = 120;
 
 clipsRoutes.post("/quick", async (c) => {
   const userId = c.get("userId");
-  let body: { url?: unknown; title?: unknown; description?: unknown; text?: unknown };
+  let body: {
+    url?: unknown;
+    title?: unknown;
+    description?: unknown;
+    text?: unknown;
+    note?: unknown;
+  };
   try {
     body = await c.req.json();
   } catch {
@@ -46,6 +52,7 @@ clipsRoutes.post("/quick", async (c) => {
     title: typeof body.title === "string" ? body.title.slice(0, 500) : "",
     description: typeof body.description === "string" ? body.description.slice(0, 500) : undefined,
     text: typeof body.text === "string" ? body.text.slice(0, 6000) : undefined,
+    note: typeof body.note === "string" ? body.note.trim().slice(0, 2000) || undefined : undefined,
   });
   if (!r.ok) return c.json(r.body, r.status);
   return c.json(
@@ -66,7 +73,10 @@ clipsRoutes.post("/", async (c) => {
     url?: string;
     imagePath?: string;
     tier?: "metadata" | "full";
+    /** Your note on the page (from the Tabs view) → the clip's notes. */
+    note?: string;
   }>();
+  const userNote = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
 
   // Image capture: run vision synchronously (reliable, no worker dependency) so
   // OCR/description + enrichment land at capture time.
@@ -155,6 +165,7 @@ clipsRoutes.post("/", async (c) => {
         source_type: sourceType,
         source_url: body.url,
         enrichment_tier: "metadata",
+        ...(userNote && { user_notes: userNote }),
         video_title: md.title,
         hero_image_url: md.heroImageUrl ?? null,
         source_metadata: { siteName: md.siteName, faviconUrl: md.faviconUrl },
@@ -174,6 +185,7 @@ clipsRoutes.post("/", async (c) => {
     source_type: sourceType,
     source_url: body.url,
     tags: [],
+    ...(userNote && { user_notes: userNote }),
   };
 
   try {
