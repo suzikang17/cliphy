@@ -372,3 +372,30 @@ export interface PinnedItem {
   pinnedAt: string;
   updatedAt: string;
 }
+
+// ── Tabs view (side panel tab organizer) ─────────────────────
+
+/** One open tab sent for organizing. `text` only when page-content reading is granted. */
+export interface TabInput {
+  /** Client-chosen id, echoed back in assignments (e.g. String(tab.id)). */
+  key: string;
+  url: string;
+  title: string;
+  description?: string;
+  /** Up to 2,000 chars of main page text. */
+  text?: string;
+  /** Page scrolled to ≥ 90% — a "done reading" signal. */
+  scrolledToEnd?: boolean;
+}
+
+export type TabAssignment = { tag: string } | { proposed: string } | { none: true };
+
+export interface OrganizeTabsResponse {
+  assignments: Record<string, TabAssignment>;
+  /** Keys of tabs judged "probably done". */
+  done: string[];
+}
+
+export interface TabHintsResponse {
+  hints: Record<string, string>;
+}

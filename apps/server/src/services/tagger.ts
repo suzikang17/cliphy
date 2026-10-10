@@ -4,7 +4,7 @@ import { tagPath, type SummaryJson } from "@cliphy/shared";
 // Jev (TypeSafe AI) classifies; Claude generates. Jev decides which of the user's
 // existing tags apply and whether a Claude-proposed topic duplicates one of them.
 // It can't invent tag names — new tags come from summaryJson.topics.
-const MODEL = "jev-1.13.0";
+export const JEV_MODEL = "jev-1.13.0";
 
 /** Minimum P(yes) for an existing tag to be auto-applied. */
 export const APPLY_THRESHOLD = 0.7;
@@ -21,7 +21,7 @@ export function isTaggerConfigured(): boolean {
   return Boolean(process.env.TYPESAFE_API_KEY);
 }
 
-function getClient(): TypeSafeClient {
+export function getJevClient(): TypeSafeClient {
   client ??= new TypeSafeClient({ timeout: 10_000 });
   return client;
 }
@@ -76,8 +76,8 @@ export async function tagClip({
     );
   });
 
-  const { answers } = await getClient().systemOne({
-    model: MODEL,
+  const { answers } = await getJevClient().systemOne({
+    model: JEV_MODEL,
     state: {
       title: title ?? null,
       summary: summaryJson.summary,

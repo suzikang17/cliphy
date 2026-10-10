@@ -30,6 +30,7 @@ import { clipsRoutes } from "./routes/clips.js";
 import { pinsRoutes } from "./routes/pins.js";
 import { notesRoutes } from "./routes/notes.js";
 import { podcastRoutes } from "./routes/podcasts.js";
+import { tabsRoutes } from "./routes/tabs.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 import { visionClip } from "./functions/visionClip.js";
@@ -112,6 +113,7 @@ app.route("/admin", adminRoutes);
 app.route("/settings", settingsRoutes);
 app.route("/keys", apiKeyRoutes);
 app.route("/podcasts", podcastRoutes);
+app.route("/tabs", tabsRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {

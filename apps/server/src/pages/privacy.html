@@ -212,6 +212,17 @@
       <a href="https://typesafe.ai/privacy">TypeSafe's privacy policy</a>.
     </p>
 
+    <p>
+      <strong>Tab organization (optional).</strong> If you turn on "Organize by page content" in the
+      extension's Tabs view, Cliphy reads the title, address, description and up to 2,000 characters
+      of text from your open tabs and sends them to Cliphy's server to group them. They are
+      classified by TypeSafe AI's Jev API, and tabs that match none of your tags are sent to
+      Anthropic's Claude API to suggest group names. This data is processed to return the grouping
+      and is not stored by Cliphy. Pages containing a password field are never read. Without this
+      setting, only tab titles and addresses are used. You can revoke the permission at any time in
+      Chrome's extension settings.
+    </p>
+
     <h2>5. Third-Party Services</h2>
     <p>We share data with the following service providers, solely to operate Cliphy:</p>
     <table>
@@ -222,13 +233,19 @@
       </tr>
       <tr>
         <td><a href="https://www.anthropic.com/privacy">Anthropic</a></td>
-        <td>AI summary generation &amp; tag suggestions</td>
-        <td>Video transcripts, summary content, tag names (not retained)</td>
+        <td>AI summary generation, tag suggestions &amp; tab group names</td>
+        <td>
+          Video transcripts, summary content, tag names; titles, addresses and text of unmatched
+          tabs if tab organization is on (not retained)
+        </td>
       </tr>
       <tr>
         <td><a href="https://typesafe.ai/privacy">TypeSafe AI</a></td>
-        <td>Automatic tag classification</td>
-        <td>Video title, summary content, tag names (not used for model training)</td>
+        <td>Automatic tag and tab classification</td>
+        <td>
+          Video title, summary content, tag names; tab titles, addresses and page text if tab
+          organization is on (not used for model training)
+        </td>
       </tr>
       <tr>
         <td><a href="https://stripe.com/privacy">Stripe</a></td>

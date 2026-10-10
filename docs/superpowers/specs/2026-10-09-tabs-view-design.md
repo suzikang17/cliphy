@@ -127,9 +127,10 @@ text? }`. Two questions in the same call:
 <hints>", …, none: "None of these" })`. Assign when choice ≠ none and confidence ≥ **0.6**
      (`ASSIGN_THRESHOLD`).
    - `done`: `noul("Is the user most likely finished with this page — e.g. search results, a
-  login/confirmation/checkout-complete page, an error page, or an article already read?")`.
-     Flag when P(yes) ≥ **0.8** (`DONE_THRESHOLD`, conservative — a wrongly hidden tab is worse
-     than a missed one). Asked for every tab; the extractor also reports `scrolledToEnd` (scrollY + innerHeight ≥ 90% of scrollHeight) in
+login/confirmation/checkout-complete page, an error page, or an article already read?")`.
+     Flag when P(yes) ≥ **0.7** (`DONE_THRESHOLD`; tuned on live Jev 2026-10-09 — transient pages
+     scored 0.77–0.95, live work ~0.18. The question is phrased as "Is this a transient page the user
+     no longer needs open…"; the "is the user finished…" phrasing scored search/login pages ~0.2). Asked for every tab; the extractor also reports `scrolledToEnd` (scrollY + innerHeight ≥ 90% of scrollHeight) in
      state as a signal.
      Model pinned `jev-1.13.0` (shared constant with `tagger.ts`).
 3. **Claude Haiku, one call for all leftovers** (only if ≥ 2 leftovers): input = leftover tabs'
