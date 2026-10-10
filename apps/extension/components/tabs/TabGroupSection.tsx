@@ -344,13 +344,6 @@ export function TabGroupSection({
               : "opacity-0 focus-within:opacity-100 group-hover/section:opacity-100"
           }`}
         >
-          <IconButton
-            label={`Close all ${group.tabs.length} tabs in ${group.label}`}
-            onClick={() => onCloseTabs(group.tabs)}
-            kbd={showLabels ? labelFor("closeGroup") : undefined}
-          >
-            ✕
-          </IconButton>
           {canStow && !isDone && (
             <IconButton
               label={`Stow all ${group.tabs.length} tabs in ${group.label} (save to Cliphy, then close)`}
@@ -443,6 +436,13 @@ export function TabGroupSection({
               </div>
             )}
           </span>
+          <IconButton
+            label={`Close all ${group.tabs.length} tabs in ${group.label}`}
+            onClick={() => onCloseTabs(group.tabs)}
+            kbd={showLabels ? labelFor("closeGroup") : undefined}
+          >
+            ✕
+          </IconButton>
         </span>
       </header>
 
@@ -492,12 +492,6 @@ export function TabGroupSection({
           </button>
         </form>
       )}
-      {counts && isTag && (
-        <p className="m-0 px-2.5 pb-1 text-[10px] text-(--color-text-faint)">
-          {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
-        </p>
-      )}
-
       {mergePicking && (
         <div className="mx-2.5 mb-2 flex items-center gap-2">
           <select
@@ -762,6 +756,11 @@ export function TabGroupSection({
             )),
           )}
         </ul>
+      )}
+      {counts && isTag && (
+        <p className="m-0 border-t border-(--color-border-soft) px-2.5 py-1 text-[10px] text-(--color-text-faint)">
+          {counts.open} open · {counts.pinned} pinned · {counts.trail} in trail
+        </p>
       )}
     </section>
   );
