@@ -12,6 +12,7 @@ import { signImageUrl } from "../lib/storage.js";
 import { findRelatedClips } from "../services/related.js";
 import { enrichClip } from "../services/enrich.js";
 import { runImageVision } from "../services/processImage.js";
+import { enqueueVideo } from "../services/enqueue-video.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
@@ -76,6 +77,15 @@ clipsRoutes.post("/", async (c) => {
   if (!body.url) return c.json({ error: "url is required" }, 400);
 
   const sourceType = detectSourceType(body.url);
+
+  // YouTube → the summarize pipeline (same path as POST /queue), so share-sheet,
+  // capture-sheet and API-key clients get a real summary, not a bare link.
+  // Dedup/rate limits are the queue's (windowed per video), not per-URL below.
+  if (sourceType === "youtube") {
+    const result = await enqueueVideo({ userId, videoUrl: body.url });
+    if (!result.ok) return c.json(result.body, result.status);
+    return c.json({ clip: toClip(result.row) }, 201);
+  }
 
   // Dedup: one non-deleted clip per (user, url).
   const { data: existing } = await supabase
@@ -158,8 +168,8 @@ clipsRoutes.post("/", async (c) => {
       };
       insert.status = "completed";
     } else {
-      // youtube/podcast URLs shouldn't reach here from the clips path;
-      // save a bare link so nothing is lost.
+      // Other types (e.g. podcast) have no extractor on this path yet;
+      // save a bare link so nothing is lost. YouTube is routed to the queue above.
       insert.status = "completed";
     }
   } catch (err) {
