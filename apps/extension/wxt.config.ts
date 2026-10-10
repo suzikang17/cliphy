@@ -10,7 +10,7 @@ export default defineConfig({
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAh7dyfIsSttx5YvhSIZa3ip65nvA/Smvr0+ucLxZjKcRwl8qAsc8tObthwSQlj8kKl/VQiVCZiXVHZWxqjIWF7kqycP5knax4ahSk0pQ3XVVJFUWtNxW2QCeYW6/44I6VG5yVa3R2QlgZP6jFRCKkaDhtdMdq3/mOOU2zM0I8zvTVyJbJzlQL8QkFfgui1R5nX1/Sc1SZKtV2e1pvCz4DvV9zFh3ihzev2p0GZLBzVx28AuRpi+WyUgAkmSQ0N0FouwJSTs6w1ykHyw/zzyHdRfhUGAR5ubn3+bRRE3Z2U+C8gHX3OGvLSusYv06L7+/wN6aE3SnFBJXNCNcELx31NQIDAQAB",
     name: "Cliphy",
     description: "Queue YouTube videos and get AI-powered summaries",
-    version: "1.0.0",
+    version: "1.1.0",
     permissions: ["storage", "tabs", "identity", "contextMenus", "sidePanel", "favicon"],
     // Requested at runtime, never at install. Adding "history" to `permissions`
     // would raise the install warning level, and Chrome DISABLES an
