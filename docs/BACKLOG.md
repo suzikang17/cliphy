@@ -39,3 +39,9 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Video / screen-recording capture — sample keyframes + transcribe audio (reuse Whisper). Deferred from subproject #2.
 - [ ] Auto-detect recent screenshots on app open — offer to save screenshots since last visit. Deferred from subproject #2.
 - [ ] Orphaned-upload cleanup — periodic job to delete clip-images objects whose POST never landed. Deferred from subproject #2.
+- [ ] Route web/tweet `enrich` tagging through `services/tagger.ts` (Jev) — enrich still auto-applies Claude tags directly, incl. new ones. See ADR 0048.
+- [ ] Backfill auto-tags/suggestions for clips summarized before 2026-10-09 (no `summary_json.topics`) — bulk auto-tag endpoint already handles them on demand.
+- [ ] Tune Jev thresholds (apply 0.7 / duplicate 0.5) from accept/dismiss data; consider remembering dismissed suggestions per user.
+- [ ] Mobile: replace `Alert.alert` long-press + tag quick-pick with an ActionSheet (Android caps Alert at 3 buttons; `Alert.prompt` is iOS-only).
+- [ ] Fix pre-existing server test failures: admin `set-count` tests (route missing), Voyage embedding mock, local `sharp` libvips dlopen.
+- [ ] Local dev: Decodo proxy returns 407 (rotate creds in root `.env`); local Anthropic key out of credits.
