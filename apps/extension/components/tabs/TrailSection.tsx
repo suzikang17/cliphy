@@ -259,7 +259,7 @@ function TrailRow({
             onClick={() => onReopenInto(suggested)}
             title={`Reopen into ${groupLabel(suggested)}`}
             aria-label={`Reopen ${item.title} into ${groupLabel(suggested)}`}
-            className="max-w-28 cursor-pointer truncate rounded border border-(--color-border-soft) bg-neon-100/70 px-1.5 py-0.5 text-[10px] font-bold text-(--color-text) hover:bg-neon-100 dark:bg-neon-900/30"
+            className="h-6 max-w-32 shrink-0 cursor-pointer truncate rounded border border-(--color-border-soft) bg-neon-100/70 px-1.5 py-0 text-[11px] leading-none font-bold text-(--color-text) hover:bg-neon-100 dark:bg-neon-900/30"
           >
             ↳ {groupLabel(suggested)}
           </button>
@@ -272,7 +272,7 @@ function TrailRow({
             onChange={(e) => {
               if (e.target.value) onReopenInto(e.target.value as GroupKey);
             }}
-            className="max-w-24 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) px-1 py-0.5 text-[10px] text-(--color-text-faint)"
+            className="h-6 w-28 shrink-0 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) py-0 pr-1 pl-1.5 text-[11px] leading-none text-(--color-text-faint)"
           >
             <option value="">Reopen into…</option>
             {others.map((k) => (
