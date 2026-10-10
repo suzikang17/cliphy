@@ -1,4 +1,5 @@
 import type { QuickSaveBody, QuickSaveResponse } from "./save/quickSave";
+import type { PageOverrideItem } from "@cliphy/shared";
 import { API_ROUTES } from "@cliphy/shared";
 import type {
   PinnedItem,
@@ -426,7 +427,7 @@ export async function getTabHints() {
 export async function putTabHint(
   tag: string,
   hints: string,
-  opts: { keep?: boolean; keywords?: string[] } = {},
+  opts: { keep?: boolean; keywords?: string[]; fromProposal?: string } = {},
 ) {
   return request<{ tag: string; hints: string; keywords: string[] }>(API_ROUTES.TABS.HINT(tag), {
     method: "PUT",
@@ -434,7 +435,17 @@ export async function putTabHint(
       hints,
       ...(opts.keep && { keep: true }),
       ...(opts.keywords && { keywords: opts.keywords }),
+      // "Save as tag": pages the AI proposed under this name get the tag on every device.
+      ...(opts.fromProposal && { fromProposal: opts.fromProposal }),
     }),
+  });
+}
+
+/** Your manual group choices for pages (null clears), persisted across devices. */
+export async function putPageOverrides(items: PageOverrideItem[]) {
+  return request<{ saved: number }>("/api/tabs/overrides", {
+    method: "PUT",
+    body: JSON.stringify({ items }),
   });
 }
 

@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tabs } from "wxt/browser";
 import { isAuthenticated } from "../auth";
-import { AuthError, RateLimitError, getTabHints, organizeTabs, putTabHint, stowTab } from "../api";
+import {
+  AuthError,
+  RateLimitError,
+  getTabHints,
+  organizeTabs,
+  putPageOverrides,
+  putTabHint,
+  stowTab,
+} from "../api";
 import {
   clearAssignments,
   clearDone,
@@ -210,6 +218,13 @@ export function useTabOrganizer() {
         serverMs: Math.round(performance.now() - t1),
       });
       const { assignments, done } = applyOrganizeResponse(toSend, res);
+      // Manual choices saved on the server (e.g. from another device) — local ones win.
+      const remote = res.overrides ?? {};
+      await Promise.all(
+        toSend
+          .filter((t) => remote[String(t.id)] && !stateRef.current.overrides[t.url])
+          .map((t) => setOverride(t.url, remote[String(t.id)] as GroupKey)),
+      );
       if (res.proposalKeywords && mounted.current) {
         setProposalKeywords((p) => ({ ...p, ...res.proposalKeywords }));
       }
@@ -443,12 +458,19 @@ export function useTabOrganizer() {
     return saved.length;
   }, []);
 
+  /** Best-effort server sync of manual choices; the local cache is the source of truth right away. */
+  const syncOverrides = useCallback((items: { url: string; override: GroupKey | null }[]) => {
+    if (!authedRef.current || items.length === 0) return;
+    void putPageOverrides(items).catch(() => {});
+  }, []);
+
   const moveTo = useCallback(
     async (tab: OpenTab, key: GroupKey) => {
       await setOverride(tab.url, key);
+      syncOverrides([{ url: tab.url, override: key }]);
       await reloadState();
     },
-    [reloadState],
+    [reloadState, syncOverrides],
   );
 
   const dismissProposal = useCallback(
@@ -471,6 +493,7 @@ export function useTabOrganizer() {
         (t) => [t.url, stateRef.current.overrides[t.url]] as const,
       );
       await Promise.all(source.tabs.map((t) => setOverride(t.url, target.key)));
+      syncOverrides(source.tabs.map((t) => ({ url: t.url, override: target.key })));
 
       let undoMeta = async () => {};
       if (target.kind === "tag" && (source.kind === "tag" || source.kind === "proposed")) {
@@ -501,11 +524,12 @@ export function useTabOrganizer() {
 
       return async () => {
         await Promise.all(prevOverrides.map(([url, key]) => restoreOverride(url, key)));
+        syncOverrides(prevOverrides.map(([url, key]) => ({ url, override: key ?? null })));
         await undoMeta();
         await reloadState();
       };
     },
-    [hints, keywords, proposalKeywords, aliases, reloadState],
+    [hints, keywords, proposalKeywords, aliases, reloadState, syncOverrides],
   );
 
   /** Rename a page and/or set its note (stored per page, locally). */
@@ -522,7 +546,7 @@ export function useTabOrganizer() {
     async (name: string, rename?: string) => {
       const tag = normalizeTagName(rename ?? name) || name;
       const suggested = proposalKeywords[name] ?? [];
-      await putTabHint(tag, "", { keep: true, keywords: suggested });
+      await putTabHint(tag, "", { keep: true, keywords: suggested, fromProposal: name });
       if (suggested.length) setKeywords((k) => ({ ...k, [tag]: suggested }));
       const promoted: Record<string, { tag: string }> = {};
       for (const [url, a] of Object.entries(stateRef.current.assignments)) {

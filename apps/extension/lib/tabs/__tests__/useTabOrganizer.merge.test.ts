@@ -6,6 +6,7 @@ import "../../../test/browser-mock";
 import { browserMock } from "../../../test/browser-mock";
 
 const putTabHint = vi.fn().mockResolvedValue({ tag: "", hints: "", keywords: [] });
+const putPageOverrides = vi.fn().mockResolvedValue({ saved: 0 });
 
 vi.mock("../../auth", () => ({ isAuthenticated: vi.fn().mockResolvedValue(true) }));
 vi.mock("../../api", () => ({
@@ -20,6 +21,7 @@ vi.mock("../../api", () => ({
     done: [],
   }),
   putTabHint: (...a: unknown[]) => putTabHint(...a),
+  putPageOverrides: (...a: unknown[]) => putPageOverrides(...a),
   stowTab: vi.fn(),
 }));
 vi.mock("../openedAt", () => ({
@@ -92,10 +94,20 @@ describe("useTabOrganizer — merging groups", () => {
       keywords: ["we curate life", "typesafe"],
     });
     expect(local["tabs:tagAliases"]).toEqual({ ai: "design" });
+    // Manual choices reach the server, so other devices see the merge…
+    expect(putPageOverrides).toHaveBeenCalledWith([
+      { url: "https://typesafe.ai", override: "tag:design" },
+      { url: "https://console.typesafe.ai", override: "tag:design" },
+    ]);
 
     await act(async () => {
       await undo();
     });
+    // …and undo clears them there too.
+    expect(putPageOverrides).toHaveBeenLastCalledWith([
+      { url: "https://typesafe.ai", override: null },
+      { url: "https://console.typesafe.ai", override: null },
+    ]);
     expect(result.current.groups.map((g) => g.key).sort()).toEqual(["tag:ai", "tag:design"]);
     expect(putTabHint).toHaveBeenLastCalledWith("design", "interior studio work", {
       keep: true,
