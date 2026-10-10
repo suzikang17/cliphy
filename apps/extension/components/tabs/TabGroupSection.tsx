@@ -187,11 +187,14 @@ export function TabGroupSection({
           if (headerRef.current) e.dataTransfer.setDragImage(headerRef.current, 16, 14);
           draggingKey = group.key;
           dragActive.current = true;
-          // Defer so the drag image is captured before the group fades.
+          // Change nothing on the page during dragstart: Chromium aborts a drag
+          // whose source moves in that event (the list collapsing made upward
+          // drags lose the grabber). Fade + collapse one frame later instead.
           requestAnimationFrame(() => {
-            if (dragActive.current) setIsDragging(true);
+            if (!dragActive.current) return;
+            setIsDragging(true);
+            onDragStateChange?.(true);
           });
-          onDragStateChange?.(true);
         }}
         onDragEnd={() => {
           dragActive.current = false;

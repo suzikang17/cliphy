@@ -170,3 +170,38 @@ describe("suggested group: reason and rename", () => {
     expect(h.onSaveAsTag).toHaveBeenCalledWith("project:lotus-bech", "freelance:lotus-bech");
   });
 });
+
+describe("TabGroupSection drag start (2026-10-10: upward drags lost the grabber)", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — drag");
+  });
+  afterEach(cleanup);
+
+  it("doesn't collapse the list during dragstart — only a frame later, if still dragging", () => {
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const onDragStateChange = vi.fn();
+    renderGroup({}, { onReorder: vi.fn(), onDragStateChange });
+    const header = screen.getByText(/a long name/).closest("header")!;
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+
+    fireEvent.dragStart(header, { dataTransfer });
+    expect(onDragStateChange).not.toHaveBeenCalled(); // nothing moves during dragstart
+    act(() => frames.forEach((cb) => cb(0)));
+    expect(onDragStateChange).toHaveBeenCalledWith(true);
+
+    // A drag that ends before the frame never collapses anything.
+    onDragStateChange.mockClear();
+    frames.length = 0;
+    fireEvent.dragStart(header, { dataTransfer });
+    fireEvent.dragEnd(header, { dataTransfer });
+    act(() => frames.forEach((cb) => cb(0)));
+    expect(onDragStateChange).not.toHaveBeenCalledWith(true);
+    raf.mockRestore();
+  });
+});
