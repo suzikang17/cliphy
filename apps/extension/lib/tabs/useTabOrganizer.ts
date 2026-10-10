@@ -12,6 +12,9 @@ import {
   saveExtract,
   setOverride,
   restoreOverride,
+  loadProposals,
+  saveProposals,
+  pruneTabsCache,
 } from "./cache";
 import { extractPage, type ExtractResult } from "./extractPage";
 import {
@@ -213,6 +216,14 @@ export function useTabOrganizer() {
       if (res.proposalReasons && mounted.current) {
         setProposalReasons((p) => ({ ...p, ...res.proposalReasons }));
       }
+      const proposals: Record<string, { reason?: string; keywords?: string[] }> = {};
+      for (const [name, keywords] of Object.entries(res.proposalKeywords ?? {})) {
+        proposals[name] = { ...proposals[name], keywords };
+      }
+      for (const [name, reason] of Object.entries(res.proposalReasons ?? {})) {
+        proposals[name] = { ...proposals[name], reason };
+      }
+      if (Object.keys(proposals).length) void saveProposals(proposals).catch(() => {});
       await saveAssignments(assignments, done);
       await reloadState();
       if (mounted.current) setStatus("idle");
@@ -333,6 +344,19 @@ export function useTabOrganizer() {
   useEffect(() => {
     void loadGroupOrder().then((o) => mounted.current && setGroupOrder(o));
     void loadTagAliases().then((a) => mounted.current && setAliases(a));
+    // Suggestion reasons/keywords survive reloads; tidy the cache while we're here.
+    void loadProposals().then((p) => {
+      if (!mounted.current) return;
+      const kws: Record<string, string[]> = {};
+      const reasons: Record<string, string> = {};
+      for (const [name, v] of Object.entries(p)) {
+        if (v.keywords?.length) kws[name] = v.keywords;
+        if (v.reason) reasons[name] = v.reason;
+      }
+      setProposalKeywords((cur) => ({ ...kws, ...cur }));
+      setProposalReasons((cur) => ({ ...reasons, ...cur }));
+    });
+    void pruneTabsCache();
   }, []);
 
   const updateOrder = useCallback((next: GroupKey[]) => {
