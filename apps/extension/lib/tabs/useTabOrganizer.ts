@@ -27,6 +27,7 @@ import {
 } from "./organize";
 import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
+import { closeTabsAndAdvance } from "./nextTab";
 
 /** AI organize waits for tab activity to settle this long. */
 export const ORGANIZE_DEBOUNCE_MS = 3000;
@@ -102,6 +103,12 @@ export function useTabOrganizer() {
   authedRef.current = authed;
 
   const inFlight = useRef(false);
+  /**
+   * Tabs the panel itself just switched to. Clicking a row to peek at a
+   * "Probably done" tab must not clear its done flag — only switching to it
+   * yourself (outside the panel) means you're not done with it.
+   */
+  const peeking = useRef(new Set<number>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
   const scheduleRef = useRef<() => void>(() => {});
@@ -229,7 +236,9 @@ export function useTabOrganizer() {
       if (change.url !== undefined || change.status === "complete") scheduleOrganize();
     };
     const onActivated = async ({ tabId }: { tabId: number }) => {
+      const peek = peeking.current.delete(tabId);
       const list = await refreshTabs();
+      if (peek) return;
       const tab = list.find((t) => t.id === tabId);
       // Looking at a tab again means the user isn't done with it.
       if (tab && stateRef.current.done.has(tab.url)) {
@@ -285,20 +294,14 @@ export function useTabOrganizer() {
     void organize();
   }, [organize, reloadState]);
 
-  const activate = useCallback(
-    async (tab: OpenTab) => {
-      await browser.tabs.update(tab.id, { active: true });
-      await browser.windows.update(tab.windowId, { focused: true });
-      if (stateRef.current.done.has(tab.url)) {
-        await clearDone(tab.url);
-        await reloadState();
-      }
-    },
-    [reloadState],
-  );
+  const activate = useCallback(async (tab: OpenTab) => {
+    peeking.current.add(tab.id);
+    await browser.tabs.update(tab.id, { active: true });
+    await browser.windows.update(tab.windowId, { focused: true });
+  }, []);
 
   const closeTabs = useCallback(async (ids: number[]) => {
-    if (ids.length) await browser.tabs.remove(ids);
+    await closeTabsAndAdvance(ids);
   }, []);
 
   /** Stow each tab to the inbox, then close only the ones that saved. */
@@ -312,7 +315,7 @@ export function useTabOrganizer() {
         // Duplicate or failed save — never close a tab we didn't save.
       }
     }
-    if (saved.length) await browser.tabs.remove(saved.map((t) => t.id));
+    await closeTabsAndAdvance(saved.map((t) => t.id));
     return saved.length;
   }, []);
 
