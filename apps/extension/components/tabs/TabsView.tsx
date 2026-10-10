@@ -161,6 +161,13 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           ))
         )}
       </div>
+
+      {org.tabs.length > 0 && (
+        <p className="m-0 text-[10px] leading-snug text-(--color-text-faint)">
+          Missing a tab? Dia and Arc only show extensions tabs you’ve opened recently — click it in
+          your sidebar and it appears here.
+        </p>
+      )}
     </div>
   );
 }
