@@ -3,6 +3,7 @@ import { tagPath, matchKeywordTag } from "@cliphy/shared";
 import { isSkipped, type ExtractResult } from "./extractPage";
 import { siteGroups } from "./siteGroups";
 import { resolveAlias } from "./merge";
+import { dedupeKey } from "./dedupe";
 import { hostOf, type OpenTab } from "./types";
 
 /** Max tabs per organize request (server enforces the same cap). */
@@ -97,11 +98,31 @@ export function mergeGroups(
   keywords: Record<string, string[]> = {},
   aliases: Record<string, string> = {},
 ): TabGroup[] {
+  // One page, one group: every tab showing the same page goes where the
+  // strongest signal on any of its copies says (your choice > tag > suggestion
+  // > done > site), so "Close all" in one group never takes a page you filed
+  // somewhere else.
+  const rank = (tab: OpenTab, key: GroupKey) => {
+    if (state.overrides[tab.url]) return 5;
+    const { kind } = parseGroupKey(key);
+    return kind === "tag" ? 4 : kind === "proposed" ? 3 : kind === "done" ? 2 : 1;
+  };
+  const best = new Map<string, { key: GroupKey; rank: number }>();
+  const resolved = new Map<number, GroupKey>();
+  for (const tab of tabs) {
+    const key = resolveGroup(tab, state, keywords, aliases);
+    resolved.set(tab.id, key);
+    const page = dedupeKey(tab.url) ?? tab.url;
+    const r = rank(tab, key);
+    const cur = best.get(page);
+    if (!cur || r > cur.rank) best.set(page, { key, rank: r });
+  }
+
   const map = new Map<GroupKey, OpenTab[]>();
   // Site grouping is the base layer; walk it so host parsing lives in one place.
   for (const site of siteGroups(tabs)) {
     for (const tab of site.tabs) {
-      const key = resolveGroup(tab, state, keywords, aliases);
+      const key = best.get(dedupeKey(tab.url) ?? tab.url)?.key ?? resolved.get(tab.id)!;
       const list = map.get(key);
       if (list) list.push(tab);
       else map.set(key, [tab]);

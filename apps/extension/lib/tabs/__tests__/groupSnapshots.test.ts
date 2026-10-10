@@ -139,4 +139,17 @@ describe("group snapshots (autosaved tag groups)", () => {
     snaps = markResumed(snaps, "tag:lotus");
     expect(snaps["tag:lotus"].closedAt).toBeUndefined();
   });
+
+  it("a page belongs to one saved group: saving it in B removes it from A's saved copy", () => {
+    let snaps = autosave({}, [group("tag:a", ["https://x.com/1", "https://x.com/2"])], T0).next;
+    const { next, changed } = autosave(snaps, [group("tag:b", ["https://www.x.com/1/"])], T0 + 1);
+    expect(next["tag:a"].pages.map((p) => p.url)).toEqual(["https://x.com/2"]);
+    expect(next["tag:b"].pages.map((p) => p.url)).toEqual(["https://www.x.com/1/"]);
+    expect(changed.sort()).toEqual(["tag:a", "tag:b"]);
+    // …and if that empties A, A's saved copy is gone.
+    snaps = autosave({}, [group("tag:a", ["https://x.com/1"])], T0).next;
+    const r = autosave(snaps, [group("tag:b", ["https://x.com/1"])], T0 + 1);
+    expect(r.next["tag:a"]).toBeUndefined();
+    expect(r.removed).toEqual(["tag:a"]);
+  });
 });

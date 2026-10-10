@@ -215,3 +215,34 @@ describe("normalizeTagName", () => {
     expect(normalizeTagName("x".repeat(40))).toHaveLength(30);
   });
 });
+
+describe("organize: one page, one group", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — groups");
+  });
+
+  it("two tabs of the same page always land in the same group, even if only one was moved", () => {
+    const a = tab("https://a.com/x?utm_source=news");
+    const b = tab("https://www.a.com/x/");
+    const groups = mergeGroups([a, b], state({ overrides: { [a.url]: "tag:project:lotus" } }));
+    const holding = groups.filter((g) => g.tabs.some((t) => t.id === a.id || t.id === b.id));
+    expect(holding.map((g) => g.key)).toEqual(["tag:project:lotus"]);
+    expect(holding[0].tabs.map((t) => t.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("an AI tag for one copy beats a bare site group for the other", () => {
+    const a = tab("https://a.com/y");
+    const b = tab("https://a.com/y?utm_campaign=z");
+    const groups = mergeGroups([a, b], state({ assignments: { [a.url]: { tag: "reading" } } }));
+    expect(groups.map((g) => g.key)).toEqual(["tag:reading"]);
+  });
+
+  it("different Gmail threads stay separate pages", () => {
+    const a = tab("https://mail.google.com/mail/u/0/#inbox/A");
+    const b = tab("https://mail.google.com/mail/u/0/#inbox/B");
+    const groups = mergeGroups([a, b], state({ overrides: { [a.url]: "tag:work" } }));
+    expect(groups.find((g) => g.key === "tag:work")!.tabs.map((t) => t.id)).toEqual([a.id]);
+  });
+});

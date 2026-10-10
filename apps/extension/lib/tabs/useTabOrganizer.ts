@@ -587,7 +587,9 @@ export function useTabOrganizer() {
     async (group: TabGroup) => {
       if (group.tabs.length === 0) return;
       const now = Date.now();
-      const saved = autosave(await loadSnapshots(), [group], now).next;
+      const folded = autosave(await loadSnapshots(), [group], now);
+      const saved = folded.next;
+      schedulePush([...folded.changed, ...folded.removed].filter((k) => k !== group.key));
       const next = saved[group.key]
         ? markClosed(saved, group.key, now)
         : {
@@ -643,10 +645,11 @@ export function useTabOrganizer() {
   /** The save button: fold the group in and send it to the server now. */
   const saveGroupNow = useCallback(
     async (group: TabGroup) => {
-      const { next } = autosave(await loadSnapshots(), [group], Date.now());
+      const { next, changed, removed } = autosave(await loadSnapshots(), [group], Date.now());
       await saveSnapshots(next);
       if (mounted.current) setSnaps(next);
-      if (next[group.key]) await pushNow(next, [group.key]);
+      const keys = [...new Set([group.key, ...changed, ...removed])];
+      if (next[group.key]) await pushNow(next, keys);
     },
     [pushNow],
   );
@@ -664,11 +667,11 @@ export function useTabOrganizer() {
   useEffect(() => {
     if (status === "organizing" || groups.length === 0) return;
     void (async () => {
-      const { next, changed } = autosave(await loadSnapshots(), groups, Date.now());
-      if (changed.length === 0) return;
+      const { next, changed, removed } = autosave(await loadSnapshots(), groups, Date.now());
+      if (changed.length === 0 && removed.length === 0) return;
       await saveSnapshots(next);
       if (mounted.current) setSnaps(next);
-      schedulePush(changed);
+      schedulePush([...changed, ...removed]);
     })();
   }, [groups, status, schedulePush]);
 

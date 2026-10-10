@@ -66,7 +66,26 @@ export function autosave(snaps: Snapshots, groups: TabGroup[], now: number): Cha
     next[g.key] = { key: g.key, label: g.label, pages: capped, updatedAt: now };
     changed.push(g.key);
   }
-  return { next, changed, removed: [] };
+
+  // A page belongs to one saved group: the group it's open in now.
+  const removed: string[] = [];
+  for (const g of groups) {
+    if (g.kind !== "tag" || g.tabs.length === 0) continue;
+    const here = new Set(g.tabs.map((t) => pageKey(t.url)));
+    for (const other of Object.values(next)) {
+      if (other.key === g.key) continue;
+      const pages = other.pages.filter((p) => !here.has(pageKey(p.url)));
+      if (pages.length === other.pages.length) continue;
+      if (pages.length === 0) {
+        delete next[other.key];
+        removed.push(other.key);
+      } else {
+        next[other.key] = { ...other, pages, updatedAt: now };
+        if (!changed.includes(other.key)) changed.push(other.key);
+      }
+    }
+  }
+  return { next, changed: changed.filter((k) => !removed.includes(k)), removed };
 }
 
 /** You closed this page on purpose: drop it from every snapshot that isn't closed. */
