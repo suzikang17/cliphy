@@ -23,7 +23,7 @@ pnpm exec esbuild apps/server/src/vercel.ts \
 # Function config
 cat > .vercel/output/functions/api/index.func/.vc-config.json << 'EOF'
 {
-  "runtime": "nodejs20.x",
+  "runtime": "nodejs22.x",
   "handler": "index.js",
   "launcherType": "Nodejs",
   "maxDuration": 60
