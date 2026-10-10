@@ -45,3 +45,6 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Mobile: replace `Alert.alert` long-press + tag quick-pick with an ActionSheet (Android caps Alert at 3 buttons; `Alert.prompt` is iOS-only).
 - [ ] Fix pre-existing server test failures: admin `set-count` tests (route missing), Voyage embedding mock, local `sharp` libvips dlopen.
 - [ ] Local dev: Decodo proxy returns 407 (rotate creds in root `.env`); local Anthropic key out of credits.
+- [ ] Tabs view: per-site "never read" list for page-content reading (spec 2026-10-09 out of scope).
+- [ ] Tabs view: move `OpenTabsViewMessage` into shared `ExtensionMessage` (defined locally in `lib/tabs/openSignal.ts`).
+- [ ] Browsing memory pieces 2 + 3: Trail (closed tabs → hidden embedded clips) + resurfacing (related-to-current-page, Jev score for ranking). Needs its own spec.

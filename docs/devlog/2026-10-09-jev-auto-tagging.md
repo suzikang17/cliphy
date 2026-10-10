@@ -53,3 +53,17 @@ title: "Day 67 — Jev auto-tagging on every summary (first AI-in-core slice)"
 - Check Anthropic billing (local key out of credits — confirm prod key is funded).
 - Eyeball suggestion chips in extension/web/mobile on a real new summary.
 - Backfill topics/suggestions for existing clips? Route web/tweet `enrich` tagging through the tagger?
+
+---
+
+## Later the same session — iOS YouTube fix + Tabs view
+
+**iOS shares of YouTube videos were never summarized (since Sept 5).** `15cf94c` sent every iOS share to the universal `POST /api/clips`, whose YouTube branch saved a bare link marked `completed`. Fix `a3738a1`: extracted the queue's create+dispatch into `services/enqueue-video.ts`, used by both `/queue` and `/clips`; regression tests fail without the fix. The one affected clip (`GLvFTMtw4Jk`, Oct 6) was converted to `pending` for re-summarize.
+
+**Tabs view (browsing-memory piece 1) shipped** — spec `docs/superpowers/specs/2026-10-09-tabs-view-design.md`, [ADR 0049](../decisions/0049-tabs-view-tags-as-contexts-optional-page-reading.md).
+
+- Server `d93a00c`: `POST /api/tabs/organize` (Jev per tab: tag + "probably done"; Claude Haiku names leftover groups), `GET/PUT /api/tabs/hints`, migration 031 `tag_hints` (applied to prod), privacy disclosure.
+- Extension `0342995`, `0c116a1` (v1.1.0): side panel Tabs view, Cmd/Ctrl+Shift+K, optional `scripting` + `<all_urls>` toggle, search/keyboard nav, close/stow/move/hints.
+- Proof: live Jev smoke separated two clients on the same Linear/Notion hosts 4/4 and flagged Google results done (307ms); 498/501 server + 130/130 extension tests; prod deploy Ready, privacy page live; required manifest permissions unchanged.
+- Tuning lesson: Jev's noul is phrasing-sensitive — "is the user finished with this page" scored search/login ~0.2; "is this a transient page the user no longer needs open" scored 0.77–0.95 vs ~0.18 for live work.
+- Not yet done: loading the unpacked build in real Chrome (E2E screenshot) and the Chrome Web Store upload of `extension-1.1.0-chrome.zip`.

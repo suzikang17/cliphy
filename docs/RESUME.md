@@ -1,15 +1,15 @@
-# Resume pointer — 2026-10-09
+# Resume pointer — 2026-10-09 (late)
 
-**State:** Jev (TypeSafe AI) auto-tagging is live in prod (`8a0afaf`, `5ba2c88`, `132e37f`). Every new video summary runs an `auto-tag` Inngest step: existing tags auto-apply, Claude `topics` that match nothing land in `clips.suggested_tags` → accept/dismiss chips in extension, web, mobile. Migration 030 applied; `TYPESAFE_API_KEY` set locally + Vercel prod/preview. Devlog: `docs/devlog/2026-10-09-jev-auto-tagging.md`, ADR 0048.
+**State:** Jev auto-tagging live (ADR 0048). iOS YouTube-share bug fixed (`a3738a1`). Tabs view (browsing-memory piece 1, ADR 0049) shipped server-side to prod (`d93a00c`, migration 031 applied); extension v1.1.0 committed (`0342995`, `0c116a1`) with store zip at `apps/extension/.output/extension-1.1.0-chrome.zip` — **not yet uploaded to the Chrome Web Store**.
 
 **Next:**
 
-1. Confirm the prod Anthropic key has credits (local one is empty), then summarize a real video in prod and check `tags`/`suggested_tags` on the row.
-2. Eyeball the suggestion chips + TAG_LIMIT upgrade prompt in each client (none were browser/simulator-tested).
-3. Pick from BACKLOG: route `enrich` through the tagger, backfill old clips, tune thresholds.
+1. Load unpacked `apps/extension/.output/chrome-mv3`, open ~15 tabs across two clients, add tags `client:x` + hints, toggle "Organize by page content", Cmd+Shift+K → screenshot. Fix anything found.
+2. Upload the 1.1.0 zip to the Chrome Web Store; justify optional `scripting` + `<all_urls>` (Tabs view page-content toggle) in the privacy-practices tab.
+3. Confirm re-summarize of clip `c75226d3…` (iOS long-press) and one fresh iOS YouTube share produced summaries + auto-tags.
 
 **Gotchas:**
 
-- Server dev reads the repo-root `.env`; `apps/server/.env.local` has `DATABASE_URL`. Never `supabase db push` (remote has no migration history) — `psql "$DATABASE_URL" -f <file>`.
-- YouTube summarize always refetches the transcript via the Decodo proxy (407 locally right now) — drive later steps directly to test (see devlog).
-- Vercel runtime must be `nodejs22.x` in `scripts/build-vercel.sh`; 20.x deploys fail at the deploy step even though the build passes.
+- Server dev reads repo-root `.env`; `apps/server/.env.local` has `DATABASE_URL`. Never `supabase db push` — `psql "$DATABASE_URL" -f`.
+- Jev noul answers are phrasing-sensitive; probe variants live before trusting a threshold (see devlog).
+- Extension version is hard-coded in `wxt.config.ts`; bump it for every store upload.
