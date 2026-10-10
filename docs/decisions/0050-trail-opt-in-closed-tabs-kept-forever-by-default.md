@@ -6,6 +6,8 @@ category: Extension
 revisit: true
 ---
 
+> **Superseded (2026-10-10):** Trail is now on by default with a first-run notice; retention is free-form (days / weeks / months / forever). See spec `docs/superpowers/specs/2026-10-10-durable-groups-and-pins-design.md`.
+
 ## Why this choice
 
 "Open tabs freely and never lose them" needs closed tabs to stay findable. Chrome's own history is per-device, unorganized and not searchable by Cliphy's tags. The Trail saves each closed page (address, title, your name/note) to a separate `trail_items` table, auto-tagged with the same cheap path as ⌘⇧S (keywords + Jev, no Claude, no page reading), one row per URL (re-closing bumps `closed_at`/`close_count`). It is kept apart from clips so the curated library doesn't fill with every tab; one click promotes an entry to a clip.
