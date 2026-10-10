@@ -28,6 +28,13 @@ import {
 import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
 import { closeTabsAndAdvance } from "./nextTab";
+import {
+  applyGroupOrder,
+  loadGroupOrder,
+  nudgeGroup,
+  reorderGroups,
+  saveGroupOrder,
+} from "./groupOrder";
 
 /** AI organize waits for tab activity to settle this long. */
 export const ORGANIZE_DEBOUNCE_MS = 3000;
@@ -91,6 +98,7 @@ export function useTabOrganizer() {
   /** Claude's suggested keywords per proposed group, saved on "＋ Save as tag". */
   const [proposalKeywords, setProposalKeywords] = useState<Record<string, string[]>>({});
   const [trackingSince, setTrackingSince] = useState<number | null>(null);
+  const [groupOrder, setGroupOrder] = useState<GroupKey[]>([]);
 
   // Listeners and timers read the latest values through refs.
   const tabsRef = useRef(tabs);
@@ -269,9 +277,47 @@ export function useTabOrganizer() {
   }, [refreshTabs, reloadState, scheduleOrganize]);
 
   const groups: TabGroup[] = useMemo(
-    () => mergeGroups(tabs, state, keywords),
-    [tabs, state, keywords],
+    () => applyGroupOrder(mergeGroups(tabs, state, keywords), groupOrder),
+    [tabs, state, keywords, groupOrder],
   );
+
+  useEffect(() => {
+    void loadGroupOrder().then((o) => mounted.current && setGroupOrder(o));
+  }, []);
+
+  const updateOrder = useCallback((next: GroupKey[]) => {
+    setGroupOrder(next);
+    void saveGroupOrder(next).catch(() => {});
+  }, []);
+
+  /** Drag-and-drop: move `from` before/after `target`. */
+  const reorder = useCallback(
+    (from: GroupKey, target: GroupKey, position: "before" | "after") =>
+      updateOrder(
+        reorderGroups(
+          groups.map((g) => g.key),
+          groupOrder,
+          from,
+          target,
+          position,
+        ),
+      ),
+    [groups, groupOrder, updateOrder],
+  );
+  /** ⌥↑ / ⌥↓ */
+  const nudge = useCallback(
+    (key: GroupKey, dir: -1 | 1) =>
+      updateOrder(
+        nudgeGroup(
+          groups.map((g) => g.key),
+          groupOrder,
+          key,
+          dir,
+        ),
+      ),
+    [groups, groupOrder, updateOrder],
+  );
+  const resetOrder = useCallback(() => updateOrder([]), [updateOrder]);
 
   /** Known tags for Move-to: saved hints plus tags the server assigned. */
   const knownTags = useMemo(() => {
@@ -374,6 +420,10 @@ export function useTabOrganizer() {
   return {
     tabs,
     trackingSince,
+    hasManualOrder: groupOrder.length > 0,
+    reorder,
+    nudge,
+    resetOrder,
     keywords,
     proposalKeywords,
     groups,

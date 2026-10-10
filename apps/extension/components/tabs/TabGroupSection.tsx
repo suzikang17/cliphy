@@ -25,7 +25,13 @@ interface TabGroupSectionProps {
   onSaveHints: (tag: string, text: string, keywords?: string[]) => Promise<void>;
   onSaveAsTag: (name: string) => Promise<void>;
   onDismiss: (name: string) => void;
+  /** Drag-and-drop reorder; undefined for groups that can't move (Probably done). */
+  onReorder?: (from: GroupKey, target: GroupKey, position: "before" | "after") => void;
+  onNudge?: (key: GroupKey, dir: -1 | 1) => void;
 }
+
+/** dataTransfer type for a dragged group, so tab/text drags are ignored. */
+const DRAG_TYPE = "application/x-cliphy-group";
 
 const linkBtn =
   "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text) disabled:opacity-50";
@@ -48,7 +54,11 @@ export function TabGroupSection({
   onSaveHints,
   onSaveAsTag,
   onDismiss,
+  onReorder,
+  onNudge,
 }: TabGroupSectionProps) {
+  const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
+  const movable = !!onReorder;
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingHints, setEditingHints] = useState(false);
   const [draft, setDraft] = useState("");
@@ -83,12 +93,58 @@ export function TabGroupSection({
   }
 
   return (
-    <section className="mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm">
+    <section
+      onDragOver={(e) => {
+        if (!movable || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect();
+        setDropAt(e.clientY < r.top + r.height / 2 ? "before" : "after");
+      }}
+      onDragLeave={() => setDropAt(null)}
+      onDrop={(e) => {
+        const from = e.dataTransfer.getData(DRAG_TYPE);
+        const at = dropAt;
+        setDropAt(null);
+        if (movable && from && at) {
+          e.preventDefault();
+          onReorder?.(from as GroupKey, group.key, at);
+        }
+      }}
+      className={`mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm ${
+        dropAt === "before"
+          ? "shadow-[0_-3px_0_0_var(--color-border-hard)]"
+          : dropAt === "after"
+            ? "shadow-[0_3px_0_0_var(--color-border-hard)]"
+            : ""
+      }`}
+    >
       <header className="flex items-center gap-2 px-2.5 py-1.5">
+        {movable && (
+          <span
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(DRAG_TYPE, group.key);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            title="Drag to reorder (or ⌥↑ / ⌥↓)"
+            aria-hidden
+            className="shrink-0 cursor-grab select-none text-xs text-(--color-text-faint) active:cursor-grabbing"
+          >
+            ⠿
+          </span>
+        )}
         <button
           type="button"
           onClick={onToggle}
+          onKeyDown={(e) => {
+            if (!onNudge || !e.altKey) return;
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              onNudge(group.key, e.key === "ArrowUp" ? -1 : 1);
+            }
+          }}
           aria-expanded={!collapsed}
+          aria-keyshortcuts={movable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
         >
           <span className="text-[10px] text-(--color-text-faint)">{collapsed ? "▸" : "▾"}</span>

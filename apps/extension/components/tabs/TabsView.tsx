@@ -125,6 +125,16 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         <p className="m-0 text-[11px] text-(--color-text-faint)">Organizing…</p>
       )}
 
+      {org.hasManualOrder && (
+        <button
+          type="button"
+          onClick={org.resetOrder}
+          className="-mb-2 self-end cursor-pointer border-0 bg-transparent p-0 text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text)"
+        >
+          Reset order
+        </button>
+      )}
+
       <div ref={listRef}>
         {shown.length === 0 ? (
           <p className="text-xs text-(--color-text-faint)">
@@ -157,6 +167,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               onSaveHints={org.saveHints}
               onSaveAsTag={org.saveAsTag}
               onDismiss={(name) => void org.dismissProposal(name)}
+              onReorder={group.kind === "done" ? undefined : org.reorder}
+              onNudge={group.kind === "done" ? undefined : org.nudge}
             />
           ))
         )}
