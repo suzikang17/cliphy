@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { epic, feature, layer } from "allure-js-commons";
 import "../../../test/browser-mock";
 import { TabGroupSection } from "../TabGroupSection";
@@ -97,5 +97,33 @@ describe("TabGroupSection header (hover-reveal layout)", () => {
     expect(h.onSaveAsTag).toHaveBeenCalledWith("client:brightline");
     fireEvent.click(screen.getByRole("button", { name: /Dismiss suggested group/ }));
     expect(h.onDismiss).toHaveBeenCalledWith("client:brightline");
+  });
+});
+
+describe("TabGroupSection drag fade", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — drag");
+  });
+  afterEach(cleanup);
+
+  it("doesn't stay faded when the drag ends before the deferred fade frame (2026-10-10 bug)", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    renderGroup({}, { onReorder: vi.fn() });
+    const header = screen.getByText(/a long name/).closest("header")!;
+    const section = header.closest("section")!;
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+
+    fireEvent.dragStart(header, { dataTransfer });
+    fireEvent.dragEnd(header, { dataTransfer }); // ends first…
+    act(() => frames.forEach((cb) => cb(0))); // …then the deferred fade frame runs
+
+    expect(section.className).not.toMatch(/opacity-40/);
+    raf.mockRestore();
   });
 });

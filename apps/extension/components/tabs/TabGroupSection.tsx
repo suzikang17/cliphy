@@ -81,6 +81,9 @@ export function TabGroupSection({
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // True between dragstart and dragend. The fade is applied a frame late (so the
+  // drag image is captured un-faded); if the drag already ended by then, skip it.
+  const dragActive = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const movable = !!onReorder;
@@ -177,11 +180,15 @@ export function TabGroupSection({
           // Drag the whole header (name + count), not the tiny grip glyph.
           if (headerRef.current) e.dataTransfer.setDragImage(headerRef.current, 16, 14);
           draggingKey = group.key;
+          dragActive.current = true;
           // Defer so the drag image is captured before the group fades.
-          requestAnimationFrame(() => setIsDragging(true));
+          requestAnimationFrame(() => {
+            if (dragActive.current) setIsDragging(true);
+          });
           onDragStateChange?.(true);
         }}
         onDragEnd={() => {
+          dragActive.current = false;
           draggingKey = null;
           setIsDragging(false);
           setDropAt(null);
@@ -290,25 +297,27 @@ export function TabGroupSection({
       </header>
 
       {isProposed && (
-        <div className="flex flex-wrap items-center gap-2 px-2.5 pb-1.5">
-          <span className="rounded border border-(--color-border-hard) bg-neon-100 px-1 text-[9px] font-bold uppercase text-neon-700 dark:bg-neon-900/50 dark:text-neon-400">
-            ✨ Suggested
+        <div className="mx-2.5 mb-2 flex items-center gap-2 rounded-md bg-neon-100/60 px-2 py-1 dark:bg-neon-900/25">
+          <span className="min-w-0 flex-1 text-[11px] font-semibold text-neon-700 dark:text-neon-400">
+            ✨ Suggested group
           </span>
           <button
             type="button"
             disabled={busy}
             onClick={() => void run(() => onSaveAsTag(group.value))}
             title="Keep this as one of your tags"
-            className="cursor-pointer rounded-md border-2 border-(--color-border-hard) bg-neon-100 px-2 py-0.5 text-[11px] font-bold text-neon-700 shadow-brutal-sm hover:shadow-brutal-pressed press-down disabled:opacity-50 dark:bg-neon-900/50 dark:text-neon-400"
+            className="flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-neon-600 px-2 text-[11px] font-bold text-white hover:bg-neon-700 disabled:opacity-50"
           >
             ＋ Save as tag
-            {showLabels && <Kbd>a</Kbd>}
+            {showLabels && (
+              <Kbd className="ml-0.5 border-white/40 bg-transparent text-white">a</Kbd>
+            )}
           </button>
           <button
             type="button"
             onClick={() => onDismiss(group.value)}
             aria-label={`Dismiss suggested group ${group.label}`}
-            className={linkBtn}
+            className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-transparent px-1.5 text-[11px] font-semibold text-(--color-text-faint) hover:text-(--color-text)"
           >
             Dismiss
           </button>
