@@ -37,6 +37,19 @@ describe("extractPage", () => {
     expect(r.title).toBe("Doc");
   });
 
+  it("reads the page's preview image (og:image, then twitter:image) as an absolute web URL", () => {
+    setPage("<p>x</p>", `<meta property="og:image" content="/img/cover.png">`);
+    expect((extractPage() as ExtractedPage).image).toBe(
+      new URL("/img/cover.png", location.href).href,
+    );
+    setPage("<p>x</p>", `<meta name="twitter:image" content="https://cdn.x.com/a.jpg">`);
+    expect((extractPage() as ExtractedPage).image).toBe("https://cdn.x.com/a.jpg");
+    setPage("<p>x</p>", `<meta property="og:image" content="data:image/png;base64,AAAA">`);
+    expect((extractPage() as ExtractedPage).image).toBeUndefined();
+    setPage("<p>x</p>");
+    expect((extractPage() as ExtractedPage).image).toBeUndefined();
+  });
+
   it("falls back main → [role=main] → body", () => {
     setPage(`<nav>Nav</nav><main>Main only</main>`);
     expect((extractPage() as ExtractedPage).text).toBe("Main only");

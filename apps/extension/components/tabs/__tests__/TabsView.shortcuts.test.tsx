@@ -128,6 +128,18 @@ describe("TabsView keyboard shortcuts", () => {
     pagePins.isPinned = () => false;
   });
 
+  it("List / Tiles switches how groups show, remembers it, and v toggles it", async () => {
+    browserMock.storage.local.set.mockResolvedValue(undefined);
+    render(<TabsView />);
+    expect(document.querySelectorAll("li[data-tile]")).toHaveLength(0); // list by default
+    fireEvent.click(screen.getByRole("button", { name: "Tiles" }));
+    expect(document.querySelectorAll("li[data-tile]").length).toBeGreaterThan(0);
+    expect(browserMock.storage.local.set).toHaveBeenCalledWith({ "tabs:view": "tiles" });
+    (document.activeElement as HTMLElement)?.blur();
+    await press("v");
+    expect(document.querySelectorAll("li[data-tile]")).toHaveLength(0);
+  });
+
   it("does nothing while typing in the search box", async () => {
     render(<TabsView />);
     const search = screen.getByRole("searchbox");

@@ -11,6 +11,8 @@ import { PinnedGroup } from "./PinnedGroup";
 import { ClosedGroups } from "./ClosedGroups";
 import { staleTabs } from "../../lib/tabs/stale";
 import { useGroupNotes } from "../../lib/tabs/groupNotes";
+import { useViewMode } from "../../lib/tabs/viewMode";
+import { useTabPreviews } from "../../lib/tabs/previews";
 import { countByFirstTag, groupCounts, pinsForGroup } from "../../lib/tabs/closedGroups";
 import { listTrail } from "../../lib/api";
 import type { TabGroup } from "../../lib/tabs/organize";
@@ -115,6 +117,10 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   // Keyboard order: closed pinned pages, then open tabs, then Recently closed.
   const pagePins = usePagePins(org.authed);
   const groupNotes = useGroupNotes(org.authed);
+  const { view, choose: chooseView } = useViewMode();
+  const previews = useTabPreviews(org.tabs, view === "tiles");
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const openByKey = useMemo(
     () => new Map(org.tabs.map((t) => [normalizeUrl(t.url) ?? t.url, t])),
     [org.tabs],
@@ -308,6 +314,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         case "stowStale":
           if (org.authed && stale.length > 0) void org.stowTabs(stale);
           break;
+        case "toggleView":
+          chooseView(viewRef.current === "tiles" ? "list" : "tiles");
+          break;
         case "noteGroup":
           if (group?.kind === "tag")
             setNoteRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
@@ -373,6 +382,24 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         aria-label="Search open tabs"
         className="w-full rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text) shadow-brutal-sm outline-none focus:shadow-brutal-pressed"
       />
+      <div role="group" aria-label="View" className="-mt-1.5 flex items-center gap-1 self-end">
+        {(["list", "tiles"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={view === v}
+            onClick={() => chooseView(v)}
+            className={`cursor-pointer rounded-md border-0 px-2 py-0.5 text-[11px] font-bold ${
+              view === v
+                ? "bg-neon-100 text-(--color-text) dark:bg-neon-900/50"
+                : "bg-transparent text-(--color-text-faint) hover:text-(--color-text)"
+            }`}
+          >
+            {v === "list" ? "List" : "Tiles"}
+          </button>
+        ))}
+        {showLabels && <Kbd>{labelFor("toggleView")}</Kbd>}
+      </div>
 
       <PinnedGroup
         pins={pagePins.pins}
@@ -536,6 +563,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               note={group.kind === "tag" ? groupNotes.notes[group.value] : undefined}
               onSaveNote={(tag, text) => void groupNotes.save(tag, text)}
               noteNonce={noteRequest?.key === group.key ? noteRequest.n : undefined}
+              view={view}
+              previews={previews}
             />
           ))
         )}

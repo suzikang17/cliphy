@@ -5,6 +5,7 @@ import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
 import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
+import { TabTile } from "./TabTile";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
 import { getDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
@@ -59,6 +60,10 @@ interface TabGroupSectionProps {
   counts?: { open: number; pinned: number; trail: number };
   /** Close the whole group, keeping it to resume later (⇧C). */
   onCloseGroupKeep?: (group: TabGroup) => void;
+  /** List (default) or tiles. */
+  view?: "list" | "tiles";
+  /** url → preview image, for tiles. */
+  previews?: Record<string, string>;
   /** Your note for this tag group. */
   note?: string;
   onSaveNote?: (tag: string, note: string) => void;
@@ -116,6 +121,8 @@ export function TabGroupSection({
   counts,
   onCloseGroupKeep,
   onOpenTrail,
+  view = "list",
+  previews,
   note: groupNote,
   onSaveNote,
   noteNonce,
@@ -718,7 +725,24 @@ export function TabGroupSection({
 
       {note && <p className="m-0 px-2.5 pb-1 text-[11px] text-(--color-text-faint)">{note}</p>}
 
-      {!collapsed && (
+      {!collapsed && view === "tiles" && (
+        <ul className="m-0 grid list-none grid-cols-2 gap-1.5 border-t border-(--color-border-soft) p-1.5">
+          {group.tabs.map((tab) => (
+            <TabTile
+              key={tab.id}
+              tab={tab}
+              selected={tab.id === selectedTabId}
+              groupKey={group.key}
+              image={previews?.[tab.url]}
+              pinned={!!pinnedKeys?.has(normalizeUrl(tab.url) ?? tab.url)}
+              dimmed={isDone}
+              onActivate={onActivate}
+              onClose={(t) => onCloseTabs([t])}
+            />
+          ))}
+        </ul>
+      )}
+      {!collapsed && view !== "tiles" && (
         <ul className="m-0 list-none border-t border-(--color-border-soft) p-1">
           {nestDuplicates(group.tabs).flatMap(({ parent, children }) =>
             [parent, ...children].map((tab, i) => (

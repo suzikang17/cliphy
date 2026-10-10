@@ -314,3 +314,20 @@ describe("TabGroupSection — group note", () => {
     expect(screen.queryByRole("button", { name: /note/i })).toBeNull();
   });
 });
+
+describe("TabGroupSection — tile view", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — tiles");
+  });
+  afterEach(cleanup);
+
+  it("renders the group's tabs as tiles, with preview images where known", () => {
+    renderGroup({}, { view: "tiles", previews: { "https://x.com/1": "https://cdn.x.com/1.png" } });
+    expect(document.querySelectorAll("li[data-tile]")).toHaveLength(2);
+    expect((document.querySelector("img[data-preview]") as HTMLImageElement).src).toBe(
+      "https://cdn.x.com/1.png",
+    );
+  });
+});

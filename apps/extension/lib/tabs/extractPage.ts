@@ -3,6 +3,8 @@ export interface ExtractedPage {
   description: string;
   text: string;
   scrolledToEnd: boolean;
+  /** The page's preview image (og:image / twitter:image) — kept locally for the tile view, never sent. */
+  image?: string;
 }
 
 export type ExtractResult = ExtractedPage | { skipped: "sensitive" };
@@ -42,7 +44,23 @@ export function extractPage(): ExtractResult {
   const isLong = scrollHeight > window.innerHeight * 1.5;
   const scrolledToEnd = isLong && window.scrollY + window.innerHeight >= scrollHeight * 0.9;
 
-  return { title: document.title, description, text, scrolledToEnd };
+  let image: string | undefined;
+  const imgMeta =
+    document.querySelector('meta[property="og:image"]') ??
+    document.querySelector('meta[name="og:image"]') ??
+    document.querySelector('meta[name="twitter:image"]') ??
+    document.querySelector('meta[property="twitter:image"]');
+  const rawImage = (imgMeta?.getAttribute("content") ?? "").trim();
+  if (rawImage) {
+    try {
+      const abs = new URL(rawImage, location.href);
+      if (abs.protocol === "https:" || abs.protocol === "http:") image = abs.href;
+    } catch {
+      // not a usable URL
+    }
+  }
+
+  return { title: document.title, description, text, scrolledToEnd, ...(image && { image }) };
 }
 
 export function isSkipped(r: ExtractResult | null | undefined): r is { skipped: "sensitive" } {
