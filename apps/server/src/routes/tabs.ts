@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   normalizeKeywords,
+  type ClosedGroupPage,
   type TabAssignment,
   type TabCluster,
   type TabInput,
@@ -19,6 +20,12 @@ import { checkRateLimit } from "../lib/rateLimit.js";
 import { supabase } from "../lib/supabase.js";
 import { MAX_TABS, organizeTabs } from "../services/tab-organizer.js";
 import { rankTags } from "../services/tagger.js";
+import {
+  MAX_CLOSED_PAGES,
+  closeGroup,
+  listClosedGroups,
+  resumeGroup,
+} from "../services/closed-groups.js";
 
 const ORGANIZE_LIMIT_PER_HOUR = 60;
 const MAX_KEY = 64;
@@ -205,6 +212,58 @@ tabsRoutes.put("/overrides", async (c) => {
     return c.json({ error: "Failed to save overrides" }, 500);
   }
   return c.json({ saved: items.length });
+});
+
+// ── Closed groups — close a whole group, list, resume ────────
+// Registered BEFORE /hints/:tag-style routes; "/groups/…" never collides.
+
+const MAX_LABEL = 120;
+
+tabsRoutes.get("/groups/closed", async (c) => {
+  try {
+    return c.json({ groups: await listClosedGroups(c.get("userId")) });
+  } catch {
+    return c.json({ error: "Failed to load closed groups" }, 500);
+  }
+});
+
+tabsRoutes.put("/groups/:key/close", async (c) => {
+  const userId = c.get("userId");
+  const key = decodeURIComponent(c.req.param("key"));
+  let body: { label?: unknown; pages?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof body.label !== "string" || !body.label.trim()) {
+    return c.json({ error: "label is required" }, 400);
+  }
+  if (
+    !Array.isArray(body.pages) ||
+    body.pages.length === 0 ||
+    body.pages.length > MAX_CLOSED_PAGES
+  ) {
+    return c.json({ error: `pages must be a non-empty array (max ${MAX_CLOSED_PAGES})` }, 400);
+  }
+  const pages: ClosedGroupPage[] = body.pages
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+    .filter((p) => typeof p.url === "string" && /^https?:\/\//.test(p.url))
+    .map((p) => ({
+      url: (p.url as string).slice(0, 2048),
+      title: typeof p.title === "string" ? p.title.slice(0, 300) : "",
+    }));
+  if (pages.length === 0) return c.json({ error: "No valid pages" }, 400);
+  try {
+    return c.json(await closeGroup(userId, key, body.label.trim().slice(0, MAX_LABEL), pages));
+  } catch {
+    return c.json({ error: "Failed to save closed group" }, 500);
+  }
+});
+
+tabsRoutes.post("/groups/:key/resume", async (c) => {
+  const g = await resumeGroup(c.get("userId"), decodeURIComponent(c.req.param("key")));
+  return g ? c.json({ pages: g.pages }) : c.json({ error: "Not found" }, 404);
 });
 
 // ── GET /hints — per-tag hints + keywords ────────────────────

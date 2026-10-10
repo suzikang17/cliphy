@@ -177,7 +177,7 @@ const sanitize = (q: string) => q.replace(/[,()%*\\]/g, " ").trim();
 
 export async function listTrail(
   userId: string,
-  opts: { q?: string; before?: string; limit: number },
+  opts: { q?: string; tag?: string; before?: string; limit: number },
 ): Promise<{ items: TrailItem[]; nextBefore?: string }> {
   let query = supabase
     .from("trail_items")
@@ -186,6 +186,7 @@ export async function listTrail(
     .order("closed_at", { ascending: false })
     .limit(opts.limit + 1);
   if (opts.before) query = query.lt("closed_at", opts.before);
+  if (opts.tag) query = query.contains("tags", [opts.tag]);
   const q = opts.q ? sanitize(opts.q) : "";
   if (q) {
     const tag = q.toLowerCase().replace(/[{}"]/g, "");

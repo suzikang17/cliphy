@@ -18,6 +18,7 @@ function chain(result: Record<string, unknown> = {}) {
     "delete",
     "upsert",
     "maybeSingle",
+    "contains",
   ]) {
     c[m] = vi.fn().mockReturnValue(c);
   }
@@ -174,5 +175,13 @@ describe("trail service", () => {
     const patch = (update.update as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(patch).not.toHaveProperty("note");
     expect(patch).not.toHaveProperty("custom_title");
+  });
+
+  it("lists a group's trail pages by exact tag", async () => {
+    const q = chain({ data: [] });
+    tables = { trail_items: [q] };
+    await listTrail("u1", { tag: "design", limit: 10 });
+    expect(q.contains).toHaveBeenCalledWith("tags", ["design"]);
+    expect(q.or).not.toHaveBeenCalled();
   });
 });

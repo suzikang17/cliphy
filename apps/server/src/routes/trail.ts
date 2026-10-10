@@ -70,7 +70,14 @@ trailRoutes.get("/", async (c) => {
   const before = c.req.query("before");
   if (before && Number.isNaN(Date.parse(before))) return c.json({ error: "Invalid before" }, 400);
   try {
-    return c.json(await listTrail(userId, { q: c.req.query("q")?.slice(0, 200), before, limit }));
+    return c.json(
+      await listTrail(userId, {
+        q: c.req.query("q")?.slice(0, 200),
+        tag: c.req.query("tag")?.slice(0, 60),
+        before,
+        limit,
+      }),
+    );
   } catch {
     return c.json({ error: "Failed to load trail" }, 500);
   }
