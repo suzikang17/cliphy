@@ -56,3 +56,9 @@ title: "Day 68 — Durable groups & pins: the Tabs view as a trustworthy tab man
 - **Groups autosave** (ADR 0052): every tag group keeps a snapshot while its tabs are open. Pages leave it only when you close them on purpose (`isWindowClosing: false`); a quit or window close keeps them, so after a bad restart the group shows under Closed groups → Resume. ⇧C marks the group closed; ✕ forgets a closed group. This replaces the local fallback cache and the pending-delete retry from the review fix.
 - One-click **↳ <tag>** on Recently closed rows reopens into the group its Jev/keyword tag already points to.
 - **Stuck on "Organizing…" (fixed `7570084`)**: prod logs showed no `POST /api/tabs/organize` at all; the panel hung before sending it. Root cause: `scripting.executeScript` (reading page text) can wait forever on a tab that's asleep or still loading (right after a restart; Dia's unloaded sidebar tabs). `inFlight` stayed true, so organize never ran again. Each page read now gives up after 2s (`EXTRACT_TIMEOUT_MS`) and sends title + address only.
+- **Later UI work**:
+  - Notes per tag group (`c0d9afa`, migration 037 `tag_notes` applied to prod with `psql -f`).
+  - Drag a tab onto another group to move it (`91020d4`).
+  - Group stats moved to the card bottom and ✕ to the far right (`e8a4979`).
+  - Compact "Into" dropdown on Recently closed rows (`5050c84`). Checked with a headless-Chrome screenshot using the built CSS.
+  - **Tile view** (`08d6996`): List / Tiles toggle, **v** to switch, remembered in `tabs:view`. Tiles show the page's `og:image`, read only while tiles are on, with a 1.5s timeout per tab. The image address is kept locally (`tabs:previews`, 500 max) and never sent anywhere. Pages without one show the site icon.
