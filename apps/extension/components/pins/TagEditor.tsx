@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Summary } from "@cliphy/shared";
-import { tagPath } from "@cliphy/shared";
-import { updateSummaryTags } from "../../lib/api";
+import { SuggestedTags, tagPath } from "@cliphy/shared";
+import { dismissSuggestedTag, updateSummaryTags } from "../../lib/api";
 
 /**
  * Edit a clip's tags. Hierarchy uses the parent:child convention — typing
@@ -9,15 +9,40 @@ import { updateSummaryTags } from "../../lib/api";
  */
 export function TagEditor({ clip }: { clip: Summary }) {
   const [tags, setTags] = useState<string[]>(clip.tags ?? []);
+  // AI-suggested tags live here too so accepting one updates `tags` in the same state.
+  const [suggested, setSuggested] = useState<string[]>(clip.suggestedTags ?? []);
   const [input, setInput] = useState("");
 
-  async function persist(next: string[]) {
+  async function persist(next: string[], nextSuggested = suggested) {
     const prev = tags;
+    const prevSuggested = suggested;
     setTags(next);
+    setSuggested(nextSuggested);
     try {
-      await updateSummaryTags(clip.id, next);
+      const res = await updateSummaryTags(clip.id, next);
+      if (res.suggestedTags) setSuggested(res.suggestedTags);
     } catch {
-      setTags(prev); // revert on failure (e.g. plan tag limit)
+      // revert on failure (e.g. plan tag limit)
+      setTags(prev);
+      setSuggested(prevSuggested);
+    }
+  }
+
+  function acceptSuggestion(tag: string) {
+    void persist(
+      tags.includes(tag) ? tags : [...tags, tag],
+      suggested.filter((t) => t !== tag),
+    );
+  }
+
+  async function dismissSuggestion(tag: string) {
+    const prev = suggested;
+    setSuggested(prev.filter((t) => t !== tag));
+    try {
+      const res = await dismissSuggestedTag(clip.id, tag);
+      setSuggested(res.suggestedTags);
+    } catch {
+      setSuggested(prev);
     }
   }
 
@@ -54,6 +79,12 @@ export function TagEditor({ clip }: { clip: Summary }) {
           ))}
         </div>
       )}
+      <SuggestedTags
+        tags={suggested}
+        onAccept={acceptSuggestion}
+        onDismiss={(tag) => void dismissSuggestion(tag)}
+        className="mb-2"
+      />
       <input
         value={input}
         onChange={(e) => setInput(e.target.value)}

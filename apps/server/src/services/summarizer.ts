@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { SummaryJson } from "@cliphy/shared";
+import { TAG_MAX_LENGTH, type SummaryJson } from "@cliphy/shared";
 import { SUMMARY_SYSTEM_PROMPT, SUMMARY_USER_PROMPT } from "../lib/prompts.js";
 
 const anthropic = new Anthropic({ timeout: 120_000 });
@@ -12,6 +12,7 @@ const MAX_SUMMARY_LENGTH = 1000;
 const MAX_ITEM_LENGTH = 500;
 const MAX_ARRAY_ITEMS = 50;
 const MAX_SECTION_TITLE_LENGTH = 100;
+const MAX_TOPICS = 4;
 
 /** Filter to only string elements, truncate, and cap array length. */
 function sanitizeStringArray(arr: unknown[], maxItems = MAX_ARRAY_ITEMS): string[] {
@@ -90,6 +91,20 @@ export function parseSummaryResponse(text: string): SummaryJson {
           ...(groups && { groups }),
         };
       }
+    }
+  }
+
+  // Candidate tags for auto-tagging — normalized like user tags (lowercase, trimmed, deduped)
+  if (Array.isArray(obj.topics)) {
+    const topics = [
+      ...new Set(
+        sanitizeStringArray(obj.topics)
+          .map((t) => t.toLowerCase().trim())
+          .filter((t) => t.length > 0 && t.length <= TAG_MAX_LENGTH),
+      ),
+    ].slice(0, MAX_TOPICS);
+    if (topics.length > 0) {
+      result.topics = topics;
     }
   }
 

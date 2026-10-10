@@ -19,6 +19,7 @@
     "@mozilla/readability": "^0.6.0",
     "@sentry/node": "^10.42.0",
     "@supabase/supabase-js": "^2.47.0",
+    "@typesafe-ai/sdk": "0.6.0",
     "hono": "^4.12.5",
     "htmx.org": "^2.0.8",
     "inngest": "^4.4.0",

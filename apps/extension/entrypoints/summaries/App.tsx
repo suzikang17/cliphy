@@ -7,13 +7,14 @@ import {
 } from "@cliphy/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "../../components/Logo";
-import { SelectionActionBar, TagSuggestions } from "@cliphy/shared";
+import { SelectionActionBar, SuggestedTags, TagSuggestions } from "@cliphy/shared";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import { SummaryDetail } from "../../components/SummaryDetail";
 import {
   autoTagBulk,
   deleteSummary,
   createPin,
+  dismissSuggestedTag,
   getAllTags,
   getSummaries,
   getSummary,
@@ -115,10 +116,13 @@ export function App() {
         updateSummaryTags(summaryId, newTags),
         getAllTags().then((r) => setAllTags(r.tags)),
       ]);
-      // Reconcile with server response
-      setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: res.tags } : s)));
+      // Reconcile with server response (server also drops accepted tags from suggestedTags)
+      const reconciled = res.suggestedTags
+        ? { tags: res.tags, suggestedTags: res.suggestedTags }
+        : { tags: res.tags };
+      setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, ...reconciled } : s)));
       if (selectedSummary?.id === summaryId) {
-        setSelectedSummary((prev) => (prev ? { ...prev, tags: res.tags } : prev));
+        setSelectedSummary((prev) => (prev ? { ...prev, ...reconciled } : prev));
       }
     } catch (err) {
       // Rollback on failure
@@ -133,6 +137,44 @@ export function App() {
       const tagsRes = await getAllTags().catch(() => null);
       if (tagsRes) setAllTags(tagsRes.tags);
       throw err;
+    }
+  }
+
+  function setSuggestedTags(summaryId: string, suggestedTags: string[]) {
+    setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, suggestedTags } : s)));
+    setSelectedSummary((prev) => (prev?.id === summaryId ? { ...prev, suggestedTags } : prev));
+  }
+
+  async function handleAcceptSuggestedTag(summaryId: string, tag: string) {
+    const summary = summaries.find((s) => s.id === summaryId);
+    if (!summary) return;
+    const rollback = summary.suggestedTags ?? [];
+    // Optimistic: drop from suggestions; handleTagsChange adds the tag (and rolls tags back)
+    setSuggestedTags(
+      summaryId,
+      rollback.filter((t) => t !== tag),
+    );
+    try {
+      await handleTagsChange(
+        summaryId,
+        summary.tags.includes(tag) ? summary.tags : [...summary.tags, tag],
+      );
+    } catch {
+      setSuggestedTags(summaryId, rollback);
+    }
+  }
+
+  async function handleDismissSuggestedTag(summaryId: string, tag: string) {
+    const rollback = summaries.find((s) => s.id === summaryId)?.suggestedTags ?? [];
+    setSuggestedTags(
+      summaryId,
+      rollback.filter((t) => t !== tag),
+    );
+    try {
+      const res = await dismissSuggestedTag(summaryId, tag);
+      setSuggestedTags(summaryId, res.suggestedTags);
+    } catch {
+      setSuggestedTags(summaryId, rollback);
     }
   }
 
@@ -408,6 +450,8 @@ export function App() {
           allTags={allTags}
           tagLimitReached={usage?.plan === "free" && allTags.length >= MAX_FREE_UNIQUE_TAGS}
           onTagsChange={(tags) => handleTagsChange(selectedSummary.id, tags)}
+          onAcceptSuggestedTag={(tag) => handleAcceptSuggestedTag(selectedSummary.id, tag)}
+          onDismissSuggestedTag={(tag) => handleDismissSuggestedTag(selectedSummary.id, tag)}
           onRetry={() => handleRetry(selectedSummary.id)}
         />
       </div>
@@ -441,6 +485,8 @@ export function App() {
         onDelete={handleDelete}
         allTags={allTags}
         onTagsChange={handleTagsChange}
+        onAcceptSuggestedTag={handleAcceptSuggestedTag}
+        onDismissSuggestedTag={handleDismissSuggestedTag}
         hasSelection={hasSelection}
         selectedIds={selectedIds}
         onToggleSelect={toggleSelection}
@@ -472,17 +518,15 @@ export function App() {
           </div>
         </div>
       )}
-      {isPro && (
-        <SelectionActionBar
-          selectedCount={selectedIds.size}
-          totalCount={displayedSummaries.length}
-          onSelectAll={selectAll}
-          onClear={clearSelection}
-          onAutoTag={handleBulkAutoTag}
-          onDelete={handleBulkDelete}
-          loading={bulkAutoTagLoading}
-        />
-      )}
+      <SelectionActionBar
+        selectedCount={selectedIds.size}
+        totalCount={displayedSummaries.length}
+        onSelectAll={selectAll}
+        onClear={clearSelection}
+        onAutoTag={handleBulkAutoTag}
+        onDelete={handleBulkDelete}
+        loading={bulkAutoTagLoading}
+      />
       {usage?.plan === "free" && (
         <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
           <span>
@@ -493,7 +537,7 @@ export function App() {
             >
               Upgrade to Pro
             </button>{" "}
-            for unlimited history, ✨ AI auto-tagging, and more.
+            for unlimited history and more.
           </span>
         </div>
       )}
@@ -626,6 +670,8 @@ function CardList({
   onDelete,
   allTags,
   onTagsChange,
+  onAcceptSuggestedTag,
+  onDismissSuggestedTag,
   hasSelection,
   selectedIds,
   onToggleSelect,
@@ -645,6 +691,8 @@ function CardList({
   onDelete: (id: string) => void;
   allTags: string[];
   onTagsChange: (id: string, tags: string[]) => Promise<void>;
+  onAcceptSuggestedTag: (id: string, tag: string) => void;
+  onDismissSuggestedTag: (id: string, tag: string) => void;
   hasSelection: boolean;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
@@ -693,6 +741,8 @@ function CardList({
           onDelete={onDelete}
           allTags={allTags}
           onTagsChange={onTagsChange}
+          onAcceptSuggestedTag={(tag) => onAcceptSuggestedTag(s.id, tag)}
+          onDismissSuggestedTag={(tag) => onDismissSuggestedTag(s.id, tag)}
           filterTag={filterTag}
           onFilterTag={onFilterTag}
           hasSelection={hasSelection}
@@ -715,6 +765,8 @@ function SummaryCard({
   onDelete,
   allTags,
   onTagsChange,
+  onAcceptSuggestedTag,
+  onDismissSuggestedTag,
   filterTag,
   onFilterTag,
   hasSelection,
@@ -730,6 +782,8 @@ function SummaryCard({
   onDelete: (id: string) => void;
   allTags: string[];
   onTagsChange: (id: string, tags: string[]) => Promise<void>;
+  onAcceptSuggestedTag?: (tag: string) => void;
+  onDismissSuggestedTag?: (tag: string) => void;
   filterTag: string | null;
   onFilterTag: (tag: string | null) => void;
   hasSelection?: boolean;
@@ -903,6 +957,16 @@ function SummaryCard({
               )}
             </div>
           </div>
+          {onAcceptSuggestedTag && onDismissSuggestedTag && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <SuggestedTags
+                tags={s.suggestedTags ?? []}
+                onAccept={onAcceptSuggestedTag}
+                onDismiss={onDismissSuggestedTag}
+                className="mt-1"
+              />
+            </div>
+          )}
         </div>
       </div>
       {autoTagResult && onAutoTagApplyOne && onAutoTagApplyAll && onAutoTagDismiss && (

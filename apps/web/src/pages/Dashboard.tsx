@@ -2,6 +2,7 @@ import type { AutoTagSuggestion, Summary, UsageInfo } from "@cliphy/shared";
 import {
   FREE_HISTORY_DAYS,
   SelectionActionBar,
+  SuggestedTags,
   TagSuggestions,
   formatTimeSaved,
   relativeDate,
@@ -78,7 +79,11 @@ export function Dashboard() {
         api.updateSummaryTags(summaryId, newTags),
         api.getAllTags().then((r) => setAllTags(r.tags)),
       ]);
-      setSummaries((prev) => prev.map((s) => (s.id === summaryId ? { ...s, tags: res.tags } : s)));
+      setSummaries((prev) =>
+        prev.map((s) =>
+          s.id === summaryId ? { ...s, tags: res.tags, suggestedTags: res.suggestedTags } : s,
+        ),
+      );
     } catch {
       if (rollback !== undefined) {
         setSummaries((prev) =>
@@ -87,6 +92,51 @@ export function Dashboard() {
       }
       const tagsRes = await api.getAllTags().catch(() => null);
       if (tagsRes) setAllTags(tagsRes.tags);
+    }
+  }
+
+  async function handleAcceptSuggestedTag(summaryId: string, tag: string) {
+    const target = summaries.find((s) => s.id === summaryId);
+    if (!target) return;
+    const rollbackSuggested = target.suggestedTags ?? [];
+    const newTags = target.tags.includes(tag) ? target.tags : [...target.tags, tag];
+    setSummaries((prev) =>
+      prev.map((s) =>
+        s.id === summaryId
+          ? { ...s, suggestedTags: (s.suggestedTags ?? []).filter((t) => t !== tag) }
+          : s,
+      ),
+    );
+    // handleTagsChange applies the tag optimistically and rolls tags back on failure
+    // (incl. 403 TAG_LIMIT); restore the suggestion too if the save didn't stick.
+    await handleTagsChange(summaryId, newTags);
+    setSummaries((prev) =>
+      prev.map((s) =>
+        s.id === summaryId && !s.tags.includes(tag)
+          ? { ...s, suggestedTags: rollbackSuggested }
+          : s,
+      ),
+    );
+  }
+
+  async function handleDismissSuggestedTag(summaryId: string, tag: string) {
+    const rollback = summaries.find((s) => s.id === summaryId)?.suggestedTags ?? [];
+    setSummaries((prev) =>
+      prev.map((s) =>
+        s.id === summaryId
+          ? { ...s, suggestedTags: (s.suggestedTags ?? []).filter((t) => t !== tag) }
+          : s,
+      ),
+    );
+    try {
+      const res = await api.dismissSuggestedTag(summaryId, tag);
+      setSummaries((prev) =>
+        prev.map((s) => (s.id === summaryId ? { ...s, suggestedTags: res.suggestedTags } : s)),
+      );
+    } catch {
+      setSummaries((prev) =>
+        prev.map((s) => (s.id === summaryId ? { ...s, suggestedTags: rollback } : s)),
+      );
     }
   }
 
@@ -100,7 +150,6 @@ export function Dashboard() {
     }
   }
 
-  const isPro = usage?.plan === "pro";
   const hasSelection = selectedIds.size > 0;
 
   function toggleSelection(id: string) {
@@ -306,7 +355,8 @@ export function Dashboard() {
         hasSelection={hasSelection}
         selectedIds={selectedIds}
         onToggleSelect={toggleSelection}
-        isPro={isPro}
+        onAcceptSuggestedTag={handleAcceptSuggestedTag}
+        onDismissSuggestedTag={handleDismissSuggestedTag}
         autoTagResults={autoTagResults}
         onAutoTagApplyOne={handleAutoTagApplyOne}
         onAutoTagApplyAll={handleAutoTagApplyAll}
@@ -336,17 +386,15 @@ export function Dashboard() {
         </div>
       )}
 
-      {isPro && (
-        <SelectionActionBar
-          selectedCount={selectedIds.size}
-          totalCount={displayedSummaries.length}
-          onSelectAll={selectAll}
-          onClear={clearSelection}
-          onAutoTag={handleBulkAutoTag}
-          onDelete={handleBulkDelete}
-          loading={bulkAutoTagLoading}
-        />
-      )}
+      <SelectionActionBar
+        selectedCount={selectedIds.size}
+        totalCount={displayedSummaries.length}
+        onSelectAll={selectAll}
+        onClear={clearSelection}
+        onAutoTag={handleBulkAutoTag}
+        onDelete={handleBulkDelete}
+        loading={bulkAutoTagLoading}
+      />
 
       {usage?.plan === "free" && (
         <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-(--color-text-muted) bg-(--color-warn-surface) border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
@@ -468,7 +516,8 @@ function CardList({
   hasSelection,
   selectedIds,
   onToggleSelect,
-  isPro,
+  onAcceptSuggestedTag,
+  onDismissSuggestedTag,
   autoTagResults,
   onAutoTagApplyOne,
   onAutoTagApplyAll,
@@ -486,7 +535,8 @@ function CardList({
   hasSelection: boolean;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
-  isPro: boolean;
+  onAcceptSuggestedTag: (id: string, tag: string) => Promise<void>;
+  onDismissSuggestedTag: (id: string, tag: string) => Promise<void>;
   autoTagResults: Map<string, AutoTagSuggestion>;
   onAutoTagApplyOne: (id: string, tag: string) => void;
   onAutoTagApplyAll: (id: string, tags: string[]) => void;
@@ -534,7 +584,8 @@ function CardList({
           hasSelection={hasSelection}
           isSelected={selectedIds.has(s.id)}
           onToggleSelect={() => onToggleSelect(s.id)}
-          isPro={isPro}
+          onAcceptSuggestedTag={(tag) => onAcceptSuggestedTag(s.id, tag)}
+          onDismissSuggestedTag={(tag) => onDismissSuggestedTag(s.id, tag)}
           autoTagResult={autoTagResults.get(s.id)}
           onAutoTagApplyOne={(tag) => onAutoTagApplyOne(s.id, tag)}
           onAutoTagApplyAll={(tags) => onAutoTagApplyAll(s.id, tags)}
@@ -555,6 +606,8 @@ function SummaryCard({
   hasSelection,
   isSelected,
   onToggleSelect,
+  onAcceptSuggestedTag,
+  onDismissSuggestedTag,
   autoTagResult,
   onAutoTagApplyOne,
   onAutoTagApplyAll,
@@ -569,7 +622,8 @@ function SummaryCard({
   hasSelection: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
-  isPro: boolean;
+  onAcceptSuggestedTag: (tag: string) => Promise<void>;
+  onDismissSuggestedTag: (tag: string) => Promise<void>;
   autoTagResult?: AutoTagSuggestion;
   onAutoTagApplyOne: (tag: string) => void;
   onAutoTagApplyAll: (tags: string[]) => void;
@@ -754,6 +808,12 @@ function SummaryCard({
               )}
             </div>
           </div>
+          <SuggestedTags
+            tags={s.suggestedTags ?? []}
+            onAccept={(tag) => onAcceptSuggestedTag(tag).catch(() => {})}
+            onDismiss={(tag) => onDismissSuggestedTag(tag).catch(() => {})}
+            className="mt-1"
+          />
         </div>
       </div>
 

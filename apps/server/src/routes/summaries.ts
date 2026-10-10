@@ -19,6 +19,7 @@ import { toSummary } from "../lib/mappers.js";
 import { resolveClipImage } from "../lib/storage.js";
 import { semanticSearch } from "../services/search.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
+import { rankTags } from "../services/tagger.js";
 import { requirePro } from "../middleware/require-pro.js";
 import { APIConnectionError, APIError } from "@anthropic-ai/sdk";
 import { chatWithVideo } from "../services/chat.js";
@@ -138,10 +139,10 @@ summaryRoutes.get("/tags", async (c) => {
   return c.json({ tags: [...tagSet].sort() });
 });
 
-// ── POST /auto-tag/bulk — Bulk auto-tag (Pro only) ───────────
+// ── POST /auto-tag/bulk — Bulk auto-tag ──────────────────────
 // Registered BEFORE /:id so "auto-tag" isn't captured as an :id param.
 
-summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c) => {
+summaryRoutes.post("/auto-tag/bulk", async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json<{ summaryIds?: unknown }>();
 
@@ -174,9 +175,7 @@ summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c
     .eq("user_id", userId)
     .is("deleted_at", null);
 
-  const existingTags = [
-    ...new Set((allRows ?? []).flatMap((r) => (r.tags as string[]) ?? [])),
-  ].sort();
+  const existingTags = rankTags(allRows ?? []);
 
   // Split into taggable and skipped
   const taggable = rows.filter((r) => r.summary_json);
@@ -209,9 +208,9 @@ summaryRoutes.post("/auto-tag/bulk", requirePro(PRO_FEATURES.AUTO_TAG), async (c
   return c.json({ suggestions });
 });
 
-// ── POST /:id/auto-tag — Single summary auto-tag (Pro only) ──
+// ── POST /:id/auto-tag — Single summary auto-tag ─────────────
 
-summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c) => {
+summaryRoutes.post("/:id/auto-tag", async (c) => {
   const userId = c.get("userId");
   const summaryId = c.req.param("id");
 
@@ -238,9 +237,7 @@ summaryRoutes.post("/:id/auto-tag", requirePro(PRO_FEATURES.AUTO_TAG), async (c)
     .eq("user_id", userId)
     .is("deleted_at", null);
 
-  const existingTags = [
-    ...new Set((allRows ?? []).flatMap((r) => (r.tags as string[]) ?? [])),
-  ].sort();
+  const existingTags = rankTags(allRows ?? []);
 
   const result = await suggestTags(summary.summary_json as SummaryJson, existingTags);
 
@@ -445,21 +442,75 @@ summaryRoutes.patch("/:id/tags", async (c) => {
     }
   }
 
-  // Update the summary's tags
-  const { data, error } = await supabase
+  // Accepting a suggested tag = adding it to tags; drop it from suggestions too
+  const { data: current } = await supabase
     .from("clips")
-    .update({ tags })
+    .select("suggested_tags")
     .eq("id", id)
     .eq("user_id", userId)
     .is("deleted_at", null)
-    .select("tags")
+    .single();
+
+  if (!current) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  const suggestedTags = ((current.suggested_tags as string[]) ?? []).filter(
+    (t) => !tags.includes(t),
+  );
+
+  // Update the summary's tags
+  const { data, error } = await supabase
+    .from("clips")
+    .update({ tags, suggested_tags: suggestedTags })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .select("tags, suggested_tags")
     .single();
 
   if (error || !data) {
     return c.json({ error: "Summary not found" }, 404);
   }
 
-  return c.json({ tags: (data.tags as string[]) ?? [] });
+  return c.json({
+    tags: (data.tags as string[]) ?? [],
+    suggestedTags: (data.suggested_tags as string[]) ?? [],
+  });
+});
+
+// ── DELETE /:id/suggested-tags/:tag — Dismiss a suggested tag ─
+
+summaryRoutes.delete("/:id/suggested-tags/:tag", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const tag = decodeURIComponent(c.req.param("tag")).toLowerCase().trim();
+
+  const { data: current } = await supabase
+    .from("clips")
+    .select("suggested_tags")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .single();
+
+  if (!current) {
+    return c.json({ error: "Summary not found" }, 404);
+  }
+
+  const suggestedTags = ((current.suggested_tags as string[]) ?? []).filter((t) => t !== tag);
+
+  const { error } = await supabase
+    .from("clips")
+    .update({ suggested_tags: suggestedTags })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) {
+    return c.json({ error: "Failed to dismiss tag" }, 500);
+  }
+
+  return c.json({ suggestedTags });
 });
 
 // ── PATCH /:id/notes — Update user notes on a summary ────────

@@ -50,6 +50,8 @@ export interface SummaryJson {
   timestamps: string[];
   /** True if the transcript was too long and was truncated before summarization */
   truncated?: boolean;
+  /** Candidate tag names proposed by the summarizer; input to auto-tagging */
+  topics?: string[];
 }
 
 export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image" | "note";
@@ -124,6 +126,8 @@ export interface Summary {
   translations?: Partial<Record<import("./constants.js").SummaryLanguageCode, SummaryJson>>;
   errorMessage?: string;
   tags: string[];
+  /** New tags proposed by auto-tagging, awaiting accept/dismiss */
+  suggestedTags?: string[];
   userNotes?: string;
   enrichmentTier?: EnrichmentTier;
   archivedAt?: string;

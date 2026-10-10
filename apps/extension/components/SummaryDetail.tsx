@@ -10,6 +10,7 @@ import {
   formatTimeSaved,
   parseDurationToSeconds,
   SUMMARY_LANGUAGES,
+  SuggestedTags,
   TAG_MAX_LENGTH,
   WEB_ROUTES,
 } from "@cliphy/shared";
@@ -21,6 +22,10 @@ interface SummaryDetailProps {
   allTags?: string[];
   tagLimitReached?: boolean;
   onTagsChange?: (tags: string[]) => void;
+  /** Accept an AI-suggested tag (summary.suggestedTags) */
+  onAcceptSuggestedTag?: (tag: string) => void;
+  /** Dismiss an AI-suggested tag */
+  onDismissSuggestedTag?: (tag: string) => void;
   onSeek?: (seconds: number) => void;
   onDismiss?: () => void;
   /** Re-summarize this video (retry with fresh AI call) */
@@ -650,6 +655,8 @@ export function SummaryDetail({
   allTags,
   tagLimitReached,
   onTagsChange,
+  onAcceptSuggestedTag,
+  onDismissSuggestedTag,
   onSeek,
   onDismiss,
   onRetry,
@@ -785,6 +792,14 @@ export function SummaryDetail({
               allTags={allTags ?? []}
               tagLimitReached={tagLimitReached ?? false}
               onChange={onTagsChange}
+            />
+          )}
+          {onAcceptSuggestedTag && onDismissSuggestedTag && (
+            <SuggestedTags
+              tags={summary.suggestedTags ?? []}
+              onAccept={onAcceptSuggestedTag}
+              onDismiss={onDismissSuggestedTag}
+              className="mt-2"
             />
           )}
         </div>

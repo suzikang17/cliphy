@@ -115,9 +115,15 @@ export async function deleteSummary(id: string) {
 }
 
 export async function updateSummaryTags(id: string, tags: string[]) {
-  return request<TagsResponse>(API_ROUTES.SUMMARIES.TAGS(id), {
+  return request<TagsResponse & { suggestedTags: string[] }>(API_ROUTES.SUMMARIES.TAGS(id), {
     method: "PATCH",
     body: JSON.stringify({ tags }),
+  });
+}
+
+export async function dismissSuggestedTag(id: string, tag: string) {
+  return request<{ suggestedTags: string[] }>(API_ROUTES.SUMMARIES.SUGGESTED_TAG(id, tag), {
+    method: "DELETE",
   });
 }
 

@@ -9,7 +9,6 @@ import type {
   UsageResponse,
   Summary,
   ProRequiredResponse,
-  AutoTagSuggestion,
   BulkAutoTagResponse,
   ChatMessage,
   ChatResponse,
@@ -214,20 +213,20 @@ export async function retryQueueItem(id: string) {
 }
 
 export async function updateSummaryTags(id: string, tags: string[]) {
-  return request<TagsResponse>(API_ROUTES.SUMMARIES.TAGS(id), {
+  return request<{ tags: string[]; suggestedTags: string[] }>(API_ROUTES.SUMMARIES.TAGS(id), {
     method: "PATCH",
     body: JSON.stringify({ tags }),
   });
 }
 
-export async function getAllTags() {
-  return request<TagsResponse>(API_ROUTES.TAGS.LIST);
+export async function dismissSuggestedTag(id: string, tag: string) {
+  return request<{ suggestedTags: string[] }>(API_ROUTES.SUMMARIES.SUGGESTED_TAG(id, tag), {
+    method: "DELETE",
+  });
 }
 
-export async function autoTagSummary(summaryId: string): Promise<AutoTagSuggestion> {
-  return request<AutoTagSuggestion>(API_ROUTES.SUMMARIES.AUTO_TAG(summaryId), {
-    method: "POST",
-  });
+export async function getAllTags() {
+  return request<TagsResponse>(API_ROUTES.TAGS.LIST);
 }
 
 export async function autoTagBulk(summaryIds: string[]): Promise<BulkAutoTagResponse> {

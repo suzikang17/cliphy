@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo, ClipCategory } from "@cliphy/shared";
-import { neon, CLIP_CATEGORIES } from "@cliphy/shared";
+import { neon, CLIP_CATEGORIES, tagPath } from "@cliphy/shared";
 import {
   getQueue,
   getUsage,
@@ -24,6 +24,7 @@ import {
   unarchiveClip,
   updateClipTags,
   retryQueueItem,
+  TagLimitError,
 } from "../../lib/api";
 import { showQueueError } from "../../lib/queueError";
 import { getYouTubeUrlFromClipboard } from "../../lib/clipboard";
@@ -188,8 +189,29 @@ export default function QueueScreen() {
     ]);
   }
 
-  function applyTag(id: string) {
-    const clip = items.find((i) => i.id === id) ?? searchResults?.find((i) => i.id === id);
+  function findClip(id: string) {
+    return items.find((i) => i.id === id) ?? searchResults?.find((i) => i.id === id);
+  }
+
+  // Merge one tag into a clip (optimistic), dropping it from suggestions too.
+  function addTag(id: string, tag: string) {
+    const clip = findClip(id);
+    const next = [...new Set([...(clip?.tags ?? []), tag])];
+    const patch = (i: Summary) =>
+      i.id === id
+        ? { ...i, tags: next, suggestedTags: (i.suggestedTags ?? []).filter((t) => t !== tag) }
+        : i;
+    setItems((prev) => prev.map(patch));
+    setSearchResults((prev) => (prev ? prev.map(patch) : prev));
+    updateClipTags(id, next)
+      .then(fetchData)
+      .catch((err) => {
+        fetchData(); // roll back to server state
+        showQueueError(err instanceof TagLimitError ? err : new Error("Couldn't add tag"));
+      });
+  }
+
+  function promptCustomTag(id: string) {
     Alert.prompt?.(
       "Apply tag",
       "Use design:color to nest",
@@ -200,14 +222,27 @@ export default function QueueScreen() {
           .replace(/\s*:\s*/g, ":")
           .replace(/^:+|:+$/g, "");
         if (!tag) return;
-        const next = [...new Set([...(clip?.tags ?? []), tag])];
-        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, tags: next } : i)));
-        updateClipTags(id, next)
-          .then(fetchData)
-          .catch(() => showQueueError(new Error("Couldn't add tag")));
+        addTag(id, tag);
       },
       "plain-text",
     );
+  }
+
+  // Offer AI suggestions as quick picks; "Custom…" falls through to the text prompt.
+  function applyTag(id: string) {
+    const suggestions = findClip(id)?.suggestedTags ?? [];
+    if (suggestions.length === 0) {
+      promptCustomTag(id);
+      return;
+    }
+    Alert.alert("Apply tag", "Suggested for this clip", [
+      ...suggestions.map((tag) => ({
+        text: tagPath(tag).join(" › "),
+        onPress: () => addTag(id, tag),
+      })),
+      { text: "Custom…", onPress: () => promptCustomTag(id) },
+      { text: "Cancel", style: "cancel" as const },
+    ]);
   }
 
   function reSummarize(id: string) {

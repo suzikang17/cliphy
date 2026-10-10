@@ -22,6 +22,31 @@ describe("Video Processing", () => {
       expect(result.timestamps).toHaveLength(2);
     });
 
+    it("normalizes topics: lowercases, trims, dedupes, drops non-strings and overlong, caps at 4", () => {
+      const raw = JSON.stringify({
+        summary: "s",
+        keyPoints: [],
+        timestamps: [],
+        topics: [
+          " Sourdough ",
+          "sourdough",
+          42,
+          "x".repeat(31),
+          "Baking",
+          "bread",
+          "home",
+          "extra",
+        ],
+      });
+      expect(parseSummaryResponse(raw).topics).toEqual(["sourdough", "baking", "bread", "home"]);
+    });
+
+    it("omits topics when absent or empty", () => {
+      const base = { summary: "s", keyPoints: [], timestamps: [] };
+      expect(parseSummaryResponse(JSON.stringify(base)).topics).toBeUndefined();
+      expect(parseSummaryResponse(JSON.stringify({ ...base, topics: [] })).topics).toBeUndefined();
+    });
+
     it("extracts JSON from markdown code fences", () => {
       const raw =
         '```json\n{"summary":"test","keyPoints":["a"],"timestamps":["0:00 - Start"]}\n```';

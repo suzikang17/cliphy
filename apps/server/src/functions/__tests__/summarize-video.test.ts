@@ -73,8 +73,16 @@ type AnyFn = (...args: any[]) => any;
 
 let capturedConfig: { onFailure: AnyFn } | null = null;
 
+const mockInngestSend = vi.fn().mockResolvedValue(undefined);
+const mockAutoTagClip = vi.fn();
+
+vi.mock("../../services/auto-tag.js", () => ({
+  autoTagClip: (...args: unknown[]) => mockAutoTagClip(...args),
+}));
+
 vi.mock("../../lib/inngest.js", () => ({
   inngest: {
+    send: (...args: unknown[]) => mockInngestSend(...args),
     // Inngest v4: createFunction(config, handler) — triggers live inside config
     createFunction: vi.fn((config, handler) => {
       capturedConfig = config;
@@ -134,6 +142,8 @@ function makeAPIError(status: number, message: string): APIError {
 describe("summarize-video", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInngestSend.mockResolvedValue(undefined);
+    mockAutoTagClip.mockResolvedValue({ applied: [], suggested: [] });
     fromCallCount = 0;
     fromResults = [];
     layer("unit");
@@ -169,7 +179,44 @@ describe("summarize-video", () => {
         "English",
         "English",
       );
-      expect(step.run).toHaveBeenCalledTimes(3);
+      expect(step.run.mock.calls.map((c) => c[0])).toEqual([
+        "fetch-transcript",
+        "generate-summary",
+        "save-result",
+        "auto-tag",
+        "request-embedding",
+      ]);
+      expect(mockAutoTagClip).toHaveBeenCalledWith("sum-123");
+      expect(mockInngestSend).toHaveBeenCalledWith({
+        name: "clip/embed.requested",
+        data: { clipId: "sum-123" },
+      });
+    });
+
+    it("completes and still requests embedding when auto-tag throws", async () => {
+      mockFetchTranscript.mockResolvedValue({
+        text: "transcript text",
+        truncated: false,
+        language: "en",
+      });
+      mockSummarizeTranscript.mockResolvedValue(sampleSummary);
+      mockAutoTagClip.mockRejectedValue(new Error("Jev 503"));
+      fromResults = [
+        mockChain({ data: { summary_language: "en" } }),
+        mockChain(),
+        mockChain({ data: null }),
+        mockChain(),
+        mockChain(),
+      ];
+
+      const { summarizeVideo } = await import("../summarize-video.js");
+      const step = makeStep();
+      const result = await (summarizeVideo as unknown as AnyFn)({ event: defaultEvent, step });
+
+      expect(result).toEqual({ summaryId: "sum-123", status: "completed" });
+      expect(mockSentryCapture).toHaveBeenCalled();
+      expect(mockSentryFlush).toHaveBeenCalled();
+      expect(mockInngestSend).toHaveBeenCalled();
     });
 
     it("sets truncated flag on summaryJson when transcript was truncated", async () => {

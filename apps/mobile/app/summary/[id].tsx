@@ -129,7 +129,10 @@ export default function SummaryDetailScreen() {
             </View>
           </View>
 
-          <SummaryContent summary={summary} />
+          <SummaryContent
+            summary={summary}
+            onTagsChange={(patch) => setSummary((prev) => (prev ? { ...prev, ...patch } : prev))}
+          />
 
           {related.length > 0 ? (
             <View className="mt-6">

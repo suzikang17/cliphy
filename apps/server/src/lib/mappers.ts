@@ -25,6 +25,7 @@ export function toClip(row: Record<string, unknown>): Summary {
     translations: (row.translations as Summary["translations"]) ?? undefined,
     errorMessage: (row.error_message as string) ?? undefined,
     tags: (row.tags as string[]) ?? [],
+    suggestedTags: (row.suggested_tags as string[]) ?? [],
     userNotes: (row.user_notes as string) ?? undefined,
     enrichmentTier: (row.enrichment_tier as Summary["enrichmentTier"]) ?? "full",
     archivedAt: (row.archived_at as string) ?? undefined,

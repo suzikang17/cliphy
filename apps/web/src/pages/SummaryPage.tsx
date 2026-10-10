@@ -1,5 +1,10 @@
 import type { AutoTagSuggestion, Summary } from "@cliphy/shared";
-import { TagSuggestions, formatTimeSaved, parseDurationToSeconds } from "@cliphy/shared";
+import {
+  SuggestedTags,
+  TagSuggestions,
+  formatTimeSaved,
+  parseDurationToSeconds,
+} from "@cliphy/shared";
 import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Nav } from "../components/Nav";
@@ -25,7 +30,6 @@ export function SummaryPage() {
   const { id } = useParams<{ id: string }>();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
-  const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -80,15 +84,10 @@ export function SummaryPage() {
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([
-      api.getSummary(id),
-      api.getAllTags().catch(() => ({ tags: [] as string[] })),
-      api.getUsage().catch(() => null),
-    ])
-      .then(([res, tagsRes, usageRes]) => {
+    Promise.all([api.getSummary(id), api.getAllTags().catch(() => ({ tags: [] as string[] }))])
+      .then(([res, tagsRes]) => {
         setSummary(res.summary);
         setAllTags(tagsRes.tags);
-        if (usageRes) setIsPro(usageRes.usage.plan === "pro");
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -111,11 +110,41 @@ export function SummaryPage() {
     setSummary((prev) => (prev ? { ...prev, tags: newTags } : prev));
     try {
       const res = await api.updateSummaryTags(id, newTags);
-      setSummary((prev) => (prev ? { ...prev, tags: res.tags } : prev));
+      setSummary((prev) =>
+        prev ? { ...prev, tags: res.tags, suggestedTags: res.suggestedTags } : prev,
+      );
       const tagsRes = await api.getAllTags().catch(() => null);
       if (tagsRes) setAllTags(tagsRes.tags);
     } catch {
       setSummary((prev) => (prev ? { ...prev, tags: rollback } : prev));
+    }
+  }
+
+  async function handleAcceptSuggestedTag(tag: string) {
+    if (!summary) return;
+    const rollbackSuggested = summary.suggestedTags ?? [];
+    setSummary((prev) =>
+      prev ? { ...prev, suggestedTags: (prev.suggestedTags ?? []).filter((t) => t !== tag) } : prev,
+    );
+    // handleTagsChange applies the tag optimistically and rolls tags back on failure
+    // (incl. 403 TAG_LIMIT); restore the suggestion too if the save didn't stick.
+    await handleTagsChange(summary.tags.includes(tag) ? summary.tags : [...summary.tags, tag]);
+    setSummary((prev) =>
+      prev && !prev.tags.includes(tag) ? { ...prev, suggestedTags: rollbackSuggested } : prev,
+    );
+  }
+
+  async function handleDismissSuggestedTag(tag: string) {
+    if (!summary || !id) return;
+    const rollback = summary.suggestedTags ?? [];
+    setSummary((prev) =>
+      prev ? { ...prev, suggestedTags: (prev.suggestedTags ?? []).filter((t) => t !== tag) } : prev,
+    );
+    try {
+      const res = await api.dismissSuggestedTag(id, tag);
+      setSummary((prev) => (prev ? { ...prev, suggestedTags: res.suggestedTags } : prev));
+    } catch {
+      setSummary((prev) => (prev ? { ...prev, suggestedTags: rollback } : prev));
     }
   }
 
@@ -324,7 +353,7 @@ export function SummaryPage() {
           )}
         </div>
 
-        {isPro && !autoTagResult && json && (
+        {!autoTagResult && json && (
           <button
             onClick={handleAutoTag}
             disabled={autoTagLoading}
@@ -334,6 +363,13 @@ export function SummaryPage() {
           </button>
         )}
       </div>
+
+      <SuggestedTags
+        tags={summary.suggestedTags ?? []}
+        onAccept={(tag) => handleAcceptSuggestedTag(tag).catch(() => {})}
+        onDismiss={(tag) => handleDismissSuggestedTag(tag).catch(() => {})}
+        className="mt-2"
+      />
 
       {autoTagResult && (
         <div className="mt-2">

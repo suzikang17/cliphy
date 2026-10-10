@@ -44,7 +44,6 @@ export const PRO_FEATURES = {
   CUSTOM_PROMPTS: "custom_prompts",
   EXPORT: "export",
   PRIORITY_PROCESSING: "priority_processing",
-  AUTO_TAG: "auto_tag",
   VIDEO_CHAT: "video_chat",
   AUTO_SUBSCRIBE: "auto_subscribe",
 } as const;
@@ -119,6 +118,8 @@ export const API_ROUTES = {
     ENRICH: (id: string) => `/api/summaries/${id}/enrich`,
     AUTO_TAG: (id: string) => `/api/summaries/${id}/auto-tag`,
     AUTO_TAG_BULK: "/api/summaries/auto-tag/bulk",
+    SUGGESTED_TAG: (id: string, tag: string) =>
+      `/api/summaries/${id}/suggested-tags/${encodeURIComponent(tag)}`,
     CHAT: (id: string) => `/api/summaries/${id}/chat`,
     UPDATE: (id: string) => `/api/summaries/${id}`,
     TRANSLATE: (id: string) => `/api/summaries/${id}/translate`,

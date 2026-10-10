@@ -11,6 +11,7 @@ import {
   TranscriptNotAvailableError,
 } from "../services/transcript.js";
 import { summarizeTranscript } from "../services/summarizer.js";
+import { autoTagClip } from "../services/auto-tag.js";
 
 const log = logger.child({ fn: "summarize-video" });
 
@@ -262,7 +263,22 @@ export const summarizeVideo = inngest.createFunction(
         .eq("id", summaryId);
     });
 
-    // Step 4: Request embedding generation
+    // Step 4: Auto-tag (Jev applies existing tags; unmatched topics become suggestions).
+    // Best-effort — the summary is already saved, so a tagging failure never fails the run.
+    await step.run("auto-tag", async () => {
+      try {
+        return await autoTagClip(summaryId);
+      } catch (err) {
+        log.warn("Auto-tag failed", { summaryId, error: (err as Error).message });
+        Sentry.captureException(err, {
+          tags: { component: "inngest", step: "auto-tag", video_id: videoId },
+        });
+        await Sentry.flush(2000);
+        return { applied: [], suggested: [], skipped: "error" };
+      }
+    });
+
+    // Step 5: Request embedding generation
     await step.run("request-embedding", async () => {
       await inngest.send({
         name: "clip/embed.requested",

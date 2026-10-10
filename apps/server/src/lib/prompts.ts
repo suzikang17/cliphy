@@ -7,7 +7,8 @@ Always respond with valid JSON matching this exact schema:
   "summary": "string (MAX 2 sentences. Brief TL;DR only. Must be under 50 words.)",
   "keyPoints": ["string (5-10 key takeaways as bullet points)"],
   "contextSection": {"title": "string", "icon": "string (single emoji)", "items": ["string (3-7 specific, practical items)"], "groups": [{"label": "string", "items": ["string"]}]} or null,
-  "timestamps": ["string (topic changes in format 'M:SS - Topic description'. The transcript includes [M:SS] markers — use those exact times. Do NOT round or estimate.)"]
+  "timestamps": ["string (topic changes in format 'M:SS - Topic description'. The transcript includes [M:SS] markers — use those exact times. Do NOT round or estimate.)"],
+  "topics": ["string (2-4 tags that categorize the video for a personal library. Lowercase, 1-3 words each, e.g. 'sourdough', 'machine learning', 'home workouts'. Broad enough to reuse across videos, not video-specific phrases.)"]
 }
 
 contextSection guidelines:

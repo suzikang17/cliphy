@@ -311,4 +311,89 @@ describe("Auto-tag integration", () => {
       expect(tagged?.new).toEqual(["react"]);
     });
   });
+
+  // ── Auto-tag is no longer Pro-gated ───────────────────────
+
+  it("does not gate auto-tag routes behind Pro", async () => {
+    vi.resetModules(); // re-run route registration so requirePro calls are recorded
+    const { requirePro } = await import("../../middleware/require-pro.js");
+    await createApp();
+    const gated = vi.mocked(requirePro).mock.calls.map((c) => c[0]);
+    expect(gated).toContain("video_chat"); // sanity: registration was observed
+    expect(gated).not.toContain("auto_tag");
+  });
+
+  // ── Suggested tags: accept (PATCH /tags) and dismiss (DELETE) ─
+
+  describe("suggested tags", () => {
+    it("PATCH /:id/tags removes accepted tags from suggestedTags", async () => {
+      fromResults = [
+        mockChain({ data: { plan: "pro" } }), // getUserPlan
+        mockChain({ data: { suggested_tags: ["sourdough", "fermentation"] } }), // read suggestions
+        mockChain({ data: { tags: ["cooking", "sourdough"], suggested_tags: ["fermentation"] } }),
+      ];
+      const updateChain = fromResults[2];
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1/tags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: ["cooking", "Sourdough"] }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        tags: ["cooking", "sourdough"],
+        suggestedTags: ["fermentation"],
+      });
+      expect(updateChain.update).toHaveBeenCalledWith({
+        tags: ["cooking", "sourdough"],
+        suggested_tags: ["fermentation"],
+      });
+    });
+
+    it("PATCH /:id/tags still enforces the free-plan unique tag limit on accept", async () => {
+      fromResults = [
+        mockChain({ data: { plan: "free" } }),
+        mockChain({ data: [{ tags: ["a", "b", "c"] }] }), // 3 unique tags elsewhere
+      ];
+
+      const app = await createApp();
+      const res = await app.request("/summaries/sum-1/tags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: ["sourdough"] }),
+      });
+
+      expect(res.status).toBe(403);
+      expect((await res.json()).code).toBe("TAG_LIMIT");
+    });
+
+    it("DELETE /:id/suggested-tags/:tag dismisses one suggestion", async () => {
+      fromResults = [
+        mockChain({ data: { suggested_tags: ["cooking:baking", "fermentation"] } }),
+        mockChain({ error: null }),
+      ];
+      const updateChain = fromResults[1];
+
+      const app = await createApp();
+      const res = await app.request(
+        `/summaries/sum-1/suggested-tags/${encodeURIComponent("cooking:baking")}`,
+        { method: "DELETE" },
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ suggestedTags: ["fermentation"] });
+      expect(updateChain.update).toHaveBeenCalledWith({ suggested_tags: ["fermentation"] });
+    });
+
+    it("DELETE /:id/suggested-tags/:tag returns 404 for a missing clip", async () => {
+      fromResults = [mockChain({ data: null })];
+
+      const app = await createApp();
+      const res = await app.request("/summaries/nope/suggested-tags/x", { method: "DELETE" });
+
+      expect(res.status).toBe(404);
+    });
+  });
 });

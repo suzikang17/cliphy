@@ -45,6 +45,15 @@ export class ProRequiredError extends Error {
   }
 }
 
+export class TagLimitError extends Error {
+  limit: number;
+  constructor(message: string, limit: number) {
+    super(message);
+    this.name = "TagLimitError";
+    this.limit = limit;
+  }
+}
+
 export class DuplicateError extends Error {
   constructor(message = "Video already queued") {
     super(message);
@@ -97,6 +106,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     throw new ProRequiredError(body.feature);
   }
 
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    if (body.code === "TAG_LIMIT") {
+      throw new TagLimitError(body.error || "Tag limit reached", body.limit);
+    }
+    throw new Error(body.error || `API error ${res.status}`);
+  }
+
   if (res.status === 409) {
     const body = await res.json().catch(() => ({}));
     if (body.code === "DUPLICATE") throw new DuplicateError(body.error);
@@ -127,10 +144,16 @@ export const addClip = (body: { url?: string; imagePath?: string }) =>
   });
 
 export const updateClipTags = (id: string, tags: string[]) =>
-  apiFetch<{ summary: Summary }>(`/api/summaries/${id}/tags`, {
+  apiFetch<{ tags: string[]; suggestedTags: string[] }>(`/api/summaries/${id}/tags`, {
     method: "PATCH",
     body: JSON.stringify({ tags }),
   });
+
+export const dismissSuggestedTag = (id: string, tag: string) =>
+  apiFetch<{ suggestedTags: string[] }>(
+    `/api/summaries/${id}/suggested-tags/${encodeURIComponent(tag)}`,
+    { method: "DELETE" },
+  );
 
 export const archiveClip = (id: string) =>
   apiFetch<{ id: string; archivedAt: string }>(`/api/summaries/${id}/archive`, { method: "POST" });

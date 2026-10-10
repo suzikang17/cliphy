@@ -1,6 +1,9 @@
 import { View, Text, Pressable, Linking } from "react-native";
 import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
+import { updateClipTags, dismissSuggestedTag, TagLimitError } from "../lib/api";
+import { showQueueError } from "../lib/queueError";
+import { SuggestedTags } from "./SuggestedTags";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -17,7 +20,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function SummaryContent({ summary }: { summary: Summary }) {
+type TagPatch = Partial<Pick<Summary, "tags" | "suggestedTags">>;
+
+export function SummaryContent({
+  summary,
+  onTagsChange,
+}: {
+  summary: Summary;
+  /** Called with optimistic and server-confirmed tag state. Omit to hide suggestions. */
+  onTagsChange?: (patch: TagPatch) => void;
+}) {
   const json = summary.summaryJson;
   const rawContent = summary.content?.trim();
   // Tweet/web/image clips carry their captured text in `content`; show it
@@ -28,8 +40,34 @@ export function SummaryContent({ summary }: { summary: Summary }) {
       summary.sourceType === "web" ||
       summary.sourceType === "image");
   const hasTags = !!summary.tags && summary.tags.length > 0;
+  const suggested = onTagsChange ? (summary.suggestedTags ?? []) : [];
 
-  if (!json && !showRaw && !hasTags) return null;
+  if (!json && !showRaw && !hasTags && suggested.length === 0) return null;
+
+  function acceptSuggestion(tag: string) {
+    if (!onTagsChange) return;
+    const snapshot: TagPatch = { tags: summary.tags, suggestedTags: summary.suggestedTags };
+    const nextTags = [...new Set([...(summary.tags ?? []), tag])];
+    onTagsChange({ tags: nextTags, suggestedTags: suggested.filter((t) => t !== tag) });
+    updateClipTags(summary.id, nextTags)
+      .then((res) => onTagsChange({ tags: res.tags, suggestedTags: res.suggestedTags }))
+      .catch((err) => {
+        onTagsChange(snapshot);
+        showQueueError(err instanceof TagLimitError ? err : new Error("Couldn't add tag"));
+      });
+  }
+
+  function dismissSuggestion(tag: string) {
+    if (!onTagsChange) return;
+    const snapshot: TagPatch = { suggestedTags: summary.suggestedTags };
+    onTagsChange({ suggestedTags: suggested.filter((t) => t !== tag) });
+    dismissSuggestedTag(summary.id, tag)
+      .then((res) => onTagsChange({ suggestedTags: res.suggestedTags }))
+      .catch(() => {
+        onTagsChange(snapshot);
+        showQueueError(new Error("Couldn't dismiss suggestion"));
+      });
+  }
 
   return (
     <View className="gap-1">
@@ -124,11 +162,11 @@ export function SummaryContent({ summary }: { summary: Summary }) {
         </Section>
       )}
 
-      {/* Tags */}
-      {summary.tags && summary.tags.length > 0 && (
+      {/* Tags + AI suggestions */}
+      {(hasTags || suggested.length > 0) && (
         <Section title="Tags">
           <View className="flex-row flex-wrap gap-1.5">
-            {summary.tags.map((tag) => (
+            {(summary.tags ?? []).map((tag) => (
               <View key={tag} className="bg-[#ede0f8] dark:bg-[#221028] px-2.5 py-1 rounded-lg">
                 <Text
                   className="text-xs font-medium"
@@ -139,6 +177,15 @@ export function SummaryContent({ summary }: { summary: Summary }) {
               </View>
             ))}
           </View>
+          {suggested.length > 0 && (
+            <View className={hasTags ? "mt-2" : undefined}>
+              <SuggestedTags
+                tags={suggested}
+                onAccept={acceptSuggestion}
+                onDismiss={dismissSuggestion}
+              />
+            </View>
+          )}
         </Section>
       )}
     </View>

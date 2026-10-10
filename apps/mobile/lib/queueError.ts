@@ -1,6 +1,13 @@
 import { Alert } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { AuthError, RateLimitError, ProRequiredError, DuplicateError, createCheckout } from "./api";
+import {
+  AuthError,
+  RateLimitError,
+  ProRequiredError,
+  DuplicateError,
+  TagLimitError,
+  createCheckout,
+} from "./api";
 
 async function startUpgrade() {
   try {
@@ -36,6 +43,14 @@ export function showQueueError(err: unknown) {
 
   if (err instanceof ProRequiredError) {
     Alert.alert("Pro feature", `${err.feature} is available on Pro. Upgrade to unlock it.`, [
+      { text: "Not now", style: "cancel" },
+      { text: "Upgrade to Pro", onPress: startUpgrade },
+    ]);
+    return;
+  }
+
+  if (err instanceof TagLimitError) {
+    Alert.alert("Tag limit reached", err.message, [
       { text: "Not now", style: "cancel" },
       { text: "Upgrade to Pro", onPress: startUpgrade },
     ]);
