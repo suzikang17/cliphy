@@ -60,6 +60,10 @@ tag hierarchy (`parent:child`), the optional-permission pattern used for `histor
 3. **Groups** — collapsible sections: name (tag path rendered `client › acme`), count, actions
    **Close all** and **Stow all** (existing stow flow), and **⋯** menu → _Edit hints_.
    Proposed groups (from Claude) render with a "Suggested" badge and **＋ Save as tag** / **×**.
+   A **Probably done** group (always last, rows dimmed) collects tabs Jev flags as finished
+   (search results, login/confirmation pages, articles read to the end) with **Close all**. A tab
+   flagged done appears only there, not in its topic group; Move-to or clicking it clears the flag
+   for that URL.
 4. **Rows** — favicon, title, host. Click → `tabs.update(id, {active:true})` +
    `windows.update(windowId, {focused:true})`. Hover **×** closes the tab. **⋯ → Move to…**
    reassigns. The active tab is highlighted.
@@ -81,7 +85,8 @@ recently accessed tab (`tab.lastAccessed`). Rows within a group by `lastAccessed
 - `extractPage()` — the function injected via `scripting.executeScript({ target:{tabId}, func })`.
   Returns `{ title, description, text }`: `meta[name=description]`, and the first 2,000 chars of
   `innerText` from the first of `article`, `main`, `[role=main]`, `body`, whitespace-collapsed.
-  Returns `{ skipped: "sensitive" }` if the page contains `input[type=password]`.
+  Also returns `scrolledToEnd: boolean`. Returns `{ skipped: "sensitive" }` if the page contains
+  `input[type=password]`.
 - `useTabOrganizer()` — hook orchestrating: query tabs → site groups → (if permission) extract
   changed tabs → POST to server → merge assignments.
 
@@ -89,6 +94,7 @@ recently accessed tab (`tab.lastAccessed`). Rows within a group by `lastAccessed
 
 - `tabs:extract:<url>` → extracted text (avoid re-reading unchanged pages).
 - `tabs:assign:<url>` → `{ tag } | { proposed }` from the server.
+- `tabs:done:<url>` → done flag from the server; cleared when the user activates the tab or moves it.
 - `tabs:override:<url>` → user's manual Move-to choice (also in `storage.local` so it persists
   across sessions; override always wins over the server assignment).
 
@@ -108,17 +114,24 @@ Request: `{ tabs: [{ key: string, url: string, title: string, text?: string }] }
   2,000 server-side.
 - Rate limit: 60 requests / rolling hour / user → 429 `{ code: "RATE_LIMITED" }`.
 
-Response: `{ assignments: { [key]: { tag: string } | { proposed: string } | { none: true } } }`
+Response: `{ assignments: { [key]: { tag: string } | { proposed: string } | { none: true } }, done: string[] }`
+— `done` lists keys Jev judged finished (see step 2).
 
 `services/tab-organizer.ts` → `organizeTabs({ tabs, existingTags, hints })`:
 
 1. Load the user's tags via `rankTags` (most-used first, cap `MAX_EXISTING_TAGS`) and their hints
    from `tag_hints`.
 2. **Jev, one `systemOne` call per tab**, concurrency 10. State `{ title, url, description?,
-text? }`; question `choice("Which of the user's tags does this page belong to?", { e0:
-"<tag path> — <hints>", …, none: "None of these" })`. Assign when choice ≠ none and
-   confidence ≥ **0.6** (`ASSIGN_THRESHOLD`). Model pinned `jev-1.13.0` (shared constant with
-   `tagger.ts`).
+text? }`. Two questions in the same call:
+   - `group`: `choice("Which of the user's tags does this page belong to?", { e0: "<tag path> —
+<hints>", …, none: "None of these" })`. Assign when choice ≠ none and confidence ≥ **0.6**
+     (`ASSIGN_THRESHOLD`).
+   - `done`: `noul("Is the user most likely finished with this page — e.g. search results, a
+  login/confirmation/checkout-complete page, an error page, or an article already read?")`.
+     Flag when P(yes) ≥ **0.8** (`DONE_THRESHOLD`, conservative — a wrongly hidden tab is worse
+     than a missed one). Asked for every tab; the extractor also reports `scrolledToEnd` (scrollY + innerHeight ≥ 90% of scrollHeight) in
+     state as a signal.
+     Model pinned `jev-1.13.0` (shared constant with `tagger.ts`).
 3. **Claude Haiku, one call for all leftovers** (only if ≥ 2 leftovers): input = leftover tabs'
    title + url + first 300 chars of text; output JSON `{ groups: [{ name, keys[] }] }` with 1–5
    groups, `name` a lowercase tag (may be `parent:child`, e.g. `client:brightline`). Names that
@@ -190,11 +203,11 @@ used by `organizeTabs` = union of clip tags (ranked) and `tag_hints` tags. This 
 - **Extension unit (vitest):** `siteGroups`; `extractPage` text selection/trimming and password
   skip (jsdom); cache/override precedence in the organizer's merge function; search filtering
   and keyboard selection logic.
-- **Server unit:** `organizeTabs` with mocked Jev/Claude (threshold, hints in criteria
+- **Server unit:** `organizeTabs` with mocked Jev/Claude (assign + done thresholds, hints in criteria
   descriptions, leftover clustering, exact-name → `{tag}`, no-key and Claude-failure paths);
   route validation, auth, 60-tab cap, rate limit; hints GET/PUT.
 - **Live smoke (opt-in):** realistic payload of two clients' Linear/Notion-like pages + a
-  recipe + a news article against real Jev with tags `client:acme` (hints) and
+  Google results page (expect `done`) + a recipe + a news article against real Jev with tags `client:acme` (hints) and
   `client:nourish` (hints) — client tabs land in the right client.
 - **E2E proof:** load unpacked build, open ~15 tabs spanning two client contexts + misc, grant
   content permission, screenshot grouped panel; trigger shortcut and screenshot focused search.
