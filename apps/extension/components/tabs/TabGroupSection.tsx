@@ -116,6 +116,13 @@ export function TabGroupSection({
   const isProposed = group.kind === "proposed";
   const isDone = group.kind === "done";
 
+  const revealActions = menuOpen || showLabels || group.tabs.some((t) => t.id === selectedTabId);
+
+  async function stowAll() {
+    const n = await onStowTabs(group.tabs);
+    setNote(n === group.tabs.length ? `Stowed ${n}` : `Stowed ${n} of ${group.tabs.length}`);
+  }
+
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setNote(null);
@@ -155,7 +162,7 @@ export function TabGroupSection({
           onReorder?.(from as GroupKey, group.key, at);
         }
       }}
-      className={`relative mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm transition-opacity ${
+      className={`group/section relative mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm transition-opacity ${
         isDragging ? "opacity-40" : ""
       }`}
     >
@@ -203,98 +210,110 @@ export function TabGroupSection({
           }}
           aria-expanded={!collapsed}
           aria-keyshortcuts={movable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+          className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-1.5 border-0 bg-transparent p-0 text-left"
         >
           <span className="text-[10px] text-(--color-text-faint)">{collapsed ? "▸" : "▾"}</span>
-          <span className="truncate text-xs font-extrabold text-(--color-text)">{group.label}</span>
+          {/* The name gets the full width and wraps — it's the most important thing here. */}
+          <span className="min-w-0 break-words text-xs font-extrabold text-(--color-text)">
+            {group.label}
+          </span>
           <span className="shrink-0 text-[10px] font-bold text-(--color-text-faint)">
             {group.tabs.length}
           </span>
-          {isProposed && (
-            <span className="shrink-0 rounded border border-(--color-border-hard) bg-neon-100 px-1 text-[9px] font-bold uppercase text-neon-700 dark:bg-neon-900/50 dark:text-neon-400">
-              Suggested
-            </span>
-          )}
         </button>
 
-        <span className="flex shrink-0 items-center gap-2">
-          {isProposed && (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void run(() => onSaveAsTag(group.value))}
-                className={linkBtn}
-                title="Keep this as one of your tags"
-              >
-                ＋ Save as tag
-                {showLabels && <Kbd>a</Kbd>}
-              </button>
-              <button
-                type="button"
-                onClick={() => onDismiss(group.value)}
-                aria-label={`Dismiss suggested group ${group.label}`}
-                className={linkBtn}
-              >
-                ✕
-              </button>
-            </>
-          )}
-          <button
-            type="button"
+        {/* Actions reveal on hover, when this group holds the selected row, while ⌘ is held,
+            or while the menu is open — so the header stays quiet otherwise. */}
+        <span
+          className={`flex shrink-0 items-center gap-1 transition-opacity ${
+            revealActions
+              ? "opacity-100"
+              : "opacity-0 focus-within:opacity-100 group-hover/section:opacity-100"
+          }`}
+        >
+          <IconButton
+            label={`Close all ${group.tabs.length} tabs in ${group.label}`}
             onClick={() => onCloseTabs(group.tabs)}
-            className={linkBtn}
-            title="Close every tab in this group"
+            kbd={showLabels ? labelFor("closeGroup") : undefined}
           >
-            Close all
-            {showLabels && <Kbd>{labelFor("closeGroup")}</Kbd>}
-          </button>
+            ✕
+          </IconButton>
           {canStow && !isDone && (
-            <button
-              type="button"
+            <IconButton
+              label={`Stow all ${group.tabs.length} tabs in ${group.label} (save to Cliphy, then close)`}
               disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const n = await onStowTabs(group.tabs);
-                  setNote(
-                    n === group.tabs.length ? `Stowed ${n}` : `Stowed ${n} of ${group.tabs.length}`,
-                  );
-                })
-              }
-              className={linkBtn}
-              title="Save every tab to your inbox, then close it"
+              onClick={() => void run(stowAll)}
+              kbd={showLabels ? labelFor("stowGroup") : undefined}
             >
-              {busy ? "Stowing…" : "Stow all"}
-              {showLabels && !busy && <Kbd>{labelFor("stowGroup")}</Kbd>}
-            </button>
+              {busy ? "…" : "⤓"}
+            </IconButton>
           )}
-          {isTag && (
-            <span className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                aria-label={`More actions for ${group.label}`}
-                aria-expanded={menuOpen}
-                className={linkBtn}
-              >
-                ⋯
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-5 z-10 rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) py-1 shadow-brutal-sm">
-                  <button
-                    type="button"
-                    onClick={openEditor}
-                    className="block w-full cursor-pointer whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
-                  >
+          <span className="relative">
+            <IconButton
+              label={`More actions for ${group.label}`}
+              onClick={() => setMenuOpen((o) => !o)}
+              expanded={menuOpen}
+            >
+              ⋯
+            </IconButton>
+            {menuOpen && (
+              <div className="absolute right-0 top-6 z-20 min-w-40 rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) py-1 shadow-brutal-sm">
+                {isTag && (
+                  <MenuItem onClick={openEditor} kbd="e">
                     Keywords & hints
-                    {showLabels && <Kbd>e</Kbd>}
-                  </button>
-                </div>
-              )}
-            </span>
-          )}
+                  </MenuItem>
+                )}
+                <MenuItem
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onCloseTabs(group.tabs);
+                  }}
+                  kbd={labelFor("closeGroup")}
+                >
+                  Close all
+                </MenuItem>
+                {canStow && !isDone && (
+                  <MenuItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void run(stowAll);
+                    }}
+                    kbd={labelFor("stowGroup")}
+                  >
+                    Stow all
+                  </MenuItem>
+                )}
+              </div>
+            )}
+          </span>
         </span>
       </header>
+
+      {isProposed && (
+        <div className="flex flex-wrap items-center gap-2 px-2.5 pb-1.5">
+          <span className="rounded border border-(--color-border-hard) bg-neon-100 px-1 text-[9px] font-bold uppercase text-neon-700 dark:bg-neon-900/50 dark:text-neon-400">
+            ✨ Suggested
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void run(() => onSaveAsTag(group.value))}
+            title="Keep this as one of your tags"
+            className="cursor-pointer rounded-md border-2 border-(--color-border-hard) bg-neon-100 px-2 py-0.5 text-[11px] font-bold text-neon-700 shadow-brutal-sm hover:shadow-brutal-pressed press-down disabled:opacity-50 dark:bg-neon-900/50 dark:text-neon-400"
+          >
+            ＋ Save as tag
+            {showLabels && <Kbd>a</Kbd>}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDismiss(group.value)}
+            aria-label={`Dismiss suggested group ${group.label}`}
+            className={linkBtn}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {(isProposed || (isTag && !editingHints)) &&
         (keywords.length > 0 || (isTag && keywordSuggestions.length > 0)) && (
@@ -458,5 +477,60 @@ function DropLine({ at }: { at: "before" | "after" }) {
       </span>
       <span className="h-[3px] w-4 shrink-0 bg-neon-500" />
     </div>
+  );
+}
+
+const iconBtn =
+  "flex h-6 min-w-6 cursor-pointer items-center justify-center gap-0.5 rounded border-0 bg-transparent px-1 text-xs font-bold text-(--color-text-faint) hover:bg-neon-100 hover:text-(--color-text) disabled:opacity-50 dark:hover:bg-neon-900/30";
+
+function IconButton({
+  label,
+  onClick,
+  disabled,
+  expanded,
+  kbd,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  expanded?: boolean;
+  kbd?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-expanded={expanded}
+      className={iconBtn}
+    >
+      {children}
+      {kbd && <Kbd className="ml-0.5">{kbd}</Kbd>}
+    </button>
+  );
+}
+
+function MenuItem({
+  onClick,
+  kbd,
+  children,
+}: {
+  onClick: () => void;
+  kbd?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full cursor-pointer items-center justify-between gap-3 whitespace-nowrap border-0 bg-transparent px-3 py-1 text-left text-xs text-(--color-text) hover:bg-neon-100 dark:hover:bg-neon-900/30"
+    >
+      {children}
+      {kbd && <Kbd>{kbd}</Kbd>}
+    </button>
   );
 }
