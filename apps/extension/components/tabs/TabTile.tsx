@@ -28,6 +28,9 @@ export function TabTile({
   onClose,
 }: TabTileProps) {
   const [imageBroken, setImageBroken] = useState(false);
+  // Natural height for photo-ish images (the staggered look); logos and banners
+  // (very wide or very tall) sit whole in a fixed box instead of a thin strip.
+  const [fit, setFit] = useState<"natural" | "contain">("natural");
   const name = tab.customTitle || tab.title || tab.url;
   const showImage = !!image && !imageBroken;
   return (
@@ -55,7 +58,7 @@ export function TabTile({
       >
         <span
           className={`flex w-full items-center justify-center overflow-hidden bg-neon-100/60 dark:bg-neon-900/30 ${
-            showImage ? "" : "h-9"
+            !showImage ? "h-9" : fit === "contain" ? "h-14 p-1.5" : ""
           }`}
         >
           {showImage ? (
@@ -65,8 +68,17 @@ export function TabTile({
               alt=""
               loading="lazy"
               referrerPolicy="no-referrer"
+              data-fit={fit}
               onError={() => setImageBroken(true)}
-              className="block h-auto max-h-36 w-full object-cover"
+              onLoad={(e) => {
+                const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+                if (w && h) setFit(w / h > 2.4 || w / h < 0.5 ? "contain" : "natural");
+              }}
+              className={
+                fit === "contain"
+                  ? "block h-full w-full object-contain"
+                  : "block h-auto max-h-36 min-h-12 w-full object-cover"
+              }
             />
           ) : (
             <img

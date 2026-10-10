@@ -44,6 +44,24 @@ describe("TabTile", () => {
     expect(h.onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }));
   });
 
+  it("a banner-shaped image (e.g. a wide wordmark) is shown whole in a fixed box, not squashed", () => {
+    renderTile({}, { image: "https://cdn.x.com/wordmark.png" });
+    const img = document.querySelector("img[data-preview]") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 1200 });
+    Object.defineProperty(img, "naturalHeight", { value: 100 });
+    fireEvent.load(img);
+    expect(img.dataset.fit).toBe("contain");
+  });
+
+  it("a normal photo keeps its natural shape", () => {
+    renderTile({}, { image: "https://cdn.x.com/photo.jpg" });
+    const img = document.querySelector("img[data-preview]") as HTMLImageElement;
+    Object.defineProperty(img, "naturalWidth", { value: 1200 });
+    Object.defineProperty(img, "naturalHeight", { value: 630 });
+    fireEvent.load(img);
+    expect(img.dataset.fit).toBe("natural");
+  });
+
   it("without a preview image it shows the site's icon instead", () => {
     renderTile();
     expect(document.querySelector("img[data-preview]")).toBeNull();
