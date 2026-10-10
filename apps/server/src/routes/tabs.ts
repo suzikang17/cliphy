@@ -1,5 +1,18 @@
 import { Hono } from "hono";
-import { normalizeKeywords, type TabCluster, type TabInput } from "@cliphy/shared";
+import {
+  normalizeKeywords,
+  type TabAssignment,
+  type TabCluster,
+  type TabInput,
+} from "@cliphy/shared";
+import {
+  loadPageTags,
+  pageKey,
+  promoteProposal,
+  reusableAssignment,
+  saveAiAssignments,
+  setOverrides,
+} from "../services/page-tags.js";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { checkRateLimit } from "../lib/rateLimit.js";
@@ -110,9 +123,88 @@ tabsRoutes.post("/organize", async (c) => {
     return c.json({ error: "Too many organize requests", code: "RATE_LIMITED" }, 429);
   }
 
-  const { tags, hints, keywords } = await loadTagsAndHints(userId);
-  const clusters = parseClusters(body.clusters, new Set(tabs.map((t) => t.key)));
-  return c.json(await organizeTabs({ tabs, existingTags: tags, hints, keywords, clusters }));
+  // Pages already sorted (on any device) are answered from page_tags; AI runs only on new ones.
+  const stored = await loadPageTags(
+    userId,
+    tabs.map((t) => t.url),
+  );
+  const now = Date.now();
+  const assignments: Record<string, TabAssignment> = {};
+  const done: string[] = [];
+  const overrides: Record<string, string> = {};
+  const fresh: TabInput[] = [];
+  for (const tab of tabs) {
+    const row = stored.get(pageKey(tab.url));
+    if (row?.override) overrides[tab.key] = row.override;
+    const reuse = row ? reusableAssignment(row, now) : null;
+    if (reuse && row) {
+      assignments[tab.key] = reuse;
+      if (row.done) done.push(tab.key);
+    } else {
+      fresh.push(tab);
+    }
+  }
+
+  let proposalKeywords: Record<string, string[]> = {};
+  let proposalReasons: Record<string, string> = {};
+  if (fresh.length > 0) {
+    const { tags, hints, keywords } = await loadTagsAndHints(userId);
+    const clusters = parseClusters(body.clusters, new Set(tabs.map((t) => t.key)));
+    const r = await organizeTabs({ tabs: fresh, existingTags: tags, hints, keywords, clusters });
+    Object.assign(assignments, r.assignments);
+    done.push(...r.done);
+    proposalKeywords = r.proposalKeywords ?? {};
+    proposalReasons = r.proposalReasons ?? {};
+    // Persist answers that actually came from somewhere (a failed AI call isn't an answer).
+    const doneSet = new Set(r.done);
+    await saveAiAssignments(
+      userId,
+      fresh
+        .filter((t) => r.sources[t.key])
+        .map((t) => ({
+          url: t.url,
+          assignment: r.assignments[t.key],
+          source: r.sources[t.key],
+          done: doneSet.has(t.key),
+        })),
+    );
+  }
+  return c.json({ assignments, done, proposalKeywords, proposalReasons, overrides });
+});
+
+// ── PUT /overrides — your manual group choices for pages ─────
+// Body: { items: [{ url, override: "tag:x" | "site:host" | "proposed:x" | null }] }
+
+const MAX_OVERRIDES = 100;
+
+tabsRoutes.put("/overrides", async (c) => {
+  const userId = c.get("userId");
+  let body: { items?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > MAX_OVERRIDES) {
+    return c.json({ error: `items must be a non-empty array (max ${MAX_OVERRIDES})` }, 400);
+  }
+  const items = body.items
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+    .filter(
+      (i) =>
+        typeof i.url === "string" &&
+        /^https?:\/\//.test(i.url) &&
+        (i.override === null ||
+          (typeof i.override === "string" && /^(tag|site|proposed):.{1,120}$/.test(i.override))),
+    )
+    .map((i) => ({ url: i.url as string, override: i.override as string | null }));
+  if (items.length === 0) return c.json({ error: "No valid items" }, 400);
+  try {
+    await setOverrides(userId, items);
+  } catch {
+    return c.json({ error: "Failed to save overrides" }, 500);
+  }
+  return c.json({ saved: items.length });
 });
 
 // ── GET /hints — per-tag hints + keywords ────────────────────
@@ -138,7 +230,7 @@ tabsRoutes.put("/hints/:tag", async (c) => {
   const tag = decodeURIComponent(c.req.param("tag")).toLowerCase().trim();
   if (!tag || tag.length > MAX_TAG) return c.json({ error: "Invalid tag" }, 400);
 
-  let body: { hints?: unknown; keywords?: unknown; keep?: unknown };
+  let body: { hints?: unknown; keywords?: unknown; keep?: unknown; fromProposal?: unknown };
   try {
     body = await c.req.json();
   } catch {
@@ -185,5 +277,9 @@ tabsRoutes.put("/hints/:tag", async (c) => {
     { onConflict: "user_id,tag" },
   );
   if (error) return c.json({ error: "Failed to save hints" }, 500);
+  // "＋ Save as tag": pages the AI proposed under that name now carry the tag — on every device.
+  if (typeof body.fromProposal === "string" && body.fromProposal.trim()) {
+    await promoteProposal(userId, body.fromProposal.trim().toLowerCase(), tag);
+  }
   return c.json({ tag, hints, keywords: resultingKeywords });
 });

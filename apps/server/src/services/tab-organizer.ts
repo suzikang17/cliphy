@@ -10,6 +10,7 @@ import {
   type TabCluster,
 } from "@cliphy/shared";
 import { logger } from "../lib/logger.js";
+import type { AiSource } from "./page-tags.js";
 import { getJevClient, isTaggerConfigured, JEV_MODEL, MAX_EXISTING_TAGS } from "./tagger.js";
 
 // Tabs view organizer. Jev sorts each tab into one of the user's tags (contexts like
@@ -218,7 +219,9 @@ export async function organizeTabs({
   keywords = {},
   clusters = [],
   now = Date.now(),
-}: OrganizeTabsInput): Promise<OrganizeTabsResponse> {
+}: OrganizeTabsInput): Promise<OrganizeTabsResponse & { sources: Record<string, AiSource> }> {
+  /** Where each answer came from — for page_tags. Missing = don't persist (e.g. Claude failed). */
+  const sources: Record<string, AiSource> = {};
   const tags = existingTags.slice(0, MAX_EXISTING_TAGS);
   const assignments: Record<string, TabAssignment> = {};
   const done: string[] = [];
@@ -245,14 +248,18 @@ export async function organizeTabs({
     tabs.forEach((tab, i) => {
       const v = verdicts[i];
       if (v.done) done.push(tab.key);
-      if (v.tag) assignments[tab.key] = { tag: v.tag };
-      else leftovers.push(tab);
+      if (v.tag) {
+        assignments[tab.key] = { tag: v.tag };
+        sources[tab.key] = keywordTags[i] ? "keyword" : "jev";
+      } else leftovers.push(tab);
     });
   } else {
     tabs.forEach((tab, i) => {
       const kt = keywordTags[i];
-      if (kt) assignments[tab.key] = { tag: kt };
-      else leftovers.push(tab);
+      if (kt) {
+        assignments[tab.key] = { tag: kt };
+        sources[tab.key] = "keyword";
+      } else leftovers.push(tab);
     });
   }
 
@@ -279,6 +286,7 @@ export async function organizeTabs({
           : existing.has(name)
             ? { tag: name }
             : { proposed: name };
+        sources[tab.key] = "claude";
       }
     } catch (err) {
       log.warn("Leftover clustering failed", { error: (err as Error).message });
@@ -295,5 +303,5 @@ export async function organizeTabs({
     jevMs,
     claudeMs: Date.now() - t1,
   });
-  return { assignments, done, proposalKeywords, proposalReasons };
+  return { assignments, done, proposalKeywords, proposalReasons, sources };
 }

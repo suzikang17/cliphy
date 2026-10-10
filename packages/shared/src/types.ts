@@ -398,6 +398,15 @@ export interface OrganizeTabsResponse {
   proposalKeywords?: Record<string, string[]>;
   /** One-line "why these belong together" per proposed group name. */
   proposalReasons?: Record<string, string>;
+  /** Your manual group choices saved for these pages (e.g. from another device), by key. */
+  overrides?: Record<string, string>;
+}
+
+/** PUT /api/tabs/overrides — save (or clear, with null) your manual group choice for pages. */
+export interface PageOverrideItem {
+  url: string;
+  /** Tabs-view group key ("tag:x", "site:host", "proposed:x"), or null to clear. */
+  override: string | null;
 }
 
 /**

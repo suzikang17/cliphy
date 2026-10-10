@@ -7,6 +7,7 @@ import {
 import { logger } from "../lib/logger.js";
 import { supabase } from "../lib/supabase.js";
 import { isTaggerConfigured, mergeTags, rankTags, tagClip } from "./tagger.js";
+import { tagsForPages } from "./page-tags.js";
 
 // Trail: pages the user closed, captured by the extension (opt-in). Kept apart
 // from clips — one row per URL — and auto-tagged on first capture with the same
@@ -129,6 +130,11 @@ async function tagFresh(userId: string, items: TrailCaptureItem[]): Promise<stri
   const ranked = rankTags(rows ?? []);
   const vocab = [...ranked, ...Object.keys(keywords).filter((t) => !ranked.includes(t))];
   const useJev = isTaggerConfigured() && vocab.length > 0;
+  // A page the Tabs view already sorted keeps its tag — no AI needed.
+  const known = await tagsForPages(
+    userId,
+    items.map((i) => i.url),
+  );
 
   const out: string[][] = new Array(items.length);
   let next = 0;
@@ -136,6 +142,11 @@ async function tagFresh(userId: string, items: TrailCaptureItem[]): Promise<stri
     while (next < items.length) {
       const i = next++;
       const { url } = items[i];
+      const knownTag = known.get(url);
+      if (knownTag) {
+        out[i] = [knownTag];
+        continue;
+      }
       const title = [items[i].customTitle, items[i].title].filter(Boolean).join(" — ");
       const kw = matchAllKeywordTags({ url, title }, keywords);
       let jev: string[] = [];

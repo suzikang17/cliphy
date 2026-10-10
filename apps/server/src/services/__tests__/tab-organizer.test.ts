@@ -154,6 +154,7 @@ describe("organizeTabs", () => {
       done: [],
       proposalKeywords: {},
       proposalReasons: {},
+      sources: {},
     });
   });
 

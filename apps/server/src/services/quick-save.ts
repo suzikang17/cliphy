@@ -6,6 +6,7 @@ import { detectSourceType } from "./detectSourceType.js";
 import { enqueueVideo } from "./enqueue-video.js";
 import { enrichClip } from "./enrich.js";
 import { isTaggerConfigured, mergeTags, rankTags, tagClip } from "./tagger.js";
+import { tagsForPages } from "./page-tags.js";
 
 // ⌘⇧S "save this page". The extension sends what it already sees (title + page
 // text, so logged-in pages work), and we answer fast with the tags applied:
@@ -76,7 +77,13 @@ export async function quickSave(input: QuickSaveInput): Promise<QuickSaveResult>
   const existingTags = [...ranked, ...Object.keys(keywords).filter((t) => !ranked.includes(t))];
 
   const text = input.text ?? "";
-  const keywordTags = matchAllKeywordTags({ url, title, text }, keywords);
+  // The Tabs view's answer for this page (yours first, then the AI's) is applied before anything else.
+  const stored = (await tagsForPages(userId, [url])).get(url);
+  const keywordTags = mergeTags(
+    stored ? [stored] : [],
+    matchAllKeywordTags({ url, title, text }, keywords),
+    MAX_TAGS_PER_SUMMARY,
+  );
 
   let jevTags: string[] = [];
   if (isTaggerConfigured() && existingTags.length > 0) {

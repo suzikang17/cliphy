@@ -3,7 +3,7 @@ import { layer, epic, feature } from "allure-js-commons";
 
 function chain(result: Record<string, unknown> = {}) {
   const c: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "is", "insert", "maybeSingle", "single"]) {
+  for (const m of ["select", "eq", "is", "in", "insert", "maybeSingle", "single"]) {
     c[m] = vi.fn().mockReturnValue(c);
   }
   (c as { then: unknown }).then = (resolve: (r: unknown) => void) => resolve(result);
