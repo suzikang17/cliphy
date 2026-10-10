@@ -16,6 +16,10 @@ export interface OpenTab {
   openedAt?: number;
   /** In a different browser window than the panel (its "active" means nothing to you). */
   otherWindow?: boolean;
+  /** Your own name for the page (Tabs view → Rename). */
+  customTitle?: string;
+  /** Your quick note on the page. */
+  note?: string;
 }
 
 /** Only real web pages: no chrome://, extension, file://, about: pages. */

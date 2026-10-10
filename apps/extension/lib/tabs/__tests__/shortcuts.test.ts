@@ -30,6 +30,8 @@ describe("panel shortcuts", () => {
     ["x", "closeTab"],
     ["s", "stowTab"],
     ["m", "moveTab"],
+    ["r", "renameTab"],
+    ["n", "noteTab"],
     ["e", "editGroup"],
     ["a", "acceptGroup"],
     ["X", "closeGroup"],

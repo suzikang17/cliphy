@@ -29,6 +29,7 @@ import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
 import { closeTabsAndAdvance } from "./nextTab";
 import { activateTab } from "./activate";
+import { loadAllTabMeta, metaFor, setTabMeta, type TabMeta } from "./tabMeta";
 import { loadActivity } from "./activity";
 import { buildClusters } from "./clusters";
 import {
@@ -51,10 +52,11 @@ async function queryOpenTabs(): Promise<{
   trackingSince: number | null;
   currentWindowId: number | null;
 }> {
-  const [all, times, current] = await Promise.all([
+  const [all, times, current, meta] = await Promise.all([
     browser.tabs.query({}),
     loadOpenedTimes().catch(() => ({ opened: {}, trackingSince: null })),
     browser.windows.getCurrent().catch(() => null),
+    loadAllTabMeta(),
   ]);
   const currentWindowId = (current as { id?: number } | null)?.id ?? null;
   const list = all
@@ -63,7 +65,15 @@ async function queryOpenTabs(): Promise<{
     .map((t: OpenTab) => {
       // Every window has a front tab; only the one in the panel's window is "the tab you're on".
       const otherWindow = currentWindowId != null && t.windowId !== currentWindowId;
-      return { ...t, openedAt: times.opened[t.id], otherWindow, active: t.active && !otherWindow };
+      const { title: customTitle, note } = metaFor(meta, t.url);
+      return {
+        ...t,
+        openedAt: times.opened[t.id],
+        otherWindow,
+        active: t.active && !otherWindow,
+        ...(customTitle && { customTitle }),
+        ...(note && { note }),
+      };
     });
   return { list, trackingSince: times.trackingSince, currentWindowId };
 }
@@ -394,7 +404,7 @@ export function useTabOrganizer() {
     const saved: OpenTab[] = [];
     for (const tab of list) {
       try {
-        await stowTab(tab.url, false);
+        await stowTab(tab.url, false, tab.note);
         saved.push(tab);
       } catch {
         // Duplicate or failed save — never close a tab we didn't save.
@@ -419,6 +429,15 @@ export function useTabOrganizer() {
       await reloadState();
     },
     [reloadState],
+  );
+
+  /** Rename a page and/or set its note (stored per page, locally). */
+  const setMeta = useCallback(
+    async (tab: OpenTab, patch: TabMeta) => {
+      await setTabMeta(tab.url, patch);
+      await refreshTabs();
+    },
+    [refreshTabs],
   );
 
   /** Keep a suggested group as a tag — under Claude's name, or one you typed. */
@@ -468,6 +487,7 @@ export function useTabOrganizer() {
     keywords,
     proposalKeywords,
     proposalReasons,
+    setMeta,
     groups,
     hints,
     knownTags,

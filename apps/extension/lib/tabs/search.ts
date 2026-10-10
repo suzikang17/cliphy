@@ -3,10 +3,13 @@ import type { TabGroup } from "./organize";
 import type { OpenTab } from "./types";
 
 /** Case-insensitive substring match over title + URL. */
-export function matchesQuery(tab: Pick<OpenTab, "title" | "url">, query: string): boolean {
+export function matchesQuery(
+  tab: Pick<OpenTab, "title" | "url" | "customTitle" | "note">,
+  query: string,
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return tab.title.toLowerCase().includes(q) || tab.url.toLowerCase().includes(q);
+  return [tab.title, tab.url, tab.customTitle, tab.note].some((f) => f?.toLowerCase().includes(q));
 }
 
 /** Groups with only matching rows; empty groups dropped. */

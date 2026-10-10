@@ -72,7 +72,7 @@ describe("TabGroupSection header (hover-reveal layout)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Close all 2 tabs/ }));
     expect(h.onCloseTabs).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: /More actions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /More actions for project/ }));
     expect(screen.getByRole("button", { name: /Keywords & hints/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Stow all\s*⇧S$/ })); // the menu item
     await vi.waitFor(() => expect(h.onStowTabs).toHaveBeenCalledTimes(1));

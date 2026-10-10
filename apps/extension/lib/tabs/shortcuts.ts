@@ -10,6 +10,8 @@ export type PanelAction =
   | "closeTab"
   | "stowTab"
   | "moveTab"
+  | "renameTab"
+  | "noteTab"
   | "editGroup"
   | "acceptGroup"
   | "closeGroup"
@@ -33,6 +35,8 @@ export const PANEL_SHORTCUTS: PanelShortcut[] = [
   { action: "closeTab", keys: ["x"], label: "Close tab" },
   { action: "stowTab", keys: ["s"], label: "Stow tab (save to Cliphy, close)" },
   { action: "moveTab", keys: ["m"], label: "Move tab to group…" },
+  { action: "renameTab", keys: ["r"], label: "Rename tab" },
+  { action: "noteTab", keys: ["n"], label: "Add a note to the tab" },
   { action: "editGroup", keys: ["e"], label: "Edit group keywords & hints" },
   { action: "acceptGroup", keys: ["a"], label: "Save suggested group as tag" },
   { action: "closeGroup", keys: ["X"], label: "Close all in group" },

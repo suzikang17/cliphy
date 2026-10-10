@@ -6,6 +6,8 @@ export interface QuickSaveBody {
   title: string;
   description?: string;
   text?: string;
+  /** Your note on the page (Tabs view) → the clip's notes. */
+  note?: string;
 }
 
 export interface QuickSaveResponse {

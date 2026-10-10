@@ -62,4 +62,12 @@ describe("tabs search + keyboard selection", () => {
     expect(rowToActivate(rows, 99)?.id).toBe(1);
     expect(rowToActivate([], 0)).toBeNull();
   });
+
+  it("matches your custom name and note", async () => {
+    const { matchesQuery } = await import("../search");
+    const t = { title: "Dashboard – Stripe", url: "https://dashboard.stripe.com" };
+    expect(matchesQuery({ ...t, customTitle: "Lotus invoice" }, "lotus")).toBe(true);
+    expect(matchesQuery({ ...t, note: "waiting on client" }, "client")).toBe(true);
+    expect(matchesQuery(t, "lotus")).toBe(false);
+  });
 });

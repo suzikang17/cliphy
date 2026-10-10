@@ -378,10 +378,10 @@ export async function updateNote(id: string, content: string) {
  * to. `summarize` picks the enrichment tier: metadata is instant and makes no
  * Claude call, full runs the normal pipeline and counts against usage limits.
  */
-export async function stowTab(url: string, summarize: boolean) {
+export async function stowTab(url: string, summarize: boolean, note?: string) {
   return request<{ clip: Summary }>(API_ROUTES.CLIPS.ADD, {
     method: "POST",
-    body: JSON.stringify({ url, tier: summarize ? "full" : "metadata" }),
+    body: JSON.stringify({ url, tier: summarize ? "full" : "metadata", ...(note && { note }) }),
   });
 }
 

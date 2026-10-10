@@ -3,6 +3,7 @@ import type { TrailCaptureItem } from "@cliphy/shared";
 import { captureTrail } from "../api";
 import { isAuthenticated } from "../auth";
 import { normalizeUrl } from "../tabs/dedupe";
+import { getTabMeta } from "../tabs/tabMeta";
 import { loadOpenedTimes } from "../tabs/openedAt";
 import { isWebUrl } from "../tabs/types";
 import { shouldTrail } from "./rules";
@@ -117,11 +118,15 @@ async function onTabClosed(tabId: number, closedAt: number): Promise<void> {
   void browser.storage.session.remove(`${TAB_PREFIX}${tabId}`).catch(() => {});
   if (!entry || !(await isTrailEnabled())) return;
 
+  // Your name/note for the page follow it into the trail.
+  const meta = await getTabMeta(entry.url);
   const item: TrailCaptureItem = {
     url: entry.url,
     title: entry.title || entry.url,
     ...(entry.openedAt !== undefined && { openedAt: entry.openedAt }),
     closedAt,
+    ...(meta.title && { customTitle: meta.title }),
+    ...(meta.note && { note: meta.note }),
   };
   if (!shouldTrail(item)) return;
 
@@ -159,13 +164,13 @@ export async function flushTrail(): Promise<void> {
   flushing = true;
   const batch = queue.slice(0, MAX_TRAIL_BATCH);
   try {
+    // Send every captured field (incl. your name/note) — only the retry count is internal.
     await captureTrail(
-      batch.map(({ url, title, openedAt, closedAt }) => ({
-        url,
-        title,
-        ...(openedAt !== undefined && { openedAt }),
-        closedAt,
-      })),
+      batch.map((queued) => {
+        const item: TrailCaptureItem & { attempts?: number } = { ...queued };
+        delete item.attempts;
+        return item;
+      }),
     );
     queue = queue.filter((p) => !batch.includes(p));
     notifySaved();

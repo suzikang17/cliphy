@@ -198,12 +198,17 @@ function TrailRow({
       <button
         type="button"
         onClick={onReopen}
-        title={`${item.url}\nClosed ${new Date(closedAt).toLocaleString()}`}
+        title={`${item.customTitle ? `Page title: ${item.title}\n` : ""}${item.url}\nClosed ${new Date(closedAt).toLocaleString()}`}
         className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
       >
         <span className="block truncate text-xs font-semibold text-(--color-text)">
-          {item.title || item.url}
+          {item.customTitle || item.title || item.url}
         </span>
+        {item.note && (
+          <span className="block truncate text-[10px] italic text-(--color-text)">
+            📝 {item.note}
+          </span>
+        )}
         <span className="block truncate text-[10px] text-(--color-text-faint)">
           {[
             item.host,

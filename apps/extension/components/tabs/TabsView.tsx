@@ -38,6 +38,11 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   // Keyboard requests to open a row's Move picker / a group's editor (nonce re-triggers).
   const [moveRequest, setMoveRequest] = useState<{ tabId: number; n: number } | null>(null);
+  const [metaRequest, setMetaRequest] = useState<{
+    tabId: number;
+    kind: "rename" | "note";
+    n: number;
+  } | null>(null);
   const [editRequest, setEditRequest] = useState<{ key: string; n: number } | null>(null);
 
   useEffect(() => {
@@ -162,6 +167,13 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           break;
         case "moveTab":
           if (tab) setMoveRequest((r) => ({ tabId: tab.id, n: (r?.n ?? 0) + 1 }));
+          break;
+        case "renameTab":
+        case "noteTab":
+          if (tab && "windowId" in tab) {
+            const kind = action === "renameTab" ? "rename" : "note";
+            setMetaRequest((r) => ({ tabId: tab.id, kind, n: (r?.n ?? 0) + 1 }));
+          }
           break;
         case "editGroup":
           if (group?.kind === "tag")
@@ -309,6 +321,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               showLabels={showLabels}
               editNonce={editRequest?.key === group.key ? editRequest.n : undefined}
               moveRequest={moveRequest}
+              metaRequest={metaRequest}
+              onSetMeta={org.setMeta}
             />
           ))
         )}

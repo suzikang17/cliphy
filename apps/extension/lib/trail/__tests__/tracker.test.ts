@@ -79,6 +79,22 @@ describe("registerTrailTracker", () => {
     expect(browserMock.runtime.sendMessage).toHaveBeenCalledWith({ type: "TRAIL_SAVED" });
   });
 
+  it("carries your name and note for the page into the trail", async () => {
+    browserMock.storage.local.get.mockImplementation(async (key: string) =>
+      key === "trail:enabled"
+        ? { "trail:enabled": true }
+        : key === "tabs:meta:https://example.com/article"
+          ? { [key]: { title: "Must-read", note: "share with Ana" } }
+          : {},
+    );
+    open(1, article, "A good article");
+    await close(1);
+    await flushDebounce();
+    expect(captureTrail).toHaveBeenCalledWith([
+      expect.objectContaining({ url: article, customTitle: "Must-read", note: "share with Ana" }),
+    ]);
+  });
+
   it("does nothing while trail is off (the default)", async () => {
     browserMock.storage.local.get.mockResolvedValue({});
     open(1, article);

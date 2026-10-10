@@ -42,6 +42,9 @@ interface TabGroupSectionProps {
   editNonce?: number;
   /** Forwarded to rows: the `m` shortcut asks a row to open its Move picker. */
   moveRequest?: { tabId: number; n: number } | null;
+  /** Forwarded to rows: the `r` / `n` shortcuts ask a row to rename / add a note. */
+  metaRequest?: { tabId: number; kind: "rename" | "note"; n: number } | null;
+  onSetMeta?: (tab: OpenTab, patch: { title?: string; note?: string }) => Promise<void>;
 }
 
 /** dataTransfer type for a dragged group, so tab/text drags are ignored. */
@@ -81,6 +84,8 @@ export function TabGroupSection({
   showLabels = false,
   editNonce,
   moveRequest = null,
+  metaRequest = null,
+  onSetMeta,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
   // Naming a suggested group before saving it as a tag.
@@ -519,6 +524,17 @@ export function TabGroupSection({
                 now={now}
                 showLabels={showLabels}
                 moveNonce={moveRequest?.tabId === tab.id ? moveRequest.n : undefined}
+                renameNonce={
+                  metaRequest?.tabId === tab.id && metaRequest.kind === "rename"
+                    ? metaRequest.n
+                    : undefined
+                }
+                noteNonce={
+                  metaRequest?.tabId === tab.id && metaRequest.kind === "note"
+                    ? metaRequest.n
+                    : undefined
+                }
+                onSetMeta={onSetMeta}
                 groupKey={group.key}
                 moveTargets={moveTargets}
                 onActivate={onActivate}

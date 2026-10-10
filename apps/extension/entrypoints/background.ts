@@ -15,6 +15,7 @@ import { runQuickSave, type QuickSaveDeps } from "../lib/save/quickSave";
 import { showSaveToast, updateSaveToast, type SaveToastState } from "../lib/save/saveToast";
 import { extractPage, type ExtractResult } from "../lib/tabs/extractPage";
 import { quickSaveClip } from "../lib/api";
+import { getTabMeta } from "../lib/tabs/tabMeta";
 
 /** Real browser wiring for ⌘⇧S (activeTab is granted by the keyboard command). */
 const quickSaveDeps: QuickSaveDeps = {
@@ -45,7 +46,15 @@ const quickSaveDeps: QuickSaveDeps = {
       return null;
     }
   },
-  save: (body) => quickSaveClip(body),
+  // Your name/note for the page (Tabs view) ride along: name → title, note → clip notes.
+  async save(body) {
+    const meta = await getTabMeta(body.url);
+    return quickSaveClip({
+      ...body,
+      ...(meta.title && { title: meta.title }),
+      ...(meta.note && { note: meta.note }),
+    });
+  },
   badge(tabId: number, text: string, ok: boolean) {
     void browser.action.setBadgeBackgroundColor({ tabId, color: ok ? "#65a30d" : "#dc2626" });
     void browser.action.setBadgeText({ tabId, text });
