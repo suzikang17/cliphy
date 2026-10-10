@@ -429,3 +429,39 @@ describe("TabGroupSection — sort", () => {
     expect(onSetSort).toHaveBeenCalledWith("name");
   });
 });
+
+describe("TabGroupSection — saved pages that aren't open (bookmark folder)", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — durable groups");
+  });
+  afterEach(cleanup);
+
+  const pages = [
+    { url: "https://notion.so/lotus", title: "Lotus brief" },
+    { url: "https://figma.com/f", title: "Moodboard" },
+  ];
+
+  it("lists them under Not open; click reopens, ✕ removes from the group", () => {
+    const onOpenSaved = vi.fn();
+    const onRemoveSaved = vi.fn();
+    renderGroup({}, { notOpen: pages, onOpenSaved, onRemoveSaved });
+    expect(screen.getByText(/Not open/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Lotus brief/ }));
+    expect(onOpenSaved).toHaveBeenCalledWith(pages[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Moodboard from this group" }));
+    expect(onRemoveSaved).toHaveBeenCalledWith(pages[1]);
+  });
+
+  it("shows the first few and a Show all for long folders", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({
+      url: `https://p.com/${i}`,
+      title: `Page ${i}`,
+    }));
+    renderGroup({}, { notOpen: many, onOpenSaved: vi.fn(), onRemoveSaved: vi.fn() });
+    expect(screen.queryByText("Page 8")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Show all 9/ }));
+    expect(screen.getByText("Page 8")).toBeTruthy();
+  });
+});

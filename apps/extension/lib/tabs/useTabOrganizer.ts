@@ -13,6 +13,7 @@ import {
 } from "../api";
 import type { PagePin } from "./pins";
 import { NEW_WINDOW_ABOVE, pagesToResume } from "./closedGroups";
+import type { ClosedGroupPage } from "@cliphy/shared";
 import {
   SNAPSHOTS_KEY,
   autosave,
@@ -20,6 +21,8 @@ import {
   loadSnapshots,
   markClosed,
   markResumed,
+  notOpenPages,
+  removePage,
   saveSnapshots,
   type Snapshots,
 } from "./groupSnapshots";
@@ -665,6 +668,28 @@ export function useTabOrganizer() {
     [pushNow],
   );
 
+  /** Per group: its saved pages that aren't open right now (a bookmark folder's closed pages). */
+  const notOpen = useMemo(
+    () =>
+      notOpenPages(
+        snaps,
+        tabs.map((t) => t.url),
+      ),
+    [snaps, tabs],
+  );
+
+  /** ✕ on a saved page: the only way a page leaves its group. */
+  const removeFromGroup = useCallback(
+    async (key: string, url: string) => {
+      const { next, changed, removed } = removePage(await loadSnapshots(), key, url);
+      if (changed.length === 0 && removed.length === 0) return;
+      await saveSnapshots(next);
+      if (mounted.current) setSnaps(next);
+      await pushNow(next, [...changed, ...removed]);
+    },
+    [pushNow],
+  );
+
   /** Per group: the (normalized) pages in its saved copy — what comes back after a restart. */
   const savedPages = useMemo(() => {
     const out: Record<string, Set<string>> = {};
@@ -724,6 +749,15 @@ export function useTabOrganizer() {
       await reloadState();
     },
     [reloadState, syncOverrides],
+  );
+
+  /** Open a saved page again, straight into its group. */
+  const openSavedPage = useCallback(
+    async (key: string, page: ClosedGroupPage) => {
+      await placeUrl(page.url, key as GroupKey);
+      await browser.tabs.create({ url: page.url, active: true });
+    },
+    [placeUrl],
   );
 
   const dismissProposal = useCallback(
@@ -849,6 +883,9 @@ export function useTabOrganizer() {
     resumeGroup,
     forgetGroup,
     saveGroupNow,
+    notOpen,
+    openSavedPage,
+    removeFromGroup,
     saveStatus,
     savedPages,
     refreshClosedGroups,

@@ -1,65 +1,45 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { epic, feature, layer } from "allure-js-commons";
 import "../../../test/browser-mock";
-import { browserMock } from "../../../test/browser-mock";
 
 const api = vi.hoisted(() => ({ closeGroupSnapshot: vi.fn(), resumeGroup: vi.fn() }));
 vi.mock("../../api", () => api);
-vi.mock("../../auth", () => ({ isAuthenticated: vi.fn().mockResolvedValue(true) }));
+const auth = vi.hoisted(() => ({ isAuthenticated: vi.fn() }));
+vi.mock("../../auth", () => auth);
 
-const { onPageClosed } = await import("../snapshotSync");
+const { pushSnapshots } = await import("../snapshotSync");
 
-let local: Record<string, unknown> = {};
-const snaps = () => local["tabs:groupSnapshots"] as Record<string, { pages: { url: string }[] }>;
+const snap = {
+  key: "tag:a",
+  label: "a",
+  pages: [{ url: "https://a.com/", title: "A" }],
+  updatedAt: 1,
+};
 
-describe("onPageClosed (background)", () => {
+describe("pushSnapshots", () => {
   beforeEach(() => {
     layer("unit");
     epic("Extension");
     feature("Tabs View — durable groups");
     vi.clearAllMocks();
-    local = {
-      "tabs:groupSnapshots": {
-        "tag:lotus": {
-          key: "tag:lotus",
-          label: "lotus",
-          pages: [
-            { url: "https://a.com/1", title: "1" },
-            { url: "https://a.com/2", title: "2" },
-          ],
-          updatedAt: 1,
-        },
-      },
-    };
-    browserMock.storage.local.get.mockImplementation(async (k: string) =>
-      k in local ? { [k]: local[k] } : {},
-    );
-    browserMock.storage.local.set.mockImplementation(async (o: Record<string, unknown>) => {
-      Object.assign(local, o);
-    });
-    browserMock.tabs.query.mockResolvedValue([]);
+    auth.isAuthenticated.mockResolvedValue(true);
     api.closeGroupSnapshot.mockResolvedValue({ closedAt: "t" });
+    api.resumeGroup.mockResolvedValue({ pages: [] });
   });
 
-  it("drops the page from its group's snapshot and tells the server", async () => {
-    await onPageClosed("https://a.com/1", 7);
-    expect(snaps()["tag:lotus"].pages.map((p) => p.url)).toEqual(["https://a.com/2"]);
-    expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:lotus", "lotus", [
-      { url: "https://a.com/2", title: "2" },
-    ]);
+  it("sends changed groups and deletes removed ones", async () => {
+    const failed = await pushSnapshots({ "tag:a": snap }, ["tag:a", "tag:gone"]);
+    expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:a", "a", snap.pages);
+    expect(api.resumeGroup).toHaveBeenCalledWith("tag:gone");
+    expect(failed).toEqual([]);
   });
 
-  it("keeps the page while another tab still shows it", async () => {
-    browserMock.tabs.query.mockResolvedValue([{ id: 8, url: "https://www.a.com/1" }]);
-    await onPageClosed("https://a.com/1", 7);
-    expect(snaps()["tag:lotus"].pages).toHaveLength(2);
+  it("reports groups the server didn't get; signed out sends nothing", async () => {
+    api.closeGroupSnapshot.mockRejectedValue(new Error("offline"));
+    expect(await pushSnapshots({ "tag:a": snap }, ["tag:a"])).toEqual(["tag:a"]);
+    auth.isAuthenticated.mockResolvedValue(false);
+    api.closeGroupSnapshot.mockClear();
+    expect(await pushSnapshots({ "tag:a": snap }, ["tag:a"])).toEqual(["tag:a"]);
     expect(api.closeGroupSnapshot).not.toHaveBeenCalled();
-  });
-
-  it("deletes the server copy when the last page goes", async () => {
-    await onPageClosed("https://a.com/1", 7);
-    await onPageClosed("https://a.com/2", 8);
-    expect(snaps()["tag:lotus"]).toBeUndefined();
-    expect(api.resumeGroup).toHaveBeenCalledWith("tag:lotus");
   });
 });

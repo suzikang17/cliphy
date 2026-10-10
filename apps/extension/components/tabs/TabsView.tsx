@@ -609,6 +609,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               saveStatus={org.saveStatus[group.key]}
               onSaveNow={group.kind === "tag" ? () => void org.saveGroupNow(group) : undefined}
               savedUrls={org.savedPages[group.key]}
+              notOpen={group.kind === "tag" ? org.notOpen[group.key] : undefined}
+              onOpenSaved={(p) => void org.openSavedPage(group.key, p)}
+              onRemoveSaved={(p) => void org.removeFromGroup(group.key, p.url)}
               onOpenSummary={(id) => void openWebApp(WEB_ROUTES.SUMMARY(id))}
             />
           ))

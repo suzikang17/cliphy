@@ -6,8 +6,9 @@ import type { OpenTab } from "../../lib/tabs/types";
 import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { TabTile } from "./TabTile";
+import { faviconUrl } from "../pins/TileStrip";
 import { TAB_SORTS, type TabSort } from "../../lib/tabs/tabSort";
-import type { Summary } from "@cliphy/shared";
+import type { ClosedGroupPage, Summary } from "@cliphy/shared";
 import type { SaveStatus } from "../../lib/tabs/useTabOrganizer";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
@@ -74,6 +75,10 @@ interface TabGroupSectionProps {
   onSaveNow?: () => void;
   /** Normalized pages in the group's saved copy — those tabs come back after a restart. */
   savedUrls?: Set<string>;
+  /** The group's saved pages that aren't open right now (it works like a bookmark folder). */
+  notOpen?: ClosedGroupPage[];
+  onOpenSaved?: (page: ClosedGroupPage) => void;
+  onRemoveSaved?: (page: ClosedGroupPage) => void;
   /** Your saved Cliphy clips with this group's tag (summaries, saved pages). */
   saved?: Summary[];
   onOpenSummary?: (id: string) => void;
@@ -143,6 +148,9 @@ export function TabGroupSection({
   onOpenTrail,
   saved = [],
   onOpenSummary,
+  notOpen = [],
+  onOpenSaved,
+  onRemoveSaved,
   saveStatus,
   onSaveNow,
   savedUrls,
@@ -834,6 +842,9 @@ export function TabGroupSection({
           )}
         </ul>
       )}
+      {!collapsed && isTag && notOpen.length > 0 && onOpenSaved && (
+        <NotOpenList pages={notOpen} onOpen={onOpenSaved} onRemove={onRemoveSaved} />
+      )}
       {!collapsed && isTag && saved.length > 0 && (
         <div className="border-t border-(--color-border-soft) px-1 pt-1 pb-1">
           <p className="m-0 px-1.5 pb-0.5 text-[10px] font-bold uppercase text-(--color-text-faint)">
@@ -992,5 +1003,72 @@ function SaveButton({ status, onClick }: { status?: SaveStatus; onClick: () => v
     >
       {l.text}
     </button>
+  );
+}
+
+const NOT_OPEN_PREVIEW = 5;
+
+/** The group's saved pages whose tabs aren't open: click to reopen into the group. */
+function NotOpenList({
+  pages,
+  onOpen,
+  onRemove,
+}: {
+  pages: ClosedGroupPage[];
+  onOpen: (page: ClosedGroupPage) => void;
+  onRemove?: (page: ClosedGroupPage) => void;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all ? pages : pages.slice(0, NOT_OPEN_PREVIEW);
+  return (
+    <div className="border-t border-(--color-border-soft) px-1 pt-1 pb-1">
+      <p className="m-0 px-1.5 pb-0.5 text-[10px] font-bold uppercase text-(--color-text-faint)">
+        Not open <span className="font-normal">{pages.length}</span>
+      </p>
+      <ul className="m-0 list-none p-0">
+        {shown.map((p) => (
+          <li
+            key={p.url}
+            className="group/saved flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-(--color-surface-raised)"
+          >
+            <img
+              src={faviconUrl(p.url)}
+              alt=""
+              width={14}
+              height={14}
+              className="shrink-0 opacity-70"
+            />
+            <button
+              type="button"
+              onClick={() => onOpen(p)}
+              title={`Open ${p.url}`}
+              className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[11px] text-(--color-text-faint) hover:text-(--color-text)"
+            >
+              {p.title || p.url}
+            </button>
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(p)}
+                aria-label={`Remove ${p.title || p.url} from this group`}
+                title="Remove from this group"
+                className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-[10px] text-(--color-text-faint) opacity-0 group-hover/saved:opacity-100 hover:text-red-600 focus:opacity-100"
+              >
+                ✕
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {pages.length > NOT_OPEN_PREVIEW && !all && (
+        <button
+          type="button"
+          onClick={() => setAll(true)}
+          className="cursor-pointer border-0 bg-transparent px-1.5 py-0.5 text-[10px] font-bold text-(--color-text-faint) hover:text-(--color-text)"
+        >
+          Show all {pages.length}
+        </button>
+      )}
+    </div>
   );
 }

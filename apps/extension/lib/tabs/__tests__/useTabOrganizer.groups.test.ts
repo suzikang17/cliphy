@@ -276,4 +276,47 @@ describe("useTabOrganizer — close & resume a group", () => {
     expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:lotus", "lotus", expect.any(Array));
     expect(result.current.saveStatus["tag:lotus"]).toBe("saved");
   });
+
+  it("a saved group keeps pages whose tabs you closed, listed as not open", async () => {
+    local["tabs:groupSnapshots"] = {
+      "tag:lotus": snap("tag:lotus", [
+        "https://drive.google.com/x",
+        "https://dashboard.stripe.com/",
+        "https://notion.so/lotus",
+      ]),
+    };
+    const { result } = await ready();
+    await waitFor(() =>
+      expect(result.current.notOpen["tag:lotus"]?.map((p) => p.url)).toEqual([
+        "https://notion.so/lotus",
+      ]),
+    );
+  });
+
+  it("openSavedPage reopens a saved page into its group; removeFromGroup takes it out", async () => {
+    local["tabs:groupSnapshots"] = {
+      "tag:lotus": snap("tag:lotus", ["https://drive.google.com/x", "https://notion.so/lotus"]),
+    };
+    const { result } = await ready();
+    await act(async () => {
+      await result.current.openSavedPage("tag:lotus", {
+        url: "https://notion.so/lotus",
+        title: "N",
+      });
+    });
+    expect(browserMock.tabs.create).toHaveBeenCalledWith({
+      url: "https://notion.so/lotus",
+      active: true,
+    });
+    expect(local["tabs:override:https://notion.so/lotus"]).toBe("tag:lotus");
+
+    await act(async () => {
+      await result.current.removeFromGroup("tag:lotus", "https://notion.so/lotus");
+    });
+    const saved = (local["tabs:groupSnapshots"] as Record<string, { pages: { url: string }[] }>)[
+      "tag:lotus"
+    ];
+    expect(saved.pages.map((p) => p.url)).not.toContain("https://notion.so/lotus");
+    expect(saved.pages.map((p) => p.url)).toContain("https://drive.google.com/x");
+  });
 });

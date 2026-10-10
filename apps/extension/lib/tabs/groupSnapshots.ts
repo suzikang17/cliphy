@@ -1,12 +1,11 @@
 import { normalizeUrl, type ClosedGroup, type ClosedGroupPage } from "@cliphy/shared";
 import type { TabGroup } from "./organize";
 
-// Autosaved tag groups. While a tag group's tabs are open, its pages are kept
-// in a snapshot. A page leaves the snapshot only when you close it on purpose
-// (x, Close all, Stow); pages that vanish with a window or a browser quit
-// stay. A snapshot with none of its pages open is a closed group you can
-// Resume. ⇧C marks a group closed, so closing its tabs keeps every page.
-// Address + title only, like the rest of the Tabs view.
+// Autosaved tag groups work like bookmark folders. Every page that's been open
+// in a tag group is kept in its snapshot. Closing tabs (✕, Close all, Stow, a
+// quit) never removes a page; only removing it yourself does, or moving it to
+// another group. A snapshot with none of its pages open is a closed group you
+// can Resume. Address + title only, like the rest of the Tabs view.
 
 export const SNAPSHOTS_KEY = "tabs:groupSnapshots"; // storage.local
 /** The server accepts up to 100 pages per group. */
@@ -88,25 +87,33 @@ export function autosave(snaps: Snapshots, groups: TabGroup[], now: number): Cha
   return { next, changed: changed.filter((k) => !removed.includes(k)), removed };
 }
 
-/** You closed this page on purpose: drop it from every snapshot that isn't closed. */
-export function pruneClosedPage(snaps: Snapshots, url: string): Change {
+/** You removed a page from a group (✕ on a saved page). The only way a page leaves a group. */
+export function removePage(snaps: Snapshots, key: string, url: string): Change {
+  const s = snaps[key];
+  if (!s) return { next: snaps, changed: [], removed: [] };
   const k = pageKey(url);
-  const next: Snapshots = { ...snaps };
-  const changed: string[] = [];
-  const removed: string[] = [];
-  for (const s of Object.values(snaps)) {
-    if (s.closedAt !== undefined) continue;
-    const pages = s.pages.filter((p) => pageKey(p.url) !== k);
-    if (pages.length === s.pages.length) continue;
-    if (pages.length === 0) {
-      delete next[s.key];
-      removed.push(s.key);
-    } else {
-      next[s.key] = { ...s, pages, updatedAt: Date.now() };
-      changed.push(s.key);
-    }
+  const pages = s.pages.filter((p) => pageKey(p.url) !== k);
+  if (pages.length === s.pages.length) return { next: snaps, changed: [], removed: [] };
+  const next = { ...snaps };
+  if (pages.length === 0) {
+    delete next[key];
+    return { next, changed: [], removed: [key] };
   }
-  return { next, changed, removed };
+  next[key] = { ...s, pages, updatedAt: Date.now() };
+  return { next, changed: [key], removed: [] };
+}
+
+/** Per group: its saved pages that aren't open right now (shown under "Not open"). */
+export function notOpenPages(
+  snaps: Snapshots,
+  openUrls: string[],
+): Record<string, ClosedGroupPage[]> {
+  const open = new Set(openUrls.map(pageKey));
+  const out: Record<string, ClosedGroupPage[]> = {};
+  for (const s of Object.values(snaps)) {
+    out[s.key] = s.pages.filter((p) => !open.has(pageKey(p.url)));
+  }
+  return out;
 }
 
 /** ⇧C: keep every page when its tabs close. */

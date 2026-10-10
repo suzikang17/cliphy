@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { epic, feature, layer } from "allure-js-commons";
 import {
   autosave,
-  pruneClosedPage,
+  removePage,
+  notOpenPages,
   markClosed,
   markResumed,
   closedView,
@@ -85,29 +86,29 @@ describe("group snapshots (autosaved tag groups)", () => {
     expect(next["tag:big"].pages).toHaveLength(MAX_SNAPSHOT_PAGES);
   });
 
-  it("a page you close on purpose leaves its group's snapshot; an emptied snapshot is removed", () => {
+  it("removePage takes a page out of a group only when you ask; an emptied group is removed", () => {
     const snaps = autosave(
       {},
-      [
-        group("tag:lotus", ["https://a.com/1", "https://a.com/2"]),
-        group("tag:solo", ["https://b.com/"]),
-      ],
+      [group("tag:lotus", ["https://a.com/1", "https://a.com/2"])],
       T0,
     ).next;
-    let r = pruneClosedPage(snaps, "https://www.a.com/1");
+    let r = removePage(snaps, "tag:lotus", "https://www.a.com/1");
     expect(r.next["tag:lotus"].pages.map((p) => p.url)).toEqual(["https://a.com/2"]);
     expect(r.changed).toEqual(["tag:lotus"]);
-    r = pruneClosedPage(r.next, "https://b.com/");
-    expect(r.next["tag:solo"]).toBeUndefined();
-    expect(r.removed).toEqual(["tag:solo"]);
+    r = removePage(r.next, "tag:lotus", "https://a.com/2");
+    expect(r.next["tag:lotus"]).toBeUndefined();
+    expect(r.removed).toEqual(["tag:lotus"]);
   });
 
-  it("closing tabs of a group closed with ⇧C never prunes it", () => {
-    let snaps = autosave({}, [group("tag:lotus", ["https://a.com/1"])], T0).next;
-    snaps = markClosed(snaps, "tag:lotus", T0 + 5);
-    const r = pruneClosedPage(snaps, "https://a.com/1");
-    expect(r.next["tag:lotus"].pages).toHaveLength(1);
-    expect(r.changed).toEqual([]);
+  it("notOpenPages: a group's saved pages that aren't open right now", () => {
+    const snaps = autosave(
+      {},
+      [group("tag:lotus", ["https://a.com/1", "https://a.com/2"])],
+      T0,
+    ).next;
+    expect(notOpenPages(snaps, ["https://www.a.com/2/"])["tag:lotus"].map((p) => p.url)).toEqual([
+      "https://a.com/1",
+    ]);
   });
 
   it("closedView lists snapshots with none of their pages open, newest first", () => {

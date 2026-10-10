@@ -7,10 +7,6 @@ const captureTrail = vi.fn();
 const isAuthenticated = vi.fn();
 vi.mock("../../api", () => ({ captureTrail: (...a: unknown[]) => captureTrail(...a) }));
 vi.mock("../../auth", () => ({ isAuthenticated: () => isAuthenticated() }));
-const onPageClosed = vi.fn().mockResolvedValue(undefined);
-vi.mock("../../tabs/snapshotSync", () => ({
-  onPageClosed: (...a: unknown[]) => onPageClosed(...a),
-}));
 
 type Listener = (...args: unknown[]) => unknown;
 const lastListener = (l: { addListener: { mock: { calls: unknown[][] } } }) =>
@@ -83,21 +79,27 @@ describe("registerTrailTracker", () => {
     expect(browserMock.runtime.sendMessage).toHaveBeenCalledWith({ type: "TRAIL_SAVED" });
   });
 
-  it("a tab you close on purpose leaves its group's snapshot, even with the trail off", async () => {
-    browserMock.storage.local.get.mockResolvedValue({ "trail:enabled": false });
+  it("closing a tab never takes it out of its saved group (groups are like bookmark folders)", async () => {
+    browserMock.storage.local.get.mockImplementation(async (key: string) =>
+      key === "tabs:groupSnapshots"
+        ? {
+            [key]: {
+              "tag:x": {
+                key: "tag:x",
+                label: "x",
+                pages: [{ url: article, title: "A" }],
+                updatedAt: 1,
+              },
+            },
+          }
+        : { "trail:enabled": true },
+    );
     open(1, article);
     await close(1);
-    expect(onPageClosed).toHaveBeenCalledWith(article, 1);
-  });
-
-  it("tabs closing with their window (or a browser quit) stay in their group's snapshot", async () => {
-    open(1, article);
-    vi.setSystemTime(Date.now() + 60_000); // open long enough for the trail
-    openTabs = [];
-    onRemoved(1, { windowId: 1, isWindowClosing: true });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(onPageClosed).not.toHaveBeenCalled();
     await flushDebounce();
+    expect(browserMock.storage.local.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ "tabs:groupSnapshots": expect.anything() }),
+    );
     expect(captureTrail).toHaveBeenCalledTimes(1); // the trail still remembers it
   });
 

@@ -6,6 +6,8 @@ category: Extension
 revisit: true
 ---
 
+> **Superseded in part (2026-10-10) by ADR 0053:** closing a tab no longer removes it from its group; groups are bookmark folders.
+
 ## Why this choice
 
 A restart lost a group's tabs (the browser didn't restore them) and the only record was the Trail, one page at a time. Groups should be durable without a "save" step. Every tag group now keeps a snapshot (`tabs:groupSnapshots` locally plus the `closed_groups` table on the server, debounced) while its tabs are open. A page leaves the snapshot only when you close its tab on purpose: `tabs.onRemoved` with `isWindowClosing: false`, and the page isn't open elsewhere. Tabs that vanish with a window or a browser quit stay. A snapshot with none of its pages open is shown under Closed groups with Resume. ⇧C marks the group closed so closing its tabs keeps every page; ⇧X / Stow / x prune as usual.
