@@ -14,6 +14,8 @@ export interface OpenTab {
   discarded: boolean;
   /** When the tab was opened (recorded by the background worker); undefined if it predates tracking. */
   openedAt?: number;
+  /** In a different browser window than the panel (its "active" means nothing to you). */
+  otherWindow?: boolean;
 }
 
 /** Only real web pages: no chrome://, extension, file://, about: pages. */

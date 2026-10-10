@@ -18,6 +18,8 @@ export const browserMock = {
   windows: {
     update: vi.fn().mockResolvedValue(undefined),
     getLastFocused: vi.fn().mockResolvedValue({ id: 1 }),
+    getCurrent: vi.fn().mockResolvedValue({ id: 1 }),
+    get: vi.fn().mockResolvedValue({ id: 1, focused: true }),
   },
   runtime: {
     onMessage: listener(),

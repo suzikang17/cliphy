@@ -28,6 +28,7 @@ import {
 import { toOpenTab, type OpenTab } from "./types";
 import { loadOpenedTimes } from "./openedAt";
 import { closeTabsAndAdvance } from "./nextTab";
+import { activateTab } from "./activate";
 import {
   applyGroupOrder,
   loadGroupOrder,
@@ -43,16 +44,26 @@ export const CONTENT_PERMISSION = { permissions: ["scripting"], origins: ["<all_
 
 export type OrganizeStatus = "idle" | "organizing" | "error";
 
-async function queryOpenTabs(): Promise<{ list: OpenTab[]; trackingSince: number | null }> {
-  const [all, times] = await Promise.all([
+async function queryOpenTabs(): Promise<{
+  list: OpenTab[];
+  trackingSince: number | null;
+  currentWindowId: number | null;
+}> {
+  const [all, times, current] = await Promise.all([
     browser.tabs.query({}),
     loadOpenedTimes().catch(() => ({ opened: {}, trackingSince: null })),
+    browser.windows.getCurrent().catch(() => null),
   ]);
+  const currentWindowId = (current as { id?: number } | null)?.id ?? null;
   const list = all
     .map((t: Tabs.Tab) => toOpenTab(t))
     .filter((t: OpenTab | null): t is OpenTab => t !== null)
-    .map((t: OpenTab) => ({ ...t, openedAt: times.opened[t.id] }));
-  return { list, trackingSince: times.trackingSince };
+    .map((t: OpenTab) => {
+      // Every window has a front tab; only the one in the panel's window is "the tab you're on".
+      const otherWindow = currentWindowId != null && t.windowId !== currentWindowId;
+      return { ...t, openedAt: times.opened[t.id], otherWindow, active: t.active && !otherWindow };
+    });
+  return { list, trackingSince: times.trackingSince, currentWindowId };
 }
 
 async function hasContentPermission(): Promise<boolean> {
@@ -117,6 +128,8 @@ export function useTabOrganizer() {
    * yourself (outside the panel) means you're not done with it.
    */
   const peeking = useRef(new Set<number>());
+  /** The browser window this panel belongs to. */
+  const currentWindowRef = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
   const scheduleRef = useRef<() => void>(() => {});
@@ -129,9 +142,10 @@ export function useTabOrganizer() {
   }, []);
 
   const refreshTabs = useCallback(async () => {
-    const { list, trackingSince: since } = await queryOpenTabs();
+    const { list, trackingSince: since, currentWindowId: win } = await queryOpenTabs();
     if (!mounted.current) return list;
     setTrackingSince(since);
+    currentWindowRef.current = win;
     tabsRef.current = list;
     setTabs(list);
     await reloadState(list);
@@ -340,11 +354,15 @@ export function useTabOrganizer() {
     void organize();
   }, [organize, reloadState]);
 
-  const activate = useCallback(async (tab: OpenTab) => {
-    peeking.current.add(tab.id);
-    await browser.tabs.update(tab.id, { active: true });
-    await browser.windows.update(tab.windowId, { focused: true });
-  }, []);
+  const activate = useCallback(
+    async (tab: OpenTab) => {
+      peeking.current.add(tab.id);
+      await activateTab(tab, currentWindowRef.current);
+      // A tab brought over from another window changed windows — refresh.
+      if (tab.otherWindow) await refreshTabs();
+    },
+    [refreshTabs],
+  );
 
   const closeTabs = useCallback(async (ids: number[]) => {
     await closeTabsAndAdvance(ids);

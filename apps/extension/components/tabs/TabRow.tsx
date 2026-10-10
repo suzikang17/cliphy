@@ -84,6 +84,7 @@ export function TabRow({
         <span className="block truncate text-[10px] text-(--color-text-faint)">
           {[
             hostOf(tab.url),
+            tab.otherWindow ? "other window" : "",
             tabTimesLabel({
               openedAt: tab.openedAt,
               trackingSince,
