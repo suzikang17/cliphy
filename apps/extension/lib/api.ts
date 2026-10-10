@@ -19,6 +19,9 @@ import type {
   TabInput,
   OrganizeTabsResponse,
   TabHintsResponse,
+  TrailCaptureItem,
+  TrailListResponse,
+  TrailSettings,
 } from "@cliphy/shared";
 import { getAccessToken, isTokenExpired, refreshAccessToken } from "./auth";
 import { Sentry } from "./sentry";
@@ -430,6 +433,51 @@ export async function putTabHint(
       ...(opts.keep && { keep: true }),
       ...(opts.keywords && { keywords: opts.keywords }),
     }),
+  });
+}
+
+// ── Trail (closed tabs) ──────────────────────────────────────
+
+/** Save closed tabs to the trail. 1–50 per call; sent in small batches by the background tracker. */
+export async function captureTrail(items: TrailCaptureItem[]) {
+  return request<{ saved: number }>(API_ROUTES.TRAIL.LIST, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
+/** Newest first. `q` matches title, URL and tags; `before` is the previous page's `nextBefore`. */
+export async function listTrail({
+  q,
+  before,
+  limit = 50,
+}: { q?: string; before?: string; limit?: number } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (q?.trim()) params.set("q", q.trim());
+  if (before) params.set("before", before);
+  return request<TrailListResponse>(`${API_ROUTES.TRAIL.LIST}?${params}`);
+}
+
+export async function deleteTrailItem(id: string) {
+  return request<{ deleted: true }>(API_ROUTES.TRAIL.ITEM(id), { method: "DELETE" });
+}
+
+/** Save a trail entry as a clip; the server removes it from the trail. */
+export async function promoteTrailItem(id: string) {
+  return request<{ clip: Summary; tags: string[] }>(API_ROUTES.TRAIL.PROMOTE(id), {
+    method: "POST",
+  });
+}
+
+export async function getTrailSettings() {
+  return request<TrailSettings>(API_ROUTES.TRAIL.SETTINGS);
+}
+
+/** null keeps entries forever; otherwise 7, 30, 90 or 365 days. */
+export async function putTrailSettings(retentionDays: number | null) {
+  return request<TrailSettings>(API_ROUTES.TRAIL.SETTINGS, {
+    method: "PUT",
+    body: JSON.stringify({ retentionDays }),
   });
 }
 

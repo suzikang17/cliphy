@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Kbd } from "./Kbd";
 import { labelFor } from "../../lib/tabs/shortcuts";
 import type { GroupKey, TabGroup } from "../../lib/tabs/organize";
@@ -31,6 +31,10 @@ interface TabGroupSectionProps {
   /** Drag-and-drop reorder; undefined for groups that can't move (Probably done). */
   onReorder?: (from: GroupKey, target: GroupKey, position: "before" | "after") => void;
   onNudge?: (key: GroupKey, dir: -1 | 1) => void;
+  /** Locally computed keyword ideas for this tag group; one click adds one. */
+  keywordSuggestions?: string[];
+  /** Tells the list a drag started/ended (it collapses groups while dragging). */
+  onDragStateChange?: (dragging: boolean) => void;
   showLabels?: boolean;
   /** Changes when the `e` shortcut asks this group to open its editor. */
   editNonce?: number;
@@ -40,6 +44,11 @@ interface TabGroupSectionProps {
 
 /** dataTransfer type for a dragged group, so tab/text drags are ignored. */
 const DRAG_TYPE = "application/x-cliphy-group";
+/**
+ * The group being dragged. dataTransfer can't be read during dragover, so the
+ * key lives here to suppress the drop line on the dragged group itself.
+ */
+let draggingKey: GroupKey | null = null;
 
 const linkBtn =
   "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text) disabled:opacity-50";
@@ -64,11 +73,16 @@ export function TabGroupSection({
   onDismiss,
   onReorder,
   onNudge,
+  onDragStateChange,
+  keywordSuggestions = [],
   showLabels = false,
   editNonce,
   moveRequest = null,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const movable = !!onReorder;
 
   function openEditor() {
@@ -116,13 +130,22 @@ export function TabGroupSection({
 
   return (
     <section
+      ref={sectionRef}
       onDragOver={(e) => {
         if (!movable || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
         e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (draggingKey === group.key) {
+          setDropAt(null); // dropping onto itself changes nothing
+          return;
+        }
         const r = e.currentTarget.getBoundingClientRect();
         setDropAt(e.clientY < r.top + r.height / 2 ? "before" : "after");
       }}
-      onDragLeave={() => setDropAt(null)}
+      onDragLeave={(e) => {
+        // Moving between child elements fires dragleave too — only clear on a real exit.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null);
+      }}
       onDrop={(e) => {
         const from = e.dataTransfer.getData(DRAG_TYPE);
         const at = dropAt;
@@ -132,25 +155,38 @@ export function TabGroupSection({
           onReorder?.(from as GroupKey, group.key, at);
         }
       }}
-      className={`mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm ${
-        dropAt === "before"
-          ? "shadow-[0_-3px_0_0_var(--color-border-hard)]"
-          : dropAt === "after"
-            ? "shadow-[0_3px_0_0_var(--color-border-hard)]"
-            : ""
+      className={`relative mb-3 rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) shadow-brutal-sm transition-opacity ${
+        isDragging ? "opacity-40" : ""
       }`}
     >
-      <header className="flex items-center gap-2 px-2.5 py-1.5">
+      {dropAt && <DropLine at={dropAt} />}
+      <header
+        ref={headerRef}
+        draggable={movable}
+        onDragStart={(e) => {
+          if (!movable) return;
+          e.dataTransfer.setData(DRAG_TYPE, group.key);
+          e.dataTransfer.effectAllowed = "move";
+          // Drag the whole header (name + count), not the tiny grip glyph.
+          if (headerRef.current) e.dataTransfer.setDragImage(headerRef.current, 16, 14);
+          draggingKey = group.key;
+          // Defer so the drag image is captured before the group fades.
+          requestAnimationFrame(() => setIsDragging(true));
+          onDragStateChange?.(true);
+        }}
+        onDragEnd={() => {
+          draggingKey = null;
+          setIsDragging(false);
+          setDropAt(null);
+          onDragStateChange?.(false);
+        }}
+        className={`flex items-center gap-2 px-2.5 py-1.5 ${movable ? "cursor-grab active:cursor-grabbing" : ""}`}
+      >
         {movable && (
           <span
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(DRAG_TYPE, group.key);
-              e.dataTransfer.effectAllowed = "move";
-            }}
             title="Drag to reorder (or ⌥↑ / ⌥↓)"
             aria-hidden
-            className="shrink-0 cursor-grab select-none text-xs text-(--color-text-faint) active:cursor-grabbing"
+            className="shrink-0 select-none text-xs text-(--color-text-faint)"
           >
             ⠿
           </span>
@@ -260,19 +296,35 @@ export function TabGroupSection({
         </span>
       </header>
 
-      {(isProposed || (isTag && !editingHints)) && keywords.length > 0 && (
-        <p className="m-0 flex flex-wrap items-center gap-1 px-2.5 pb-1.5 text-[10px] text-(--color-text-faint)">
-          <span>{isProposed ? "Will match:" : "Matches:"}</span>
-          {keywords.map((k) => (
-            <span
-              key={k}
-              className="rounded border border-(--color-border-soft) px-1 font-semibold text-(--color-text)"
-            >
-              {k}
-            </span>
-          ))}
-        </p>
-      )}
+      {(isProposed || (isTag && !editingHints)) &&
+        (keywords.length > 0 || (isTag && keywordSuggestions.length > 0)) && (
+          <p className="m-0 flex flex-wrap items-center gap-1 px-2.5 pb-1.5 text-[10px] text-(--color-text-faint)">
+            {keywords.length > 0 && <span>{isProposed ? "Will match:" : "Matches:"}</span>}
+            {keywords.map((k) => (
+              <span
+                key={k}
+                className="rounded border border-(--color-border-soft) px-1 font-semibold text-(--color-text)"
+              >
+                {k}
+              </span>
+            ))}
+            {isTag &&
+              keywordSuggestions.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(() => onSaveHints(group.value, hints ?? "", [...keywords, k]))
+                  }
+                  title={`Add "${k}" as a keyword — tabs containing it will always land here`}
+                  className="cursor-pointer rounded border border-dashed border-neon-500 bg-transparent px-1 text-[10px] font-semibold text-neon-700 hover:bg-neon-100 disabled:opacity-50 dark:text-neon-400 dark:hover:bg-neon-900/30"
+                >
+                  ＋ {k}
+                </button>
+              ))}
+          </p>
+        )}
 
       {editingHints && (
         <div className="border-t border-(--color-border-soft) px-2.5 py-2">
@@ -387,5 +439,24 @@ export function TabGroupSection({
         </ul>
       )}
     </section>
+  );
+}
+
+/** Bold insertion line between groups while dragging. */
+function DropLine({ at }: { at: "before" | "after" }) {
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute -left-1 -right-1 z-10 flex items-center ${
+        at === "before" ? "-top-[9px]" : "-bottom-[9px]"
+      }`}
+    >
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-(--color-border-hard) bg-neon-400" />
+      <span className="h-[3px] flex-1 bg-neon-500" />
+      <span className="mx-1 shrink-0 rounded-full border-2 border-(--color-border-hard) bg-neon-400 px-1.5 text-[9px] font-black uppercase leading-[14px] text-neon-900">
+        Move here
+      </span>
+      <span className="h-[3px] w-4 shrink-0 bg-neon-500" />
+    </div>
   );
 }

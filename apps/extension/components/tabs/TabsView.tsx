@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { moveTargets as computeMoveTargets } from "../../lib/tabs/organize";
 import { filterGroups, moveSelection, rowToActivate, visibleRows } from "../../lib/tabs/search";
 import { useTabOrganizer } from "../../lib/tabs/useTabOrganizer";
+import { useTrail } from "../../lib/trail/useTrail";
 import { TabGroupSection } from "./TabGroupSection";
+import { TrailSection } from "./TrailSection";
 import { DuplicatesPanel } from "./DuplicatesPanel";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Kbd } from "./Kbd";
 import { duplicateIdsToClose } from "../../lib/tabs/dedupe";
+import { suggestKeywords } from "../../lib/tabs/keywordSuggest";
 import { isTypingTarget, LABEL_MODIFIER, resolveShortcut } from "../../lib/tabs/shortcuts";
 
 interface TabsViewProps {
@@ -25,6 +28,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(-1);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // While a group is being dragged, every group shows only its header so all
+  // drop targets fit on screen.
+  const [draggingGroup, setDraggingGroup] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Shortcut labels show only while ⌘ (Ctrl on Windows) is held.
@@ -65,7 +71,25 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     () => computeMoveTargets(org.groups, org.knownTags),
     [org.groups, org.knownTags],
   );
+  // Recently closed rows follow the open tabs in the keyboard order.
+  const trail = useTrail({ query, authed: org.authed });
+  const closedRows = trail.active ? trail.rows : [];
+  const total = rows.length + closedRows.length;
   const selectedTabId = rows[selected]?.id ?? null;
+
+  // One-click keyword ideas per tag group, from phrases its tabs share (local, no AI).
+  const keywordIdeas = useMemo(() => {
+    const ideas = new Map<string, string[]>();
+    for (const g of org.groups) {
+      if (g.kind !== "tag") continue;
+      const others = org.groups.filter((o) => o.key !== g.key).flatMap((o) => o.tabs);
+      const s = suggestKeywords(g.tabs, others, org.keywords[g.value] ?? []);
+      if (s.length) ideas.set(g.key, s);
+    }
+    return ideas;
+  }, [org.groups, org.keywords]);
+  const selectedTrailId =
+    selected >= rows.length ? (closedRows[selected - rows.length]?.id ?? null) : null;
 
   // A new query highlights the top match; clearing it clears the highlight.
   useEffect(() => {
@@ -74,29 +98,31 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
 
   useEffect(() => {
     listRef.current?.querySelector("[data-selected]")?.scrollIntoView({ block: "nearest" });
-  }, [selectedTabId]);
+  }, [selectedTabId, selectedTrailId]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setSelected((i) => moveSelection(i, e.key === "ArrowDown" ? 1 : -1, rows.length));
+      setSelected((i) => moveSelection(i, e.key === "ArrowDown" ? 1 : -1, total));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const tab = rowToActivate(rows, selected);
+      const closed = selected >= rows.length ? closedRows[selected - rows.length] : undefined;
+      const tab = closed ? null : rowToActivate(rows, selected);
       if (tab) void org.activate(tab);
+      else if (closed ?? closedRows[0]) void trail.reopen(closed ?? closedRows[0]);
     } else if (e.key === "Escape") {
       e.preventDefault();
       if (query) setQuery("");
       else {
         searchRef.current?.blur(); // hand off to single-key shortcuts
-        if (selected < 0 && rows.length) setSelected(0);
+        if (selected < 0 && total) setSelected(0);
       }
     }
   }
 
   // Single-key shortcuts anywhere in the panel (not while typing in a field).
-  const latest = useRef({ rows, selected, shown, org });
-  latest.current = { rows, selected, shown, org };
+  const latest = useRef({ rows, selected, shown, org, closedRows, trail });
+  latest.current = { rows, selected, shown, org, closedRows, trail };
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && helpOpen) {
@@ -106,8 +132,10 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       if (isTypingTarget(e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;
-      const { rows, selected, shown, org } = latest.current;
+      const { rows, selected, shown, org, closedRows, trail } = latest.current;
       const tab = rows[selected] ?? null;
+      // A selected "Recently closed" row: ↵ reopens, x removes, s saves to clips.
+      const closed = tab ? undefined : closedRows[selected - rows.length];
       const group = tab ? shown.find((g) => g.tabs.some((t) => t.id === tab.id)) : undefined;
       e.preventDefault();
       switch (action) {
@@ -116,16 +144,21 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           break;
         case "next":
         case "prev":
-          setSelected((i) => moveSelection(i, action === "next" ? 1 : -1, rows.length));
+          setSelected((i) =>
+            moveSelection(i, action === "next" ? 1 : -1, rows.length + closedRows.length),
+          );
           break;
         case "open":
           if (tab) void org.activate(tab);
+          else if (closed) void trail.reopen(closed);
           break;
         case "closeTab":
           if (tab) void org.closeTabs([tab.id]);
+          else if (closed) void trail.remove(closed);
           break;
         case "stowTab":
           if (tab && org.authed) void org.stowTabs([tab]);
+          else if (closed) void trail.promote(closed);
           break;
         case "moveTab":
           if (tab) setMoveRequest((r) => ({ tabId: tab.id, n: (r?.n ?? 0) + 1 }));
@@ -157,8 +190,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
 
   // Keep the selection on a real row after tabs close.
   useEffect(() => {
-    if (selected >= rows.length) setSelected(rows.length - 1);
-  }, [rows.length, selected]);
+    if (selected >= total) setSelected(total - 1);
+  }, [total, selected]);
 
   function toggle(key: string) {
     setCollapsed((prev) => {
@@ -177,7 +210,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={`Search ${org.tabs.length} open tabs${showLabels ? "  ( / )" : ""}`}
+        placeholder={`Search ${org.tabs.length} open tabs${trail.active ? " and closed ones" : ""}${showLabels ? "  ( / )" : ""}`}
         aria-label="Search open tabs"
         className="w-full rounded-lg border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 text-sm text-(--color-text) shadow-brutal-sm outline-none focus:shadow-brutal-pressed"
       />
@@ -246,7 +279,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
             <TabGroupSection
               key={group.key}
               group={group}
-              collapsed={!query.trim() && collapsed.has(group.key)}
+              collapsed={draggingGroup || (!query.trim() && collapsed.has(group.key))}
+              onDragStateChange={setDraggingGroup}
+              keywordSuggestions={group.kind === "tag" ? keywordIdeas.get(group.key) : undefined}
               onToggle={() => toggle(group.key)}
               selectedTabId={selectedTabId}
               moveTargets={targets}
@@ -276,6 +311,13 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
             />
           ))
         )}
+
+        <TrailSection
+          trail={trail}
+          selectedId={selectedTrailId}
+          now={now}
+          showLabels={showLabels}
+        />
       </div>
 
       <button
