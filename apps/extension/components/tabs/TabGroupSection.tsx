@@ -12,6 +12,8 @@ interface TabGroupSectionProps {
   selectedTabId: number | null;
   moveTargets: GroupKey[];
   canStow: boolean;
+  trackingSince: number | null;
+  now: number;
   hints?: string;
   onActivate: (tab: OpenTab) => void;
   onCloseTabs: (tabs: OpenTab[]) => void;
@@ -32,6 +34,8 @@ export function TabGroupSection({
   selectedTabId,
   moveTargets,
   canStow,
+  trackingSince,
+  now,
   hints,
   onActivate,
   onCloseTabs,
@@ -213,6 +217,8 @@ export function TabGroupSection({
               tab={tab}
               selected={tab.id === selectedTabId}
               dimmed={isDone}
+              trackingSince={trackingSince}
+              now={now}
               groupKey={group.key}
               moveTargets={moveTargets}
               onActivate={onActivate}

@@ -26,6 +26,7 @@ import {
   type TabGroup,
 } from "./organize";
 import { toOpenTab, type OpenTab } from "./types";
+import { loadOpenedTimes } from "./openedAt";
 
 /** AI organize waits for tab activity to settle this long. */
 export const ORGANIZE_DEBOUNCE_MS = 3000;
@@ -34,11 +35,16 @@ export const CONTENT_PERMISSION = { permissions: ["scripting"], origins: ["<all_
 
 export type OrganizeStatus = "idle" | "organizing" | "error";
 
-async function queryOpenTabs(): Promise<OpenTab[]> {
-  const all = await browser.tabs.query({});
-  return all
+async function queryOpenTabs(): Promise<{ list: OpenTab[]; trackingSince: number | null }> {
+  const [all, times] = await Promise.all([
+    browser.tabs.query({}),
+    loadOpenedTimes().catch(() => ({ opened: {}, trackingSince: null })),
+  ]);
+  const list = all
     .map((t: Tabs.Tab) => toOpenTab(t))
-    .filter((t: OpenTab | null): t is OpenTab => t !== null);
+    .filter((t: OpenTab | null): t is OpenTab => t !== null)
+    .map((t: OpenTab) => ({ ...t, openedAt: times.opened[t.id] }));
+  return { list, trackingSince: times.trackingSince };
 }
 
 async function hasContentPermission(): Promise<boolean> {
@@ -80,6 +86,7 @@ export function useTabOrganizer() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [status, setStatus] = useState<OrganizeStatus>("idle");
   const [hints, setHints] = useState<Record<string, string>>({});
+  const [trackingSince, setTrackingSince] = useState<number | null>(null);
 
   // Listeners and timers read the latest values through refs.
   const tabsRef = useRef(tabs);
@@ -104,8 +111,9 @@ export function useTabOrganizer() {
   }, []);
 
   const refreshTabs = useCallback(async () => {
-    const list = await queryOpenTabs();
+    const { list, trackingSince: since } = await queryOpenTabs();
     if (!mounted.current) return list;
+    setTrackingSince(since);
     tabsRef.current = list;
     setTabs(list);
     await reloadState(list);
@@ -339,6 +347,7 @@ export function useTabOrganizer() {
 
   return {
     tabs,
+    trackingSince,
     groups,
     hints,
     knownTags,

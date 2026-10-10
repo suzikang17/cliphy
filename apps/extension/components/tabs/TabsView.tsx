@@ -11,6 +11,12 @@ interface TabsViewProps {
 
 export function TabsView({ focusSignal = 0 }: TabsViewProps) {
   const org = useTabOrganizer();
+  // Re-render every minute so "viewed 2m ago" doesn't go stale.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(-1);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -127,6 +133,8 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               selectedTabId={selectedTabId}
               moveTargets={targets}
               canStow={!!org.authed}
+              trackingSince={org.trackingSince}
+              now={now}
               hints={group.kind === "tag" ? org.hints[group.value] : undefined}
               onActivate={(t) => void org.activate(t)}
               onCloseTabs={(list) => void org.closeTabs(list.map((t) => t.id))}

@@ -12,6 +12,8 @@ export interface OpenTab {
   lastAccessed: number;
   /** Unloaded by Chrome's memory saver — no page to read. */
   discarded: boolean;
+  /** When the tab was opened (recorded by the background worker); undefined if it predates tracking. */
+  openedAt?: number;
 }
 
 /** Only real web pages: no chrome://, extension, file://, about: pages. */

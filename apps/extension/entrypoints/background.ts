@@ -7,6 +7,7 @@ import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supa
 import { createBackgroundClient } from "../lib/sentry";
 import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
 import type { OpenTabsViewMessage } from "../lib/tabs/openSignal";
+import { ensureTrackingSince, forgetOpened, recordOpened } from "../lib/tabs/openedAt";
 
 const sentryScope = createBackgroundClient();
 
@@ -72,6 +73,15 @@ export default defineBackground(() => {
     if (tab.id) {
       await browser.sidePanel.open({ tabId: tab.id });
     }
+  });
+
+  // ── Tab open times (Chrome doesn't expose them) ──────────
+  void ensureTrackingSince().catch(() => {});
+  browser.tabs.onCreated.addListener((tab: Tabs.Tab) => {
+    if (tab.id != null) void recordOpened(tab.id).catch(() => {});
+  });
+  browser.tabs.onRemoved.addListener((tabId: number) => {
+    void forgetOpened(tabId).catch(() => {});
   });
 
   // ── Keyboard command: open the Tabs view ─────────────────

@@ -2,11 +2,14 @@ import { useState } from "react";
 import { faviconUrl } from "../pins/TileStrip";
 import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { hostOf, type OpenTab } from "../../lib/tabs/types";
+import { tabTimesLabel, tabTimesTitle } from "../../lib/tabs/openedAt";
 
 interface TabRowProps {
   tab: OpenTab;
   selected: boolean;
   dimmed?: boolean;
+  trackingSince: number | null;
+  now: number;
   /** Current group, excluded from the Move-to list. */
   groupKey: GroupKey;
   moveTargets: GroupKey[];
@@ -19,6 +22,8 @@ export function TabRow({
   tab,
   selected,
   dimmed,
+  trackingSince,
+  now,
   groupKey,
   moveTargets,
   onActivate,
@@ -51,14 +56,25 @@ export function TabRow({
       <button
         type="button"
         onClick={() => onActivate(tab)}
-        title={tab.url}
+        title={[tab.url, tabTimesTitle(tab.openedAt, tab.lastAccessed)].filter(Boolean).join("\n")}
         className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
       >
         <span className="block truncate text-xs font-semibold text-(--color-text)">
           {tab.title}
         </span>
         <span className="block truncate text-[10px] text-(--color-text-faint)">
-          {hostOf(tab.url)}
+          {[
+            hostOf(tab.url),
+            tabTimesLabel({
+              openedAt: tab.openedAt,
+              trackingSince,
+              lastAccessed: tab.lastAccessed,
+              active: tab.active,
+              now,
+            }),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </button>
 
