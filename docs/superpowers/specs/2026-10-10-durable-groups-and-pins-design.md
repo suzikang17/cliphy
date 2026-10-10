@@ -35,7 +35,7 @@ Plus one small helper: **stale-tab stow**.
 
 ## 1. Pins
 
-**Pin a tab:** row `⋯ → Pin` or shortcut **`p`**; a pinned row shows 📌. Pinning calls `POST /api/pins/page { url, title }`:
+**Pin a tab:** row `⋯ → Pin` or shortcut **`p`** (pins the selected row); a pinned row shows 📌. From any page, the global command **⌘⇧P / Ctrl+Shift+P** ("Pin this page") pins the current tab without opening the panel and shows the ⌘⇧S-style on-page toast ("Pinned · <tags>"); it takes the third of Chrome's four global command slots (after ⌘⇧K and ⌘⇧S). ⌘P was rejected: Chrome owns it (Print). Pinning calls `POST /api/pins/page { url, title }`:
 
 - find-or-create a metadata-tier clip for the page (the existing bookmark tier; duplicate URL → reuse the clip); the page's tag from `page_tags` (your choice first, then the AI's) is applied to the clip;
 - create a `pinned_items` row (`kind: clip`, `layout: tile`) unless one exists for that clip (the unique index already guarantees one pin per clip);
@@ -118,7 +118,7 @@ All authed; `/pins/page` rate-limited with the existing quick-save bucket (120/h
 - `lib/tabs/pins.ts`: `usePagePins()` — loads `GET /api/pins` (cached snapshot like the new-tab board), maps clip pins to normalized URLs, exposes `isPinned(url)`, `pin(tab)`, `unpin(url)` with optimistic updates and Undo.
 - `components/tabs/PinnedGroup.tsx`, `ClosedGroups.tsx`; `TabGroupSection` gains the counts line, `Close group`, `+N from trail`; `TabRow` gains 📌 and `p`.
 - `lib/tabs/stale.ts`: `isStale(tab, now)`, `staleTabs(tabs, pinnedUrls)`.
-- Shortcuts: `p` pin/unpin, `⇧C` close group, `⇧W` stow stale; cheat sheet updated.
+- Shortcuts: `p` pin/unpin (panel), `⇧C` close group, `⇧W` stow stale; manifest command `pin-page` (⌘⇧P) handled in the background like `save-page`; cheat sheet updated.
 - Search (`filterGroups`) also filters the Pinned group and closed groups.
 
 ## Errors
