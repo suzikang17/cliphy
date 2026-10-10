@@ -4,6 +4,8 @@ import { authMiddleware } from "../middleware/auth.js";
 import { supabase } from "../lib/supabase.js";
 import { toPinnedItem } from "../lib/mappers.js";
 import { sanitizeViewQuery, runViewQuery } from "../services/viewQuery.js";
+import { checkRateLimit } from "../lib/rateLimit.js";
+import { pinPage } from "../services/pin-page.js";
 
 export const pinsRoutes = new Hono<AppEnv>();
 
@@ -85,6 +87,40 @@ pinsRoutes.post("/", async (c) => {
   const { data, error } = await supabase.from("pinned_items").insert(insert).select("*").single();
   if (error || !data) return c.json({ error: "Failed to create pin" }, 500);
   return c.json({ pin: toPinnedItem(data as Record<string, unknown>) }, 201);
+});
+
+// ── POST /page — pin a page from the Tabs view / ⌘⇧P ─────────
+// Registered BEFORE /:id routes so "page" isn't captured as an :id param.
+
+const PIN_PAGE_LIMIT_PER_HOUR = 120;
+
+pinsRoutes.post("/page", async (c) => {
+  const userId = c.get("userId");
+  let body: { url?: unknown; title?: unknown; note?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof body.url !== "string" || body.url.length > 2048 || !/^https?:\/\//.test(body.url)) {
+    return c.json({ error: "A web page url is required" }, 400);
+  }
+  // Shares the quick-save bucket: pinning and ⌘⇧S are the same kind of action.
+  if (!checkRateLimit(`quick-save:${userId}`, PIN_PAGE_LIMIT_PER_HOUR, 60 * 60_000)) {
+    return c.json({ error: "Too many saves", code: "RATE_LIMITED" }, 429);
+  }
+  try {
+    const r = await pinPage({
+      userId,
+      url: body.url,
+      title: typeof body.title === "string" ? body.title.slice(0, 500) : undefined,
+      note:
+        typeof body.note === "string" ? body.note.trim().slice(0, 2000) || undefined : undefined,
+    });
+    return c.json(r, r.created ? 201 : 200);
+  } catch {
+    return c.json({ error: "Failed to pin page" }, 500);
+  }
 });
 
 // ── GET /:id/items — resolve a panel's contents ──────────────
