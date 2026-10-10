@@ -1,16 +1,11 @@
-# Resume pointer — 2026-10-10
+# Resume pointer
 
-**State:** All work on main and deployed (server) / built (extension `apps/extension/.output/chrome-mv3`, reload unpacked in Dia/Chrome). Shipped since 10-09: Tabs view features (dupes, keywords, merge, reorder, shortcuts, rename/notes, times), ⌘⇧S quick-save, Trail (opt-in, migrations 033–034 applied), behaviour-based grouping with reasons (ADRs 0050–0051). Extension version still 1.1.0 in `wxt.config.ts`; Chrome Web Store upload not done.
+**State (2026-10-10):** Durable groups & pins shipped + deployed (main `c18c820` and later, API live on Vercel; migrations 030–036 applied). Pins (`p` / ⌘⇧P), close group ⇧C + Resume, group counts, Trail on by default with free-form retention, stale-tab stow ⇧W. Extension 1.2.0 zipped at `apps/extension/.output/extension-1.2.0-chrome.zip` — **not yet uploaded to the Chrome Web Store** (your action).
 
 **Next:**
 
-1. Hands-on check in the browser: drag up/merge, rename/note, Trail capture, a Claude suggestion with a reason. Fix what the user reports.
-2. Confirm the production Anthropic key has credits (local one is empty) — summaries + suggestions depend on it.
-3. Bump extension version + upload to the Chrome Web Store when the user is happy.
+1. Load unpacked `apps/extension/.output/chrome-mv3` and drive the E2E: pin a tab → tile on new tab; ⇧C a tag group → reload browser → Resume reopens pages + that group's pins; stale marker on an old tab.
+2. Upload the 1.2.0 zip to the Web Store (privacy text already updated live).
+3. Deferred minors from the final review are listed in `docs/devlog/2026-10-10-durable-groups-and-pins.md` → pick the worth-it ones (resume error handling / "Opened 5 of 6", close-under-search, trim >100 pages).
 
-**Gotchas:**
-
-- Dia: unopened sidebar tabs are invisible to `tabs.query`; window focus requests are ignored (we move the tab instead).
-- Never change layout inside `dragstart` — Chromium aborts the drag; defer a frame.
-- `psql "$DATABASE_URL" -f` for migrations (remote has no CLI history); server dev reads repo-root `.env`.
-- Full vitest runs sometimes get killed when chained with other commands (exit 144) — run them on their own.
+**Gotchas:** Chrome allows 4 global commands — 3 used (⌘⇧K/S/P). Page identity = `normalizeUrl` (`@cliphy/shared`); trail rows hold raw URLs. Never `supabase db push` — `psql "$DATABASE_URL" -f` single files. TabsView keyboard handler must read everything via `latest.current` (deps `[helpOpen]`).

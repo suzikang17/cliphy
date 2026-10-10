@@ -34,3 +34,14 @@ title: "Day 68 — Durable groups & pins: the Tabs view as a trustworthy tab man
 - Chrome allows 4 global commands; 3 are used now (⌘⇧K open Tabs view, ⌘⇧S save, ⌘⇧P pin).
 - Page identity everywhere is `normalizeUrl` from `@cliphy/shared` — compare pins/snapshots by it, never by raw URL or `pin.key`.
 - Migration 036 applied to prod with `psql -f` (never `supabase db push`).
+
+## Final review + deploy
+
+- Fresh whole-branch review: 0 Critical, 5 Important, all fixed test-first in `2b313fb`:
+  - Resume opened **every** pin → now only pins tagged with the group (`clipTags` on `GET /api/pins`, `pinsForGroup`).
+  - `p` couldn't unpin (key handler held a first-render `togglePin`) → routed through `latest.current`.
+  - Pinning a summarized YouTube video created a duplicate clip (videos have `video_url`, not `source_url`) → one `.or()` lookup by `youtube_video_id` / raw+normalized `source_url` / `video_url`, `.limit(1)`; verified read-only against prod.
+  - Pinned pages stayed in the Trail (rows hold raw URLs) → delete matches raw + normalized.
+  - Closed-groups local cache drifted → load pushes local-only snapshots, drops older ones, retries unconfirmed resume deletes (`tabs:resumePending`).
+- Deferred minors: resume per-tab error handling; close-under-search snapshots only matches; >100-page snapshots 400; reused clip skips tag/note; `:key` length cap + double-decode; concurrent first pins 500; retention picker saves per keystroke; closed groups not keyboard/search reachable; ⌘⇧P pins not live in panel; "+N from trail" approximations; unpin of pending pin errors.
+- Pushed `0a91659..c18c820`; prod deploy Ready, `/health` 200, new routes 401 unauthenticated, privacy text live. Extension 1.2.0 zipped (Web Store upload pending).
