@@ -236,4 +236,15 @@ describe("useTabOrganizer — close & resume a group", () => {
       ).toContain(3),
     );
   });
+
+  it("a tab that never answers the page read (asleep / still loading) doesn't stall organizing", async () => {
+    browserMock.permissions.contains.mockResolvedValue(true); // page content granted
+    (browserMock as unknown as { scripting: { executeScript: unknown } }).scripting = {
+      executeScript: vi.fn(() => new Promise(() => {})), // never settles
+    };
+    const { organizeTabs } = await import("../../api");
+    const { result } = renderHook(() => useTabOrganizer());
+    await waitFor(() => expect(organizeTabs).toHaveBeenCalled(), { timeout: 5000 });
+    await waitFor(() => expect(result.current.status).not.toBe("organizing"));
+  }, 10_000);
 });

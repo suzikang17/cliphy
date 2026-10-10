@@ -128,15 +128,26 @@ export function normalizeTagName(raw: string): string {
 }
 
 /** Read one tab's page. null → send title + URL only. */
+/** Longest we wait for one tab's page text before sending title + address only. */
+export const EXTRACT_TIMEOUT_MS = 2000;
+
 async function extractFor(tab: OpenTab, granted: boolean): Promise<ExtractResult | null> {
   if (!shouldExtract(tab, granted)) return null;
   const cached = await getCachedExtract(tab.url);
   if (cached) return cached;
   try {
-    const [res] = await browser.scripting.executeScript({
+    // A tab that's asleep or still loading (e.g. right after a restart) may never
+    // answer; give up on its text rather than stall organizing forever.
+    const injected = browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: extractPage,
     });
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), EXTRACT_TIMEOUT_MS),
+    );
+    const out = await Promise.race([injected, timeout]);
+    if (!out) return null;
+    const [res] = out;
     const result = res?.result as ExtractResult | undefined;
     if (!result) return null;
     await saveExtract(tab.url, result);
