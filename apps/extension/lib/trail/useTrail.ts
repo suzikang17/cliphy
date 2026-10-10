@@ -8,7 +8,7 @@ import {
   putTrailSettings,
 } from "../api";
 import { groupTrail, trailRows } from "./group";
-import { isTrailEnabled, setTrailEnabled, TRAIL_SAVED_MESSAGE } from "./tracker";
+import { isTrailEnabled, setTrailEnabled, TRAIL_NOTICE_KEY, TRAIL_SAVED_MESSAGE } from "./tracker";
 
 /** Search waits for typing to pause this long before asking the server. */
 export const TRAIL_SEARCH_DEBOUNCE_MS = 250;
@@ -24,6 +24,8 @@ export function useTrail({ query, authed }: { query: string; authed: boolean | n
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
+  /** First-run notice answered? null until read. */
+  const [noticeSeen, setNoticeSeen] = useState<boolean | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const active = !!authed && enabled === true;
@@ -39,6 +41,10 @@ export function useTrail({ query, authed }: { query: string; authed: boolean | n
     void isTrailEnabled()
       .catch(() => false)
       .then((on) => live && setEnabled(on));
+    void browser.storage.local
+      .get(TRAIL_NOTICE_KEY)
+      .then((r: Record<string, unknown>) => live && setNoticeSeen(r?.[TRAIL_NOTICE_KEY] === true))
+      .catch(() => live && setNoticeSeen(true));
     return () => {
       live = false;
     };
@@ -136,6 +142,16 @@ export function useTrail({ query, authed }: { query: string; authed: boolean | n
     if (nextBefore) void load(qRef.current, nextBefore);
   }, [load, nextBefore]);
 
+  /** The first-run notice: Keep just dismisses it; Turn off also disables the trail. */
+  const dismissNotice = useCallback(
+    async (keep: boolean) => {
+      setNoticeSeen(true);
+      await browser.storage.local.set({ [TRAIL_NOTICE_KEY]: true }).catch(() => {});
+      if (!keep) await toggle(false);
+    },
+    [toggle],
+  );
+
   const setRetention = useCallback(
     async (days: number | null) => {
       const prev = retentionDays;
@@ -163,6 +179,9 @@ export function useTrail({ query, authed }: { query: string; authed: boolean | n
     error,
     note,
     retentionDays,
+    /** Show the first-run notice: on, and never answered. */
+    showNotice: enabled === true && noticeSeen === false,
+    dismissNotice,
     searching: !!q,
     toggle,
     reopen,

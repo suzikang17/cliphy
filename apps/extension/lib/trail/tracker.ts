@@ -14,7 +14,9 @@ import { shouldTrail } from "./rules";
 // does no page reading and no awaiting on the network: it queues an item, and
 // the queue is flushed in one fire-and-forget batch a moment later.
 
-export const TRAIL_ENABLED_KEY = "trail:enabled"; // storage.local, default off (opt-in)
+export const TRAIL_ENABLED_KEY = "trail:enabled"; // storage.local; on unless explicitly false
+/** Set once the first-run notice has been answered (Keep / Turn off). */
+export const TRAIL_NOTICE_KEY = "trail:noticeSeen";
 const TAB_PREFIX = "trail:tab:"; // storage.session, tabId → TrackedTab
 const QUEUE_KEY = "trail:queue"; // storage.session, captures not yet sent
 /** Sent to extension pages after a batch is saved, so an open panel can refresh. */
@@ -37,7 +39,8 @@ interface PendingCapture extends TrailCaptureItem {
 
 export async function isTrailEnabled(): Promise<boolean> {
   const r = await browser.storage.local.get(TRAIL_ENABLED_KEY);
-  return r?.[TRAIL_ENABLED_KEY] === true;
+  // On by default (the safety net should exist from day one); only an explicit off wins.
+  return r?.[TRAIL_ENABLED_KEY] !== false;
 }
 
 export async function setTrailEnabled(enabled: boolean): Promise<void> {

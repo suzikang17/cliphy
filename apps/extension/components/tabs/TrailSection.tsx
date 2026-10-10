@@ -1,17 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fromDays, toDays, type RetentionUnit } from "../../lib/trail/retention";
 import type { TrailItem } from "@cliphy/shared";
 import { Kbd } from "./Kbd";
 import { faviconUrl } from "../pins/TileStrip";
 import { formatAgo } from "../../lib/tabs/openedAt";
 import type { TrailState } from "../../lib/trail/useTrail";
-
-export const RETENTION_OPTIONS: { days: number | null; label: string }[] = [
-  { days: null, label: "Forever" },
-  { days: 7, label: "1 week" },
-  { days: 30, label: "30 days" },
-  { days: 90, label: "90 days" },
-  { days: 365, label: "1 year" },
-];
 
 const linkBtn =
   "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-bold text-(--color-text-faint) hover:text-(--color-text) disabled:opacity-50";
@@ -64,34 +57,46 @@ export function TrailSection({ trail, selectedId, now, showLabels = false }: Tra
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-5 z-10 rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) px-3 py-2 shadow-brutal-sm">
-                <label className="block whitespace-nowrap text-[10px] font-bold uppercase text-(--color-text-faint)">
-                  Keep closed tabs
-                  <select
-                    value={trail.retentionDays ?? ""}
-                    onChange={(e) => {
-                      void trail.setRetention(e.target.value ? Number(e.target.value) : null);
-                      setMenuOpen(false);
-                    }}
-                    className="mt-1 block w-full rounded border border-(--color-border-hard) bg-(--color-surface) text-xs normal-case text-(--color-text)"
-                  >
-                    {RETENTION_OPTIONS.map((o) => (
-                      <option key={o.label} value={o.days ?? ""}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RetentionPicker
+                  days={trail.retentionDays}
+                  onChange={(d) => void trail.setRetention(d)}
+                />
               </div>
             )}
           </span>
         )}
       </header>
 
-      <p className="m-0 px-2.5 pb-1.5 text-[11px] leading-snug text-(--color-text-faint)">
-        {trail.enabled
-          ? "The address and title of each page you close are sent to Cliphy and saved to your trail."
-          : "When on, the address and title of each page you close are sent to Cliphy and saved to your trail, so you can search and reopen it later. Page content is never read. Searches, sign-in pages and tabs open under 10 seconds are skipped."}
-      </p>
+      {trail.showNotice ? (
+        <div className="mx-2.5 mb-2 rounded-md bg-neon-100/60 px-2.5 py-2 dark:bg-neon-900/25">
+          <p className="m-0 text-[11px] leading-snug text-(--color-text)">
+            Cliphy now remembers tabs you close — address and title only, never page content — so
+            nothing is lost. Searches, sign-in pages and quick peeks are skipped.
+          </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void trail.dismissNotice(true)}
+              className="flex h-6 cursor-pointer items-center rounded-md border-0 bg-neon-600 px-2.5 text-[11px] font-bold text-white hover:bg-neon-700"
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              onClick={() => void trail.dismissNotice(false)}
+              className="flex h-6 cursor-pointer items-center rounded-md border-0 bg-transparent px-1.5 text-[11px] font-semibold text-(--color-text-faint) hover:text-(--color-text)"
+            >
+              Turn off
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="m-0 px-2.5 pb-1.5 text-[11px] leading-snug text-(--color-text-faint)">
+          {trail.enabled
+            ? "The address and title of each page you close are sent to Cliphy and saved to your trail."
+            : "When on, the address and title of each page you close are sent to Cliphy and saved to your trail, so you can search and reopen it later. Page content is never read. Searches, sign-in pages and tabs open under 10 seconds are skipped."}
+        </p>
+      )}
 
       {trail.note && (
         <p className="m-0 px-2.5 pb-1 text-[11px] text-(--color-text-faint)">{trail.note}</p>
@@ -245,5 +250,57 @@ function TrailRow({
         </button>
       </span>
     </li>
+  );
+}
+
+const UNITS: { value: RetentionUnit; label: string }[] = [
+  { value: "days", label: "days" },
+  { value: "weeks", label: "weeks" },
+  { value: "months", label: "months" },
+  { value: "forever", label: "forever" },
+];
+
+/** "Keep closed tabs for [3] [weeks ▾]" — any amount; forever hides the amount. */
+function RetentionPicker({
+  days,
+  onChange,
+}: {
+  days: number | null;
+  onChange: (days: number | null) => void;
+}) {
+  const [draft, setDraft] = useState(() => fromDays(days));
+  useEffect(() => setDraft(fromDays(days)), [days]);
+  const commit = (next: { amount: number; unit: RetentionUnit }) => {
+    setDraft(next);
+    onChange(toDays(next));
+  };
+  return (
+    <label className="block whitespace-nowrap text-[10px] font-bold uppercase text-(--color-text-faint)">
+      Keep closed tabs for
+      <span className="mt-1 flex items-center gap-1 normal-case">
+        {draft.unit !== "forever" && (
+          <input
+            type="number"
+            min={1}
+            value={draft.amount}
+            aria-label="Keep closed tabs amount"
+            onChange={(e) => commit({ ...draft, amount: Number(e.target.value) || 1 })}
+            className="w-14 rounded border border-(--color-border-hard) bg-(--color-surface) px-1 text-xs text-(--color-text)"
+          />
+        )}
+        <select
+          value={draft.unit}
+          aria-label="Keep closed tabs unit"
+          onChange={(e) => commit({ ...draft, unit: e.target.value as RetentionUnit })}
+          className="rounded border border-(--color-border-hard) bg-(--color-surface) text-xs text-(--color-text)"
+        >
+          {UNITS.map((u) => (
+            <option key={u.value} value={u.value}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      </span>
+    </label>
   );
 }

@@ -95,12 +95,29 @@ describe("registerTrailTracker", () => {
     ]);
   });
 
-  it("does nothing while trail is off (the default)", async () => {
+  it("is on by default: captures when the setting was never touched", async () => {
     browserMock.storage.local.get.mockResolvedValue({});
     open(1, article);
     await close(1);
     await flushDebounce();
+    expect(captureTrail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when trail was explicitly turned off", async () => {
+    browserMock.storage.local.get.mockResolvedValue({ "trail:enabled": false });
+    open(1, article);
+    await close(1);
+    await flushDebounce();
     expect(captureTrail).not.toHaveBeenCalled();
+  });
+
+  it("isTrailEnabled: unset → on, false → off, true → on", async () => {
+    browserMock.storage.local.get.mockResolvedValueOnce({});
+    expect(await tracker.isTrailEnabled()).toBe(true);
+    browserMock.storage.local.get.mockResolvedValueOnce({ "trail:enabled": false });
+    expect(await tracker.isTrailEnabled()).toBe(false);
+    browserMock.storage.local.get.mockResolvedValueOnce({ "trail:enabled": true });
+    expect(await tracker.isTrailEnabled()).toBe(true);
   });
 
   it("does nothing when signed out", async () => {

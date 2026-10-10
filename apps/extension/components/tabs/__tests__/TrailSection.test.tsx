@@ -52,21 +52,61 @@ describe("TrailSection", () => {
   });
   afterEach(cleanup);
 
-  it("is off by default: shows the opt-in with a plain privacy note, and loads nothing", async () => {
+  it("is on by default with a one-time notice; Keep dismisses it, Turn off disables the trail", async () => {
+    browserMock.storage.local.get.mockResolvedValue({}); // nothing ever set
+    render(<Harness />);
+    const toggle = await screen.findByRole("switch", { name: "Remember tabs I close" });
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/never page content/)).toBeTruthy();
+    await waitFor(() => expect(api.listTrail).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    await waitFor(() => expect(screen.queryByText(/never page content/)).toBeNull());
+    expect(browserMock.storage.local.set).toHaveBeenCalledWith({ "trail:noticeSeen": true });
+  });
+
+  it("Turn off in the notice disables the trail and hides the notice", async () => {
     browserMock.storage.local.get.mockResolvedValue({});
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Turn off" });
+    fireEvent.click(screen.getByRole("button", { name: "Turn off" }));
+    await waitFor(() =>
+      expect(browserMock.storage.local.set).toHaveBeenCalledWith({ "trail:enabled": false }),
+    );
+    expect((screen.getByRole("switch") as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Turn off" })).toBeNull();
+  });
+
+  it("stays off and shows no notice when the user turned it off before", async () => {
+    browserMock.storage.local.get.mockResolvedValue({
+      "trail:enabled": false,
+      "trail:noticeSeen": true,
+    });
     render(<Harness />);
     const toggle = await screen.findByRole("switch", { name: "Remember tabs I close" });
     expect((toggle as HTMLInputElement).checked).toBe(false);
-    expect(
-      screen.getByText(/address and title of each page you close are sent to Cliphy/),
-    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
     expect(api.listTrail).not.toHaveBeenCalled();
+  });
 
-    await act(async () => {
-      fireEvent.click(toggle);
+  it("retention is amount + unit: 3 weeks saves 21 days, forever saves null", async () => {
+    browserMock.storage.local.get.mockResolvedValue({
+      "trail:enabled": true,
+      "trail:noticeSeen": true,
     });
-    expect(browserMock.storage.local.set).toHaveBeenCalledWith({ "trail:enabled": true });
-    expect(await screen.findByText("Type scale notes")).toBeTruthy();
+    render(<Harness />);
+    fireEvent.click(await screen.findByRole("button", { name: "Recently closed settings" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Keep closed tabs unit" }), {
+      target: { value: "weeks" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Keep closed tabs amount" }), {
+      target: { value: "3" },
+    });
+    await waitFor(() => expect(api.putTrailSettings).toHaveBeenLastCalledWith(21));
+    fireEvent.change(screen.getByRole("combobox", { name: "Keep closed tabs unit" }), {
+      target: { value: "forever" },
+    });
+    await waitFor(() => expect(api.putTrailSettings).toHaveBeenLastCalledWith(null));
   });
 
   it("is hidden when signed out", () => {
@@ -129,18 +169,5 @@ describe("TrailSection", () => {
     expect(api.listTrail).toHaveBeenLastCalledWith({ q: undefined, before: design.closedAt });
     expect(await screen.findByText("Random blog")).toBeTruthy();
     expect(screen.getByText("Type scale notes")).toBeTruthy();
-  });
-
-  it("retention is set from the ⋯ menu", async () => {
-    browserMock.storage.local.get.mockResolvedValue({ "trail:enabled": true });
-    render(<Harness />);
-    await screen.findByText("Type scale notes");
-    fireEvent.click(screen.getByRole("button", { name: "Recently closed settings" }));
-    await act(async () => {
-      fireEvent.change(screen.getByRole("combobox", { name: "Keep closed tabs" }), {
-        target: { value: "30" },
-      });
-    });
-    expect(api.putTrailSettings).toHaveBeenCalledWith(30);
   });
 });
