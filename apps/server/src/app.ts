@@ -31,6 +31,8 @@ import { pinsRoutes } from "./routes/pins.js";
 import { notesRoutes } from "./routes/notes.js";
 import { podcastRoutes } from "./routes/podcasts.js";
 import { tabsRoutes } from "./routes/tabs.js";
+import { trailRoutes } from "./routes/trail.js";
+import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 import { visionClip } from "./functions/visionClip.js";
@@ -92,6 +94,7 @@ app.on(
       processPodcastFeedPoll,
       transcribePodcastEpisode,
       visionClip,
+      purgeTrailCron,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",
@@ -114,6 +117,7 @@ app.route("/settings", settingsRoutes);
 app.route("/keys", apiKeyRoutes);
 app.route("/podcasts", podcastRoutes);
 app.route("/tabs", tabsRoutes);
+app.route("/trail", trailRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {

@@ -107,6 +107,12 @@ export const API_ROUTES = {
     REORDER: "/api/pins/reorder",
     ITEMS: (id: string) => `/api/pins/${id}/items`,
   },
+  TRAIL: {
+    LIST: "/api/trail",
+    ITEM: (id: string) => `/api/trail/${id}`,
+    PROMOTE: (id: string) => `/api/trail/${id}/promote`,
+    SETTINGS: "/api/trail/settings",
+  },
   TABS: {
     ORGANIZE: "/api/tabs/organize",
     HINTS: "/api/tabs/hints",

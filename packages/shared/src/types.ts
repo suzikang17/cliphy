@@ -403,3 +403,40 @@ export interface TabHintsResponse {
   /** Per-tag keywords that deterministically match tabs (see keywords.ts). */
   keywords: Record<string, string[]>;
 }
+
+// ── Trail (tabs saved automatically when closed) ─────────────
+
+/** A page you had open and closed. Kept apart from clips; promote one to keep it. */
+export interface TrailItem {
+  id: string;
+  url: string;
+  title: string;
+  host: string;
+  tags: string[];
+  /** ISO time the tab was opened, when known. */
+  openedAt?: string;
+  /** ISO time it was (last) closed. */
+  closedAt: string;
+  /** How many times this page was closed (one row per URL). */
+  closeCount: number;
+}
+
+/** POST /api/trail body — sent by the extension in small batches. */
+export interface TrailCaptureItem {
+  url: string;
+  title: string;
+  /** ms since epoch */
+  openedAt?: number;
+  closedAt: number;
+}
+
+export interface TrailListResponse {
+  items: TrailItem[];
+  /** Pass as ?before= for the next page; absent at the end. */
+  nextBefore?: string;
+}
+
+export interface TrailSettings {
+  /** Auto-delete entries older than this many days; null keeps them forever. */
+  retentionDays: number | null;
+}
