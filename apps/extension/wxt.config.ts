@@ -11,7 +11,17 @@ export default defineConfig({
     name: "Cliphy",
     description: "Queue YouTube videos and get AI-powered summaries",
     version: "1.1.0",
-    permissions: ["storage", "tabs", "identity", "contextMenus", "sidePanel", "favicon"],
+    // "activeTab" has no install warning, so adding it doesn't re-prompt existing
+    // users. It lets ⌘⇧S read and toast the current page without broad host access.
+    permissions: [
+      "storage",
+      "tabs",
+      "identity",
+      "contextMenus",
+      "sidePanel",
+      "favicon",
+      "activeTab",
+    ],
     // Requested at runtime, never at install. Adding "history" to `permissions`
     // would raise the install warning level, and Chrome DISABLES an
     // auto-updated extension until every existing user re-accepts — which
@@ -27,6 +37,13 @@ export default defineConfig({
           mac: "Command+Shift+K",
         },
         description: "Open Cliphy Tabs",
+      },
+      "save-page": {
+        suggested_key: {
+          default: "Ctrl+Shift+S",
+          mac: "Command+Shift+S",
+        },
+        description: "Save this page to Cliphy",
       },
     },
     icons: {

@@ -9,6 +9,47 @@ import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
 import type { OpenTabsViewMessage } from "../lib/tabs/openSignal";
 import { ensureTrackingSince, forgetOpened, recordOpened } from "../lib/tabs/openedAt";
 import { registerDupeInterceptor } from "../lib/tabs/interceptDupes";
+import { runQuickSave, type QuickSaveDeps } from "../lib/save/quickSave";
+import { showSaveToast, updateSaveToast, type SaveToastState } from "../lib/save/saveToast";
+import { extractPage, type ExtractResult } from "../lib/tabs/extractPage";
+import { quickSaveClip } from "../lib/api";
+
+/** Real browser wiring for ⌘⇧S (activeTab is granted by the keyboard command). */
+const quickSaveDeps: QuickSaveDeps = {
+  isAuthed: () => isAuthenticated(),
+  async toast(tabId: number, state: SaveToastState) {
+    try {
+      const [updated] = await browser.scripting.executeScript({
+        target: { tabId },
+        func: updateSaveToast,
+        args: [state],
+      });
+      if (updated?.result === true) return true;
+      await browser.scripting.executeScript({
+        target: { tabId },
+        func: showSaveToast,
+        args: [state],
+      });
+      return true;
+    } catch {
+      return false; // chrome://, Web Store, PDF viewer…
+    }
+  },
+  async extract(tabId: number) {
+    try {
+      const [res] = await browser.scripting.executeScript({ target: { tabId }, func: extractPage });
+      return (res?.result as ExtractResult | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  save: (body) => quickSaveClip(body),
+  badge(tabId: number, text: string, ok: boolean) {
+    void browser.action.setBadgeBackgroundColor({ tabId, color: ok ? "#65a30d" : "#dc2626" });
+    void browser.action.setBadgeText({ tabId, text });
+    setTimeout(() => void browser.action.setBadgeText({ tabId, text: "" }), 3000);
+  },
+};
 
 const sentryScope = createBackgroundClient();
 
@@ -87,6 +128,12 @@ export default defineBackground(() => {
 
   // ── Duplicate-tab interception ───────────────────────────
   registerDupeInterceptor();
+
+  // ── Keyboard command: save this page (⌘⇧S) ───────────────
+  browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
+    if (command !== "save-page" || tab?.id == null) return;
+    void runQuickSave({ id: tab.id, url: tab.url, title: tab.title }, quickSaveDeps);
+  });
 
   // ── Keyboard command: open the Tabs view ─────────────────
   browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {

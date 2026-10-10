@@ -1,3 +1,4 @@
+import type { QuickSaveBody, QuickSaveResponse } from "./save/quickSave";
 import { API_ROUTES } from "@cliphy/shared";
 import type {
   PinnedItem,
@@ -429,5 +430,13 @@ export async function putTabHint(
       ...(opts.keep && { keep: true }),
       ...(opts.keywords && { keywords: opts.keywords }),
     }),
+  });
+}
+
+/** ⌘⇧S: save the current page with what the extension sees; returns applied tags. */
+export async function quickSaveClip(body: QuickSaveBody) {
+  return request<QuickSaveResponse>("/api/clips/quick", {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }

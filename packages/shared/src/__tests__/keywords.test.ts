@@ -56,3 +56,21 @@ describe("keywords", () => {
     expect(normalizeKeywords(["x".repeat(60)])).toEqual(["x".repeat(40)]);
   });
 });
+
+describe("matchAllKeywordTags", () => {
+  it("returns every tag with a matching keyword, longest match first", async () => {
+    const { matchAllKeywordTags } = await import("../keywords");
+    const tags = {
+      "project:lotus-bech": ["we curate life"],
+      design: ["interior"],
+      "client:acme": ["acme"],
+    };
+    expect(
+      matchAllKeywordTags(
+        { url: "https://wecuratelife.com", title: "We curate life | interior design" },
+        tags,
+      ),
+    ).toEqual(["project:lotus-bech", "design"]);
+    expect(matchAllKeywordTags({ url: "https://x.com", title: "nothing" }, tags)).toEqual([]);
+  });
+});

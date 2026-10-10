@@ -66,3 +66,19 @@ export function normalizeKeywords(input: unknown[]): string[] {
   }
   return out;
 }
+
+/** Every tag with a matching keyword (for clips, which can carry several tags), most specific first. */
+export function matchAllKeywordTags(
+  hay: KeywordHaystack,
+  keywordsByTag: Record<string, string[]>,
+): string[] {
+  const hits: { tag: string; len: number }[] = [];
+  for (const [tag, keywords] of Object.entries(keywordsByTag)) {
+    let best = 0;
+    for (const kw of keywords) {
+      if (keywordMatches(kw, hay)) best = Math.max(best, compactText(kw).length);
+    }
+    if (best > 0) hits.push({ tag, len: best });
+  }
+  return hits.sort((a, b) => b.len - a.len).map((h) => h.tag);
+}

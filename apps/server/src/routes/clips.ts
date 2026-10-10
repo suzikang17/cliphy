@@ -13,10 +13,52 @@ import { findRelatedClips } from "../services/related.js";
 import { enrichClip } from "../services/enrich.js";
 import { runImageVision } from "../services/processImage.js";
 import { enqueueVideo } from "../services/enqueue-video.js";
+import { quickSave } from "../services/quick-save.js";
+import { checkRateLimit } from "../lib/rateLimit.js";
 
 export const clipsRoutes = new Hono<AppEnv>();
 
 clipsRoutes.use("*", authMiddleware);
+
+// ── POST /quick — ⌘⇧S save-this-page from the extension ─────
+// Body: { url, title, description?, text? } — the extension sends what it sees,
+// so logged-in pages save properly. Returns the clip with tags applied.
+
+const QUICK_LIMIT_PER_HOUR = 120;
+
+clipsRoutes.post("/quick", async (c) => {
+  const userId = c.get("userId");
+  let body: { url?: unknown; title?: unknown; description?: unknown; text?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+  if (typeof body.url !== "string" || body.url.length > 2048 || !/^https?:\/\//.test(body.url)) {
+    return c.json({ error: "A web page url is required" }, 400);
+  }
+  if (!checkRateLimit(`quick-save:${userId}`, QUICK_LIMIT_PER_HOUR, 60 * 60_000)) {
+    return c.json({ error: "Too many saves", code: "RATE_LIMITED" }, 429);
+  }
+  const r = await quickSave({
+    userId,
+    url: body.url,
+    title: typeof body.title === "string" ? body.title.slice(0, 500) : "",
+    description: typeof body.description === "string" ? body.description.slice(0, 500) : undefined,
+    text: typeof body.text === "string" ? body.text.slice(0, 6000) : undefined,
+  });
+  if (!r.ok) return c.json(r.body, r.status);
+  return c.json(
+    {
+      clip: toClip(r.clip),
+      tags: r.tags,
+      suggestedTags: r.suggestedTags,
+      duplicate: !!r.duplicate,
+      video: !!r.video,
+    },
+    r.duplicate ? 200 : 201,
+  );
+});
 
 clipsRoutes.post("/", async (c) => {
   const userId = c.get("userId");

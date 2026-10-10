@@ -64,6 +64,13 @@ vi.mock("../../services/enrich.js", () => ({
   enrichClip: vi.fn(async () => ({ summary: "s", tags: ["t"], category: "reading" })),
 }));
 
+const quickSaveMock = vi.fn();
+vi.mock("../../services/quick-save.js", () => ({
+  quickSave: (...a: unknown[]) => quickSaveMock(...a),
+}));
+let allowQuick = true;
+vi.mock("../../lib/rateLimit.js", () => ({ checkRateLimit: vi.fn(() => allowQuick) }));
+
 const enqueueVideoMock = vi.fn();
 vi.mock("../../services/enqueue-video.js", () => ({
   enqueueVideo: (...a: unknown[]) => enqueueVideoMock(...a),
@@ -181,5 +188,66 @@ describe("POST /clips universal ingest", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /clips/quick (⌘⇧S)", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Capture");
+    feature("Quick save (⌘⇧S)");
+    vi.clearAllMocks();
+    allowQuick = true;
+  });
+  const post = (body: unknown) =>
+    app().request("/clips/quick", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("saves and returns the clip with applied and suggested tags", async () => {
+    quickSaveMock.mockResolvedValue({
+      ok: true,
+      clip: {
+        id: "c1",
+        source_type: "web",
+        status: "completed",
+        tags: ["design"],
+        created_at: "t",
+        updated_at: "t",
+      },
+      tags: ["design"],
+      suggestedTags: ["interiors"],
+    });
+    const res = await post({ url: "https://x.com/a", title: "T", text: "x".repeat(9000) });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      clip: { id: "c1" },
+      tags: ["design"],
+      suggestedTags: ["interiors"],
+      duplicate: false,
+    });
+    expect(quickSaveMock.mock.calls[0][0].text).toHaveLength(6000);
+  });
+
+  it("returns 200 with duplicate:true for an already-saved page", async () => {
+    quickSaveMock.mockResolvedValue({
+      ok: true,
+      clip: { id: "old", tags: [], created_at: "t", updated_at: "t" },
+      tags: [],
+      suggestedTags: [],
+      duplicate: true,
+    });
+    const res = await post({ url: "https://x.com/a", title: "T" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).duplicate).toBe(true);
+  });
+
+  it("rejects non-web urls and rate-limits", async () => {
+    expect((await post({ url: "chrome://settings" })).status).toBe(400);
+    allowQuick = false;
+    expect((await post({ url: "https://x.com" })).status).toBe(429);
+    expect(quickSaveMock).not.toHaveBeenCalled();
   });
 });
