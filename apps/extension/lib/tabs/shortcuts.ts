@@ -20,6 +20,7 @@ export type PanelAction =
   | "closeDuplicates"
   | "mergeGroup"
   | "closeGroupKeep"
+  | "stowStale"
   | "help";
 
 export interface PanelShortcut {
@@ -49,6 +50,7 @@ export const PANEL_SHORTCUTS: PanelShortcut[] = [
   { action: "mergeGroup", keys: ["M"], label: "Merge group into…" },
   { action: "closeGroupKeep", keys: ["C"], label: "Close group (keep it to resume later)" },
   { action: "help", keys: ["?"], label: "All shortcuts" },
+  { action: "stowStale", keys: ["W"], label: "Stow stale tabs (untouched 3+ days)" },
 ];
 
 const BY_KEY = new Map(PANEL_SHORTCUTS.flatMap((s) => s.keys.map((k) => [k, s.action] as const)));

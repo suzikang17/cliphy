@@ -53,6 +53,15 @@ describe("TabRow — rename and note", () => {
     expect(screen.getByText(/waiting on client/)).toBeTruthy();
   });
 
+  it("marks a tab untouched for 3+ days as stale, and a recent one not", () => {
+    const now = Date.parse("2026-10-10T12:00:00Z");
+    renderRow({ lastAccessed: now - 4 * 86_400_000 }, { now });
+    expect(screen.getByText(/stale/)).toBeTruthy();
+    cleanup();
+    renderRow({ lastAccessed: now - 3_600_000 }, { now });
+    expect(screen.queryByText(/stale/)).toBeNull();
+  });
+
   it("renames from the ⋯ menu; Enter saves", async () => {
     const onSetMeta = renderRow();
     fireEvent.click(screen.getByRole("button", { name: /More actions/ }));

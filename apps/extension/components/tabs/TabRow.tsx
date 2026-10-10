@@ -4,6 +4,7 @@ import { faviconUrl } from "../pins/TileStrip";
 import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { hostOf, type OpenTab } from "../../lib/tabs/types";
 import { tabTimesLabel, tabTimesTitle } from "../../lib/tabs/openedAt";
+import { isStale } from "../../lib/tabs/stale";
 
 interface TabRowProps {
   tab: OpenTab;
@@ -139,6 +140,7 @@ export function TabRow({
             {[
               hostOf(tab.url),
               tab.otherWindow ? "other window" : "",
+              !tab.active && isStale(tab, now) ? "stale" : "",
               tabTimesLabel({
                 openedAt: tab.openedAt,
                 trackingSince,

@@ -9,6 +9,7 @@ import { DuplicatesPanel } from "./DuplicatesPanel";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { PinnedGroup } from "./PinnedGroup";
 import { ClosedGroups } from "./ClosedGroups";
+import { staleTabs } from "../../lib/tabs/stale";
 import { countByFirstTag, groupCounts } from "../../lib/tabs/closedGroups";
 import { listTrail } from "../../lib/api";
 import type { TabGroup } from "../../lib/tabs/organize";
@@ -19,7 +20,12 @@ import type { OpenTab } from "../../lib/tabs/types";
 import { Kbd } from "./Kbd";
 import { duplicateIdsToClose } from "../../lib/tabs/dedupe";
 import { suggestKeywords } from "../../lib/tabs/keywordSuggest";
-import { isTypingTarget, LABEL_MODIFIER, resolveShortcut } from "../../lib/tabs/shortcuts";
+import {
+  isTypingTarget,
+  labelFor,
+  LABEL_MODIFIER,
+  resolveShortcut,
+} from "../../lib/tabs/shortcuts";
 
 interface TabsViewProps {
   /** Bumped by the parent when the keyboard command asks to focus search. */
@@ -137,6 +143,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       return;
     for (const item of r.items) await browser.tabs.create({ url: item.url, active: false });
   };
+  const stale = staleTabs(org.tabs, new Set(pagePins.byKey.keys()), now);
   const resumeClosed = (key: string) => void org.resumeGroup(key, pagePins.pins);
   const trail = useTrail({ query, authed: org.authed });
   const closedRows = trail.active ? trail.rows : [];
@@ -210,8 +217,20 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
     pinnedRows,
     off,
     pagePins,
+    stale,
   });
-  latest.current = { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins };
+  latest.current = {
+    rows,
+    selected,
+    shown,
+    org,
+    closedRows,
+    trail,
+    pinnedRows,
+    off,
+    pagePins,
+    stale,
+  };
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && helpOpen) {
@@ -221,7 +240,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
       if (isTypingTarget(e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;
-      const { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins } =
+      const { rows, selected, shown, org, closedRows, trail, pinnedRows, off, pagePins, stale } =
         latest.current;
       const pinRow = selected >= 0 && selected < off ? pinnedRows[selected] : undefined;
       const tab = selected >= off ? (rows[selected - off] ?? null) : null;
@@ -266,6 +285,9 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           if (group && group.kind !== "done") {
             setMergeRequest((r) => ({ key: group.key, n: (r?.n ?? 0) + 1 }));
           }
+          break;
+        case "stowStale":
+          if (org.authed && stale.length > 0) void org.stowTabs(stale);
           break;
         case "closeGroupKeep":
           if (group && group.kind !== "done") void org.closeGroup(group);
@@ -350,6 +372,17 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
         </p>
       )}
       {pagePins.error && <p className="m-0 text-[11px] text-red-600">{pagePins.error}</p>}
+
+      {org.authed && stale.length > 0 && (
+        <button
+          type="button"
+          onClick={() => void org.stowTabs(stale)}
+          title="Save tabs you haven't touched in 3+ days to your library and close them"
+          className="flex cursor-pointer items-center gap-1 self-start rounded-md border-2 border-(--color-border-hard) bg-(--color-surface) px-2 py-0.5 text-[11px] font-bold text-(--color-text) hover:bg-(--color-surface-raised)"
+        >
+          Stow stale ({stale.length}){showLabels && <Kbd>{labelFor("stowStale")}</Kbd>}
+        </button>
+      )}
 
       <DuplicatesPanel
         showLabels={showLabels}

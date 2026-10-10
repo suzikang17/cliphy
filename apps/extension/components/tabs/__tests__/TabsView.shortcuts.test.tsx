@@ -139,6 +139,16 @@ describe("TabsView keyboard shortcuts", () => {
     expect(org.closeGroup).toHaveBeenCalledWith(expect.objectContaining({ key: "site:a.com" }));
   });
 
+  it("⇧W and the header button stow stale tabs (untouched 3+ days), oldest first", async () => {
+    render(<TabsView />);
+    (document.activeElement as HTMLElement)?.blur();
+    await press("W");
+    expect(org.stowTabs).toHaveBeenCalledWith([b1, a2, a1]);
+    org.stowTabs.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /Stow stale \(3\)/ }));
+    expect(org.stowTabs).toHaveBeenCalledWith([b1, a2, a1]);
+  });
+
   it("shortcut labels appear only while the modifier is held", async () => {
     const { LABEL_MODIFIER } = await import("../../../lib/tabs/shortcuts");
     render(<TabsView />);
