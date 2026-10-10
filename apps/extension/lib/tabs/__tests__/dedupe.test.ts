@@ -61,6 +61,18 @@ describe("dedupe", () => {
     expect(pickKeeper([tab(1, "u", { active: true }), tab(5, "u")]).id).toBe(1);
   });
 
+  it("hash routes are different pages; plain #anchors are the same page", () => {
+    const tabs = [
+      tab(1, "https://mail.google.com/mail/u/0/#inbox/FMfcgz1"),
+      tab(2, "https://mail.google.com/mail/u/0/#inbox/FMfcgz2"),
+      tab(3, "https://app.example.com/#/settings"),
+      tab(4, "https://app.example.com/#/billing"),
+      tab(5, "https://docs.example.com/guide#install"),
+      tab(6, "https://docs.example.com/guide#usage"),
+    ];
+    expect(findDuplicates(tabs).map((c) => c.map((t) => t.id))).toEqual([[5, 6]]);
+  });
+
   describe("decideIntercept", () => {
     const existing = tab(1, "https://linear.app/i/ENG-1", { windowId: 2 });
     const others = [existing, tab(2, "https://other.com")];

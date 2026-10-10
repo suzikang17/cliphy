@@ -28,7 +28,8 @@ describe("registerDupeInterceptor", () => {
     feature("Tabs View — duplicates");
     vi.clearAllMocks();
     browserMock.storage.local.get.mockResolvedValue({}); // enabled by default
-    browserMock.storage.session.get.mockResolvedValue({});
+    // The browser session started long ago (not restoring tabs right now).
+    browserMock.storage.session.get.mockResolvedValue({ "tabs:dedupe:sessionStart": 1 });
     // Chrome's storage/tabs APIs return promises; the shared mock's bare vi.fn()s don't.
     browserMock.storage.session.set.mockResolvedValue(undefined);
     browserMock.storage.session.remove.mockResolvedValue(undefined);
@@ -54,6 +55,22 @@ describe("registerDupeInterceptor", () => {
     expect(browserMock.storage.session.set).toHaveBeenCalledWith({
       "tabs:dedupe:last": expect.objectContaining({ url: fresh.url }),
     });
+  });
+
+  it("leaves tabs alone while the browser is restoring its session", async () => {
+    browserMock.storage.session.get.mockResolvedValue({}); // fresh browser session
+    registerDupeInterceptor();
+    onCreated = lastListener(browserMock.tabs.onCreated);
+    onUpdated = lastListener(browserMock.tabs.onUpdated);
+    const restored = { id: 9, windowId: 1, url: existing.url, title: "ENG-1", active: false };
+    browserMock.tabs.query.mockResolvedValue([existing, restored]);
+
+    onCreated({ id: 9 });
+    onUpdated(9, { url: restored.url }, restored);
+    await flush();
+    await flush();
+
+    expect(browserMock.tabs.remove).not.toHaveBeenCalled();
   });
 
   it("never intercepts navigation of a tab that wasn't just created", async () => {

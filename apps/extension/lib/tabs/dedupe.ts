@@ -4,11 +4,28 @@ import type { OpenTab } from "./types";
 export { normalizeUrl } from "@cliphy/shared";
 import { normalizeUrl } from "@cliphy/shared";
 
+/**
+ * Which page a tab shows, for duplicate detection: the normalized address, plus
+ * the #fragment when it's an app route (Gmail's #inbox/<id>, #/settings, #!/x),
+ * since those are different views. A plain #anchor is the same page.
+ */
+export function dedupeKey(url: string): string | null {
+  const key = normalizeUrl(url);
+  if (!key) return null;
+  let hash: string;
+  try {
+    hash = new URL(url).hash;
+  } catch {
+    return key;
+  }
+  return /^#(\/|!|[^#]*\/)/.test(hash) ? key + hash : key;
+}
+
 /** Sets of tabs showing the same page (2+ copies each). */
 export function findDuplicates(tabs: OpenTab[]): OpenTab[][] {
   const byPage = new Map<string, OpenTab[]>();
   for (const t of tabs) {
-    const key = normalizeUrl(t.url);
+    const key = dedupeKey(t.url);
     if (!key) continue;
     byPage.set(key, [...(byPage.get(key) ?? []), t]);
   }
@@ -46,10 +63,10 @@ export function decideIntercept({
   bypass: string[];
 }): InterceptDecision {
   if (!enabled) return { action: "none" };
-  const key = normalizeUrl(newTab.url);
+  const key = dedupeKey(newTab.url);
   if (!key || bypass.includes(key)) return { action: "none" };
 
-  const copies = allTabs.filter((t) => t.id !== newTab.id && normalizeUrl(t.url) === key);
+  const copies = allTabs.filter((t) => t.id !== newTab.id && dedupeKey(t.url) === key);
   if (copies.length === 0) return { action: "none" };
 
   const existing = copies.reduce((best, t) => (t.lastAccessed > best.lastAccessed ? t : best));
@@ -76,7 +93,7 @@ export function nestDuplicates(tabs: OpenTab[]): NestedTab[] {
   const byPage = new Map<string, OpenTab[]>();
   const order: string[] = [];
   for (const t of tabs) {
-    const key = normalizeUrl(t.url) ?? `id:${t.id}`;
+    const key = dedupeKey(t.url) ?? `id:${t.id}`;
     if (!byPage.has(key)) {
       byPage.set(key, []);
       order.push(key);

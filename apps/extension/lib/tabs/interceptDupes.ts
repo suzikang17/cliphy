@@ -1,5 +1,5 @@
 import type { Tabs } from "wxt/browser";
-import { decideIntercept, normalizeUrl } from "./dedupe";
+import { decideIntercept, dedupeKey } from "./dedupe";
 import { showDupeToast } from "./dupeToast";
 import { isWebUrl, toOpenTab, type OpenTab } from "./types";
 
@@ -14,6 +14,10 @@ const BYPASS_KEY = "tabs:dedupe:bypass"; // storage.session, [{ url, until }]
 export const LAST_INTERCEPT_KEY = "tabs:dedupe:last"; // storage.session, for the panel's Undo
 
 const NEW_TAB_TTL_MS = 5 * 60_000;
+/** storage.session is wiped when the browser starts, so a missing value means a new browser session. */
+const SESSION_START_KEY = "tabs:dedupe:sessionStart";
+/** The browser restores its tabs at startup — those are never "new" duplicates. */
+export const RESTORE_GRACE_MS = 60_000;
 const BYPASS_TTL_MS = 30_000;
 
 export interface LastIntercept {
@@ -40,7 +44,7 @@ async function activeBypass(now: number): Promise<{ url: string; until: number }
 /** Undo: reopen the closed duplicate, and let it through for a moment. */
 export async function undoIntercept(url: string): Promise<void> {
   const now = Date.now();
-  const key = normalizeUrl(url);
+  const key = dedupeKey(url);
   if (key) {
     const list = await activeBypass(now);
     await browser.storage.session.set({
@@ -59,8 +63,19 @@ const checking = new Set<number>();
  * storage is the fallback for when the worker slept between the two events.
  */
 const newTabs = new Map<number, number>();
+let sessionStart: Promise<number> = Promise.resolve(0);
 
 export function registerDupeInterceptor(): void {
+  sessionStart = browser.storage.session
+    .get(SESSION_START_KEY)
+    .then((r: Record<string, unknown> | undefined) => {
+      const v = r?.[SESSION_START_KEY];
+      if (typeof v === "number") return v;
+      const now = Date.now();
+      void browser.storage.session.set({ [SESSION_START_KEY]: now }).catch(() => {});
+      return now;
+    })
+    .catch(() => 0);
   browser.tabs.onCreated.addListener((tab: Tabs.Tab) => {
     if (tab.id != null) {
       newTabs.set(tab.id, Date.now());
@@ -99,6 +114,7 @@ async function checkNewTab(tabId: number, tab: Tabs.Tab): Promise<void> {
   await browser.storage.session.remove(flagKey);
   const now = Date.now();
   if (now - createdAt > NEW_TAB_TTL_MS) return;
+  if (now - (await sessionStart) < RESTORE_GRACE_MS) return; // session restore, not a new tab
 
   const newTab = toOpenTab(tab);
   if (!newTab) return;
