@@ -613,6 +613,16 @@ export function useTabOrganizer() {
     [reloadState, syncOverrides],
   );
 
+  /** Put a page in a group by its address — e.g. before reopening it from the trail. */
+  const placeUrl = useCallback(
+    async (url: string, key: GroupKey) => {
+      await setOverride(url, key);
+      syncOverrides([{ url, override: key }]);
+      await reloadState();
+    },
+    [reloadState, syncOverrides],
+  );
+
   const dismissProposal = useCallback(
     async (name: string) => {
       const next = new Set(stateRef.current.dismissed).add(name);
@@ -730,6 +740,7 @@ export function useTabOrganizer() {
     proposalReasons,
     setMeta,
     mergeGroup,
+    placeUrl,
     closedGroups,
     closeGroup,
     resumeGroup,

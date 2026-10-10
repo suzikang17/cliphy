@@ -542,6 +542,10 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           selectedId={selectedTrailId}
           now={now}
           showLabels={showLabels}
+          groupTargets={targets}
+          onReopenInto={(item, key) =>
+            void org.placeUrl(item.url, key).then(() => trail.reopen(item))
+          }
         />
       </div>
 

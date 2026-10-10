@@ -1,3 +1,4 @@
+import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { useEffect, useState } from "react";
 import { fromDays, toDays, type RetentionUnit } from "../../lib/trail/retention";
 import type { TrailItem } from "@cliphy/shared";
@@ -14,10 +15,20 @@ interface TrailSectionProps {
   selectedId: string | null;
   now: number;
   showLabels?: boolean;
+  /** Groups a closed tab can be reopened into. */
+  groupTargets?: GroupKey[];
+  onReopenInto?: (item: TrailItem, key: GroupKey) => void;
 }
 
 /** "Recently closed": tabs you closed, saved to your trail (opt-in). */
-export function TrailSection({ trail, selectedId, now, showLabels = false }: TrailSectionProps) {
+export function TrailSection({
+  trail,
+  selectedId,
+  now,
+  showLabels = false,
+  groupTargets = [],
+  onReopenInto,
+}: TrailSectionProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   if (!trail.visible || trail.enabled === null) return null;
 
@@ -138,6 +149,8 @@ export function TrailSection({ trail, selectedId, now, showLabels = false }: Tra
                       now={now}
                       showLabels={showLabels}
                       onReopen={() => void trail.reopen(item)}
+                      groupTargets={onReopenInto ? groupTargets : []}
+                      onReopenInto={(key) => onReopenInto?.(item, key)}
                       onPromote={() => void trail.promote(item)}
                       onRemove={() => void trail.remove(item)}
                     />
@@ -168,6 +181,8 @@ function TrailRow({
   now,
   showLabels,
   onReopen,
+  groupTargets,
+  onReopenInto,
   onPromote,
   onRemove,
 }: {
@@ -176,6 +191,8 @@ function TrailRow({
   now: number;
   showLabels: boolean;
   onReopen: () => void;
+  groupTargets: GroupKey[];
+  onReopenInto: (key: GroupKey) => void;
   onPromote: () => void;
   onRemove: () => void;
 }) {
@@ -229,7 +246,25 @@ function TrailRow({
           </span>
         )}
       </button>
-      <span className="flex shrink-0 gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+      <span className="flex shrink-0 items-center gap-1 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+        {groupTargets.length > 0 && (
+          <select
+            aria-label={`Reopen ${item.title} into`}
+            title="Reopen into a group"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) onReopenInto(e.target.value as GroupKey);
+            }}
+            className="max-w-24 cursor-pointer rounded border border-(--color-border-soft) bg-(--color-surface) px-1 py-0.5 text-[10px] text-(--color-text-faint)"
+          >
+            <option value="">Reopen into…</option>
+            {groupTargets.map((k) => (
+              <option key={k} value={k}>
+                {groupLabel(k)}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           onClick={onPromote}

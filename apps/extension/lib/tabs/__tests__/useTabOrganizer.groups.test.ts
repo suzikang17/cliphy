@@ -261,4 +261,16 @@ describe("useTabOrganizer — close & resume a group", () => {
     });
     expect(local["tabs:resumePending"]).toEqual([]);
   });
+
+  it("placeUrl puts a page into a group before it's open (restore into a group)", async () => {
+    const { result } = await ready();
+    await act(async () => {
+      await result.current.placeUrl("https://other.com/", "tag:lotus");
+    });
+    await waitFor(() =>
+      expect(
+        result.current.groups.find((g) => g.key === "tag:lotus")!.tabs.map((t) => t.id),
+      ).toContain(3),
+    );
+  });
 });

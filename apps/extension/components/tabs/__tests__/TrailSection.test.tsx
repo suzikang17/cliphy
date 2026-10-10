@@ -31,9 +31,18 @@ const item = (id: string, title: string, tags: string[]): TrailItem => ({
 const design = item("a", "Type scale notes", ["design"]);
 const loose = item("b", "Random blog", []);
 
+const onReopenInto = vi.fn();
 function Harness({ authed = true, query = "" }: { authed?: boolean | null; query?: string }) {
   const trail = useTrail({ query, authed });
-  return <TrailSection trail={trail} selectedId={null} now={Date.now()} />;
+  return (
+    <TrailSection
+      trail={trail}
+      selectedId={null}
+      now={Date.now()}
+      groupTargets={["tag:design", "site:example.com"]}
+      onReopenInto={onReopenInto}
+    />
+  );
 }
 
 describe("TrailSection", () => {
@@ -119,7 +128,7 @@ describe("TrailSection", () => {
     browserMock.storage.local.get.mockResolvedValue({ "trail:enabled": true });
     render(<Harness />);
     expect(await screen.findByText("Type scale notes")).toBeTruthy();
-    expect(screen.getByText("design")).toBeTruthy();
+    expect(screen.getByText("design", { selector: "p" })).toBeTruthy(); // the group heading, not the picker option
     expect(screen.getByText("Other")).toBeTruthy();
     expect(screen.getAllByText(/closed 2h ago/)).toHaveLength(2);
   });
@@ -169,5 +178,13 @@ describe("TrailSection", () => {
     expect(api.listTrail).toHaveBeenLastCalledWith({ q: undefined, before: design.closedAt });
     expect(await screen.findByText("Random blog")).toBeTruthy();
     expect(screen.getByText("Type scale notes")).toBeTruthy();
+  });
+
+  it("reopens a closed tab straight into a group you pick", async () => {
+    browserMock.storage.local.get.mockResolvedValue({ "trail:noticeSeen": true });
+    render(<Harness />);
+    const picker = await screen.findByRole("combobox", { name: "Reopen Random blog into" });
+    fireEvent.change(picker, { target: { value: "tag:design" } });
+    expect(onReopenInto).toHaveBeenCalledWith(loose, "tag:design");
   });
 });
