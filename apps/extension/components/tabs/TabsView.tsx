@@ -282,6 +282,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
               collapsed={draggingGroup || (!query.trim() && collapsed.has(group.key))}
               onDragStateChange={setDraggingGroup}
               keywordSuggestions={group.kind === "tag" ? keywordIdeas.get(group.key) : undefined}
+              reason={group.kind === "proposed" ? org.proposalReasons?.[group.value] : undefined}
               onToggle={() => toggle(group.key)}
               selectedTabId={selectedTabId}
               moveTargets={targets}

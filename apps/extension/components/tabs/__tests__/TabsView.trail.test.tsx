@@ -25,6 +25,7 @@ const org = {
   hints: {},
   keywords: {},
   proposalKeywords: {},
+  proposalReasons: {},
   knownTags: [],
   authed: true,
   status: "idle",

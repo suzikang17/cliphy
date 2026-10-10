@@ -206,3 +206,12 @@ describe("organize: what gets sent", () => {
     });
   });
 });
+
+describe("normalizeTagName", () => {
+  it("lowercases, trims each level, collapses spaces, keeps ':' nesting", async () => {
+    const { normalizeTagName } = await import("../useTabOrganizer");
+    expect(normalizeTagName("  Freelance :  Lotus   Bech ")).toBe("freelance:lotus bech");
+    expect(normalizeTagName("::a::b::")).toBe("a:b");
+    expect(normalizeTagName("x".repeat(40))).toHaveLength(30);
+  });
+});

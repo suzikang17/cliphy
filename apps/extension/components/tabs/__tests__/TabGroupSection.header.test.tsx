@@ -85,7 +85,7 @@ describe("TabGroupSection header (hover-reveal layout)", () => {
     expect(cluster.className).not.toMatch(/opacity-0/);
   });
 
-  it("a suggested group gets its own line with Save as tag and Dismiss", () => {
+  it("a suggested group gets its own line with Save as tag and Dismiss", async () => {
     const h = renderGroup({
       key: "proposed:client:brightline",
       kind: "proposed",
@@ -93,9 +93,14 @@ describe("TabGroupSection header (hover-reveal layout)", () => {
       label: "client › brightline",
     });
     expect(screen.getByText(/Suggested/)).toBeTruthy();
+    // Save as tag opens the name (prefilled with the suggestion) before saving.
     fireEvent.click(screen.getByRole("button", { name: /Save as tag/ }));
-    expect(h.onSaveAsTag).toHaveBeenCalledWith("client:brightline");
-    fireEvent.click(screen.getByRole("button", { name: /Dismiss suggested group/ }));
+    const input = screen.getByRole("textbox", { name: "Tag name" }) as HTMLInputElement;
+    expect(input.value).toBe("client:brightline");
+    fireEvent.submit(input.closest("form")!);
+    expect(h.onSaveAsTag).toHaveBeenCalledWith("client:brightline", "client:brightline");
+    // The name field closes once the save resolves; Dismiss is back.
+    fireEvent.click(await screen.findByRole("button", { name: /Dismiss suggested group/ }));
     expect(h.onDismiss).toHaveBeenCalledWith("client:brightline");
   });
 });
@@ -125,5 +130,43 @@ describe("TabGroupSection drag fade", () => {
 
     expect(section.className).not.toMatch(/opacity-40/);
     raf.mockRestore();
+  });
+});
+
+describe("suggested group: reason and rename", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Extension");
+    feature("Tabs View — suggestions");
+  });
+  afterEach(cleanup);
+
+  const proposed = {
+    key: "proposed:project:lotus-bech",
+    kind: "proposed" as const,
+    value: "project:lotus-bech",
+    label: "project › lotus-bech",
+  };
+
+  it("shows Claude's reason for grouping", () => {
+    renderGroup(proposed, {
+      reason: "Project files and client invoicing for Lotus Bech, used together",
+    });
+    expect(screen.getByText(/Project files and client invoicing/)).toBeTruthy();
+  });
+
+  it("saves under the name you type; Escape cancels", () => {
+    const h = renderGroup(proposed);
+    fireEvent.click(screen.getByRole("button", { name: /Save as tag/ }));
+    const input = screen.getByRole("textbox", { name: "Tag name" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Tag name" })).toBeNull();
+    expect(h.onSaveAsTag).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Save as tag/ }));
+    const again = screen.getByRole("textbox", { name: "Tag name" });
+    fireEvent.change(again, { target: { value: "freelance:lotus-bech" } });
+    fireEvent.submit(again.closest("form")!);
+    expect(h.onSaveAsTag).toHaveBeenCalledWith("project:lotus-bech", "freelance:lotus-bech");
   });
 });

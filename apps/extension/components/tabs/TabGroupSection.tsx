@@ -26,7 +26,9 @@ interface TabGroupSectionProps {
   onStowTabs: (tabs: OpenTab[]) => Promise<number>;
   onMove: (tab: OpenTab, key: GroupKey) => void;
   onSaveHints: (tag: string, text: string, keywords?: string[]) => Promise<void>;
-  onSaveAsTag: (name: string) => Promise<void>;
+  onSaveAsTag: (name: string, rename?: string) => Promise<void>;
+  /** Why a suggested group belongs together (from Claude). */
+  reason?: string;
   onDismiss: (name: string) => void;
   /** Drag-and-drop reorder; undefined for groups that can't move (Probably done). */
   onReorder?: (from: GroupKey, target: GroupKey, position: "before" | "after") => void;
@@ -75,11 +77,15 @@ export function TabGroupSection({
   onNudge,
   onDragStateChange,
   keywordSuggestions = [],
+  reason,
   showLabels = false,
   editNonce,
   moveRequest = null,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<"before" | "after" | null>(null);
+  // Naming a suggested group before saving it as a tag.
+  const [naming, setNaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   // True between dragstart and dragend. The fade is applied a frame late (so the
   // drag image is captured un-faded); if the drag already ended by then, skip it.
@@ -297,30 +303,84 @@ export function TabGroupSection({
       </header>
 
       {isProposed && (
-        <div className="mx-2.5 mb-2 flex items-center gap-2 rounded-md bg-neon-100/60 px-2 py-1 dark:bg-neon-900/25">
-          <span className="min-w-0 flex-1 text-[11px] font-semibold text-neon-700 dark:text-neon-400">
-            ✨ Suggested group
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void run(() => onSaveAsTag(group.value))}
-            title="Keep this as one of your tags"
-            className="flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-neon-600 px-2 text-[11px] font-bold text-white hover:bg-neon-700 disabled:opacity-50"
-          >
-            ＋ Save as tag
-            {showLabels && (
-              <Kbd className="ml-0.5 border-white/40 bg-transparent text-white">a</Kbd>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => onDismiss(group.value)}
-            aria-label={`Dismiss suggested group ${group.label}`}
-            className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-transparent px-1.5 text-[11px] font-semibold text-(--color-text-faint) hover:text-(--color-text)"
-          >
-            Dismiss
-          </button>
+        <div className="mx-2.5 mb-2 rounded-md bg-neon-100/60 px-2 py-1.5 dark:bg-neon-900/25">
+          {naming ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(async () => {
+                  await onSaveAsTag(group.value, nameDraft);
+                  setNaming(false);
+                });
+              }}
+            >
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setNaming(false);
+                  }
+                }}
+                maxLength={30}
+                aria-label="Tag name"
+                placeholder="e.g. freelance:lotus-bech"
+                className="h-6 min-w-0 flex-1 rounded border border-(--color-border-hard) bg-(--color-surface) px-1.5 text-[11px] text-(--color-text) outline-none"
+              />
+              <button
+                type="submit"
+                disabled={busy || !nameDraft.trim()}
+                className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-neon-600 px-2 text-[11px] font-bold text-white hover:bg-neon-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setNaming(false)}
+                className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-transparent px-1.5 text-[11px] font-semibold text-(--color-text-faint) hover:text-(--color-text)"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 text-[11px] font-semibold text-neon-700 dark:text-neon-400">
+                ✨ Suggested group
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setNameDraft(group.value);
+                  setNaming(true);
+                }}
+                title="Keep this as one of your tags (you can rename it first)"
+                className="flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-neon-600 px-2 text-[11px] font-bold text-white hover:bg-neon-700 disabled:opacity-50"
+              >
+                ＋ Save as tag
+                {showLabels && (
+                  <Kbd className="ml-0.5 border-white/40 bg-transparent text-white">a</Kbd>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDismiss(group.value)}
+                aria-label={`Dismiss suggested group ${group.label}`}
+                className="flex h-6 shrink-0 cursor-pointer items-center rounded-md border-0 bg-transparent px-1.5 text-[11px] font-semibold text-(--color-text-faint) hover:text-(--color-text)"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          {reason && (
+            <p className="m-0 mt-1 text-[11px] leading-snug text-(--color-text)">
+              <span className="text-(--color-text-faint)">Why: </span>
+              {reason}
+            </p>
+          )}
         </div>
       )}
 

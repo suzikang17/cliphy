@@ -74,6 +74,17 @@ async function hasContentPermission(): Promise<boolean> {
   }
 }
 
+/** "Freelance : Lotus Bech" → "freelance:lotus bech" (tags are lowercase, ":" nests). */
+export function normalizeTagName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .split(":")
+    .map((p) => p.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .join(":")
+    .slice(0, 30);
+}
+
 /** Read one tab's page. null → send title + URL only. */
 async function extractFor(tab: OpenTab, granted: boolean): Promise<ExtractResult | null> {
   if (!shouldExtract(tab, granted)) return null;
@@ -108,6 +119,8 @@ export function useTabOrganizer() {
   const [keywords, setKeywords] = useState<Record<string, string[]>>({});
   /** Claude's suggested keywords per proposed group, saved on "＋ Save as tag". */
   const [proposalKeywords, setProposalKeywords] = useState<Record<string, string[]>>({});
+  /** Claude's one-line "why these belong together" per proposed group. */
+  const [proposalReasons, setProposalReasons] = useState<Record<string, string>>({});
   const [trackingSince, setTrackingSince] = useState<number | null>(null);
   const [groupOrder, setGroupOrder] = useState<GroupKey[]>([]);
 
@@ -177,6 +190,9 @@ export function useTabOrganizer() {
       const { assignments, done } = applyOrganizeResponse(toSend, res);
       if (res.proposalKeywords && mounted.current) {
         setProposalKeywords((p) => ({ ...p, ...res.proposalKeywords }));
+      }
+      if (res.proposalReasons && mounted.current) {
+        setProposalReasons((p) => ({ ...p, ...res.proposalReasons }));
       }
       await saveAssignments(assignments, done);
       await reloadState();
@@ -400,17 +416,19 @@ export function useTabOrganizer() {
     [reloadState],
   );
 
+  /** Keep a suggested group as a tag — under Claude's name, or one you typed. */
   const saveAsTag = useCallback(
-    async (name: string) => {
+    async (name: string, rename?: string) => {
+      const tag = normalizeTagName(rename ?? name) || name;
       const suggested = proposalKeywords[name] ?? [];
-      await putTabHint(name, "", { keep: true, keywords: suggested });
-      if (suggested.length) setKeywords((k) => ({ ...k, [name]: suggested }));
+      await putTabHint(tag, "", { keep: true, keywords: suggested });
+      if (suggested.length) setKeywords((k) => ({ ...k, [tag]: suggested }));
       const promoted: Record<string, { tag: string }> = {};
       for (const [url, a] of Object.entries(stateRef.current.assignments)) {
-        if ("proposed" in a && a.proposed === name) promoted[url] = { tag: name };
+        if ("proposed" in a && a.proposed === name) promoted[url] = { tag };
       }
       await saveAssignments(promoted, []);
-      setHints((h) => ({ [name]: "", ...h }));
+      setHints((h) => ({ [tag]: "", ...h }));
       await reloadState();
     },
     [reloadState, proposalKeywords],
@@ -444,6 +462,7 @@ export function useTabOrganizer() {
     resetOrder,
     keywords,
     proposalKeywords,
+    proposalReasons,
     groups,
     hints,
     knownTags,
