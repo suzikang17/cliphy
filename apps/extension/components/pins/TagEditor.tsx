@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { Summary } from "@cliphy/shared";
 import { SuggestedTags, tagPath } from "@cliphy/shared";
-import { dismissSuggestedTag, updateSummaryTags } from "../../lib/api";
+import { dismissSuggestedTag, TagLimitError, updateSummaryTags } from "../../lib/api";
+import { UpgradePrompt } from "../UpgradePrompt";
 
 /**
  * Edit a clip's tags. Hierarchy uses the parent:child convention — typing
@@ -12,6 +13,7 @@ export function TagEditor({ clip }: { clip: Summary }) {
   // AI-suggested tags live here too so accepting one updates `tags` in the same state.
   const [suggested, setSuggested] = useState<string[]>(clip.suggestedTags ?? []);
   const [input, setInput] = useState("");
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
 
   async function persist(next: string[], nextSuggested = suggested) {
     const prev = tags;
@@ -21,10 +23,11 @@ export function TagEditor({ clip }: { clip: Summary }) {
     try {
       const res = await updateSummaryTags(clip.id, next);
       if (res.suggestedTags) setSuggested(res.suggestedTags);
-    } catch {
-      // revert on failure (e.g. plan tag limit)
+    } catch (err) {
+      // revert on failure; on the free-plan tag limit, also say why and offer the upgrade
       setTags(prev);
       setSuggested(prevSuggested);
+      if (err instanceof TagLimitError) setLimitMessage(err.message);
     }
   }
 
@@ -77,6 +80,15 @@ export function TagEditor({ clip }: { clip: Summary }) {
               </button>
             </span>
           ))}
+        </div>
+      )}
+      {limitMessage && (
+        <div className="mb-2">
+          <UpgradePrompt
+            message={limitMessage}
+            onDismiss={() => setLimitMessage(null)}
+            onUpgraded={() => setLimitMessage(null)}
+          />
         </div>
       )}
       <SuggestedTags

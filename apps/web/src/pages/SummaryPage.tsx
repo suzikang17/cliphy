@@ -8,6 +8,7 @@ import {
 import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Nav } from "../components/Nav";
+import { TagLimitNotice } from "../components/TagLimitNotice";
 import { YouTubePlayer, type YouTubePlayerHandle } from "../components/YouTubePlayer";
 import type { DesignSection } from "../components/DesignPlayground";
 import * as api from "../lib/api";
@@ -32,6 +33,8 @@ export function SummaryPage() {
   const [allTags, setAllTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tagLimitMessage, setTagLimitMessage] = useState<string | null>(null);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [autoTagResult, setAutoTagResult] = useState<AutoTagSuggestion | null>(null);
   const [autoTagLoading, setAutoTagLoading] = useState(false);
@@ -115,8 +118,19 @@ export function SummaryPage() {
       );
       const tagsRes = await api.getAllTags().catch(() => null);
       if (tagsRes) setAllTags(tagsRes.tags);
-    } catch {
+    } catch (err) {
+      if (api.isTagLimitError(err)) setTagLimitMessage(err.message);
       setSummary((prev) => (prev ? { ...prev, tags: rollback } : prev));
+    }
+  }
+
+  async function handleUpgrade() {
+    setUpgradeLoading(true);
+    try {
+      const { url } = await api.createCheckout();
+      window.location.href = url;
+    } catch {
+      setUpgradeLoading(false);
     }
   }
 
@@ -370,6 +384,17 @@ export function SummaryPage() {
         onDismiss={(tag) => handleDismissSuggestedTag(tag).catch(() => {})}
         className="mt-2"
       />
+
+      {tagLimitMessage && (
+        <div className="mt-2">
+          <TagLimitNotice
+            message={tagLimitMessage}
+            onUpgrade={handleUpgrade}
+            upgradeLoading={upgradeLoading}
+            onDismiss={() => setTagLimitMessage(null)}
+          />
+        </div>
+      )}
 
       {autoTagResult && (
         <div className="mt-2">

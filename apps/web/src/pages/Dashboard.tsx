@@ -10,6 +10,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Nav } from "../components/Nav";
+import { TagLimitNotice } from "../components/TagLimitNotice";
 import { UsageBar } from "../components/UsageBar";
 import * as api from "../lib/api";
 
@@ -25,6 +26,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [tagLimitMessage, setTagLimitMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [autoTagResults, setAutoTagResults] = useState<Map<string, AutoTagSuggestion>>(new Map());
   const [bulkAutoTagLoading, setBulkAutoTagLoading] = useState(false);
@@ -84,7 +86,8 @@ export function Dashboard() {
           s.id === summaryId ? { ...s, tags: res.tags, suggestedTags: res.suggestedTags } : s,
         ),
       );
-    } catch {
+    } catch (err) {
+      if (api.isTagLimitError(err)) setTagLimitMessage(err.message);
       if (rollback !== undefined) {
         setSummaries((prev) =>
           prev.map((s) => (s.id === summaryId ? { ...s, tags: rollback } : s)),
@@ -335,6 +338,17 @@ export function Dashboard() {
         </div>
       )}
 
+      {tagLimitMessage && (
+        <div className="mb-4">
+          <TagLimitNotice
+            message={tagLimitMessage}
+            onUpgrade={handleUpgrade}
+            upgradeLoading={upgradeLoading}
+            onDismiss={() => setTagLimitMessage(null)}
+          />
+        </div>
+      )}
+
       <Toolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -406,7 +420,7 @@ export function Dashboard() {
             >
               Upgrade to Pro
             </button>{" "}
-            for unlimited history, ✨ AI auto-tagging, and more.
+            for unlimited history, unlimited tags, and more.
           </span>
         </div>
       )}

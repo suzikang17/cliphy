@@ -10,6 +10,7 @@ import { Logo } from "../../components/Logo";
 import { SelectionActionBar, SuggestedTags, TagSuggestions } from "@cliphy/shared";
 import { SummaryCardSkeleton } from "../../components/Skeleton";
 import { SummaryDetail } from "../../components/SummaryDetail";
+import { UpgradePrompt } from "../../components/UpgradePrompt";
 import {
   autoTagBulk,
   deleteSummary,
@@ -20,6 +21,7 @@ import {
   getSummary,
   getUsage,
   retryQueueItem,
+  TagLimitError,
   updateSummaryTags,
 } from "../../lib/api";
 import { openCheckout } from "../../lib/checkout";
@@ -49,6 +51,7 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [autoTagResults, setAutoTagResults] = useState<Map<string, AutoTagSuggestion>>(new Map());
   const [bulkAutoTagLoading, setBulkAutoTagLoading] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
 
   useEffect(() => {
     init();
@@ -136,6 +139,8 @@ export function App() {
       }
       const tagsRes = await getAllTags().catch(() => null);
       if (tagsRes) setAllTags(tagsRes.tags);
+      // Free-plan tag limit: explain why the tag didn't stick and offer the upgrade
+      if (err instanceof TagLimitError) setUpgradePrompt(err.message);
       throw err;
     }
   }
@@ -359,6 +364,21 @@ export function App() {
     }
   }
 
+  const upgradePromptEl = upgradePrompt && (
+    <div className="mb-4">
+      <UpgradePrompt
+        message={upgradePrompt}
+        onDismiss={() => setUpgradePrompt(null)}
+        onUpgraded={() => {
+          setUpgradePrompt(null);
+          getUsage()
+            .then((r) => setUsage(r.usage))
+            .catch(() => {});
+        }}
+      />
+    </div>
+  );
+
   // Client-side search + tag filter + sort
   const displayedSummaries = useMemo(() => {
     let result = summaries;
@@ -445,11 +465,14 @@ export function App() {
         >
           &larr; All summaries
         </button>
+        {upgradePromptEl}
         <SummaryDetail
           summary={selectedSummary}
           allTags={allTags}
           tagLimitReached={usage?.plan === "free" && allTags.length >= MAX_FREE_UNIQUE_TAGS}
-          onTagsChange={(tags) => handleTagsChange(selectedSummary.id, tags)}
+          onTagsChange={(tags) => {
+            handleTagsChange(selectedSummary.id, tags).catch(() => {});
+          }}
           onAcceptSuggestedTag={(tag) => handleAcceptSuggestedTag(selectedSummary.id, tag)}
           onDismissSuggestedTag={(tag) => handleDismissSuggestedTag(selectedSummary.id, tag)}
           onRetry={() => handleRetry(selectedSummary.id)}
@@ -474,6 +497,7 @@ export function App() {
         sortOrder={sortOrder}
         onSortChange={setSortOrder}
       />
+      {upgradePromptEl}
       <CardList
         summaries={displayedSummaries}
         totalCount={summaries.length}

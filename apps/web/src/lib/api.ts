@@ -41,6 +41,23 @@ export class ProRequiredError extends Error {
   }
 }
 
+/** Non-auth, non-pro_required API failure; keeps the server's `code` (e.g. "TAG_LIMIT"). */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function isTagLimitError(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.code === "TAG_LIMIT";
+}
+
 async function getToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
@@ -67,7 +84,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (res.status === 402 && body.code === "pro_required") {
       throw new ProRequiredError(body);
     }
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    throw new ApiError(body.error || `Request failed: ${res.status}`, res.status, body.code);
   }
 
   return res.json();
