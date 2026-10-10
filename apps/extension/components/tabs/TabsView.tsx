@@ -535,6 +535,7 @@ export function TabsView({ focusSignal = 0 }: TabsViewProps) {
           selectedKey={null}
           showLabels={showLabels}
           onResume={resumeClosed}
+          onForget={(key) => void org.forgetGroup(key)}
         />
 
         <TrailSection

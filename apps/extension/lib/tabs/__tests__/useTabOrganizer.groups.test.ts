@@ -55,6 +55,8 @@ const tabs = [
   { id: 3, windowId: 1, url: "https://other.com/", title: "Other", lastAccessed: 1 },
 ];
 
+let open: typeof tabs = [];
+
 describe("useTabOrganizer — close & resume a group", () => {
   beforeEach(() => {
     layer("unit");
@@ -74,8 +76,12 @@ describe("useTabOrganizer — close & resume a group", () => {
     browserMock.permissions.contains.mockResolvedValue(false);
     browserMock.windows.getCurrent.mockResolvedValue({ id: 1 });
     (browserMock.windows as Record<string, unknown>).create = vi.fn().mockResolvedValue({ id: 2 });
-    browserMock.tabs.query.mockResolvedValue(tabs);
-    browserMock.tabs.remove.mockResolvedValue(undefined);
+    open = [...tabs];
+    browserMock.tabs.query.mockImplementation(async () => open);
+    browserMock.tabs.remove.mockImplementation(async (ids: number | number[]) => {
+      const drop = new Set(Array.isArray(ids) ? ids : [ids]);
+      open = open.filter((t) => !drop.has(t.id));
+    });
     browserMock.tabs.create.mockResolvedValue({ id: 9 });
     api.getClosedGroups.mockResolvedValue({ groups: [] });
     api.closeGroupSnapshot.mockResolvedValue({ closedAt: "2026-10-10T10:00:00.000Z" });
@@ -87,21 +93,30 @@ describe("useTabOrganizer — close & resume a group", () => {
     return h;
   }
 
-  it("closeGroup snapshots the open pages, then closes the tabs", async () => {
-    const { result } = await ready();
-    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
-    await act(async () => {
-      await result.current.closeGroup(lotus);
-    });
-    expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:lotus", "lotus", [
-      { url: "https://drive.google.com/x", title: "Drive" },
-      { url: "https://dashboard.stripe.com/", title: "Stripe" },
-    ]);
-    expect(browserMock.tabs.remove).toHaveBeenCalledWith([1, 2]);
-    expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:lotus"]);
+  const snap = (key: string, urls: string[], extra: Record<string, unknown> = {}) => ({
+    key,
+    label: key.slice(4),
+    pages: urls.map((url) => ({ url, title: url })),
+    updatedAt: Date.parse("2026-10-10T09:00:00Z"),
+    ...extra,
   });
 
-  it("still closes the tabs when the snapshot call fails, and keeps a local Resume row", async () => {
+  it("autosaves open tag groups, locally and to the server", async () => {
+    await ready();
+    await waitFor(() =>
+      expect((local["tabs:groupSnapshots"] as Record<string, unknown>)?.["tag:lotus"]).toBeTruthy(),
+    );
+    await waitFor(
+      () =>
+        expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:lotus", "lotus", [
+          { url: "https://drive.google.com/x", title: "Drive" },
+          { url: "https://dashboard.stripe.com/", title: "Stripe" },
+        ]),
+      { timeout: 3000 },
+    );
+  });
+
+  it("⇧C closes the tabs and keeps the group to resume, even when the server is down", async () => {
     api.closeGroupSnapshot.mockRejectedValue(new Error("offline"));
     const { result } = await ready();
     const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
@@ -109,25 +124,49 @@ describe("useTabOrganizer — close & resume a group", () => {
       await result.current.closeGroup(lotus);
     });
     expect(browserMock.tabs.remove).toHaveBeenCalledWith([1, 2]);
-    expect(result.current.closedGroups[0]).toMatchObject({
-      key: "tag:lotus",
-      pages: expect.arrayContaining([
-        expect.objectContaining({ url: "https://drive.google.com/x" }),
-      ]),
-    });
-    expect(local["tabs:closedGroups"]).toBeTruthy();
+    await waitFor(() =>
+      expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:lotus"]),
+    );
+    const saved = (local["tabs:groupSnapshots"] as Record<string, { closedAt?: number }>)[
+      "tag:lotus"
+    ];
+    expect(saved.closedAt).toBeTypeOf("number");
   });
 
-  it("resumeGroup reopens snapshot + pinned pages that aren't open, skipping open ones", async () => {
-    api.resumeGroup.mockResolvedValue({
-      pages: [
-        { url: "https://drive.google.com/x", title: "Drive" }, // already open → skipped
-        { url: "https://notion.so/lotus", title: "Notion" },
+  it("a group whose tabs vanished (browser quit, not restored) shows up as closed", async () => {
+    local["tabs:groupSnapshots"] = {
+      "tag:gone": snap("tag:gone", ["https://gone.com/a", "https://gone.com/b"]),
+    };
+    const { result } = await ready();
+    await waitFor(() =>
+      expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:gone"]),
+    );
+  });
+
+  it("groups saved on another device show up too", async () => {
+    api.getClosedGroups.mockResolvedValue({
+      groups: [
+        {
+          key: "tag:far",
+          label: "far",
+          pages: [{ url: "https://far.com/", title: "Far" }],
+          closedAt: "2026-10-10T08:00:00.000Z",
+        },
       ],
     });
     const { result } = await ready();
+    await waitFor(() => expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:far"]));
+  });
+
+  it("resumeGroup reopens the snapshot + the group's pins, skipping pages already open", async () => {
+    local["tabs:groupSnapshots"] = {
+      "tag:gone": snap("tag:gone", ["https://drive.google.com/x", "https://notion.so/lotus"], {
+        closedAt: Date.parse("2026-10-10T09:30:00Z"),
+      }),
+    };
+    const { result } = await ready();
     await act(async () => {
-      await result.current.resumeGroup("tag:lotus", [
+      await result.current.resumeGroup("tag:gone", [
         {
           pinId: "p",
           clipId: "c",
@@ -146,19 +185,23 @@ describe("useTabOrganizer — close & resume a group", () => {
       url: "https://figma.com/lotus",
       active: false,
     });
-    expect((browserMock.windows as Record<string, unknown>).create).not.toHaveBeenCalled();
+    expect(api.resumeGroup).not.toHaveBeenCalled(); // the snapshot lives on; autosave keeps it current
+    const saved = (local["tabs:groupSnapshots"] as Record<string, { closedAt?: number }>)[
+      "tag:gone"
+    ];
+    expect(saved.closedAt).toBeUndefined();
   });
 
   it("resumeGroup opens a new window when more than 8 pages would open", async () => {
-    api.resumeGroup.mockResolvedValue({
-      pages: Array.from({ length: 10 }, (_, i) => ({
-        url: `https://lotus.example/${i}`,
-        title: `P${i}`,
-      })),
-    });
+    local["tabs:groupSnapshots"] = {
+      "tag:big": snap(
+        "tag:big",
+        Array.from({ length: 10 }, (_, i) => `https://lotus.example/${i}`),
+      ),
+    };
     const { result } = await ready();
     await act(async () => {
-      await result.current.resumeGroup("tag:lotus", []);
+      await result.current.resumeGroup("tag:big", []);
     });
     const create = (browserMock.windows as Record<string, unknown>).create as ReturnType<
       typeof vi.fn
@@ -169,97 +212,17 @@ describe("useTabOrganizer — close & resume a group", () => {
     expect(browserMock.tabs.create).not.toHaveBeenCalled();
   });
 
-  it("resumeGroup falls back to the local snapshot when the server has none", async () => {
-    api.resumeGroup.mockRejectedValue(new Error("404"));
-    local["tabs:closedGroups"] = [
-      {
-        key: "tag:lotus",
-        label: "lotus",
-        pages: [{ url: "https://notion.so/lotus", title: "N" }],
-        closedAt: "t",
-      },
-    ];
+  it("forgetGroup removes a closed group here and on the server", async () => {
+    local["tabs:groupSnapshots"] = { "tag:gone": snap("tag:gone", ["https://gone.com/a"]) };
+    api.resumeGroup.mockResolvedValue({ pages: [] });
     const { result } = await ready();
     await waitFor(() => expect(result.current.closedGroups).toHaveLength(1));
     await act(async () => {
-      await result.current.resumeGroup("tag:lotus", []);
-    });
-    expect(browserMock.tabs.create).toHaveBeenCalledWith({
-      url: "https://notion.so/lotus",
-      active: false,
+      await result.current.forgetGroup("tag:gone");
     });
     expect(result.current.closedGroups).toHaveLength(0);
-  });
-
-  it("local-only snapshots are pushed to the server on the next load", async () => {
-    local["tabs:closedGroups"] = [
-      { key: "tag:x", label: "x", pages: [{ url: "https://x.com/", title: "X" }], closedAt: "t" },
-    ];
-    const { result } = await ready();
-    await waitFor(() =>
-      expect(api.closeGroupSnapshot).toHaveBeenCalledWith("tag:x", "x", [
-        { url: "https://x.com/", title: "X" },
-      ]),
-    );
-    await waitFor(() => expect(local["tabs:closedGroups"]).toEqual([]));
-    expect(result.current.closedGroups.map((g) => g.key)).toEqual(["tag:x"]);
-  });
-
-  it("a successful close drops an older local-only snapshot of the same group", async () => {
-    local["tabs:closedGroups"] = [
-      {
-        key: "tag:lotus",
-        label: "lotus",
-        pages: [{ url: "https://old.com/", title: "Old" }],
-        closedAt: "t",
-      },
-    ];
-    api.closeGroupSnapshot.mockRejectedValueOnce(new Error("offline")); // the re-push on load fails
-    const { result } = await ready();
-    await waitFor(() => expect(api.closeGroupSnapshot).toHaveBeenCalledTimes(1));
-    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
-    await act(async () => {
-      await result.current.closeGroup(lotus);
-    });
-    expect(local["tabs:closedGroups"]).toEqual([]);
-  });
-
-  it("a resume the server didn't confirm is retried, and the group stays gone", async () => {
-    const row = {
-      key: "tag:lotus",
-      label: "lotus",
-      pages: [{ url: "https://notion.so/lotus", title: "N" }],
-      closedAt: "2026-10-10T10:00:00.000Z",
-    };
-    api.getClosedGroups.mockResolvedValue({ groups: [row] });
-    api.resumeGroup.mockRejectedValueOnce(new Error("Request failed: 500"));
-    const first = await ready();
-    await waitFor(() => expect(first.result.current.closedGroups).toHaveLength(1));
-    await act(async () => {
-      await first.result.current.resumeGroup("tag:lotus", []);
-    });
-    expect(browserMock.tabs.create).toHaveBeenCalledWith({
-      url: "https://notion.so/lotus",
-      active: false,
-    });
-    first.unmount();
-
-    api.resumeGroup.mockResolvedValue({ pages: row.pages });
-    const second = await ready();
-    await waitFor(() => expect(api.resumeGroup).toHaveBeenCalledTimes(2));
-    expect(second.result.current.closedGroups).toHaveLength(0);
-    expect(browserMock.tabs.create).toHaveBeenCalledTimes(1); // the retry doesn't reopen pages
-  });
-
-  it("closing a group again cancels a pending server delete for it", async () => {
-    local["tabs:resumePending"] = ["tag:lotus"];
-    api.getClosedGroups.mockRejectedValue(new Error("offline"));
-    const { result } = await ready();
-    const lotus = result.current.groups.find((g) => g.key === "tag:lotus")!;
-    await act(async () => {
-      await result.current.closeGroup(lotus);
-    });
-    expect(local["tabs:resumePending"]).toEqual([]);
+    expect((local["tabs:groupSnapshots"] as Record<string, unknown>)["tag:gone"]).toBeUndefined();
+    expect(api.resumeGroup).toHaveBeenCalledWith("tag:gone");
   });
 
   it("placeUrl puts a page into a group before it's open (restore into a group)", async () => {

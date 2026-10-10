@@ -8,6 +8,8 @@ interface ClosedGroupsProps {
   selectedKey: string | null;
   showLabels?: boolean;
   onResume: (key: string) => void;
+  /** Remove it for good. */
+  onForget?: (key: string) => void;
 }
 
 /** Groups you closed as a whole. Resume reopens what was open + the group's pins. */
@@ -17,6 +19,7 @@ export function ClosedGroups({
   selectedKey,
   showLabels = false,
   onResume,
+  onForget,
 }: ClosedGroupsProps) {
   if (groups.length === 0) return null;
   return (
@@ -59,6 +62,17 @@ export function ClosedGroups({
                   <Kbd className="ml-0.5 border-white/40 bg-transparent text-white">↵</Kbd>
                 )}
               </button>
+              {onForget && (
+                <button
+                  type="button"
+                  onClick={() => onForget(g.key)}
+                  title="Forget this group (its pages stay in Recently closed)"
+                  aria-label={`Forget ${g.label}`}
+                  className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-(--color-text-faint) hover:text-red-600"
+                >
+                  ✕
+                </button>
+              )}
             </li>
           );
         })}

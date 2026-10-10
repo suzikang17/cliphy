@@ -1,13 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { epic, feature, layer } from "allure-js-commons";
 import "../../../test/browser-mock";
-import { browserMock } from "../../../test/browser-mock";
 import {
   pagesToResume,
   groupCounts,
   countByFirstTag,
-  cacheClosedGroups,
-  loadCachedClosedGroups,
   NEW_WINDOW_ABOVE,
   pinsForGroup,
 } from "../closedGroups";
@@ -90,20 +87,10 @@ describe("closed groups helpers", () => {
     );
   });
 
-  it("caches closed groups locally (fallback when the server can't be reached)", async () => {
-    const store: Record<string, unknown> = {};
-    browserMock.storage.local.set.mockImplementation(
-      async (o: Record<string, unknown>) => void Object.assign(store, o),
-    );
-    browserMock.storage.local.get.mockImplementation(async (k: string) => ({ [k]: store[k] }));
-    await cacheClosedGroups([
-      { key: "tag:x", label: "x", pages: [page("https://a.com/")], closedAt: "t" },
-    ]);
-    expect(await loadCachedClosedGroups()).toEqual([
-      { key: "tag:x", label: "x", pages: [page("https://a.com/")], closedAt: "t" },
-    ]);
+  it("Resume opens a new window above 8 pages", () => {
     expect(NEW_WINDOW_ABOVE).toBe(8);
   });
+
   it("pinsForGroup: only pins tagged with that group's tag — never every pin", () => {
     const lotus = { ...pin("https://figma.com/lotus"), tags: ["freelance:lotus"] };
     const other = { ...pin("https://x.com/a"), tags: ["reading"] };

@@ -4,25 +4,29 @@ import { isAuthenticated } from "../auth";
 import {
   AuthError,
   RateLimitError,
-  closeGroupSnapshot,
   getClosedGroups,
   getTabHints,
   organizeTabs,
   putPageOverrides,
   putTabHint,
-  resumeGroup as resumeGroupApi,
   stowTab,
 } from "../api";
-import type { ClosedGroup, ClosedGroupPage } from "@cliphy/shared";
 import type { PagePin } from "./pins";
+import { NEW_WINDOW_ABOVE, pagesToResume } from "./closedGroups";
 import {
-  NEW_WINDOW_ABOVE,
-  cacheClosedGroups,
-  loadCachedClosedGroups,
-  loadResumePending,
-  pagesToResume,
-  saveResumePending,
-} from "./closedGroups";
+  SNAPSHOTS_KEY,
+  autosave,
+  closedView,
+  loadSnapshots,
+  markClosed,
+  markResumed,
+  saveSnapshots,
+  type Snapshots,
+} from "./groupSnapshots";
+import { pushSnapshots } from "./snapshotSync";
+
+/** Autosaved group changes go to the server after this quiet period. */
+export const AUTOSAVE_PUSH_MS = 1500;
 import {
   clearAssignments,
   clearDone,
@@ -163,10 +167,8 @@ export function useTabOrganizer() {
   const [groupOrder, setGroupOrder] = useState<GroupKey[]>([]);
   /** Merged tags: { from: to }. */
   const [aliases, setAliases] = useState<Record<string, string>>({});
-  /** Groups closed as a whole (server list ∪ local fallback), newest first. */
-  const [closedGroups, setClosedGroups] = useState<ClosedGroup[]>([]);
-  const closedRef = useRef<ClosedGroup[]>([]);
-  closedRef.current = closedGroups;
+  /** Autosaved tag groups (see groupSnapshots.ts); closed groups are derived from them. */
+  const [snaps, setSnaps] = useState<Snapshots>({});
 
   // Listeners and timers read the latest values through refs.
   const tabsRef = useRef(tabs);
@@ -460,128 +462,150 @@ export function useTabOrganizer() {
     await closeTabsAndAdvance(ids);
   }, []);
 
-  /**
-   * Server list ∪ local fallback. When online, also settles what the server
-   * missed while offline: deletes rows for groups already resumed here, and
-   * pushes snapshots that only exist locally.
-   */
+  // ── Autosaved groups ──────────────────────────────────────
+  const pendingPush = useRef(new Set<string>());
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const schedulePush = useCallback((keys: string[]) => {
+    for (const k of keys) pendingPush.current.add(k);
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => {
+      pushTimer.current = null;
+      const batch = [...pendingPush.current];
+      pendingPush.current.clear();
+      void loadSnapshots()
+        .then((latest) => pushSnapshots(latest, batch))
+        .then((failed) => failed.forEach((k) => pendingPush.current.add(k)))
+        .catch(() => {});
+    }, AUTOSAVE_PUSH_MS);
+  }, []);
+
+  /** Local snapshots ∪ the server's (another device's groups); local-only ones go up. */
   const refreshClosedGroups = useCallback(async () => {
-    let local = await loadCachedClosedGroups();
-    let server: ClosedGroup[] = [];
+    let local = await loadSnapshots();
     if (authedRef.current) {
       try {
-        server = (await getClosedGroups()).groups;
-        const serverKey = new Set(server.map((g) => g.key));
-        // Resumed here but the server never heard: delete its row now, never show it again.
-        const pending = (await loadResumePending()).filter((k) => serverKey.has(k));
-        const stillPending: string[] = [];
-        for (const key of pending) {
-          try {
-            await resumeGroupApi(key);
-          } catch {
-            stillPending.push(key);
+        const server = (await getClosedGroups()).groups;
+        local = await loadSnapshots(); // autosave may have written meanwhile
+        const onServer = new Set(server.map((g) => g.key));
+        for (const g of server) {
+          const at = Date.parse(g.closedAt);
+          const mine = local[g.key];
+          if (!mine || at > mine.updatedAt) {
+            local[g.key] = {
+              key: g.key,
+              label: g.label,
+              pages: g.pages,
+              updatedAt: at,
+              ...(mine?.closedAt !== undefined && { closedAt: mine.closedAt }),
+            };
           }
         }
-        await saveResumePending(stillPending);
-        server = server.filter((g) => !pending.includes(g.key));
-        // A local snapshot newer than the server's (or the only one) goes up; older ones are dropped.
-        const kept: ClosedGroup[] = [];
-        for (const g of local) {
-          const sv = server.find((x) => x.key === g.key);
-          if (sv && sv.closedAt >= g.closedAt) continue;
-          try {
-            await closeGroupSnapshot(g.key, g.label, g.pages);
-            server = [g, ...server.filter((x) => x.key !== g.key)];
-          } catch {
-            kept.push(g);
-          }
-        }
-        if (kept.length !== local.length) await cacheClosedGroups(kept);
-        local = kept;
+        await saveSnapshots(local);
+        schedulePush(Object.keys(local).filter((k) => !onServer.has(k)));
       } catch {
         // offline — the local copy stands
       }
     }
-    const keys = new Set(server.map((g) => g.key));
-    const merged = [...server, ...local.filter((g) => !keys.has(g.key))].sort((a, b) =>
-      b.closedAt.localeCompare(a.closedAt),
-    );
-    if (mounted.current) setClosedGroups(merged);
-  }, []);
+    if (mounted.current) setSnaps(local);
+  }, [schedulePush]);
 
   useEffect(() => {
     if (authed === null) return;
     void refreshClosedGroups();
   }, [authed, refreshClosedGroups]);
 
-  /**
-   * Close a whole group: snapshot its open pages (server, best-effort; local
-   * copy on failure), then close the tabs. The Trail captures them regardless.
-   */
-  const closeGroup = useCallback(async (group: TabGroup) => {
-    const pages = group.tabs.map((t) => ({ url: t.url, title: t.customTitle || t.title }));
-    if (pages.length === 0) return;
-    let closedAt = new Date().toISOString();
-    let saved = false;
-    if (authedRef.current) {
-      try {
-        closedAt = (await closeGroupSnapshot(group.key, group.label, pages)).closedAt;
-        saved = true;
-      } catch {
-        saved = false;
+  // The background prunes pages you close on purpose; follow its writes.
+  useEffect(() => {
+    const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area === "local" && SNAPSHOTS_KEY in changes && mounted.current) {
+        setSnaps((changes[SNAPSHOTS_KEY].newValue as Snapshots | undefined) ?? {});
       }
-    }
-    const entry: ClosedGroup = { key: group.key, label: group.label, pages, closedAt };
-    const next = [entry, ...closedRef.current.filter((g) => g.key !== group.key)];
-    setClosedGroups(next);
-    // Local copy only while the server doesn't have it — that's what Resume falls back to.
-    const local = await loadCachedClosedGroups();
-    const others = local.filter((g) => g.key !== group.key);
-    if (!saved) await cacheClosedGroups([entry, ...others]);
-    else {
-      if (others.length !== local.length) await cacheClosedGroups(others);
-      // The server row is this new snapshot now — don't delete it on the next load.
-      const pending = await loadResumePending();
-      if (pending.includes(group.key))
-        await saveResumePending(pending.filter((k) => k !== group.key));
-    }
-    await closeTabsAndAdvance(group.tabs.map((t) => t.id));
+    };
+    browser.storage.onChanged?.addListener(onChanged);
+    return () => browser.storage.onChanged?.removeListener(onChanged);
   }, []);
 
-  /** Reopen a closed group: its snapshot + the given pinned pages, minus what's already open. */
+  const closedGroups = useMemo(
+    () =>
+      closedView(
+        snaps,
+        tabs.map((t) => t.url),
+      ),
+    [snaps, tabs],
+  );
+
+  /**
+   * ⇧C: the group is already autosaved — save it once more, mark it closed so
+   * its pages stay when the tabs go, then close the tabs.
+   */
+  const closeGroup = useCallback(
+    async (group: TabGroup) => {
+      if (group.tabs.length === 0) return;
+      const now = Date.now();
+      const saved = autosave(await loadSnapshots(), [group], now).next;
+      const next = saved[group.key]
+        ? markClosed(saved, group.key, now)
+        : {
+            ...saved,
+            [group.key]: {
+              key: group.key,
+              label: group.label,
+              pages: group.tabs.map((t) => ({ url: t.url, title: t.customTitle || t.title })),
+              updatedAt: now,
+              closedAt: now,
+            },
+          };
+      await saveSnapshots(next);
+      setSnaps(next);
+      await pushSnapshots(next, [group.key]).then((failed) => schedulePush(failed));
+      await closeTabsAndAdvance(group.tabs.map((t) => t.id));
+      await refreshTabs(); // so it moves to Closed groups right away
+    },
+    [schedulePush, refreshTabs],
+  );
+
+  /** Reopen a closed group: its pages + the given pinned pages, minus what's already open. */
   const resumeGroup = useCallback(
     async (key: string, pinned: PagePin[]) => {
-      let snapshot: ClosedGroupPage[] | null = null;
-      if (authedRef.current) {
-        try {
-          snapshot = (await resumeGroupApi(key)).pages;
-        } catch {
-          snapshot = null;
-          // The server may still hold this group; delete it on the next load.
-          const pending = await loadResumePending();
-          if (!pending.includes(key)) await saveResumePending([...pending, key]);
-        }
-      }
-      if (!snapshot) snapshot = closedRef.current.find((g) => g.key === key)?.pages ?? [];
+      const current = await loadSnapshots();
       const pages = pagesToResume(
-        snapshot,
+        current[key]?.pages ?? [],
         pinned,
         tabsRef.current.map((t) => t.url),
       );
+      const next = markResumed(current, key);
+      await saveSnapshots(next);
+      setSnaps(next);
       if (pages.length > NEW_WINDOW_ABOVE) {
         await browser.windows.create({ url: pages.map((p) => p.url) });
       } else {
         for (const p of pages) await browser.tabs.create({ url: p.url, active: false });
       }
-      const next = closedRef.current.filter((g) => g.key !== key);
-      setClosedGroups(next);
-      const local = await loadCachedClosedGroups();
-      if (local.some((g) => g.key === key))
-        await cacheClosedGroups(local.filter((g) => g.key !== key));
       await refreshTabs();
     },
     [refreshTabs],
   );
+
+  /** Remove a closed group for good (here and on the server). */
+  const forgetGroup = useCallback(async (key: string) => {
+    const next = { ...(await loadSnapshots()) };
+    delete next[key];
+    await saveSnapshots(next);
+    setSnaps(next);
+    await pushSnapshots(next, [key]);
+  }, []);
+
+  // Autosave: whenever the tag groups change, fold them into their snapshots.
+  useEffect(() => {
+    if (status === "organizing" || groups.length === 0) return;
+    void (async () => {
+      const { next, changed } = autosave(await loadSnapshots(), groups, Date.now());
+      if (changed.length === 0) return;
+      await saveSnapshots(next);
+      if (mounted.current) setSnaps(next);
+      schedulePush(changed);
+    })();
+  }, [groups, status, schedulePush]);
 
   /** Stow each tab to the inbox, then close only the ones that saved. */
   const stowTabs = useCallback(async (list: OpenTab[]) => {
@@ -744,6 +768,7 @@ export function useTabOrganizer() {
     closedGroups,
     closeGroup,
     resumeGroup,
+    forgetGroup,
     refreshClosedGroups,
     groups,
     hints,

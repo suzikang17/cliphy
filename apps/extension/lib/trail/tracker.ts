@@ -6,6 +6,7 @@ import { normalizeUrl } from "../tabs/dedupe";
 import { getTabMeta } from "../tabs/tabMeta";
 import { loadOpenedTimes } from "../tabs/openedAt";
 import { isWebUrl } from "../tabs/types";
+import { onPageClosed } from "../tabs/snapshotSync";
 import { shouldTrail } from "./rules";
 
 // Background-side trail capture. `tabs.onRemoved` only hands us a tab id, so we
@@ -108,17 +109,25 @@ export function registerTrailTracker(): void {
     },
   );
 
-  browser.tabs.onRemoved.addListener((tabId: number) => {
+  browser.tabs.onRemoved.addListener((tabId: number, info?: { isWindowClosing?: boolean }) => {
     const closedAt = Date.now();
-    void onTabClosed(tabId, closedAt).catch(() => {});
+    void onTabClosed(tabId, closedAt, !!info?.isWindowClosing).catch(() => {});
   });
 }
 
-async function onTabClosed(tabId: number, closedAt: number): Promise<void> {
+async function onTabClosed(tabId: number, closedAt: number, windowClosing: boolean): Promise<void> {
   await ready;
   const entry = tracked.get(tabId);
   tracked.delete(tabId);
   void browser.storage.session.remove(`${TAB_PREFIX}${tabId}`).catch(() => {});
+  // Closed on purpose → it leaves its group's autosave. A window closing (or the
+  // browser quitting) keeps it, so the group can be resumed.
+  if (entry && !windowClosing) {
+    // Never let a snapshot problem get in the way of the trail.
+    void Promise.resolve()
+      .then(() => onPageClosed(entry.url, tabId))
+      .catch(() => {});
+  }
   if (!entry || !(await isTrailEnabled())) return;
 
   // Your name/note for the page follow it into the trail.

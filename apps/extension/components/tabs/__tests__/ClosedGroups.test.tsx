@@ -38,6 +38,28 @@ describe("ClosedGroups", () => {
     expect(onResume).toHaveBeenCalledWith("tag:freelance:lotus-bech");
   });
 
+  it("✕ forgets a closed group", () => {
+    const onForget = vi.fn();
+    render(
+      <ClosedGroups
+        groups={[
+          {
+            key: "tag:old",
+            label: "old",
+            pages: [{ url: "https://a.com", title: "A" }],
+            closedAt: new Date(NOW).toISOString(),
+          },
+        ]}
+        now={NOW}
+        selectedKey={null}
+        onResume={vi.fn()}
+        onForget={onForget}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Forget old" }));
+    expect(onForget).toHaveBeenCalledWith("tag:old");
+  });
+
   it("renders nothing when there are no closed groups", () => {
     const { container } = render(
       <ClosedGroups groups={[]} now={NOW} selectedKey={null} onResume={vi.fn()} />,

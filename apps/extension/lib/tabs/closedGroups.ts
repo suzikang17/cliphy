@@ -1,15 +1,10 @@
-import { normalizeUrl, type ClosedGroup, type ClosedGroupPage } from "@cliphy/shared";
+import { normalizeUrl, type ClosedGroupPage } from "@cliphy/shared";
 import type { TabGroup } from "./organize";
 import type { PagePin } from "./pins";
 
-// Durable groups: a group can be closed as a whole (its open pages are
-// snapshotted) and resumed later. Snapshots live on the server; a local copy
-// is the fallback when the server can't be reached (the Trail is the guarantee
-// that nothing is lost either way).
+// Helpers for closed groups: what Resume reopens, header counts, a group's pins.
+// The snapshots themselves live in groupSnapshots.ts.
 
-export const CLOSED_GROUPS_KEY = "tabs:closedGroups"; // storage.local
-/** Groups resumed while the server couldn't be told; its row is deleted on the next load. */
-export const RESUME_PENDING_KEY = "tabs:resumePending"; // storage.local
 /** Resume opens a new window when more pages than this would open. */
 export const NEW_WINDOW_ABOVE = 8;
 
@@ -61,39 +56,4 @@ export function countByFirstTag(items: { tags: string[] }[]): Map<string, number
     if (t) out.set(t, (out.get(t) ?? 0) + 1);
   }
   return out;
-}
-
-export async function cacheClosedGroups(groups: ClosedGroup[]): Promise<void> {
-  try {
-    await browser.storage.local.set({ [CLOSED_GROUPS_KEY]: groups });
-  } catch {
-    // best-effort
-  }
-}
-
-export async function loadCachedClosedGroups(): Promise<ClosedGroup[]> {
-  try {
-    const r = await browser.storage.local.get(CLOSED_GROUPS_KEY);
-    const v = r?.[CLOSED_GROUPS_KEY];
-    return Array.isArray(v) ? (v as ClosedGroup[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function loadResumePending(): Promise<string[]> {
-  try {
-    const v = (await browser.storage.local.get(RESUME_PENDING_KEY))?.[RESUME_PENDING_KEY];
-    return Array.isArray(v) ? (v as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveResumePending(keys: string[]): Promise<void> {
-  try {
-    await browser.storage.local.set({ [RESUME_PENDING_KEY]: keys });
-  } catch {
-    // best-effort
-  }
 }
