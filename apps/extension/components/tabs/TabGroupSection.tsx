@@ -726,7 +726,7 @@ export function TabGroupSection({
       {note && <p className="m-0 px-2.5 pb-1 text-[11px] text-(--color-text-faint)">{note}</p>}
 
       {!collapsed && view === "tiles" && (
-        <ul className="m-0 grid list-none grid-cols-3 gap-1 border-t border-(--color-border-soft) p-1">
+        <ul className="m-0 list-none columns-4 gap-1 border-t border-(--color-border-soft) p-1">
           {group.tabs.map((tab) => (
             <TabTile
               key={tab.id}

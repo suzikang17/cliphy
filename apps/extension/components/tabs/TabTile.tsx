@@ -41,7 +41,7 @@ export function TabTile({
         setDraggedTab({ tab, fromKey: groupKey });
       }}
       onDragEnd={() => setDraggedTab(null)}
-      className={`group/tile relative min-w-0 overflow-hidden rounded-md border-2 bg-(--color-surface) ${
+      className={`group/tile relative mb-1 min-w-0 break-inside-avoid overflow-hidden rounded border-2 bg-(--color-surface) ${
         selected
           ? "border-(--color-border-hard) ring-2 ring-neon-500"
           : "border-(--color-border-soft)"
@@ -53,7 +53,11 @@ export function TabTile({
         title={`${name}\n${tab.url}`}
         className="block w-full cursor-pointer border-0 bg-transparent p-0 text-left"
       >
-        <span className="flex aspect-[16/10] w-full items-center justify-center overflow-hidden bg-neon-100/60 dark:bg-neon-900/30">
+        <span
+          className={`flex w-full items-center justify-center overflow-hidden bg-neon-100/60 dark:bg-neon-900/30 ${
+            showImage ? "" : "h-9"
+          }`}
+        >
           {showImage ? (
             <img
               data-preview
@@ -62,24 +66,24 @@ export function TabTile({
               loading="lazy"
               referrerPolicy="no-referrer"
               onError={() => setImageBroken(true)}
-              className="h-full w-full object-cover"
+              className="block h-auto max-h-36 w-full object-cover"
             />
           ) : (
             <img
               data-favicon
               src={tab.favIconUrl || faviconUrl(tab.url)}
               alt=""
-              width={20}
-              height={20}
+              width={16}
+              height={16}
             />
           )}
         </span>
-        <span className="block px-1 pt-0.5 pb-1">
-          <span className="line-clamp-2 text-[10px] font-semibold leading-tight text-(--color-text)">
+        <span className="block px-1 pt-0.5 pb-0.5">
+          <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-(--color-text)">
             {pinned && <span className="mr-0.5">📌</span>}
             {name}
           </span>
-          <span className="block truncate text-[9px] text-(--color-text-faint)">
+          <span className="block truncate text-[8px] text-(--color-text-faint)">
             {hostOf(tab.url)}
           </span>
         </span>
