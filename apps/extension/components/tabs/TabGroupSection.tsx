@@ -7,6 +7,7 @@ import { normalizeKeywords } from "@cliphy/shared";
 import { TabRow } from "./TabRow";
 import { nestDuplicates, normalizeUrl } from "../../lib/tabs/dedupe";
 import { dropZone, type DropZone } from "../../lib/tabs/merge";
+import { getDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
 
 export const HINTS_MAX = 500;
 
@@ -112,6 +113,8 @@ export function TabGroupSection({
   onOpenTrail,
 }: TabGroupSectionProps) {
   const [dropAt, setDropAt] = useState<DropZone | null>(null);
+  /** A tab row is being dragged over this group (drop = move it here). */
+  const [tabDrop, setTabDrop] = useState(false);
   const [mergePicking, setMergePicking] = useState(false);
   // Naming a suggested group before saving it as a tag.
   const [naming, setNaming] = useState(false);
@@ -181,6 +184,14 @@ export function TabGroupSection({
     <section
       ref={sectionRef}
       onDragOver={(e) => {
+        if (e.dataTransfer.types.includes(TAB_DRAG_TYPE)) {
+          const d = getDraggedTab();
+          if (!d || d.fromKey === group.key || !moveTargets.includes(group.key)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setTabDrop(true);
+          return;
+        }
         if (!movable || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -195,9 +206,21 @@ export function TabGroupSection({
       }}
       onDragLeave={(e) => {
         // Moving between child elements fires dragleave too — only clear on a real exit.
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null);
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setDropAt(null);
+          setTabDrop(false);
+        }
       }}
       onDrop={(e) => {
+        if (tabDrop) {
+          setTabDrop(false);
+          const d = getDraggedTab();
+          if (d && d.fromKey !== group.key) {
+            e.preventDefault();
+            onMove(d.tab, group.key);
+          }
+          return;
+        }
         const from = e.dataTransfer.getData(DRAG_TYPE);
         const at = dropAt;
         setDropAt(null);
@@ -212,6 +235,16 @@ export function TabGroupSection({
       }`}
     >
       {(dropAt === "before" || dropAt === "after") && <DropLine at={dropAt} />}
+      {tabDrop && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center rounded-md ring-4 ring-neon-500"
+        >
+          <span className="-mt-3 rounded-full border-2 border-(--color-border-hard) bg-neon-400 px-2 text-[10px] font-black uppercase leading-[18px] text-neon-900">
+            Move to {group.label}
+          </span>
+        </div>
+      )}
       {dropAt === "merge" && (
         <div
           aria-hidden

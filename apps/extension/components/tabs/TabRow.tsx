@@ -5,6 +5,7 @@ import { groupLabel, type GroupKey } from "../../lib/tabs/organize";
 import { hostOf, type OpenTab } from "../../lib/tabs/types";
 import { tabTimesLabel, tabTimesTitle } from "../../lib/tabs/openedAt";
 import { isStale } from "../../lib/tabs/stale";
+import { setDraggedTab, TAB_DRAG_TYPE } from "../../lib/tabs/dragTab";
 
 interface TabRowProps {
   tab: OpenTab;
@@ -97,6 +98,14 @@ export function TabRow({
   return (
     <li
       data-selected={selected || undefined}
+      draggable={editing === null}
+      onDragStart={(e) => {
+        // Only the data — never change layout in dragstart (Chromium aborts the drag).
+        e.dataTransfer.setData(TAB_DRAG_TYPE, String(tab.id));
+        e.dataTransfer.effectAllowed = "move";
+        setDraggedTab({ tab, fromKey: groupKey });
+      }}
+      onDragEnd={() => setDraggedTab(null)}
       className={`group/row rounded-md px-1.5 py-1 ${
         tab.active ? "bg-neon-100/70 dark:bg-neon-900/30" : ""
       } ${selected ? "ring-2 ring-(--color-border-hard)" : ""} ${dimmed || nested ? "opacity-55" : ""} ${
