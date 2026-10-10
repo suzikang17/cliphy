@@ -36,7 +36,7 @@ const choice = (c: string, confidence: number) => ({
   confidence,
   probabilities: {},
 });
-const claudeGroups = (groups: { name: string; ids: string[] }[]) => ({
+const claudeGroups = (groups: { name: string; ids: string[]; keywords?: string[] }[]) => ({
   content: [{ type: "text", text: JSON.stringify({ groups }) }],
 });
 
@@ -105,16 +105,23 @@ describe("organizeTabs", () => {
       b: { group: choice("none", 0.9), done: noul(0) },
       c: { group: choice("none", 0.9), done: noul(0) },
       d: { group: choice("none", 0.9), done: noul(0) },
+      e: { group: choice("none", 0.9), done: noul(0) },
     });
     createMock.mockResolvedValue(
       claudeGroups([
-        { name: "Client:Brightline", ids: ["a", "b", "zzz"] },
-        { name: "cooking", ids: ["c"] },
+        { name: "Client:Brightline", ids: ["a", "b", "zzz"], keywords: ["brightline"] },
+        { name: "cooking", ids: ["c", "e"], keywords: ["ramen"] },
       ]),
     );
 
     const r = await organizeTabs({
-      tabs: [tab("a", "BL kickoff"), tab("b", "BL invoice"), tab("c", "Ramen"), tab("d", "?")],
+      tabs: [
+        tab("a", "Brightline kickoff"),
+        tab("b", "Brightline invoice"),
+        tab("c", "Ramen recipe"),
+        tab("d", "?"),
+        tab("e", "Best ramen in Tokyo"),
+      ],
       existingTags: ["cooking"],
       hints: {},
     });
@@ -122,6 +129,7 @@ describe("organizeTabs", () => {
     expect(r.assignments.a).toEqual({ proposed: "client:brightline" });
     expect(r.assignments.b).toEqual({ proposed: "client:brightline" });
     expect(r.assignments.c).toEqual({ tag: "cooking" });
+    expect(r.assignments.e).toEqual({ tag: "cooking" });
     expect(r.assignments.d).toEqual({ none: true });
     expect(r.assignments).not.toHaveProperty("zzz");
   });
@@ -145,14 +153,17 @@ describe("organizeTabs", () => {
       assignments: { a: { none: true }, b: { none: true } },
       done: [],
       proposalKeywords: {},
+      proposalReasons: {},
     });
   });
 
   it("without a Jev key, sends everything to Claude and flags nothing done", async () => {
     delete process.env.TYPESAFE_API_KEY;
-    createMock.mockResolvedValue(claudeGroups([{ name: "reading", ids: ["a", "b"] }]));
+    createMock.mockResolvedValue(
+      claudeGroups([{ name: "reading", ids: ["a", "b"], keywords: ["longread"] }]),
+    );
     const r = await organizeTabs({
-      tabs: [tab("a", "x"), tab("b", "y")],
+      tabs: [tab("a", "Longread: the sea"), tab("b", "Weekend longread")],
       existingTags: [],
       hints: {},
     });
@@ -205,6 +216,8 @@ describe("organizeTabs", () => {
     jevByKey({
       a: { group: choice("none", 0.9), done: noul(0) },
       b: { group: choice("none", 0.9), done: noul(0) },
+      c: { group: choice("none", 0.9), done: noul(0) },
+      d: { group: choice("none", 0.9), done: noul(0) },
     });
     createMock.mockResolvedValue({
       content: [
@@ -214,22 +227,128 @@ describe("organizeTabs", () => {
             groups: [
               {
                 name: "project:lotus-bech",
-                ids: ["a"],
+                ids: ["a", "c"],
                 keywords: ["We Curate Life", "lotus", "docs"],
               },
-              { name: "cooking", ids: ["b"], keywords: ["ramen"] },
+              { name: "cooking", ids: ["b", "d"], keywords: ["ramen"] },
             ],
           }),
         },
       ],
     });
     const r = await organizeTabs({
-      tabs: [tab("a", "x"), tab("b", "y")],
+      tabs: [
+        tab("a", "We Curate Life — Mix"),
+        tab("b", "Ramen recipe"),
+        tab("c", "Lotus Bech moodboard"),
+        tab("d", "Ramen shops"),
+      ],
       existingTags: ["cooking"],
       hints: {},
     });
     expect(r.proposalKeywords).toEqual({
       "project:lotus-bech": ["we curate life", "lotus", "docs"],
+    });
+  });
+
+  describe("worked-on-together evidence and reasons", () => {
+    const none = { group: choice("none", 0.9), done: noul(0) };
+    const NOW = Date.parse("2026-10-10T15:00:00Z");
+    const driveStripe = [
+      tab("drive", "Lotus Bech - We Curate Life - Website - Google Drive"),
+      tab("stripe", "Dashboard – Suzi Kang – Stripe"),
+      tab("news", "Hacker News"),
+    ];
+    const cluster = {
+      keys: ["drive", "stripe"],
+      start: NOW - 100 * 60_000, // 40 min of use…
+      end: NOW - 60 * 60_000, // …ending an hour ago
+      switches: 6,
+      openerLinks: 0,
+    };
+
+    it("keeps a group with no shared words when the tabs were used together, with its reason (2026-10-10)", async () => {
+      jevByKey({ drive: none, stripe: none, news: none });
+      createMock.mockResolvedValue({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              groups: [
+                {
+                  name: "freelance:lotus-bech",
+                  ids: ["drive", "stripe"],
+                  reason: "Project files and client invoicing for Lotus Bech, used together",
+                  keywords: [],
+                },
+              ],
+            }),
+          },
+        ],
+      });
+      const r = await organizeTabs({
+        tabs: driveStripe,
+        existingTags: ["design"],
+        hints: {},
+        clusters: [cluster],
+        now: NOW,
+      });
+      expect(r.assignments.drive).toEqual({ proposed: "freelance:lotus-bech" });
+      expect(r.assignments.stripe).toEqual({ proposed: "freelance:lotus-bech" });
+      expect(r.assignments.news).toEqual({ none: true });
+      expect(r.proposalReasons).toEqual({
+        "freelance:lotus-bech": "Project files and client invoicing for Lotus Bech, used together",
+      });
+    });
+
+    it("tells Claude which tabs were worked on together", async () => {
+      jevByKey({ drive: none, stripe: none, news: none });
+      createMock.mockResolvedValue(claudeGroups([]));
+      await organizeTabs({
+        tabs: driveStripe,
+        existingTags: ["design"],
+        hints: {},
+        clusters: [cluster, { ...cluster, keys: ["drive", "gone-tab"] }],
+        now: NOW,
+      });
+      const prompt = createMock.mock.calls[0][0].messages[0].content as string;
+      expect(prompt).toContain("Worked on together:");
+      expect(prompt).toContain("ids drive, stripe: used together for");
+      expect(prompt).toContain("switched between 6×");
+      expect(prompt).not.toContain("gone-tab"); // tabs not in this request are dropped
+    });
+
+    it("drops one-tab groups and doesn't require keywords", async () => {
+      jevByKey({ a: none, b: none, c: none });
+      createMock.mockResolvedValue(
+        claudeGroups([
+          { name: "solo", ids: ["a"] },
+          { name: "pair", ids: ["b", "c"] },
+        ]),
+      );
+      const r = await organizeTabs({
+        tabs: [tab("a", "x"), tab("b", "y"), tab("c", "z")],
+        existingTags: ["design"],
+        hints: {},
+      });
+      expect(r.assignments.a).toEqual({ none: true });
+      expect(r.assignments.b).toEqual({ proposed: "pair" });
+    });
+
+    it("tells Claude that zero groups is fine", async () => {
+      jevByKey({ a: none, b: none });
+      createMock.mockResolvedValue(claudeGroups([]));
+      await organizeTabs({ tabs: [tab("a", "x"), tab("b", "y")], existingTags: ["t"], hints: {} });
+      const system = createMock.mock.calls[0][0].system as string;
+      expect(system).toMatch(/0-5 groups/);
+      expect(system).not.toMatch(/Make 1-/);
+    });
+
+    it("describeCluster reads naturally", async () => {
+      const { describeCluster } = await import("../tab-organizer.js");
+      expect(describeCluster({ ...cluster, openerLinks: 1 }, NOW)).toBe(
+        "used together for 40 min, last 1h ago, switched between 6×, 1 opened from another",
+      );
     });
   });
 });

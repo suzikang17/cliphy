@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { normalizeKeywords, type TabInput } from "@cliphy/shared";
+import { normalizeKeywords, type TabCluster, type TabInput } from "@cliphy/shared";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { checkRateLimit } from "../lib/rateLimit.js";
@@ -39,6 +39,27 @@ function parseTab(raw: unknown): TabInput | null {
   };
 }
 
+const MAX_CLUSTERS = 20;
+
+/** Validate the extension's "worked on together" clusters; keep only known tab keys. */
+function parseClusters(raw: unknown, keys: Set<string>): TabCluster[] {
+  if (!Array.isArray(raw)) return [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return raw
+    .slice(0, MAX_CLUSTERS)
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+    .map((c) => ({
+      keys: Array.isArray(c.keys)
+        ? [...new Set(c.keys.filter((k): k is string => typeof k === "string" && keys.has(k)))]
+        : [],
+      start: num(c.start),
+      end: num(c.end),
+      switches: Math.max(0, Math.floor(num(c.switches))),
+      openerLinks: Math.max(0, Math.floor(num(c.openerLinks))),
+    }))
+    .filter((c) => c.keys.length >= 2 && c.end >= c.start);
+}
+
 /** User's contexts: clip tags (most-used first) then hint-only tags; plus hints by tag. */
 async function loadTagsAndHints(userId: string) {
   const [{ data: rows }, { data: hintRows }] = await Promise.all([
@@ -73,7 +94,7 @@ function hintMaps(rows: Record<string, unknown>[]) {
 tabsRoutes.post("/organize", async (c) => {
   const userId = c.get("userId");
 
-  let body: { tabs?: unknown };
+  let body: { tabs?: unknown; clusters?: unknown };
   try {
     body = await c.req.json();
   } catch {
@@ -90,7 +111,8 @@ tabsRoutes.post("/organize", async (c) => {
   }
 
   const { tags, hints, keywords } = await loadTagsAndHints(userId);
-  return c.json(await organizeTabs({ tabs, existingTags: tags, hints, keywords }));
+  const clusters = parseClusters(body.clusters, new Set(tabs.map((t) => t.key)));
+  return c.json(await organizeTabs({ tabs, existingTags: tags, hints, keywords, clusters }));
 });
 
 // ── GET /hints — per-tag hints + keywords ────────────────────

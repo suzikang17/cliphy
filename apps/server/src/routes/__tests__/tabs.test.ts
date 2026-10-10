@@ -75,7 +75,24 @@ describe("tabs routes", () => {
       existingTags: ["b", "a", "client:new"],
       hints: { "client:new": "", a: "alpha" },
       keywords: { "client:new": ["we curate life"] },
+      clusters: [],
     });
+  });
+
+  it("POST /organize validates worked-on-together clusters against the tabs sent", async () => {
+    fromImpl = () => mockChain({ data: [] });
+    await post({
+      tabs: [tab("1"), tab("2"), tab("3")],
+      clusters: [
+        { keys: ["1", "2", "999"], start: 10, end: 20, switches: 6.7, openerLinks: 1 },
+        { keys: ["3", "404"], start: 1, end: 2, switches: 1, openerLinks: 0 }, // only 1 known tab
+        { keys: ["1", "3"], start: 50, end: 10, switches: 1, openerLinks: 0 }, // end < start
+        "junk",
+      ],
+    });
+    expect(organizeMock.mock.calls[0][0].clusters).toEqual([
+      { keys: ["1", "2"], start: 10, end: 20, switches: 6, openerLinks: 1 },
+    ]);
   });
 
   it("POST /organize clamps text and drops invalid tabs", async () => {

@@ -396,6 +396,25 @@ export interface OrganizeTabsResponse {
   done: string[];
   /** Claude-suggested keywords per proposed group name, saved on "＋ Save as tag". */
   proposalKeywords?: Record<string, string[]>;
+  /** One-line "why these belong together" per proposed group name. */
+  proposalReasons?: Record<string, string>;
+}
+
+/**
+ * Tabs the user worked on together, inferred locally from behavior: opened
+ * close together, opened from one another, or switched between repeatedly.
+ * Sent with an organize request as evidence for grouping.
+ */
+export interface TabCluster {
+  /** TabInput keys in this cluster (2+). */
+  keys: string[];
+  /** ms since epoch: earliest open / latest activity in the cluster. */
+  start: number;
+  end: number;
+  /** Switches between tabs of this cluster within the activity log. */
+  switches: number;
+  /** Tab pairs where one opened the other. */
+  openerLinks: number;
 }
 
 export interface TabHintsResponse {
