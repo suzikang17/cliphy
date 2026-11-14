@@ -18,13 +18,21 @@ stop it; Quit is in the menu-bar item.
 
 ```sh
 pnpm --filter cliphy-helper-app build   # bundle into dist/
-pnpm --filter cliphy-helper-app start   # run from source (on a Mac)
+pnpm --filter cliphy-helper-app start   # run from source (on a Mac); fetches Electron the first time
 pnpm --filter cliphy-helper-app dist    # disk image in release/ (on a Mac)
 ```
 
 The "Mac app" workflow builds it on every change and uploads two artifacts: the
 disk image, and pictures of each screen drawn with made-up data
 (`CLIPHY_SMOKE_OUT=<dir>` makes the app do that and exit).
+
+## Working on it
+
+Run it from source on the Mac with `start`. Full Disk Access then belongs to
+the Electron program inside `node_modules`, which does not change when the code
+does, so it is granted once: add
+`apps/mac-app/node_modules/electron/dist/Electron.app` under Full Disk Access.
+Quit the installed Cliphy Helper first; only one copy runs at a time.
 
 ## Until it is signed
 
