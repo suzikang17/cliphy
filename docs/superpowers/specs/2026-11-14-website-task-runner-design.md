@@ -1,7 +1,7 @@
 # Website task runner — design
 
 Date: 2026-11-14
-Status: draft for approval
+Status: approved by Suzi, 2026-11-14
 Builds on: [creative coach, capture and chat](2026-11-14-creative-coach-capture-and-chat-design.md) (this is the first slice of its "build 2: the AI doing the work")
 
 ## Intent
