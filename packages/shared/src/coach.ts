@@ -159,6 +159,25 @@ export interface CoachSettings {
   /** Weekly back-burner review: day (0 = Sunday) and local time. */
   reviewDow: number;
   reviewTime: string;
+  /** When she works. Null until set: with none, the bot never checks in. */
+  work?: WorkHours | null;
+  /** What she last said she is working on. */
+  focus?: { projectId: string; setAt: string } | null;
+}
+
+export interface WorkHours {
+  /** Days of the week, 0 for Sunday. */
+  days: number[];
+  start: string;
+  end: string;
+}
+
+/** A photo of work in progress, filed under a project. */
+export interface ProgressEntry {
+  id: string;
+  projectId: string | null;
+  url: string | null;
+  createdAt: string;
 }
 
 export const DEFAULT_COACH_SETTINGS: CoachSettings = {
@@ -192,6 +211,10 @@ export type ChatAction =
   | { type: "snooze"; taskId: string; days: number }
   | { type: "close_ask"; taskId: string }
   | { type: "undo_rule"; ruleId: string }
+  /** "I'm on this": sets the current focus. */
+  | { type: "set_focus"; projectId: string }
+  /** Put a progress photo in a project (or move it to another). */
+  | { type: "file_progress"; entryId: string; projectId: string }
   | { type: "open"; link: ChatLink }
   | { type: "dismiss" };
 
@@ -201,7 +224,7 @@ export interface ChatButton {
 }
 
 export interface ChatLink {
-  type: "request" | "task" | "project" | "upnext" | "setup";
+  type: "request" | "task" | "project" | "upnext" | "setup" | "camera";
   id?: string;
 }
 
@@ -216,6 +239,8 @@ export type ChatKind =
   | "rule"
   | "did"
   | "answer"
+  | "checkin"
+  | "progress"
   | "user";
 
 export interface CoachChatMessage {

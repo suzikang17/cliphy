@@ -3,7 +3,7 @@ import { TASK_KINDS, type CoachTask } from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { semanticSearch } from "../search.js";
-import { executeAction, markTaskSent, setTaskState } from "./actions.js";
+import { executeAction, markTaskSent, setFocus, setTaskState } from "./actions.js";
 import { ruleLearned } from "./botMessages.js";
 import { listMessages, postBotMessage } from "./chat.js";
 import { loadSettings, syncTaskReminders } from "./reminders.js";
@@ -125,6 +125,15 @@ const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { query: { type: "string" } },
       required: ["query"],
+    },
+  },
+  {
+    name: "set_focus",
+    description: "The user said which project they are working on right now.",
+    input_schema: {
+      type: "object",
+      properties: { projectId: { type: "string" } },
+      required: ["projectId"],
     },
   },
   {
@@ -371,6 +380,11 @@ async function runTool(ctx: AgentContext, name: string, raw: unknown): Promise<T
           )
           .join("\n"),
       };
+    }
+    case "set_focus": {
+      const r = await setFocus(userId, str(input.projectId));
+      if (!r.changed) throw new ToolError("No project with that id.");
+      return acted(r);
     }
     case "remember": {
       const sentence = str(input.sentence).slice(0, 200);

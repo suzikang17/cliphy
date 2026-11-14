@@ -8,6 +8,9 @@ import {
   weeklyReview,
   pushNotWorking,
   ruleLearned,
+  checkIn,
+  progressFiled,
+  progressAsk,
 } from "../botMessages.js";
 
 const request = {
@@ -163,5 +166,71 @@ describe("bot messages", () => {
     expect(m.text).toBe('Learned: For Maren, "writing" means the words.');
     expect(m.buttons).toEqual([{ label: "Undo", action: { type: "undo_rule", ruleId: "rule1" } }]);
     expect(m).toMatchObject({ kind: "rule", refId: "rule1" });
+  });
+
+  const projects = [
+    { id: "pr1", name: "Alder House" },
+    { id: "pr2", name: "Studio prints for the spring show" },
+    { id: "pr3", name: "Portfolio" },
+    { id: "pr4", name: "Fourth" },
+  ];
+
+  it("asks what she is on at the start of the day, offering her projects", () => {
+    const m = checkIn("start", { date: "2026-11-16", time: "09:05", focus: null, projects });
+    expect(m.text).toBe("What are you on today?");
+    // Never more than three, and a long name is cut to two words.
+    expect(m.buttons.map((b) => b.label)).toEqual(["Alder House", "Studio prints", "Portfolio"]);
+    expect(m.buttons[0].action).toEqual({ type: "set_focus", projectId: "pr1" });
+    expect(m).toMatchObject({ kind: "checkin", refId: "2026-11-16:start" });
+  });
+
+  it("asks whether she is still on the same thing, by name", () => {
+    const m = checkIn("during", {
+      date: "2026-11-16",
+      time: "11:05",
+      focus: projects[0],
+      projects,
+    });
+    expect(m.text).toBe("Still on Alder House?");
+    expect(m.buttons.map((b) => b.label)).toEqual(["Yes", "Switch"]);
+    expect(m.buttons[0].action).toEqual({ type: "set_focus", projectId: "pr1" });
+    expect(m.buttons[1].action).toEqual({ type: "open", link: { type: "upnext" } });
+    expect(m.refId).toBe("2026-11-16:during:11:05");
+  });
+
+  it("asks what she is on mid-day when it does not know", () => {
+    const m = checkIn("during", { date: "2026-11-16", time: "13:10", focus: null, projects });
+    expect(m.text).toBe("What are you on?");
+    expect(m.buttons).toHaveLength(3);
+  });
+
+  it("asks for a photo at the end of the day", () => {
+    const m = checkIn("end", { date: "2026-11-16", time: "16:30", focus: projects[0], projects });
+    expect(m.text).toBe("Photo of where you got to?");
+    expect(m.buttons).toEqual([
+      { label: "Add photo", action: { type: "open", link: { type: "camera" } } },
+      { label: "Skip", action: { type: "dismiss" } },
+    ]);
+    expect(m.refId).toBe("2026-11-16:end");
+  });
+
+  it("says where a photo was filed, with the other projects as a way to move it", () => {
+    const m = progressFiled({ id: "e1" }, projects[0], projects);
+    expect(m.text).toBe("Filed under Alder House.");
+    expect(m.buttons.map((b) => b.label)).toEqual(["Studio prints", "Portfolio"]);
+    expect(m.buttons[0].action).toEqual({ type: "file_progress", entryId: "e1", projectId: "pr2" });
+    expect(m).toMatchObject({
+      kind: "progress",
+      refId: "e1",
+      link: { type: "project", id: "pr1" },
+    });
+  });
+
+  it("asks which project a photo is for when it cannot tell", () => {
+    const m = progressAsk({ id: "e1" }, projects);
+    expect(m.text).toBe("Which project is this photo for?");
+    expect(m.buttons).toHaveLength(3);
+    expect(m.buttons[2].action).toEqual({ type: "file_progress", entryId: "e1", projectId: "pr3" });
+    expect(m).toMatchObject({ kind: "progress", refId: "e1" });
   });
 });

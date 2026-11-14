@@ -23,6 +23,7 @@ settingsRoutes.patch("/", async (c) => {
     quietEnd?: unknown;
     reviewDow?: unknown;
     reviewTime?: unknown;
+    work?: unknown;
   }>();
 
   const values: Record<string, unknown> = {};
@@ -50,6 +51,32 @@ settingsRoutes.patch("/", async (c) => {
       return c.json({ error: "reviewDow must be 0 (Sunday) to 6" }, 400);
     }
     values.review_dow = dow;
+  }
+  if (body.work !== undefined) {
+    if (body.work === null) {
+      // No working hours means no check-ins.
+      values.work_days = null;
+      values.work_start = null;
+      values.work_end = null;
+    } else {
+      const work = body.work as { days?: unknown; start?: unknown; end?: unknown };
+      const days = Array.isArray(work.days) ? [...new Set(work.days)] : [];
+      const daysOk =
+        days.length > 0 &&
+        days.every((d) => typeof d === "number" && Number.isInteger(d) && d >= 0 && d <= 6);
+      const timesOk =
+        typeof work.start === "string" &&
+        typeof work.end === "string" &&
+        TIME.test(work.start) &&
+        TIME.test(work.end) &&
+        work.start < work.end;
+      if (!daysOk || !timesOk) {
+        return c.json({ error: "work needs days (0-6) and start before end, as HH:MM" }, 400);
+      }
+      values.work_days = (days as number[]).sort((a, b) => a - b);
+      values.work_start = work.start;
+      values.work_end = work.end;
+    }
   }
   if (Object.keys(values).length === 0) return c.json({ error: "nothing to update" }, 400);
 

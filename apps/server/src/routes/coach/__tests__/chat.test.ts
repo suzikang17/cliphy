@@ -385,6 +385,81 @@ describe("coach chat", () => {
     expect(body.message.chosen).toBeNull();
   });
 
+  it("sets the focus from a check-in button and says so", async () => {
+    const inner = world({
+      message: messageRow(
+        [{ label: "Alder House", action: { type: "set_focus", projectId: "pr1" } }],
+        {
+          kind: "checkin",
+        },
+      ),
+    });
+    db = makeDb((op: Op) =>
+      op.table === "coach_projects"
+        ? { data: { id: "pr1", name: "Alder House" } }
+        : inner.respond(op),
+    );
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBe("On Alder House.");
+    const upd = db.ops.find((o) => o.table === "coach_settings" && o.action === "upsert")!;
+    expect(upd.payload).toMatchObject({
+      user_id: "test-user-id",
+      focus_project_id: "pr1",
+      focus_set_at: expect.any(String),
+    });
+  });
+
+  it("refuses to focus on a project that is not the user's", async () => {
+    const inner = world({
+      message: messageRow(
+        [{ label: "X", action: { type: "set_focus", projectId: "someone-elses" } }],
+        {
+          kind: "checkin",
+        },
+      ),
+    });
+    db = makeDb((op: Op) => (op.table === "coach_projects" ? { data: null } : inner.respond(op)));
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBeNull();
+    expect(db.written("coach_settings")).toEqual([]);
+  });
+
+  // Review Focus 5: the clip's tag follows the photo.
+  it("moves a progress photo to another project, and its Library clip's tag with it", async () => {
+    const inner = world({
+      message: messageRow(
+        [
+          {
+            label: "Studio prints",
+            action: { type: "file_progress", entryId: "e1", projectId: "pr2" },
+          },
+        ],
+        { kind: "progress" },
+      ),
+    });
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_projects") {
+        return op.single
+          ? { data: { id: "pr2", name: "Studio prints", tag: "project:studio-prints" } }
+          : { data: [{ tag: "project:alder-house" }, { tag: "project:studio-prints" }] };
+      }
+      if (op.table === "coach_progress") {
+        return { data: { id: "e1", project_id: "pr1", clip_id: "c1" } };
+      }
+      if (op.table === "clips" && op.action === "select") {
+        return { data: { id: "c1", tags: ["project:alder-house", "typography"] } };
+      }
+      return inner.respond(op);
+    });
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBe("Moved to Studio prints.");
+    const entry = db.ops.find((o) => o.table === "coach_progress" && o.action === "update")!;
+    expect(entry.payload).toEqual({ project_id: "pr2" });
+    expect(entry.filters).toContainEqual(["eq", "user_id", "test-user-id"]);
+    const clip = db.ops.find((o) => o.table === "clips" && o.action === "update")!;
+    expect(clip.payload).toEqual({ tags: ["typography", "project:studio-prints"] });
+  });
+
   it("records a tap that only opens something, without a message", async () => {
     db = world({
       message: messageRow([

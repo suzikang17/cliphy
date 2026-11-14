@@ -1,4 +1,4 @@
-import { DEFAULT_COACH_SETTINGS, type CoachSettings } from "@cliphy/shared";
+import { DEFAULT_COACH_SETTINGS, type CoachSettings, type WorkHours } from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { planReminders } from "./reminderPlan.js";
@@ -11,11 +11,20 @@ type Row = Record<string, unknown>;
 /** Reminder statuses that can still reach the user, and so must be cancelled when stale. */
 const PENDING = ["scheduled", "sent", "delivered"];
 
+/** Working hours from a settings row, or null when none are set. */
+export function workHoursOf(row: Row): WorkHours | null {
+  const days = row.work_days as number[] | null | undefined;
+  if (!Array.isArray(days) || days.length === 0 || !row.work_start || !row.work_end) return null;
+  return { days, start: hhmm(row.work_start as string), end: hhmm(row.work_end as string) };
+}
+
 /** The user's reminder settings, with defaults when they have never set any. */
 export async function loadSettings(userId: string): Promise<CoachSettings> {
   const { data } = await supabase
     .from("coach_settings")
-    .select("timezone, quiet_start, quiet_end, review_dow, review_time")
+    .select(
+      "timezone, quiet_start, quiet_end, review_dow, review_time, work_days, work_start, work_end, focus_project_id, focus_set_at",
+    )
     .eq("user_id", userId)
     .maybeSingle();
   const row = data as Row | null;
@@ -27,6 +36,11 @@ export async function loadSettings(userId: string): Promise<CoachSettings> {
     quietEnd: hhmm((row.quiet_end as string) ?? DEFAULT_COACH_SETTINGS.quietEnd),
     reviewDow: (row.review_dow as number) ?? DEFAULT_COACH_SETTINGS.reviewDow,
     reviewTime: hhmm((row.review_time as string) ?? DEFAULT_COACH_SETTINGS.reviewTime),
+    work: workHoursOf(row),
+    focus:
+      row.focus_project_id && row.focus_set_at
+        ? { projectId: row.focus_project_id as string, setAt: row.focus_set_at as string }
+        : null,
   };
 }
 

@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { toProject, toRequest } from "../../lib/coachMappers.js";
 import { buildHistory } from "../../services/coach/history.js";
+import { toProgressEntry } from "./progress.js";
 import { projectTag, seedProjectsFromTags } from "../../services/coach/projects.js";
 
 export const projectRoutes = new Hono<AppEnv>();
@@ -141,5 +142,14 @@ projectRoutes.get("/:id/history", async (c) => {
     .eq("user_id", userId)
     .eq("project_id", id)
     .neq("status", "new");
-  return c.json({ entries: buildHistory(((data as Row[]) ?? []).map(toRequest)) });
+  // Progress photos sit in the same trail as the requests.
+  const { data: photoRows } = await supabase
+    .from("coach_progress")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("project_id", id)
+    .order("created_at", { ascending: false });
+  const progress = await Promise.all(((photoRows as Row[]) ?? []).map(toProgressEntry));
+
+  return c.json({ entries: buildHistory(((data as Row[]) ?? []).map(toRequest)), progress });
 });

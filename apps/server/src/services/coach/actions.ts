@@ -161,6 +161,88 @@ async function confirm(
   };
 }
 
+/** "I'm on this": what she is working on now. The strongest clue for filing a photo. */
+export async function setFocus(userId: string, projectId: string): Promise<ActionResult> {
+  const { data } = await supabase
+    .from("coach_projects")
+    .select("id, name")
+    .eq("id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const project = data as { id: string; name: string } | null;
+  if (!project) return NOTHING;
+  await supabase
+    .from("coach_settings")
+    .upsert(
+      { user_id: userId, focus_project_id: project.id, focus_set_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    );
+  return { changed: true, say: `On ${project.name}.` };
+}
+
+/** Put a progress photo in a project, or move it; its Library clip's project tag follows. */
+export async function fileProgressEntry(
+  userId: string,
+  entryId: string,
+  projectId: string,
+): Promise<ActionResult> {
+  const [{ data: entryRow }, { data: projectRow }] = await Promise.all([
+    supabase
+      .from("coach_progress")
+      .select("*")
+      .eq("id", entryId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("coach_projects")
+      .select("id, name, tag")
+      .eq("id", projectId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  const entry = entryRow as {
+    id: string;
+    project_id: string | null;
+    clip_id: string | null;
+  } | null;
+  const project = projectRow as { id: string; name: string; tag: string } | null;
+  if (!entry || !project || entry.project_id === project.id) return NOTHING;
+
+  await supabase
+    .from("coach_progress")
+    .update({ project_id: project.id })
+    .eq("id", entryId)
+    .eq("user_id", userId);
+
+  if (entry.clip_id) {
+    const [{ data: clip }, { data: allProjects }] = await Promise.all([
+      supabase
+        .from("clips")
+        .select("id, tags")
+        .eq("id", entry.clip_id)
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase.from("coach_projects").select("tag").eq("user_id", userId),
+    ]);
+    if (clip) {
+      // One project tag per photo: drop whichever it had, add the new one.
+      const projectTags = new Set(((allProjects as { tag: string }[]) ?? []).map((p) => p.tag));
+      const kept = (((clip as { tags: string[] | null }).tags ?? []) as string[]).filter(
+        (t) => !projectTags.has(t),
+      );
+      await supabase
+        .from("clips")
+        .update({ tags: [...kept, project.tag] })
+        .eq("id", entry.clip_id)
+        .eq("user_id", userId);
+    }
+  }
+  return {
+    changed: true,
+    say: entry.project_id ? `Moved to ${project.name}.` : `Filed under ${project.name}.`,
+  };
+}
+
 /** Carry out a chat button's action for this user. Every id is checked against the user. */
 export async function executeAction(userId: string, action: ChatAction): Promise<ActionResult> {
   switch (action.type) {
@@ -183,6 +265,10 @@ export async function executeAction(userId: string, action: ChatAction): Promise
     }
     case "undo_rule":
       return undoRule(userId, action.ruleId);
+    case "set_focus":
+      return setFocus(userId, action.projectId);
+    case "file_progress":
+      return fileProgressEntry(userId, action.entryId, action.projectId);
     case "open":
     case "dismiss":
       return NOTHING;

@@ -13,5 +13,7 @@ export function linkPath(link: ChatLink): string {
       return "/coach/upnext";
     case "setup":
       return "/coach/setup";
+    case "camera":
+      return "/coach/camera";
   }
 }

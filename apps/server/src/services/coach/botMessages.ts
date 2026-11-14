@@ -163,3 +163,95 @@ export function didAction(text: string): BotMessage {
     refId: null,
   };
 }
+
+// ── Check-ins and progress photos (1b) ───────────────────────────────────
+
+/** A button label is at most two words: a long project name is cut to its first two. */
+const shortName = (name: string): string => name.trim().split(/\s+/).slice(0, 2).join(" ");
+
+interface NamedProject {
+  id: string;
+  name: string;
+}
+
+const focusButtons = (projects: NamedProject[]): ChatButton[] =>
+  projects.slice(0, MAX_CHAT_BUTTONS).map((p) => ({
+    label: shortName(p.name),
+    action: { type: "set_focus", projectId: p.id },
+  }));
+
+/**
+ * A check-in during working hours. Keyed on the day (and, mid-day, the time),
+ * so two runs in the same window say it once.
+ */
+export function checkIn(
+  kind: "start" | "during" | "end",
+  ctx: { date: string; time: string; focus: NamedProject | null; projects: NamedProject[] },
+): BotMessage {
+  const base = { link: null, attachments: [], kind: "checkin" as const };
+  if (kind === "end") {
+    return {
+      ...base,
+      text: "Photo of where you got to?",
+      buttons: [
+        { label: "Add photo", action: { type: "open", link: { type: "camera" } } },
+        { label: "Skip", action: { type: "dismiss" } },
+      ],
+      refId: `${ctx.date}:end`,
+    };
+  }
+  if (kind === "during" && ctx.focus) {
+    return {
+      ...base,
+      text: `Still on ${ctx.focus.name}?`,
+      buttons: [
+        { label: "Yes", action: { type: "set_focus", projectId: ctx.focus.id } },
+        { label: "Switch", action: { type: "open", link: { type: "upnext" } } },
+      ],
+      refId: `${ctx.date}:during:${ctx.time}`,
+    };
+  }
+  return {
+    ...base,
+    text: kind === "start" ? "What are you on today?" : "What are you on?",
+    buttons: focusButtons(ctx.projects),
+    refId: kind === "start" ? `${ctx.date}:start` : `${ctx.date}:during:${ctx.time}`,
+  };
+}
+
+/** Fairly sure: filed, and here is where, with the other projects as a way to move it. */
+export function progressFiled(
+  entry: { id: string },
+  project: NamedProject,
+  projects: NamedProject[],
+): BotMessage {
+  return {
+    text: `Filed under ${project.name}.`,
+    buttons: projects
+      .filter((p) => p.id !== project.id)
+      .slice(0, MAX_CHAT_BUTTONS - 1)
+      .map((p) => ({
+        label: shortName(p.name),
+        action: { type: "file_progress", entryId: entry.id, projectId: p.id },
+      })),
+    link: { type: "project", id: project.id },
+    attachments: [],
+    kind: "progress",
+    refId: entry.id,
+  };
+}
+
+/** Unsure: ask once, do not guess. */
+export function progressAsk(entry: { id: string }, projects: NamedProject[]): BotMessage {
+  return {
+    text: "Which project is this photo for?",
+    buttons: projects.slice(0, MAX_CHAT_BUTTONS).map((p) => ({
+      label: shortName(p.name),
+      action: { type: "file_progress", entryId: entry.id, projectId: p.id },
+    })),
+    link: null,
+    attachments: [],
+    kind: "progress",
+    refId: entry.id,
+  };
+}

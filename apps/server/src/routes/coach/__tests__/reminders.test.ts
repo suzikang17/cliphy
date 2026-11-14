@@ -161,6 +161,55 @@ describe("coach reminders routes", () => {
     expect(syncMock).not.toHaveBeenCalled();
   });
 
+  it("saves working hours", async () => {
+    const res = await patch("/api/coach/settings", {
+      work: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" },
+    });
+    expect(res.status).toBe(200);
+    expect(db.written("coach_settings", "upsert")[0]).toMatchObject({
+      work_days: [1, 2, 3, 4, 5],
+      work_start: "09:00",
+      work_end: "17:00",
+    });
+  });
+
+  it("clears working hours, which stops check-ins", async () => {
+    await patch("/api/coach/settings", { work: null });
+    expect(db.written("coach_settings", "upsert")[0]).toMatchObject({
+      work_days: null,
+      work_start: null,
+      work_end: null,
+    });
+  });
+
+  it("rejects working hours that end before they start, an empty week, or a day that does not exist", async () => {
+    for (const work of [
+      { days: [1], start: "17:00", end: "09:00" },
+      { days: [], start: "09:00", end: "17:00" },
+      { days: [7], start: "09:00", end: "17:00" },
+      { days: [1], start: "9", end: "17:00" },
+    ]) {
+      expect((await patch("/api/coach/settings", { work })).status).toBe(400);
+    }
+    expect(db.writtenTables()).toEqual([]);
+  });
+
+  it("returns working hours and the current focus with the settings", async () => {
+    db = world({
+      settings: {
+        timezone: "America/Los_Angeles",
+        work_days: [1, 2, 3, 4, 5],
+        work_start: "09:00:00",
+        work_end: "17:00:00",
+        focus_project_id: "pr1",
+        focus_set_at: "2026-11-16T17:05:00Z",
+      },
+    });
+    const { settings } = await (await app().request("/api/coach/settings")).json();
+    expect(settings.work).toEqual({ days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" });
+    expect(settings.focus).toEqual({ projectId: "pr1", setAt: "2026-11-16T17:05:00Z" });
+  });
+
   it("rejects a timezone that does not exist, a malformed time and a day outside the week", async () => {
     for (const body of [
       { timezone: "Mars/Olympus_Mons" },
