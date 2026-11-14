@@ -15,6 +15,10 @@ on:
         description: Send the finished build to TestFlight (production only)
         type: boolean
         default: true
+      notify_only:
+        description: Skip the build and only send a test notification
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -36,6 +40,7 @@ jobs:
 
       # The build runs on Expo's machines; this job starts it and waits.
       - name: Build iOS
+        if: ${{ !inputs.notify_only }}
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
