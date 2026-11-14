@@ -31,7 +31,7 @@ disk image, and pictures of each screen drawn with made-up data
 Run it from source on the Mac with `start`. Full Disk Access then belongs to
 the Electron program inside `node_modules`, which does not change when the code
 does, so it is granted once: add
-`apps/mac-app/node_modules/electron/dist/Electron.app` under Full Disk Access.
+`node_modules/electron/dist/Electron.app` (at the top of the repo) under Full Disk Access.
 Quit the installed Cliphy Helper first; only one copy runs at a time.
 
 ## Until it is signed
