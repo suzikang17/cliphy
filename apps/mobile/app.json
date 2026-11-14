@@ -45,7 +45,8 @@
         {
           "iosActivationRules": {
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
-            "NSExtensionActivationSupportsImageWithMaxCount": 1
+            "NSExtensionActivationSupportsImageWithMaxCount": 6,
+            "NSExtensionActivationSupportsText": true
           },
           "androidIntentFilters": ["text/*", "image/*"]
         }

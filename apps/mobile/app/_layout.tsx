@@ -14,6 +14,15 @@ import { uploadAndClipImage } from "../lib/uploadImage";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
+import { getCoachState, refreshCoach, resetCoach } from "../lib/coachStore";
+import {
+  onNotificationReceived,
+  onNotificationTapped,
+  reportTimezone,
+  syncLocalReminders,
+} from "../lib/coachNotifications";
+import { couldBeRequest, setPendingShare, type PendingShare } from "../lib/shareStore";
+import { SendToChatSheet } from "../components/coach/SendToChatSheet";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -74,13 +83,40 @@ export default function RootLayout() {
     registerForPushNotifications().catch(console.error);
   }, [session]);
 
+  // Coach: find out whether this account has it. If so, tell the server our
+  // timezone (it plans no reminders without one) and back up upcoming
+  // reminders on the phone. Accounts without it make this one call and no more.
+  useEffect(() => {
+    if (!session) {
+      resetCoach();
+      return;
+    }
+    refreshCoach().then(() => {
+      if (getCoachState().status !== "on") return;
+      void reportTimezone().then(syncLocalReminders);
+    });
+  }, [session]);
+
+  // A reminder that arrives while the app is open is reported as delivered.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      void onNotificationReceived(notification).then(() => refreshCoach());
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Handle notification tap — navigate to summary
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const summaryId = response.notification.request.content.data?.summaryId;
       if (summaryId) {
         router.push(`/summary/${summaryId}`);
+        return;
       }
+      // A coach reminder: tapping it counts as answered, and opens Chat.
+      void onNotificationTapped(response).then((path) => {
+        if (path) router.push(path as never);
+      });
     });
 
     return () => subscription.remove();
@@ -98,6 +134,22 @@ export default function RootLayout() {
     const hasText = Boolean(shareIntent?.text);
     const hasFiles = Boolean(shareIntent?.files?.length);
     if ((!hasText && !hasFiles) || !session || processingShareRef.current) return;
+
+    // With the coach on, images or words that are more than a link might be a
+    // request someone sent: ask whether it goes to Chat or to the Library.
+    if (getCoachState().status === "on") {
+      const share: PendingShare = {
+        text: shareIntent?.text ?? "",
+        imageUris: (shareIntent?.files ?? [])
+          .filter((f) => f.mimeType?.startsWith("image/"))
+          .map((f) => f.path),
+      };
+      if (couldBeRequest(share)) {
+        resetShareIntent();
+        setPendingShare(share);
+        return;
+      }
+    }
 
     // A shared image (screenshot, photo) → upload + OCR pipeline.
     const sharedImage = shareIntent?.files?.find((f) => f.mimeType?.startsWith("image/"));
@@ -139,6 +191,28 @@ export default function RootLayout() {
       });
   }, [shareIntent, session, resetShareIntent]);
 
+  // "Save to Library" from the Send to Chat sheet: what sharing always did.
+  const saveShareToLibrary = (share: PendingShare) => {
+    if (share.imageUris.length > 0) {
+      processingShareRef.current = true;
+      Promise.all(share.imageUris.map((uri) => uploadAndClipImage(uri)))
+        .then(() => Alert.alert("Saved to Cliphy", "Saved to Library"))
+        .catch((err: unknown) => showQueueError(err))
+        .finally(() => {
+          processingShareRef.current = false;
+        });
+      return;
+    }
+    const url = share.text.match(/https?:\/\/[^\s]+/)?.[0];
+    if (!url) {
+      Alert.alert("No link found", "Share a link or an image to save it to Cliphy.");
+      return;
+    }
+    addClip({ url })
+      .then((res) => Alert.alert("Saved to Cliphy", res.clip.videoTitle || "Clip saved"))
+      .catch((err: unknown) => showQueueError(err));
+  };
+
   const colorScheme = useColorScheme();
   const bg = colorScheme === "dark" ? colors.dark.surface : colors.light.surface;
 
@@ -158,6 +232,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: bg },
           }}
         />
+        <SendToChatSheet onLibrary={saveShareToLibrary} />
       </View>
     </SafeAreaProvider>
   );
