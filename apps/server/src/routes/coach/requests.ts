@@ -1,50 +1,20 @@
-import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
-import {
-  REQUEST_STATUSES,
-  type CoachRequest,
-  type CoachTask,
-  type RequestStatus,
-} from "@cliphy/shared";
+import { REQUEST_STATUSES, type RequestStatus } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { inngest } from "../../lib/inngest.js";
 import { signImageUrl } from "../../lib/storage.js";
-import { toMessage, toRequest, toTask } from "../../lib/coachMappers.js";
-import { isBlocked, materializeChain } from "../../services/coach/chain.js";
-import { syncTaskReminders } from "../../services/coach/reminders.js";
+import { toMessage, toRequest } from "../../lib/coachMappers.js";
+import {
+  announceAnswer,
+  confirmRequest,
+  loadRequest,
+  type ConfirmBody,
+} from "../../services/coach/requestActions.js";
 
 export const requestRoutes = new Hono<AppEnv>();
 
 type Row = Record<string, unknown>;
-
-async function loadRequest(id: string, userId: string): Promise<Row | null> {
-  const { data } = await supabase
-    .from("coach_requests")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", userId)
-    .maybeSingle();
-  return (data as Row | null) ?? null;
-}
-
-/** Task rows → API tasks, with `blocked` computed within the set. */
-function withBlocked(rows: Row[]): CoachTask[] {
-  const byId = new Map(rows.map((r) => [r.id as string, { state: r.state as CoachTask["state"] }]));
-  return rows.map((r) =>
-    toTask(r, isBlocked({ afterTaskId: (r.after_task_id as string) ?? null }, byId)),
-  );
-}
-
-async function tasksOfRequest(requestId: string, userId: string): Promise<CoachTask[]> {
-  const { data } = await supabase
-    .from("coach_tasks")
-    .select("*")
-    .eq("request_id", requestId)
-    .eq("user_id", userId)
-    .order("position", { ascending: true });
-  return withBlocked((data as Row[]) ?? []);
-}
 
 // ── GET / — requests, newest first ───────────────────────────────────────
 
@@ -90,149 +60,13 @@ requestRoutes.get("/:id", async (c) => {
 
 // ── POST /:id/confirm — "Looks right": the request becomes its tasks ─────
 
-/** A confirm that flipped the status but never got its tasks is repairable after this long. */
-const REPAIR_AFTER_MS = 60_000;
-
-/**
- * Create a confirmed request's task chain in one statement, so it exists
- * entirely or not at all. Ids are made here so tasks can point at each other.
- */
-async function createChain(
-  request: CoachRequest,
-  userId: string,
-): Promise<{ rows: Row[] } | { error: true }> {
-  const chain = materializeChain(request.proposedTasks, { answered: request.answer !== null });
-  if (chain.length === 0) return { rows: [] };
-
-  const ids = chain.map(() => randomUUID());
-  const firstDo = chain.findIndex((t) => t.kind === "do");
-  // The deadline belongs on the work; with no `do` task it goes on the first step.
-  const dated = firstDo === -1 ? 0 : firstDo;
-
-  const { data, error } = await supabase
-    .from("coach_tasks")
-    .insert(
-      chain.map((task, i) => ({
-        id: ids[i],
-        user_id: userId,
-        request_id: request.id,
-        project_id: request.projectId,
-        kind: task.kind,
-        title: task.title,
-        kit: task.kit,
-        with_person_id: task.withPerson ? request.personId : null,
-        after_task_id: task.afterIndex !== null ? ids[task.afterIndex] : null,
-        due_date: i === dated ? request.dueDate : null,
-        position: task.position,
-      })),
-    )
-    .select("*");
-  if (error || !data) return { error: true };
-  return { rows: data as Row[] };
-}
-
 requestRoutes.post("/:id/confirm", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const body = await c.req
-    .json<{ answer?: unknown; projectId?: unknown; replaces?: unknown }>()
-    .catch(() => ({}) as { answer?: unknown; projectId?: unknown; replaces?: unknown });
-
-  const row = await loadRequest(id, userId);
-  if (!row) return c.json({ error: "request not found" }, 404);
-
-  // Already confirmed (a second tap): report what exists, change nothing.
-  if (row.status !== "new") {
-    const current = toRequest(row);
-    let tasks = await tasksOfRequest(id, userId);
-    // Unless an earlier confirm died between flipping the status and creating
-    // the tasks: then this is the only way the chain can ever be built.
-    const stale =
-      current.confirmedAt !== null &&
-      Date.now() - Date.parse(current.confirmedAt) > REPAIR_AFTER_MS;
-    if (current.status === "confirmed" && tasks.length === 0 && stale) {
-      const repaired = await createChain(current, userId);
-      if ("error" in repaired) return c.json({ error: "Failed to create tasks" }, 500);
-      await syncTaskReminders(
-        userId,
-        repaired.rows.map((r) => r.id as string),
-      );
-      tasks = withBlocked(repaired.rows);
-    }
-    return c.json({ request: current, tasks });
+  const body = await c.req.json<ConfirmBody>().catch(() => ({}) as ConfirmBody);
+  const result = await confirmRequest(c.get("userId"), c.req.param("id"), body);
+  if (result.status === 200 && typeof body.answer === "string" && body.answer.trim()) {
+    await announceAnswer(c.get("userId"), c.req.param("id"));
   }
-
-  let projectId = (row.project_id as string) ?? null;
-  if (typeof body.projectId === "string") {
-    const { data: project } = await supabase
-      .from("coach_projects")
-      .select("id")
-      .eq("id", body.projectId)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!project) return c.json({ error: "project not found" }, 400);
-    projectId = body.projectId;
-  }
-
-  const answer = typeof body.answer === "string" && body.answer.trim() ? body.answer.trim() : null;
-  const proposedReplaces = (row.proposed_replaces_id as string) ?? null;
-  const replacesId = body.replaces !== false ? proposedReplaces : null;
-
-  // Guarded on status so two concurrent confirms create one chain.
-  const { data: confirmed } = await supabase
-    .from("coach_requests")
-    .update({
-      status: "confirmed",
-      confirmed_at: new Date().toISOString(),
-      answer,
-      project_id: projectId,
-      replaces_id: replacesId,
-    })
-    .eq("id", id)
-    .eq("user_id", userId)
-    .eq("status", "new")
-    .select("*")
-    .maybeSingle();
-  if (!confirmed) {
-    const current = (await loadRequest(id, userId)) ?? row;
-    return c.json({ request: toRequest(current), tasks: await tasksOfRequest(id, userId) });
-  }
-  const request = toRequest(confirmed as Row);
-
-  const created = await createChain(request, userId);
-  if ("error" in created) {
-    // Put it back so "Looks right" can be tapped again; nothing else has changed yet.
-    await supabase
-      .from("coach_requests")
-      .update({ status: "new", confirmed_at: null, answer: null, replaces_id: null })
-      .eq("id", id)
-      .eq("user_id", userId);
-    return c.json({ error: "Failed to create tasks" }, 500);
-  }
-
-  let droppedIds: string[] = [];
-  if (replacesId) {
-    // The earlier request stays, marked; nothing is deleted. Work still open
-    // for it is superseded, so it leaves the plate (dropped, not removed).
-    await supabase
-      .from("coach_requests")
-      .update({ status: "replaced" })
-      .eq("id", replacesId)
-      .eq("user_id", userId);
-    const { data: dropped } = await supabase
-      .from("coach_tasks")
-      .update({ state: "dropped" })
-      .eq("request_id", replacesId)
-      .eq("user_id", userId)
-      .in("state", ["open", "waiting"])
-      .select("id");
-    droppedIds = ((dropped as { id: string }[]) ?? []).map((t) => t.id);
-  }
-
-  // New tasks get their reminders; dropped ones lose theirs.
-  await syncTaskReminders(userId, [...created.rows.map((r) => r.id as string), ...droppedIds]);
-
-  return c.json({ request, tasks: withBlocked(created.rows) });
+  return c.json(result.body, result.status);
 });
 
 // ── POST /:id/fix — "Fix it": read the messages again with a correction ──
