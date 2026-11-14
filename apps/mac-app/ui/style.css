@@ -115,6 +115,9 @@ main {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Room for the hard shadows, which a scrolling box would otherwise cut off. */
+  margin: 0 -4px -4px 0;
+  padding: 0 4px 4px 0;
 }
 .code {
   margin: 18px 0 12px;
