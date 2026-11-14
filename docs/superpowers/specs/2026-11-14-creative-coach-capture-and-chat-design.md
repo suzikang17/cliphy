@@ -116,6 +116,7 @@ These make it a failure even if it works as drawn:
   tagging, or asks a follow-up and learns from the answer. A self-teaching
   layer is required.
 - Onboarding and setup must be solid.
+- How far back the helper reads a thread is chosen for each client.
 - Look: light neo-brutalist, slightly less clunky than Cliphy today.
 
 Everything below that is not in this list is the designer's call and is marked
@@ -137,12 +138,11 @@ at full quality, from the threads she picked. It:
 - uploads both directions (hers and the client's), so the bot has the
   conversation and can tell when a reply or a "tell" message was sent;
 - keeps a cursor and catches up after being off;
-- on first connecting a thread, reads back over a window Suzi picks at setup
-  (for example the last three months), and can later pull in an older stretch
-  for one project. Old requests found this way arrive already marked as
-  history, without notifications, so there is no pile to confirm. **Open:
-  Suzi has not yet chosen between this, new messages only, or the whole
-  thread;**
+- on first connecting a client's thread, reads back as far as Suzi chooses
+  for that client: new messages only, a window (for example the last three
+  months), or the whole thread. The choice is made per client and can be
+  widened later. Old requests found this way arrive already marked as
+  history, without notifications, so there is no pile to confirm;
 - reports a heartbeat so the app knows when it last ran.
 
 **Share sheet (everything else).** Sharing to Cliphy from any app. Today the
@@ -326,7 +326,8 @@ test.
 3. **Messages.** Connect the Mac, or "Later". Pairing is a short code shown on
    the phone and typed on the Mac. The helper walks her to the system setting
    it needs, then confirms it can read the chosen thread by showing the latest
-   message from it.
+   message from it. She then picks how far back to read for that client. The
+   same choice is offered whenever a client is added later.
 4. **Try it.** Share or receive one real request and watch it become a
    request.
 
@@ -521,5 +522,5 @@ These were not decided by Suzi. Each is the designer's call.
 20. A reminder counts as delivered only when the phone reports receiving it.
     There is no email fallback in build 1.
 21. Projects are tied to the existing `project:` tags, which seed them.
-22. **Still open:** how far back the helper reads on first connecting a
-    thread. The document assumes a window picked at setup.
+22. Old requests read from a thread's past arrive as history, with no
+    notifications and nothing to confirm.
