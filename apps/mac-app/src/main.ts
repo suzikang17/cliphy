@@ -22,6 +22,7 @@ import {
 } from "../../mac-helper/src/store.js";
 import { ApiError, syncOnce } from "../../mac-helper/src/sync.js";
 import { Controller, type AppState } from "./controller.js";
+import { stayInMenuBar } from "./quit.js";
 import { statusLine } from "./status.js";
 
 // Cliphy Helper: lives in the menu bar, pairs with the phone, and uploads the
@@ -34,7 +35,7 @@ const FULL_DISK_ACCESS = "x-apple.systempreferences:com.apple.preference.securit
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let quitting = false;
+const menuBar = stayInMenuBar(app);
 
 function log(message: string): void {
   try {
@@ -159,13 +160,7 @@ function drawTray(state: AppState): void {
         click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
       },
       { type: "separator" },
-      {
-        label: "Quit",
-        click: () => {
-          quitting = true;
-          app.quit();
-        },
-      },
+      { label: "Quit", click: () => app.quit() },
     ]),
   );
 }
@@ -189,11 +184,7 @@ function showWindow(): void {
   });
   void win.loadFile(path.join(__dirname, "..", "ui", "index.html"));
   // Closing the window leaves the helper running in the menu bar.
-  win.on("close", (event) => {
-    if (quitting) return;
-    event.preventDefault();
-    win?.hide();
-  });
+  menuBar.keepOpen(win);
 }
 
 ipcMain.handle("get-state", () => view(controller.state));
@@ -204,7 +195,6 @@ ipcMain.handle("show-app", () => {
   shell.showItemInFolder(bundle);
 });
 ipcMain.handle("relaunch", () => {
-  quitting = true;
   app.relaunch();
   app.exit(0);
 });
