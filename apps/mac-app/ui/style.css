@@ -250,3 +250,48 @@ footer {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+h3 {
+  margin: 20px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#threads {
+  margin-top: 6px;
+}
+.thread-text {
+  min-width: 0;
+}
+.thread-text .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.small-button {
+  flex: none;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.add-form {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+}
+input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  user-select: text;
+}
+input[type="text"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

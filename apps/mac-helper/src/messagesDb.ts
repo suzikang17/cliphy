@@ -133,3 +133,58 @@ export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
     };
   });
 }
+
+export interface RecentThread {
+  /** The phone number or email, lower-cased, as Messages stores it. */
+  handle: string;
+  lastAtIso: string;
+  /** The latest words in the thread, or "Photo" when it was only a picture. */
+  preview: string;
+}
+
+/** A person, not a service: an email address, or a number long enough to be a phone. */
+function isPersonHandle(handle: string): boolean {
+  return handle.includes("@") || handle.replace(/\D/g, "").length >= 7;
+}
+
+/**
+ * The most recent one-to-one threads, newest first, one per person, for
+ * choosing who to capture. Looks at the latest `scan` messages only, so it
+ * stays quick on a history of any size.
+ */
+export function recentThreads(db: MessagesDb, limit: number, scan = 4000): RecentThread[] {
+  const statement = db.prepare(`
+    select h.id as handle, m.text as text, m.attributedBody as body, m.date as date
+    from message m
+    join chat_message_join cmj on cmj.message_id = m.ROWID
+    join chat c on c.ROWID = cmj.chat_id
+    join chat_handle_join chj on chj.chat_id = c.ROWID
+    join handle h on h.ROWID = chj.handle_id
+    where c.style = ${ONE_TO_ONE}
+      and coalesce(m.associated_message_type, 0) = 0
+      and coalesce(m.item_type, 0) = 0
+    order by m.date desc
+    limit ?
+  `);
+  statement.setReadBigInts(true);
+  const rows = statement.all(scan) as {
+    handle: string | null;
+    text: string | null;
+    body: Uint8Array | null;
+    date: bigint;
+  }[];
+
+  const threads = new Map<string, RecentThread>();
+  for (const row of rows) {
+    const handle = (row.handle ?? "").toLowerCase();
+    if (!handle || threads.has(handle) || !isPersonHandle(handle)) continue;
+    const words = (row.text || textFromAttributedBody(row.body)).replace(/￼/g, "").trim();
+    threads.set(handle, {
+      handle,
+      lastAtIso: appleTimeToIso(row.date),
+      preview: words ? words.replace(/\s+/g, " ").slice(0, 80) : "Photo",
+    });
+    if (threads.size >= limit) break;
+  }
+  return [...threads.values()];
+}

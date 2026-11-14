@@ -37,6 +37,8 @@ function setup(over: Partial<ControllerDeps> = {}, config: HelperConfig | null =
       return { uploaded: 2, skippedAttachments: 0, people: 1, offline: false };
     },
     setCapture: async () => {},
+    recentThreads: () => [],
+    addPerson: async () => {},
     now: () => new Date("2026-11-14T18:00:00Z"),
     onChange: (s) => seen.push(structuredClone(s)),
     ...over,
@@ -195,5 +197,80 @@ describe("mac app controller", () => {
     const ready = c.waitMs();
     c.state.step = "access";
     expect(c.waitMs()).toBeLessThan(ready);
+  });
+
+  describe("adding someone from Messages", () => {
+    const threads = [
+      { handle: "+15550100", lastAtIso: "2026-11-14T17:45:00.000Z", preview: "look at this" },
+      { handle: "sam@example.com", lastAtIso: "2026-11-14T18:30:00.000Z", preview: "Can we talk" },
+    ];
+
+    it("offers recent threads that do not belong to anyone yet", async () => {
+      const { c } = setup({ recentThreads: () => threads }, paired);
+      await c.tick();
+      expect(c.state.threads.map((t) => t.handle)).toEqual(["sam@example.com"]);
+    });
+
+    it("adds the person with capture on, then shows them under People", async () => {
+      const added: unknown[] = [];
+      let list = [person()];
+      const { c } = setup(
+        {
+          recentThreads: () => threads,
+          people: async () => list,
+          addPerson: async (_cfg, input) => {
+            added.push(input);
+            list = [...list, person({ id: "p2", name: "Sam", handles: ["sam@example.com"] })];
+          },
+        },
+        paired,
+      );
+      await c.tick();
+      await c.addPerson("sam@example.com", "  Sam ");
+      expect(added).toEqual([{ name: "Sam", handle: "sam@example.com" }]);
+      expect(c.state.people.map((p) => p.name)).toEqual(["Maren", "Sam"]);
+      expect(c.state.threads).toEqual([]);
+    });
+
+    it("needs a name", async () => {
+      const added: unknown[] = [];
+      const { c } = setup(
+        { recentThreads: () => threads, addPerson: async (_c, i) => void added.push(i) },
+        paired,
+      );
+      await c.tick();
+      await c.addPerson("sam@example.com", "   ");
+      expect(added).toEqual([]);
+    });
+
+    it("says so when adding fails, and keeps the thread on offer", async () => {
+      const { c } = setup(
+        {
+          recentThreads: () => threads,
+          addPerson: async () => {
+            throw new Error("nope");
+          },
+        },
+        paired,
+      );
+      await c.tick();
+      await c.addPerson("sam@example.com", "Sam");
+      expect(c.state.error).toBeTruthy();
+      expect(c.state.threads).toHaveLength(1);
+    });
+
+    it("still works when Messages cannot be listed", async () => {
+      const { c } = setup(
+        {
+          recentThreads: () => {
+            throw new Error("locked");
+          },
+        },
+        paired,
+      );
+      await c.tick();
+      expect(c.state.step).toBe("ready");
+      expect(c.state.threads).toEqual([]);
+    });
   });
 });

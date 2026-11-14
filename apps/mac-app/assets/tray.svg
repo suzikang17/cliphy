@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+  <!-- Cliphy butterfly for the menu bar: solid wings and a pencil body, one colour.
+       Wing outlines are the logo's (apps/web/public/logo.svg), scaled down. -->
+  <g fill="#000">
+    <g transform="translate(-1.724 -0.2) scale(0.038)">
+      <path d="M248,192 Q185,128 112,120 Q68,116 62,168 Q58,222 118,248 Q163,265 248,257 Z"/>
+      <path d="M248,278 Q232,335 180,350 Q128,362 120,325 Q114,290 160,276 L248,268 Z"/>
+    </g>
+    <g transform="translate(0.268 -0.2) scale(0.038)">
+      <path d="M264,192 Q327,128 400,120 Q444,116 450,168 Q454,222 394,248 Q349,265 264,257 Z"/>
+      <path d="M264,278 Q280,335 332,350 Q384,362 392,325 Q398,290 352,276 L264,268 Z"/>
+    </g>
+    <path d="M8.3,3.3 a0.7,0.7 0 0 1 1.4,0 V13.2 L9,15.6 L8.3,13.2 Z"/>
+  </g>
+</svg>

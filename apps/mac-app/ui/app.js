@@ -1,9 +1,61 @@
-/* global document, window, confirm */
+/* global document, window, confirm, queueMicrotask */
 // Draws whatever state the app sends. No decisions are made here.
 const $ = (id) => document.getElementById(id);
 const ORDER = ["pair", "access", "ready"];
 
+// The thread being given a name, kept here so a redraw does not lose typing.
+let adding = null; // { handle, name }
+
+function threadRow(thread) {
+  const li = document.createElement("li");
+  if (adding && adding.handle === thread.handle) {
+    const form = document.createElement("form");
+    form.className = "add-form";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Their name";
+    input.value = adding.name;
+    input.setAttribute("aria-label", `Name for ${thread.handle}`);
+    input.addEventListener("input", () => (adding.name = input.value));
+    const save = document.createElement("button");
+    save.className = "small-button primary";
+    save.textContent = "Add";
+    form.append(input, save);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      adding = null;
+      window.helper.addPerson(thread.handle, name);
+    });
+    li.append(form);
+    // Keep the cursor in the box across redraws.
+    queueMicrotask(() => input.focus());
+    return li;
+  }
+  const text = document.createElement("span");
+  text.className = "name thread-text";
+  text.textContent = thread.handle;
+  const hint = document.createElement("span");
+  hint.className = "hint";
+  hint.textContent = thread.preview;
+  text.append(hint);
+  const add = document.createElement("button");
+  add.className = "small-button";
+  add.textContent = "Add";
+  add.setAttribute("aria-label", `Add ${thread.handle}`);
+  add.addEventListener("click", () => {
+    adding = { handle: thread.handle, name: "" };
+    draw(last);
+  });
+  li.append(text, add);
+  return li;
+}
+
+let last = null;
+
 function draw(state) {
+  last = state;
   const status = $("status");
   status.textContent = state.status;
   status.className =
@@ -46,6 +98,9 @@ function draw(state) {
     }),
   );
   $("no-people").hidden = state.people.length > 0 || state.offline;
+  if (adding && !state.threads.some((t) => t.handle === adding.handle)) adding = null;
+  $("threads").replaceChildren(...state.threads.map(threadRow));
+  $("from-messages").hidden = state.threads.length === 0;
 
   $("account").textContent = state.account ?? "";
   $("disconnect").hidden = state.step === "pair";

@@ -1,3 +1,4 @@
+import type { RecentThread } from "../../mac-helper/src/messagesDb.js";
 import type { CapturedPerson } from "../../mac-helper/src/plan.js";
 import type { Paired } from "../../mac-helper/src/pair.js";
 import type { HelperConfig } from "../../mac-helper/src/store.js";
@@ -18,6 +19,8 @@ export interface AppState {
   error: string | null;
   offline: boolean;
   people: { id: string; name: string; capture: boolean; hasHandle: boolean }[];
+  /** Recent Messages threads that are nobody's yet, to add with one press. */
+  threads: RecentThread[];
   lastSyncAt: string | null;
   /** Messages uploaded by the last cycle. */
   lastUploaded: number;
@@ -34,6 +37,9 @@ export interface ControllerDeps {
   people(config: HelperConfig): Promise<CapturedPerson[]>;
   sync(config: HelperConfig): Promise<SyncResult>;
   setCapture(config: HelperConfig, personId: string, on: boolean): Promise<void>;
+  recentThreads(): RecentThread[];
+  /** Create the person in the app with this handle and capture switched on. */
+  addPerson(config: HelperConfig, input: { name: string; handle: string }): Promise<void>;
   now(): Date;
   onChange(state: AppState): void;
 }
@@ -50,6 +56,7 @@ export class Controller {
     error: null,
     offline: false,
     people: [],
+    threads: [],
     lastSyncAt: null,
     lastUploaded: 0,
   };
@@ -82,6 +89,7 @@ export class Controller {
           step: "pair",
           account: null,
           people: [],
+          threads: [],
           error: "This Mac was disconnected. Connect it again.",
         });
         return;
@@ -104,12 +112,7 @@ export class Controller {
       account: config.account ?? null,
       error: null,
       offline: false,
-      people: people.map((p) => ({
-        id: p.id,
-        name: p.name,
-        capture: p.captureThread,
-        hasHandle: p.handles.length > 0,
-      })),
+      ...this.peopleView(people),
     });
 
     try {
@@ -121,6 +124,38 @@ export class Controller {
       });
     } catch (err) {
       this.set({ error: `Upload failed: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
+
+  /** People as the window lists them, and the recent threads that are not theirs. */
+  private peopleView(people: CapturedPerson[]): Pick<AppState, "people" | "threads"> {
+    const taken = new Set(people.flatMap((p) => p.handles.map((h) => h.toLowerCase())));
+    let recent: RecentThread[] = [];
+    try {
+      recent = this.deps.recentThreads();
+    } catch {
+      // Choosing from Messages is a convenience; the list of people still works.
+    }
+    return {
+      people: people.map((p) => ({
+        id: p.id,
+        name: p.name,
+        capture: p.captureThread,
+        hasHandle: p.handles.length > 0,
+      })),
+      threads: recent.filter((t) => !taken.has(t.handle.toLowerCase())),
+    };
+  }
+
+  async addPerson(handle: string, rawName: string): Promise<void> {
+    const config = this.deps.loadConfig();
+    const name = rawName.trim();
+    if (!config || !name) return;
+    try {
+      await this.deps.addPerson(config, { name, handle });
+      this.set({ error: null, ...this.peopleView(await this.deps.people(config)) });
+    } catch {
+      this.set({ error: "Could not add them. Try again." });
     }
   }
 
@@ -157,7 +192,7 @@ export class Controller {
 
   disconnect(): void {
     this.deps.clearConfig();
-    this.set({ step: "pair", code: null, account: null, people: [], error: null });
+    this.set({ step: "pair", code: null, account: null, people: [], threads: [], error: null });
   }
 
   waitMs(): number {

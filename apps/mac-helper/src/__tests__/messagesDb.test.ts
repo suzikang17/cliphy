@@ -3,7 +3,7 @@ import { layer, epic, feature } from "allure-js-commons";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { maxRowId, openMessages, readThread, sqlite } from "../messagesDb.js";
+import { maxRowId, openMessages, readThread, recentThreads, sqlite } from "../messagesDb.js";
 
 /** Seconds after 2001-01-01, as nanoseconds, the way Messages stores a time. */
 const apple = (iso: string) => BigInt(Date.parse(iso) / 1000 - 978_307_200) * 1_000_000_000n;
@@ -226,5 +226,77 @@ describe("reading Messages", () => {
     const db = openMessages(file);
     expect(() => db.exec("delete from message")).toThrow();
     db.close();
+  });
+
+  describe("recent threads, for choosing who to capture", () => {
+    /** Two more one-to-one threads: an email sender and a short code. */
+    function more() {
+      const { DatabaseSync } = sqlite();
+      const db = new DatabaseSync(file);
+      db.exec(`
+        insert into handle values (3, 'Sam@Example.com'), (4, '72345');
+        insert into chat values (4, 'sam@example.com', 45), (5, '72345', 45);
+        insert into chat_handle_join values (4, 3), (5, 4);
+      `);
+      const msg = db.prepare(
+        "insert into message (ROWID, guid, text, handle_id, date, is_from_me) values (?,?,?,?,?,?)",
+      );
+      msg.run(
+        30,
+        "g-30",
+        "Can we talk tomorrow about the hallway",
+        3,
+        apple("2026-11-14T18:30:00Z"),
+        0,
+      );
+      msg.run(31, "g-31", "Your code is 482913", 4, apple("2026-11-14T18:40:00Z"), 0);
+      db.exec("insert into chat_message_join values (4, 30), (5, 31)");
+      db.close();
+    }
+
+    it("lists one-to-one threads newest first, once per person, with the latest words", () => {
+      more();
+      const db = openMessages(file);
+      const threads = recentThreads(db, 10);
+      db.close();
+      expect(threads).toEqual([
+        {
+          handle: "sam@example.com",
+          lastAtIso: "2026-11-14T18:30:00.000Z",
+          preview: "Can we talk tomorrow about the hallway",
+        },
+        // Two chat rows for the same number, a reaction and a group chat: one row, real words.
+        { handle: "+15550100", lastAtIso: "2026-11-14T17:45:00.000Z", preview: "look at this" },
+      ]);
+    });
+
+    it("leaves out short codes: nobody is coached by a verification text", () => {
+      more();
+      const db = openMessages(file);
+      expect(recentThreads(db, 10).map((t) => t.handle)).not.toContain("72345");
+      db.close();
+    });
+
+    it("stops at the limit", () => {
+      more();
+      const db = openMessages(file);
+      expect(recentThreads(db, 1)).toHaveLength(1);
+      db.close();
+    });
+
+    it("says Photo when the latest message is only a picture", () => {
+      const { DatabaseSync } = sqlite();
+      const raw = new DatabaseSync(file);
+      raw
+        .prepare(
+          "insert into message (ROWID, guid, text, handle_id, date, is_from_me) values (?,?,?,?,?,?)",
+        )
+        .run(40, "g-40", "\uFFFC", 1, apple("2026-11-14T19:00:00Z"), 0);
+      raw.exec("insert into chat_message_join values (1, 40)");
+      raw.close();
+      const db = openMessages(file);
+      expect(recentThreads(db, 10)[0]).toMatchObject({ handle: "+15550100", preview: "Photo" });
+      db.close();
+    });
   });
 });

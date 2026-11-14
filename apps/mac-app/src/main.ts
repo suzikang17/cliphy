@@ -3,7 +3,13 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createApi } from "../../mac-helper/src/api.js";
 import { prepareImage } from "../../mac-helper/src/images.js";
-import { maxRowId, openMessages, readThread, sqlite } from "../../mac-helper/src/messagesDb.js";
+import {
+  maxRowId,
+  openMessages,
+  readThread,
+  recentThreads,
+  sqlite,
+} from "../../mac-helper/src/messagesDb.js";
 import { pairWithPhone, realPairDeps } from "../../mac-helper/src/pair.js";
 import {
   clearConfig,
@@ -81,6 +87,35 @@ async function setCapture(config: HelperConfig, personId: string, on: boolean): 
   if (!res.ok) throw new ApiError(`PATCH person → ${res.status}`, res.status);
 }
 
+/** Add someone straight from their Messages thread, already switched on. */
+async function addPerson(
+  config: HelperConfig,
+  input: { name: string; handle: string },
+): Promise<void> {
+  const res = await fetch(`${config.apiUrl.replace(/\/+$/, "")}/api/coach/people`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: input.name,
+      role: "client",
+      handles: [input.handle],
+      captureThread: true,
+      historyWindow: "new",
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new ApiError(`POST person → ${res.status}`, res.status);
+}
+
+function listRecentThreads() {
+  const db = openMessages();
+  try {
+    return recentThreads(db, 8);
+  } finally {
+    db.close();
+  }
+}
+
 const controller = new Controller({
   apiUrl: API_URL,
   loadConfig: () => loadConfig(DIR),
@@ -95,6 +130,8 @@ const controller = new Controller({
   people: (config) => createApi(config).people(),
   sync,
   setCapture,
+  recentThreads: listRecentThreads,
+  addPerson,
   now: () => new Date(),
   onChange: (state) => {
     win?.webContents.send("state", view(state));
@@ -174,6 +211,9 @@ ipcMain.handle("relaunch", () => {
 ipcMain.handle("set-capture", (_event, personId: string, on: boolean) =>
   controller.setCapture(String(personId), Boolean(on)),
 );
+ipcMain.handle("add-person", (_event, handle: string, name: string) =>
+  controller.addPerson(String(handle), String(name)),
+);
 ipcMain.handle("disconnect", () => controller.disconnect());
 
 /**
@@ -209,6 +249,18 @@ async function smoke(outDir: string): Promise<void> {
           { id: "1", name: "Maren", capture: true, hasHandle: true },
           { id: "2", name: "Alder House team", capture: false, hasHandle: true },
           { id: "3", name: "Printer", capture: false, hasHandle: false },
+        ],
+        threads: [
+          {
+            handle: "+15550142",
+            lastAtIso: new Date(Date.now() - 3_600_000).toISOString(),
+            preview: "Can we move the sconces up a little on page 2",
+          },
+          {
+            handle: "sam@example.com",
+            lastAtIso: new Date(Date.now() - 86_400_000).toISOString(),
+            preview: "Photo",
+          },
         ],
       },
     ],

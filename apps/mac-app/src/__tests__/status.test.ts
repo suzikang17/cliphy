@@ -10,6 +10,7 @@ const state = (over: Partial<AppState>): AppState => ({
   error: null,
   offline: false,
   people: [],
+  threads: [],
   lastSyncAt: null,
   lastUploaded: 0,
   ...over,
