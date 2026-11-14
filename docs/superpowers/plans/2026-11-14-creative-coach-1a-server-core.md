@@ -43,7 +43,7 @@ Not in this plan: reminders, notifications, the chat thread, learned rules, any 
 - A person is `client`, `collaborator` or `both`. The role is a label; no behaviour branches on it.
 - Nothing is deleted when a request is replaced.
 - Commit to `main`, imperative mood, one commit per task. End commit messages with `Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>`.
-- Interpretation model: `claude-opus-5-5` (amended during execution: the API guide defaults to it, and forced tool calls are rejected by current models, so the call uses `tool_choice: auto` plus an instruction). Load the `claude-api` skill before writing the Anthropic call.
+- Interpretation model: `claude-sonnet-5-5`. (It was built on `claude-opus-5-5` and switched back at the owner's request.) Forced tool calls are rejected by current models, so the call uses `tool_choice: auto` plus an instruction. Load the `claude-api` skill before writing the Anthropic call.
 
 ## Review Focus
 
@@ -534,7 +534,7 @@ export interface Interpretation {
   dueDate: string | null;
   tasks: ProposedTask[];
 }
-export const INTERPRET_MODEL = "claude-opus-5-5";
+export const INTERPRET_MODEL = "claude-sonnet-5-5";
 export function buildInterpretMessages(
   messages: InboundMessage[],
   images: { bytes: Buffer; mediaType: string }[],
@@ -715,7 +715,7 @@ it("calls the model once with the forced tool and returns the parsed result", as
   const out = await interpretBundle([textMessage("thanks!")], [], ctx);
   expect(out.kind).toBe("chat");
   expect(createMock.mock.calls[0][0]).toMatchObject({
-    model: "claude-opus-5-5",
+    model: "claude-sonnet-5-5",
     tool_choice: { type: "auto" },
   });
 });

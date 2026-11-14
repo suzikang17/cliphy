@@ -22,7 +22,7 @@ title: Creative coach 1a, plan 3 — the chat thread, bot actions, Up next and l
 - The bot never acts on something it has not shown: every action it takes on the user's behalf produces a message saying what it did.
 - No hidden learning: a rule exists only if it is in `coach_rules`, and creating one posts a message with an Undo.
 - The same thing is never said twice: a bot message with a `(kind, refId)` already in the thread is not posted again.
-- Chat model: `claude-opus-5-5`; rule extraction: `claude-haiku-5-5`. Both are single constants.
+- Chat model: `claude-sonnet-5-5` (built on Opus 5.5, switched at the owner's request); rule extraction: `claude-haiku-5-5`. Both are single constants.
 
 ## Review Focus
 

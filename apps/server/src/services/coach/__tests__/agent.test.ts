@@ -139,7 +139,7 @@ describe("coach chat agent", () => {
     expect(db.writtenTables()).toEqual([]);
     const req = createMock.mock.calls[0][0];
     expect(req).toMatchObject({ model: AGENT_MODEL, tool_choice: { type: "auto" } });
-    expect(req.model).toBe("claude-opus-5-5");
+    expect(req.model).toBe("claude-sonnet-5-5");
   });
 
   it("gives the model the user's requests, tasks, people, rules, and today's local date", async () => {

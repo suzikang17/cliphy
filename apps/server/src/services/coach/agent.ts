@@ -17,7 +17,7 @@ import { toPerson, toProject } from "../../lib/coachMappers.js";
 const anthropic = new Anthropic({ timeout: 120_000 });
 const log = logger.child({ service: "coach-agent" });
 
-export const AGENT_MODEL = "claude-opus-5-5";
+export const AGENT_MODEL = "claude-sonnet-5-5";
 export const LEARN_MODEL = "claude-haiku-5-5";
 /** The most model turns one user message may take. Ends a model that keeps calling tools. */
 export const MAX_AGENT_TURNS = 6;

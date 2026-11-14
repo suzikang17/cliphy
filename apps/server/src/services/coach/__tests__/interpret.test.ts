@@ -347,7 +347,7 @@ describe("coach interpretation", () => {
       expect(out.kind).toBe("chat");
       expect(createMock).toHaveBeenCalledTimes(1);
       const req = createMock.mock.calls[0][0];
-      expect(req).toMatchObject({ model: "claude-opus-5-5", tool_choice: { type: "auto" } });
+      expect(req).toMatchObject({ model: "claude-sonnet-5-5", tool_choice: { type: "auto" } });
       expect(req.model).toBe(INTERPRET_MODEL);
       expect(req.tools.map((t: { name: string }) => t.name)).toEqual(["record_interpretation"]);
     });

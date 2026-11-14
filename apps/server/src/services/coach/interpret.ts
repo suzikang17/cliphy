@@ -13,7 +13,7 @@ import {
 
 const anthropic = new Anthropic({ timeout: 120_000 });
 
-export const INTERPRET_MODEL = "claude-opus-5-5";
+export const INTERPRET_MODEL = "claude-sonnet-5-5";
 /**
  * For bundles read from a thread's past. They only become a line of history
  * (no question, no tasks), and a whole-thread import can be thousands of them.

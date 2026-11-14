@@ -29,5 +29,5 @@ The chat thread is the one place the bot speaks and the user answers. Three choi
 
 - A typed reply arrives a few seconds after sending, via polling, not instantly.
 - The agent's context is rebuilt on every message (requests, up to 40 tasks, people, projects, rules, last 12 messages). Fine at one user's scale; prompt caching is available once the SDK is upgraded.
-- Two more model calls exist: one per typed message (`claude-opus-5-5`) and one per answered question (`claude-haiku-5-5`).
+- Two more model calls exist: one per typed message (`claude-sonnet-5-5`) and one per answered question (`claude-haiku-5-5`).
 - A bundle misread as ordinary chat still has no "Fix it" (no request row exists). The user can now tell the bot in chat, but the agent has no tool to re-read a bundle yet.

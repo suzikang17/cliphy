@@ -46,7 +46,7 @@ Tests: `pnpm vitest run apps/server` → 597 passed; the 3 failing tests / 5 fai
 ## What to remember
 
 - **Not run yet:** migration 038 is unapplied, and `scripts/coach-interpret-fixture.ts` and `scripts/coach-e2e.ts` have never executed. The devbox has no database, API key or `psql`.
-- **Model is `claude-opus-5-5`** (`INTERPRET_MODEL`). The reviewer argued for Sonnet 5.5 at half the cost; undecided.
+- **Model:** the build used `claude-opus-5-5` for reading bundles; switched to `claude-sonnet-5-5` at the end of the day on the owner's decision (half the cost).
 - "Today" for resolving deadlines is the server's UTC date. From late afternoon US time, "by today" resolves a day late. Fix before reminders ship.
 - A bundle misread as ordinary chat has no "Fix it" path until the chat thread exists (plan 3).
 - Deferred minors: selects without a limit hit PostgREST's 1000-row cap (tasks, requests, project seed); `/tasks/:id/sent` has no state or blocked check; `PATCH /tasks` ignores `projectId`/`withPersonId`; a date like `2026-13-45` becomes a 500; any non-empty answer drops the ask task; bundle claim is not atomic; a retried store step can duplicate Library clips; a model-named project is created before confirm.
@@ -78,7 +78,7 @@ Tests at the end: `pnpm vitest run apps` → 1399 passed; the 3 failing tests in
 - **Nothing has run for real.** Apply migrations `038`–`042` in order with `psql -f`, then follow `docs/RESUME.md`.
 - **The phone needs a native rebuild** (share extension now takes 6 images plus text).
 - **The mobile app must report its timezone** before any reminder is planned; it does this on launch. `GET /coach/health` shows `timezoneSet`.
-- **Model calls:** bundle reading and chat use `claude-opus-5-5`; history import and rule learning use `claude-haiku-5-5`. The Sonnet question is still open.
+- **Model calls:** bundle reading and chat use `claude-sonnet-5-5` (the owner's choice; they were built on Opus 5.5); history import and rule learning use `claude-haiku-5-5`. The Alder House fixture has not been run on any model yet.
 - **No background notification task.** A locked phone that received a push still shows the local backup 15 minutes later unless the app was opened. Revisit on a device (needs `expo-task-manager`).
 - **Not built:** a "Fix it" for a bundle misread as ordinary chat; corrections to a filing becoming learned rules; a location or calendar signal for focus; the client's window and the AI doing the work (builds 2–4).
 - Each plan's ledger, with every ruling and deferred minor, is in `.superpowers/sdd/` on devbox2 (git-ignored).
