@@ -40,3 +40,6 @@ docs/devdash/
 # Backup icons
 apps/extension/icons-backup/
 .omc/
+
+# superpowers brainstorm mockups
+.superpowers/

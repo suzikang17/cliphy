@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>setup</title></head>
+<body style="background:#1e1e1e;color:#f0f0f0;font-family:system-ui,sans-serif;padding:24px">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+.cq-row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;margin-top:20px}
+.cq-col{width:310px}
+.cq-cap{font:700 13px 'DM Sans',system-ui,sans-serif;margin:0 0 8px;letter-spacing:.04em;text-transform:uppercase}
+.cq-phone{font-family:'DM Sans',system-ui,sans-serif;background:#f9fafb;color:#111827;border:2px solid #000;border-radius:28px;box-shadow:4px 4px 0 0 #000;overflow:hidden;height:640px;display:flex;flex-direction:column;font-size:13px;line-height:1.4}
+.cq-top{padding:18px 16px 10px;background:#fff;border-bottom:2px solid #000}
+.cq-top h4{margin:0;font-size:20px;font-weight:700;color:#111827}
+.cq-top span{color:#4b5563;font-size:12px}
+.cq-body{flex:1;overflow:auto;padding:12px}
+.cq-card{background:#fff;border:2px solid #000;border-radius:8px;box-shadow:3px 3px 0 0 #000;padding:12px 14px;margin-bottom:12px}
+.cq-bot{background:#f5f0fa}
+.cq-who{font-weight:700;font-size:11px;color:#7a3fb0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.cq-sec{font-weight:700;font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:.05em;margin:14px 2px 6px}
+.cq-item{background:#fff;border:2px solid #000;border-radius:6px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.cq-phone small{font-size:11px}
+.cq-item small{color:#4b5563;display:block}
+.cq-pill{font-size:11px;font-weight:700;border:2px solid #000;border-radius:999px;padding:4px 10px;white-space:nowrap;background:#fff}
+.cq-pill.p{background:#d5b8f0}
+.cq-pill.w{background:#fffbeb}
+.cq-pill.d{background:#f3f4f6;color:#4b5563;border-color:#9ca3af}
+.cq-btn{display:inline-block;font-weight:700;font-size:12px;border:2px solid #000;border-radius:6px;padding:9px 14px;background:#fff;box-shadow:2px 2px 0 0 #000;margin:6px 6px 0 0}
+.cq-btn.p{background:#7a3fb0;color:#fff}
+.cq-thumbs{display:flex;gap:8px;margin:6px 0}
+.cq-thumb{width:72px;height:92px;border:2px solid #000;border-radius:6px;background:#f1ead9;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;font-size:11px;color:#4b5563}
+.cq-thumb i{display:block;width:34px;height:36px;background:#b9a98c;border-radius:14px 14px 2px 2px;margin-bottom:5px}
+.cq-quote{border-left:3px solid #a770d8;padding-left:8px;color:#1f2937;margin:6px 0}
+.cq-tabs{display:flex;border-top:2px solid #000;background:#fff}
+.cq-tabs div{flex:1;text-align:center;padding:10px 0 14px;font-size:11px;font-weight:500;color:#4b5563}
+.cq-tabs .on{color:#7a3fb0;font-weight:700}
+.cq-line{position:relative;padding-left:18px;border-left:2px solid #000;margin-left:6px}
+.cq-node{position:relative;margin-bottom:12px}
+.cq-node:before{content:"";position:absolute;left:-25px;top:12px;width:10px;height:10px;border:2px solid #000;border-radius:50%;background:#a770d8}
+.cq-node.old:before{background:#fff}
+.cq-old{background:#f3f4f6;color:#4b5563;margin-left:14px;border-style:dashed;box-shadow:none}
+.cq-old .cq-quote{text-decoration:line-through}
+.cq-date{font-size:11px;font-weight:700;color:#4b5563}
+</style>
+<style>
+.cq-me{background:#111827;color:#fff;border:2px solid #000;border-radius:8px;padding:10px 14px;margin:0 0 12px 60px;font-size:13px}
+.cq-time{text-align:center;font-size:11px;font-weight:700;color:#4b5563;margin:4px 0 10px}
+.cq-link{display:block;font-weight:700;color:#7a3fb0;font-size:12px;margin-top:10px}
+.cq-note{font-family:'DM Sans',system-ui,sans-serif;font-size:13px;margin-top:10px;max-width:310px}
+.cq-head{display:flex;justify-content:space-between;align-items:center}
+.cq-ava{width:32px;height:32px;border:2px solid #000;border-radius:50%;background:#d5b8f0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#111827}
+.cq-chips{display:flex;gap:6px;overflow:hidden;margin-bottom:12px}
+.cq-chip{font-size:12px;font-weight:700;border:2px solid #000;border-radius:999px;padding:5px 12px;background:#fff;white-space:nowrap}
+.cq-chip.on{background:#111827;color:#fff}
+.cq-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cq-clip{background:#fff;border:2px solid #000;border-radius:8px;box-shadow:3px 3px 0 0 #000;overflow:hidden}
+.cq-clip .img{height:70px;border-bottom:2px solid #000}
+.cq-clip .tx{padding:8px 10px;font-size:12px;font-weight:500;line-height:1.3}
+.cq-clip .tx small{display:block;color:#4b5563;font-weight:400;margin-top:3px}
+.cq-bar{display:flex;align-items:center;justify-content:space-around;border-top:2px solid #000;background:#fff;padding:10px 18px 16px}
+.cq-tab{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#4b5563;padding:8px 16px;border:2px solid transparent;border-radius:999px;position:relative}
+.cq-tab.on{color:#111827;background:#ede0f8;border-color:#000;box-shadow:2px 2px 0 0 #000}
+.cq-tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cq-plus{width:46px;height:46px;border:2px solid #000;border-radius:50%;background:#7a3fb0;box-shadow:3px 3px 0 0 #000;display:flex;align-items:center;justify-content:center}
+.cq-plus svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round}
+.cq-dot{position:absolute;top:2px;right:6px;min-width:18px;height:18px;border:2px solid #000;border-radius:999px;background:#7a3fb0;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+</style>
+<style>
+.cq-bar{display:grid;grid-template-columns:1fr 72px 1fr;align-items:center;justify-content:normal;padding:8px 12px 14px;position:relative}
+.cq-tab{flex-direction:column;gap:3px;font-size:11px;font-weight:500;padding:4px 12px;border:0;border-radius:0;justify-self:center;color:#4b5563}
+.cq-tab svg{width:24px;height:24px}
+.cq-tab.on{background:none;box-shadow:none;color:#111827;font-weight:700}
+.cq-tab.on svg{stroke:#7a3fb0}
+.cq-plus{justify-self:center;width:52px;height:52px;margin-top:-30px;position:relative;z-index:2}
+.cq-dot{top:-4px;right:0}
+</style>
+<style>
+.cq-strip{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fff;border-bottom:2px solid #000;padding:10px 14px;font-size:12px}
+.cq-strip b{font-size:13px}
+.cq-strip span{color:#4b5563;display:block}
+.cq-day{display:grid;grid-template-columns:44px 1fr;gap:10px;margin-bottom:10px;align-items:start}
+.cq-dnum{border:2px solid #000;border-radius:6px;background:#fff;text-align:center;padding:5px 0;font-weight:700;font-size:15px;line-height:1.1}
+.cq-dnum small{display:block;font-size:11px;font-weight:500;color:#4b5563}
+.cq-dnum.today{background:#ede0f8}
+.cq-day .cq-item{margin-bottom:0}
+</style>
+<style>
+.cq-btn{font-size:12px;font-weight:500;padding:5px 12px;border:1.5px solid #111827;border-radius:999px;box-shadow:none;background:#fff;margin:8px 6px 0 0;line-height:1.3}
+.cq-btn.p{background:#7a3fb0;border-color:#7a3fb0;color:#fff;font-weight:700}
+.cq-bot .cq-btn{background:transparent}
+</style>
+<style>
+.cq-phone{background:#fff}
+.cq-sec{margin:18px 0 2px;color:#4b5563}
+.cq-day{grid-template-columns:34px 1fr;gap:14px;margin:0;padding:12px 0;border-bottom:1px solid #e5e7eb;align-items:center}
+.cq-dnum{border:0;background:none;padding:0;font-size:18px;text-align:left}
+.cq-dnum.today{background:none;color:#7a3fb0}
+.cq-day .cq-item,.cq-body>.cq-item{border:0;border-radius:0;padding:0;background:none;font-size:14px;font-weight:500}
+.cq-body>.cq-item{padding:12px 0;border-bottom:1px solid #e5e7eb;margin:0}
+.cq-item small{font-weight:400;font-size:12px;margin-top:1px}
+.cq-item .cq-pill{border:0;background:none;padding:0;font-size:12px;font-weight:500;color:#4b5563}
+.cq-item .cq-pill.p{color:#7a3fb0;font-weight:700}
+.cq-item .cq-pill.w{color:#92400e;font-weight:700}
+</style>
+<style>
+.cq-step{font-size:11px;font-weight:700;color:#7a3fb0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.cq-ok{color:#166534;font-weight:700;font-size:12px;margin:-4px 2px 12px}
+.cq-row2{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:500}
+.cq-row2 small{display:block;font-weight:400;font-size:12px;color:#4b5563;margin-top:1px}
+.cq-st{font-size:12px;font-weight:700;white-space:nowrap}
+.cq-st.g{color:#166534}
+.cq-st.a{color:#92400e}
+</style>
+
+<h2>Setup, done in the chat</h2>
+<p class="subtitle">The bot sets itself up in four steps and proves each one works before moving on. A Setup page shows what's connected afterwards. Is this the right first five minutes?</p>
+
+<div class="cq-row">
+
+  <div class="cq-col">
+    <p class="cq-cap">First run</p>
+    <div class="cq-phone">
+      <div class="cq-top"><div class="cq-head"><h4>Chat</h4><div class="cq-ava">S</div></div></div>
+      <div class="cq-body">
+        <div class="cq-card cq-bot">
+          <div class="cq-step">1 of 4 · Reminders</div>
+          I need to be able to reach you.
+          <div><span class="cq-btn p">Allow</span></div>
+        </div>
+        <div class="cq-ok">✓ Test reminder received</div>
+        <div class="cq-card cq-bot">
+          <div class="cq-step">2 of 4 · First client</div>
+          Who sends you requests?
+        </div>
+        <div class="cq-me">Maren</div>
+        <div class="cq-ok">✓ Maren added</div>
+        <div class="cq-card cq-bot">
+          <div class="cq-step">3 of 4 · Messages</div>
+          Your Mac can pass me Maren's texts and attachments.
+          <div><span class="cq-btn p">Set up Mac</span><span class="cq-btn">Later</span></div>
+        </div>
+        <div class="cq-card cq-bot">
+          <div class="cq-step">4 of 4 · Try it</div>
+          Share one real request from Maren to Cliphy.
+        </div>
+      </div>
+      <div class="cq-bar">
+        <div class="cq-tab"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Library</div>
+        <div class="cq-plus"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="cq-tab on"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chat</div>
+      </div>
+    </div>
+    <p class="cq-note">Each step ends with a real test, not a "done" screen.</p>
+  </div>
+
+  <div class="cq-col">
+    <p class="cq-cap">Setup page</p>
+    <div class="cq-phone">
+      <div class="cq-top"><h4>‹ Setup</h4><span>3 working · 1 to finish</span></div>
+      <div class="cq-body">
+        <div class="cq-row2"><div>Reminders<small>Tested today</small></div><span class="cq-st g">Working</span></div>
+        <div class="cq-row2"><div>Mac messages<small>Maren · synced 2 h ago</small></div><span class="cq-st g">Working</span></div>
+        <div class="cq-row2"><div>Share sheet<small>Used 3 days ago</small></div><span class="cq-st g">Working</span></div>
+        <div class="cq-row2"><div>Working hours<small>Not set</small></div><span class="cq-st a">Set</span></div>
+        <div class="cq-sec">Clients</div>
+        <div class="cq-row2"><div>Maren<small>2 projects</small></div><span style="font-weight:700">›</span></div>
+        <div class="cq-row2"><div style="color:#7a3fb0;font-weight:700">Add client</div></div>
+      </div>
+    </div>
+    <p class="cq-note">If the Mac goes quiet or reminders stop getting through, it shows here and the bot says so in Chat.</p>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:22px">Names, counts and times are samples.</p>
+<style>
+.cq-card{border-width:1.5px;box-shadow:2px 2px 0 0 #000;border-radius:10px;padding:11px 13px;margin-bottom:10px}
+.cq-btn,.cq-bot .cq-btn{background:#fff;border:1.5px solid #000;color:#111827;font-weight:500;box-shadow:none}
+.cq-btn.p,.cq-bot .cq-btn.p{background:#7a3fb0;border-color:#000;color:#fff;font-weight:700;box-shadow:1.5px 1.5px 0 0 #000}
+.cq-me{border-width:1.5px;border-radius:10px;padding:8px 13px;margin:0 0 10px auto;width:fit-content;max-width:75%}
+.cq-top{border-bottom-width:1.5px}
+.cq-bar{border-top-width:1.5px}
+.cq-plus{border-width:1.5px;box-shadow:2px 2px 0 0 #000}
+.cq-ava{border-width:1.5px}
+.cq-body{padding-bottom:36px}
+.cq-phone{border-width:2px;box-shadow:3px 3px 0 0 #000}
+</style>
+
+</body></html>

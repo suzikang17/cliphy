@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>library-and-chat</title></head>
+<body style="background:#1e1e1e;color:#f0f0f0;font-family:system-ui,sans-serif;padding:24px">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+.cq-row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;margin-top:20px}
+.cq-col{width:310px}
+.cq-cap{font:700 13px 'DM Sans',system-ui,sans-serif;margin:0 0 8px;letter-spacing:.04em;text-transform:uppercase}
+.cq-phone{font-family:'DM Sans',system-ui,sans-serif;background:#f9fafb;color:#111827;border:2px solid #000;border-radius:28px;box-shadow:4px 4px 0 0 #000;overflow:hidden;height:640px;display:flex;flex-direction:column;font-size:13px;line-height:1.4}
+.cq-top{padding:18px 16px 10px;background:#fff;border-bottom:2px solid #000}
+.cq-top h4{margin:0;font-size:20px;font-weight:700;color:#111827}
+.cq-top span{color:#4b5563;font-size:12px}
+.cq-body{flex:1;overflow:auto;padding:12px}
+.cq-card{background:#fff;border:2px solid #000;border-radius:8px;box-shadow:3px 3px 0 0 #000;padding:12px 14px;margin-bottom:12px}
+.cq-bot{background:#f5f0fa}
+.cq-who{font-weight:700;font-size:11px;color:#7a3fb0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.cq-sec{font-weight:700;font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:.05em;margin:14px 2px 6px}
+.cq-item{background:#fff;border:2px solid #000;border-radius:6px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.cq-phone small{font-size:11px}
+.cq-item small{color:#4b5563;display:block}
+.cq-pill{font-size:11px;font-weight:700;border:2px solid #000;border-radius:999px;padding:4px 10px;white-space:nowrap;background:#fff}
+.cq-pill.p{background:#d5b8f0}
+.cq-pill.w{background:#fffbeb}
+.cq-pill.d{background:#f3f4f6;color:#4b5563;border-color:#9ca3af}
+.cq-btn{display:inline-block;font-weight:700;font-size:12px;border:2px solid #000;border-radius:6px;padding:9px 14px;background:#fff;box-shadow:2px 2px 0 0 #000;margin:6px 6px 0 0}
+.cq-btn.p{background:#7a3fb0;color:#fff}
+.cq-thumbs{display:flex;gap:8px;margin:6px 0}
+.cq-thumb{width:72px;height:92px;border:2px solid #000;border-radius:6px;background:#f1ead9;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;font-size:11px;color:#4b5563}
+.cq-thumb i{display:block;width:34px;height:36px;background:#b9a98c;border-radius:14px 14px 2px 2px;margin-bottom:5px}
+.cq-quote{border-left:3px solid #a770d8;padding-left:8px;color:#1f2937;margin:6px 0}
+.cq-tabs{display:flex;border-top:2px solid #000;background:#fff}
+.cq-tabs div{flex:1;text-align:center;padding:10px 0 14px;font-size:11px;font-weight:500;color:#4b5563}
+.cq-tabs .on{color:#7a3fb0;font-weight:700}
+.cq-line{position:relative;padding-left:18px;border-left:2px solid #000;margin-left:6px}
+.cq-node{position:relative;margin-bottom:12px}
+.cq-node:before{content:"";position:absolute;left:-25px;top:12px;width:10px;height:10px;border:2px solid #000;border-radius:50%;background:#a770d8}
+.cq-node.old:before{background:#fff}
+.cq-old{background:#f3f4f6;color:#4b5563;margin-left:14px;border-style:dashed;box-shadow:none}
+.cq-old .cq-quote{text-decoration:line-through}
+.cq-date{font-size:11px;font-weight:700;color:#4b5563}
+</style>
+<style>
+.cq-me{background:#111827;color:#fff;border:2px solid #000;border-radius:8px;padding:10px 14px;margin:0 0 12px 60px;font-size:13px}
+.cq-time{text-align:center;font-size:11px;font-weight:700;color:#4b5563;margin:4px 0 10px}
+.cq-link{display:block;font-weight:700;color:#7a3fb0;font-size:12px;margin-top:10px}
+.cq-note{font-family:'DM Sans',system-ui,sans-serif;font-size:13px;margin-top:10px;max-width:310px}
+.cq-head{display:flex;justify-content:space-between;align-items:center}
+.cq-ava{width:32px;height:32px;border:2px solid #000;border-radius:50%;background:#d5b8f0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#111827}
+.cq-chips{display:flex;gap:6px;overflow:hidden;margin-bottom:12px}
+.cq-chip{font-size:12px;font-weight:700;border:2px solid #000;border-radius:999px;padding:5px 12px;background:#fff;white-space:nowrap}
+.cq-chip.on{background:#111827;color:#fff}
+.cq-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cq-clip{background:#fff;border:2px solid #000;border-radius:8px;box-shadow:3px 3px 0 0 #000;overflow:hidden}
+.cq-clip .img{height:70px;border-bottom:2px solid #000}
+.cq-clip .tx{padding:8px 10px;font-size:12px;font-weight:500;line-height:1.3}
+.cq-clip .tx small{display:block;color:#4b5563;font-weight:400;margin-top:3px}
+.cq-bar{display:flex;align-items:center;justify-content:space-around;border-top:2px solid #000;background:#fff;padding:10px 18px 16px}
+.cq-tab{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#4b5563;padding:8px 16px;border:2px solid transparent;border-radius:999px;position:relative}
+.cq-tab.on{color:#111827;background:#ede0f8;border-color:#000;box-shadow:2px 2px 0 0 #000}
+.cq-tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cq-plus{width:46px;height:46px;border:2px solid #000;border-radius:50%;background:#7a3fb0;box-shadow:3px 3px 0 0 #000;display:flex;align-items:center;justify-content:center}
+.cq-plus svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round}
+.cq-dot{position:absolute;top:2px;right:6px;min-width:18px;height:18px;border:2px solid #000;border-radius:999px;background:#7a3fb0;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+</style>
+
+<h2>Two places and a button</h2>
+<p class="subtitle">Library holds everything you've saved. Chat is the bot. The plus button saves something new. Subscriptions, podcasts and settings move inside. Is this closer to how the app should feel?</p>
+
+<div class="cq-row">
+
+  <div class="cq-col">
+    <p class="cq-cap">Library</p>
+    <div class="cq-phone">
+      <div class="cq-top"><div class="cq-head"><h4>Library</h4><div class="cq-ava">S</div></div></div>
+      <div class="cq-body">
+        <div class="cq-chips"><span class="cq-chip on">All</span><span class="cq-chip">Videos</span><span class="cq-chip">Podcasts</span><span class="cq-chip">Web</span><span class="cq-chip">Images</span></div>
+        <div class="cq-item"><div>Following<small>12 channels and shows</small></div><span style="font-weight:700">›</span></div>
+        <div class="cq-grid" style="margin-top:12px">
+          <div class="cq-clip"><div class="img" style="background:#d5b8f0"></div><div class="tx">Colour grading for small studios<small>Video · 14 min</small></div></div>
+          <div class="cq-clip"><div class="img" style="background:#f1ead9"></div><div class="tx">Alder House page 1<small>Image · from Maren</small></div></div>
+          <div class="cq-clip"><div class="img" style="background:#e5e7eb"></div><div class="tx">Pricing creative retainers<small>Podcast · 38 min</small></div></div>
+          <div class="cq-clip"><div class="img" style="background:#ede0f8"></div><div class="tx">Serif pairings that feel warm<small>Web · 6 min read</small></div></div>
+          <div class="cq-clip"><div class="img" style="background:#f1ead9"></div><div class="tx">Alder House page 2<small>Image · from Maren</small></div></div>
+          <div class="cq-clip"><div class="img" style="background:#fffbeb"></div><div class="tx">Studio lighting on a budget<small>Video · 9 min</small></div></div>
+        </div>
+      </div>
+      <div class="cq-bar">
+        <div class="cq-tab on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Library</div>
+        <div class="cq-plus"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="cq-tab"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chat<span class="cq-dot">2</span></div>
+      </div>
+    </div>
+    <p class="cq-note">Podcasts is a filter. Subscriptions becomes "Following". Settings is behind your initial, top right.</p>
+  </div>
+
+  <div class="cq-col">
+    <p class="cq-cap">Chat</p>
+    <div class="cq-phone">
+      <div class="cq-top"><div class="cq-head"><h4>Chat</h4><div class="cq-ava">S</div></div></div>
+      <div class="cq-body">
+        <div class="cq-time">Today 9:44</div>
+        <div class="cq-card cq-bot">
+          <div class="cq-who">Cliphy</div>
+          Maren sent a request for <b>Alder House</b>: 2 screenshots and new copy. I read it as replacing the page 2 text.
+          <div class="cq-thumbs"><div class="cq-thumb"><i></i>page 1</div><div class="cq-thumb"><i style="border-radius:2px"></i>page 2</div></div>
+          Does "writing" mean only the words, or the typeface too?
+          <div><span class="cq-btn">Only the words</span><span class="cq-btn">Type too</span><span class="cq-btn">Ask Maren</span></div>
+          <span class="cq-link">Open request ›</span>
+        </div>
+        <div class="cq-me">Only the words. Remind me tomorrow morning to do it.</div>
+        <div class="cq-card cq-bot">
+          <div class="cq-who">Cliphy</div>
+          Saved. The 2022 copy is kept in Alder House's history. I'll remind you tomorrow at 9.
+        </div>
+        <div class="cq-card cq-bot">
+          <div class="cq-who">Cliphy · 4:10</div>
+          The print for the studio has been waiting 6 days to be framed. Still want to do it this week?
+          <div><span class="cq-btn">Done</span><span class="cq-btn">Friday</span><span class="cq-btn">Drop it</span></div>
+        </div>
+      </div>
+      <div class="cq-bar">
+        <div class="cq-tab"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Library</div>
+        <div class="cq-plus"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="cq-tab on"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chat</div>
+      </div>
+    </div>
+    <p class="cq-note">What Maren sends also lands in Library, so her screenshots sit with your other saved things.</p>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:22px">Only the Alder House request is real. The other clips, counts and times are samples.</p>
+<style>
+.cq-bar{display:grid;grid-template-columns:1fr 72px 1fr;align-items:center;justify-content:normal;padding:8px 12px 14px;position:relative}
+.cq-tab{flex-direction:column;gap:3px;font-size:11px;font-weight:500;padding:4px 12px;border:0;border-radius:0;justify-self:center;color:#4b5563}
+.cq-tab svg{width:24px;height:24px}
+.cq-tab.on{background:none;box-shadow:none;color:#111827;font-weight:700}
+.cq-tab.on svg{stroke:#7a3fb0}
+.cq-plus{justify-self:center;width:52px;height:52px;margin-top:-30px;position:relative;z-index:2}
+.cq-dot{top:-4px;right:0}
+</style>
+
+</body></html>
