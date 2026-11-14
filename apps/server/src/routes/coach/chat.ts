@@ -3,6 +3,7 @@ import type { ChatButton } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { inngest } from "../../lib/inngest.js";
+import { signImageUrl } from "../../lib/storage.js";
 import { executeAction, FAILED, type ActionResult } from "../../services/coach/actions.js";
 import { loadActivity } from "../../services/coach/activity.js";
 import { didAction } from "../../services/coach/botMessages.js";
@@ -32,6 +33,10 @@ chatRoutes.get("/", async (c) => {
     // What the bot is doing right now, for the quiet status line under the thread.
     loadActivity(userId),
   ]);
+  // Attachments are stored as paths; the phone needs a short-lived link to show them.
+  for (const m of messages) {
+    for (const a of m.attachments) a.url = (await signImageUrl(a.storagePath)) ?? undefined;
+  }
   return c.json({ messages, activity });
 });
 

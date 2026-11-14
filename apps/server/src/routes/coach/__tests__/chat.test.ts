@@ -173,6 +173,18 @@ describe("coach chat", () => {
     expect((await res.json()).activity).toEqual(["Reading Maren's message"]);
   });
 
+  it("gives each attachment in the thread a link the phone can show", async () => {
+    db = world({
+      thread: [
+        messageRow([], {
+          attachments: [{ storagePath: "coach/test-user-id/a.png", mediaType: "image/png" }],
+        }),
+      ],
+    });
+    const { messages } = await (await app().request("/api/coach/chat")).json();
+    expect(messages[0].attachments[0].url).toBe("https://signed/coach/test-user-id/a.png");
+  });
+
   it("returns no activity when the bot is idle", async () => {
     db = world({ thread: [messageRow([])] });
     expect((await (await app().request("/api/coach/chat")).json()).activity).toEqual([]);

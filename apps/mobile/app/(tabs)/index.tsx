@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import type { Summary, UsageInfo, ClipCategory } from "@cliphy/shared";
 import { neon, CLIP_CATEGORIES, tagPath } from "@cliphy/shared";
@@ -36,8 +37,11 @@ import { EmptyState } from "../../components/EmptyState";
 import { UsageBar } from "../../components/UsageBar";
 import { Logo } from "../../components/Logo";
 import { brutalShadowSm } from "../../lib/theme";
+import { onCaptureRequested } from "../../lib/captureBus";
 
 export default function QueueScreen() {
+  const router = useRouter();
+  const [initial, setInitial] = useState("·");
   const [items, setItems] = useState<Summary[]>([]);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +53,16 @@ export default function QueueScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Summary[] | null>(null);
   const bannerOpacity = useRef(new Animated.Value(0)).current;
+
+  // The bottom bar's plus opens the capture sheet that lives here.
+  useEffect(() => onCaptureRequested(() => setCaptureOpen(true)), []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email;
+      if (email) setInitial(email[0].toUpperCase());
+    });
+  }, []);
 
   const visibleItems = selectedCategory
     ? items.filter((item) => item.category === selectedCategory)
@@ -291,15 +305,18 @@ export default function QueueScreen() {
           className="text-lg font-bold ml-2 text-[#111827] dark:text-white"
           style={{ fontFamily: "DMSans" }}
         >
-          Cliphy
+          Library
         </Text>
         <Pressable
-          onPress={() => setCaptureOpen(true)}
-          className="ml-auto w-9 h-9 items-center justify-center rounded-full border-2 border-black dark:border-[#505050]"
+          onPress={() => router.push("/settings")}
+          className="ml-auto w-9 h-9 items-center justify-center rounded-full bg-[#d5b8f0]"
+          style={{ borderWidth: 1.5, borderColor: "#000" }}
           accessibilityRole="button"
-          accessibilityLabel="Add a clip"
+          accessibilityLabel="Settings"
         >
-          <Text className="text-lg font-bold text-[#111827] dark:text-white">＋</Text>
+          <Text className="text-sm font-bold text-[#111827]" style={{ fontFamily: "DMSans" }}>
+            {initial}
+          </Text>
         </Pressable>
       </View>
 
@@ -354,7 +371,23 @@ export default function QueueScreen() {
       ) : (
         <>
           {searchResults === null ? (
-            <View className="flex-row gap-2 px-4 pt-3">
+            <Pressable
+              onPress={() => router.push("/subscriptions")}
+              className="flex-row items-center justify-between mx-4 mt-3 py-3 border-b border-[#e5e7eb] dark:border-[#2a2a2a]"
+              accessibilityRole="button"
+              accessibilityLabel="Following"
+            >
+              <Text
+                className="text-base font-medium text-[#111827] dark:text-white"
+                style={{ fontFamily: "DMSans" }}
+              >
+                Following
+              </Text>
+              <Text className="text-base font-bold text-[#111827] dark:text-white">›</Text>
+            </Pressable>
+          ) : null}
+          {searchResults === null ? (
+            <View className="flex-row flex-wrap gap-2 px-4 pt-3">
               <CategoryChip
                 label="All"
                 active={selectedCategory === null}
@@ -368,6 +401,11 @@ export default function QueueScreen() {
                   onPress={() => setSelectedCategory(cat)}
                 />
               ))}
+              <CategoryChip
+                label="Podcasts"
+                active={false}
+                onPress={() => router.push("/podcasts")}
+              />
             </View>
           ) : null}
           <ScrollView

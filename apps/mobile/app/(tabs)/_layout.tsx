@@ -1,66 +1,21 @@
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { getTheme } from "../../lib/theme";
-import { neon } from "@cliphy/shared";
+import { CoachTabBar } from "../../components/coach/CoachTabBar";
 
 export default function TabLayout() {
   const theme = getTheme();
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: { backgroundColor: theme.surface },
-        tabBarActiveTintColor: neon[600],
-        tabBarInactiveTintColor: theme.textMuted,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.borderSoft,
-          borderTopWidth: 1,
-        },
-        tabBarLabelStyle: {
-          fontFamily: "DMSans",
-          fontSize: 11,
-          fontWeight: "600",
-        },
-      }}
+      tabBar={(props) => <CoachTabBar {...props} />}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.surface } }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Queue",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="subscriptions"
-        options={{
-          title: "Subscriptions",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="repeat-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="podcasts"
-        options={{
-          title: "Podcasts",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="headset-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Library" }} />
+      <Tabs.Screen name="chat" options={{ title: "Chat" }} />
+      {/* Still routable, no longer tabs: reached from Library and the avatar. */}
+      <Tabs.Screen name="subscriptions" options={{ href: null }} />
+      <Tabs.Screen name="podcasts" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }
