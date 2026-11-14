@@ -287,6 +287,21 @@ describe("coach processBundle", () => {
       expect(ctx.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
+    it("works out today's date in the user's timezone, not the server's", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-11-15T03:00:00Z")); // still the 14th in Los Angeles
+      const inner = storeDb();
+      db = makeDb((op: Op) =>
+        op.table === "coach_settings"
+          ? { data: { timezone: "America/Los_Angeles" } }
+          : inner.respond(op),
+      );
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      vi.useRealTimers();
+      expect(interpretMock.mock.calls[0][2].today).toBe("2026-11-14");
+    });
+
     it("offers closed and historical requests as candidates to replace, but not replaced ones", async () => {
       interpretMock.mockResolvedValue(chatInterp());
       await run({ bundleId: "b1", userId: "u1" });

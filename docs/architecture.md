@@ -470,4 +470,6 @@ Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route retu
 
 **Routes:** `/coach/people`, `/coach/projects` (+ `/seed`, `/:id/history`), `/coach/intake`, `/coach/requests` (+ `/:id/confirm`, `/:id/fix`), `/coach/tasks` (+ `/:id/sent`).
 
-**Not built yet:** reminders and push, the chat thread and learned rules, the phone screens, the Mac helper.
+**Reminders (plan 2, [ADR 0055](decisions/0055-coach-reminders-minute-cron-with-claim-by-update.md)):** dated tasks get `coach_reminders` rows planned from the user's timezone and quiet hours (`coach_settings`, migration `039_coach_reminders.sql`). `coach-fire-reminders` runs every minute, sends through the Expo push API, and re-sends until the phone reports delivery (`/coach/reminders/:id/delivered`) and the user answers (`/ack`). `coach-weekly-review` sends the back-burner count once a week. `/coach/settings` and `/coach/health` expose timezone, quiet hours and whether notifications are getting through.
+
+**Not built yet:** the chat thread and learned rules, the phone screens, the Mac helper.

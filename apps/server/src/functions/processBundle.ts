@@ -10,6 +10,8 @@ import {
   type Interpretation,
 } from "../services/coach/interpret.js";
 import { projectTag } from "../services/coach/projects.js";
+import { loadSettings } from "../services/coach/reminders.js";
+import { localParts } from "../services/coach/time.js";
 import { createImageClip } from "../services/imageClip.js";
 
 const log = logger.child({ fn: "coach-process-bundle" });
@@ -227,11 +229,13 @@ async function loadContext(
   }
 
   const person = personRes.data as { id: string; name: string } | null;
+  const { timezone } = await loadSettings(userId);
   return {
     messages: (messagesRes.data as Row[]) ?? [],
     ctx: {
       person: { id: personId, name: person?.name ?? "Someone" },
-      today: new Date().toISOString().slice(0, 10),
+      // "By Wednesday" means the user's Wednesday, so today is their date, not the server's.
+      today: localParts(new Date(), timezone).date,
       projects: projects.map((p) => ({ id: p.id, name: p.name, hints: hints.get(p.tag) ?? "" })),
       recentRequests: (
         (requestsRes.data as { id: string; project_id: string | null; understood: string }[]) ?? []

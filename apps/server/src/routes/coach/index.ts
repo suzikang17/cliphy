@@ -5,7 +5,9 @@ import { requireCoach } from "../../middleware/require-coach.js";
 import { intakeRoutes } from "./intake.js";
 import { peopleRoutes } from "./people.js";
 import { projectRoutes } from "./projects.js";
+import { reminderRoutes } from "./reminders.js";
 import { requestRoutes } from "./requests.js";
+import { healthRoutes, settingsRoutes } from "./settings.js";
 import { taskRoutes } from "./tasks.js";
 
 /** Creative coach API. Every route needs auth and the per-account switch. */
@@ -19,3 +21,6 @@ coachRoutes.route("/projects", projectRoutes);
 coachRoutes.route("/intake", intakeRoutes);
 coachRoutes.route("/requests", requestRoutes);
 coachRoutes.route("/tasks", taskRoutes);
+coachRoutes.route("/reminders", reminderRoutes);
+coachRoutes.route("/settings", settingsRoutes);
+coachRoutes.route("/health", healthRoutes);
