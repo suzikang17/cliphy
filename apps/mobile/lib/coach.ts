@@ -200,9 +200,9 @@ export function agoLabel(iso: string | null | undefined, now: Date): string | nu
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
-/** The Mac helper reports in every 20 seconds; a few silent minutes means it is not running. */
+/** The Mac helper reports in every 20 seconds; 90 silent seconds means it is not running. */
 export function helperRunning(seenAt: string | null | undefined, now: Date): boolean {
-  return Boolean(seenAt) && now.getTime() - Date.parse(seenAt as string) < 5 * 60_000;
+  return Boolean(seenAt) && now.getTime() - Date.parse(seenAt as string) < 90_000;
 }
 
 /** The Mac helper's pairing code as it is typed: upper case, grouped 4-4. */

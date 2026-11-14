@@ -240,9 +240,11 @@ describe("coach phone logic", () => {
     expect(agoLabel(null, now)).toBeNull();
   });
 
-  it("treats the Mac as running only if it was seen in the last few minutes", () => {
+  it("treats the Mac as running only if it checked in within the last 90 seconds", () => {
     const now = new Date("2026-11-14T18:00:00Z");
-    expect(helperRunning("2026-11-14T17:57:00Z", now)).toBe(true);
+    // The helper checks in every 20 seconds; a few misses are a blip, minutes are not.
+    expect(helperRunning("2026-11-14T17:59:00Z", now)).toBe(true);
+    expect(helperRunning("2026-11-14T17:57:00Z", now)).toBe(false);
     expect(helperRunning("2026-11-14T17:40:00Z", now)).toBe(false);
     expect(helperRunning(null, now)).toBe(false);
   });

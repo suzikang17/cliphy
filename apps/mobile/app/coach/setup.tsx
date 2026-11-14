@@ -106,6 +106,13 @@ export default function SetupScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
+      // Keep "Working" honest while the page is open: the Mac checks in every 20 seconds.
+      const timer = setInterval(() => {
+        getHealth()
+          .then(setHealth)
+          .catch(() => {});
+      }, 15_000);
+      return () => clearInterval(timer);
     }, [load]),
   );
   useEffect(
@@ -340,9 +347,9 @@ export default function SetupScreen() {
           }
           right={macOn ? "Working" : "Connect"}
           rightColor={macOn ? t.ok : t.due}
-          onPress={macOn ? undefined : () => setPairOpen((open) => !open)}
+          onPress={() => setPairOpen((open) => !open)}
         />
-        {pairOpen && !macOn ? (
+        {pairOpen ? (
           <View style={{ marginBottom: 8 }}>
             <Body>Open Cliphy Helper on the Mac and enter the code it shows.</Body>
             <TextInput
