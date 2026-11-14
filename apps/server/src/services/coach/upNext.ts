@@ -31,6 +31,8 @@ export function buildUpNext(
   people: Person[],
   projects: Project[],
   today: string,
+  /** request id → the person who made the request. */
+  requesters: Map<string, string> = new Map(),
 ): UpNext {
   const names = new Map(people.map((p) => [p.id, p.name]));
   const weekEnd = addDays(today, 6);
@@ -45,10 +47,16 @@ export function buildUpNext(
 
   const row = (t: CoachTask): UpNextTask => {
     const person = t.withPersonId ? names.get(t.withPersonId) : undefined;
+    // Who asked is whoever made the request, even when the task itself (work
+    // the user does) is not "with" anyone.
+    const requesterId = t.requestId ? requesters.get(t.requestId) : undefined;
+    const requester = requesterId ? names.get(requesterId) : undefined;
     let detail: string;
     if (t.state === "waiting") detail = person ? `Waiting on ${person}` : "Waiting";
-    else if (t.requestId && person) {
-      detail = t.dueDate ? `${person} asked for ${nameDate(t.dueDate, today)}` : `${person} asked`;
+    else if (requester) {
+      detail = t.dueDate
+        ? `${requester} asked for ${nameDate(t.dueDate, today)}`
+        : `${requester} asked`;
     } else if (t.dueTime) detail = `You set ${t.dueTime.slice(0, 5)}`;
     else detail = t.place?.trim() || "You set this";
     return {

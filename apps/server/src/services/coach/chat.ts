@@ -41,7 +41,10 @@ export async function postBotMessage(userId: string, msg: BotMessage): Promise<s
         .from("coach_chat_messages")
         .upsert(row, { onConflict: "user_id,kind,ref_id", ignoreDuplicates: true })
     : supabase.from("coach_chat_messages").insert(row);
-  const { data } = await query.select("id");
+  const { data, error } = await query.select("id");
+  // An error must not look like "already in the thread": the caller would
+  // carry on believing it was said. Throw, so the job retries.
+  if (error) throw new Error("Could not save chat message");
   return ((data as { id: string }[] | null) ?? [])[0]?.id ?? null;
 }
 

@@ -88,6 +88,10 @@ function world(w: World = {}) {
     return { data: [] };
   });
 }
+const chosenUpdates = () =>
+  db.ops
+    .filter((o) => o.table === "coach_chat_messages" && o.action === "update")
+    .map((o) => o.payload);
 const posted = () =>
   db
     .written("coach_chat_messages")
@@ -124,6 +128,13 @@ describe("coach chat", () => {
     });
   });
 
+  it("fails loudly when a message cannot be saved, instead of looking already said", async () => {
+    db = makeDb(() => ({ data: null, error: { message: "boom" } }));
+    await expect(
+      postBotMessage("u1", taskUnblocked({ id: "t2", kind: "do", title: "x" })),
+    ).rejects.toThrow(/save/i);
+  });
+
   it("returns null when that message was already in the thread", async () => {
     db = makeDb(() => ({ data: [] }));
     expect(
@@ -138,6 +149,33 @@ describe("coach chat", () => {
     const q = db.ops[0];
     expect(q.filters).toContainEqual(["eq", "user_id", "test-user-id"]);
     expect(q.filters).toContainEqual(["gt", "created_at", "2026-11-14T00:00:00Z"]);
+  });
+
+  it("returns what the bot is doing right now alongside the thread", async () => {
+    const inner = world({ thread: [messageRow([])] });
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_bundles") {
+        return {
+          data: [
+            {
+              person_id: "p1",
+              status: "collecting",
+              last_message_at: "2026-11-14T17:58:00Z",
+              historical: false,
+            },
+          ],
+        };
+      }
+      if (op.table === "coach_people") return { data: [{ id: "p1", name: "Maren" }] };
+      return inner.respond(op);
+    });
+    const res = await app().request("/api/coach/chat");
+    expect((await res.json()).activity).toEqual(["Reading Maren's message"]);
+  });
+
+  it("returns no activity when the bot is idle", async () => {
+    db = world({ thread: [messageRow([])] });
+    expect((await (await app().request("/api/coach/chat")).json()).activity).toEqual([]);
   });
 
   it("stores what the user typed and hands it to the bot", async () => {
@@ -290,14 +328,49 @@ describe("coach chat", () => {
     expect(upd.filters).toContainEqual(["eq", "user_id", "test-user-id"]);
   });
 
-  it("asks what was wrong when Fix it is tapped", async () => {
+  it("asks what was wrong when Fix it is tapped, leaving Looks right still tappable", async () => {
     db = world({
       message: messageRow([{ label: "Fix it", action: { type: "fix_request", requestId: "r1" } }], {
         kind: "request",
       }),
     });
     const res = await post("/api/coach/chat/m1/choose", { index: 0 });
-    expect((await res.json()).did).toBe("What did I get wrong?");
+    const body = await res.json();
+    expect(body.did).toBe("What did I get wrong?");
+    expect(body.message.chosen).toBeNull();
+    expect(chosenUpdates().at(-1)).toEqual({ chosen: null });
+  });
+
+  it("frees the button and says so when the action could not be done", async () => {
+    // Done on a task that is still waiting on another.
+    db = world({
+      message: messageRow([
+        { label: "Done", action: { type: "task_state", taskId: "t2", state: "done" } },
+      ]),
+      tasks: [taskRow(), taskRow({ id: "t2", after_task_id: "t1" })],
+    });
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    const body = await res.json();
+    expect(body.did).toBe("That is still waiting on something.");
+    expect(body.message.chosen).toBeNull();
+    expect(chosenUpdates().at(-1)).toEqual({ chosen: null });
+  });
+
+  it("frees the button and says so when the action throws", async () => {
+    const inner = world({
+      message: messageRow([
+        { label: "Done", action: { type: "task_state", taskId: "t1", state: "done" } },
+      ]),
+    });
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_tasks" && op.action === "update") throw new Error("db down");
+      return inner.respond(op);
+    });
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.did).toBe("That didn't work. Try again.");
+    expect(body.message.chosen).toBeNull();
   });
 
   it("records a tap that only opens something, without a message", async () => {

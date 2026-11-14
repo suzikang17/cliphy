@@ -78,8 +78,13 @@ export function replyArrived(
   };
 }
 
+/**
+ * `fireAt` is part of the identity: a snoozed or re-dated reminder is the same
+ * row firing at a new time, and that must be said again (with fresh buttons).
+ * A re-send of the same firing keeps the same identity and is not repeated.
+ */
 export function reminderDue(
-  reminder: { id: string },
+  reminder: { id: string; fireAt: string },
   task: { id: string; kind: TaskKind; title: string },
   body: string,
 ): BotMessage {
@@ -94,7 +99,7 @@ export function reminderDue(
     link: taskLink(task.id),
     attachments: [],
     kind: "reminder",
-    refId: reminder.id,
+    refId: `${reminder.id}:${reminder.fireAt}`,
   };
 }
 

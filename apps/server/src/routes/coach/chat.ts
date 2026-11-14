@@ -3,7 +3,8 @@ import type { ChatButton } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { inngest } from "../../lib/inngest.js";
-import { executeAction } from "../../services/coach/actions.js";
+import { executeAction, FAILED, type ActionResult } from "../../services/coach/actions.js";
+import { loadActivity } from "../../services/coach/activity.js";
 import { didAction } from "../../services/coach/botMessages.js";
 import {
   listMessages,
@@ -21,12 +22,17 @@ const MAX_TEXT = 4000;
 // ── GET / — the thread ───────────────────────────────────────────────────
 
 chatRoutes.get("/", async (c) => {
+  const userId = c.get("userId");
   const limit = Number(c.req.query("limit"));
-  const messages = await listMessages(c.get("userId"), {
-    after: c.req.query("after"),
-    limit: Number.isInteger(limit) && limit > 0 ? limit : undefined,
-  });
-  return c.json({ messages });
+  const [messages, activity] = await Promise.all([
+    listMessages(userId, {
+      after: c.req.query("after"),
+      limit: Number.isInteger(limit) && limit > 0 ? limit : undefined,
+    }),
+    // What the bot is doing right now, for the quiet status line under the thread.
+    loadActivity(userId),
+  ]);
+  return c.json({ messages, activity });
 });
 
 // ── POST / — the user types something; the bot answers in the background ─
@@ -76,9 +82,25 @@ chatRoutes.post("/:id/choose", async (c) => {
     .maybeSingle();
   if (!claimed) return c.json({ message: toChatMessage(row), did: null });
 
-  const result = await executeAction(userId, buttons[index].action);
-  // Whatever the bot did, it says so.
+  let result: ActionResult;
+  try {
+    result = await executeAction(userId, buttons[index].action);
+  } catch {
+    result = FAILED;
+  }
+
+  let message = toChatMessage(claimed as Row);
+  if (result.release) {
+    // Nothing was done (or only a question was asked): give the button back.
+    await supabase
+      .from("coach_chat_messages")
+      .update({ chosen: null })
+      .eq("id", id)
+      .eq("user_id", userId);
+    message = { ...message, chosen: null };
+  }
+  // Whatever the bot did, or could not do, it says so.
   if (result.say) await postBotMessage(userId, didAction(result.say));
 
-  return c.json({ message: toChatMessage(claimed as Row), did: result.say });
+  return c.json({ message, did: result.say });
 });

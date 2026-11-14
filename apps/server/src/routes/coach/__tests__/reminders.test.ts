@@ -12,6 +12,8 @@ vi.mock("../../../services/coach/reminders.js", async (orig) => ({
   ...(await orig<typeof import("../../../services/coach/reminders.js")>()),
   syncTaskReminders: (...a: unknown[]) => syncMock(...a),
 }));
+const sendPushMock = vi.fn();
+vi.mock("../../../services/push.js", () => ({ sendPush: (...a: unknown[]) => sendPushMock(...a) }));
 vi.mock("../../../middleware/auth.js", () => passAuth);
 vi.mock("../../../middleware/require-coach.js", () => passCoach);
 
@@ -190,6 +192,17 @@ describe("coach reminders routes", () => {
       settings: { push_failures: 0, timezone: "America/Los_Angeles" },
     });
     expect((await (await app().request("/api/coach/health")).json()).timezoneSet).toBe(true);
+  });
+
+  it("sends a test notification on request, so setup can prove reminders arrive", async () => {
+    sendPushMock.mockResolvedValue({ sent: 1, dead: 0 });
+    const res = await post("/api/coach/health/test-push");
+    expect(await res.json()).toEqual({ sent: 1 });
+    expect(sendPushMock).toHaveBeenCalledWith("test-user-id", {
+      title: "Cliphy",
+      body: "Reminders work.",
+      data: { type: "test" },
+    });
   });
 
   // Review Focus 3: the token is dead, or reminders are not being received.

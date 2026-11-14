@@ -114,13 +114,15 @@ describe("buildUpNext", () => {
   it("gives each row one short detail: who asked and for when, or the time", () => {
     const up = buildUpNext(
       [
-        task({ id: "wed", dueDate: "2026-11-18", requestId: "r1", withPersonId: "p1" }),
+        // Work from Maren's request: a `do` task is not "with" anyone.
+        task({ id: "wed", dueDate: "2026-11-18", requestId: "r1", withPersonId: null }),
         task({ id: "sun", dueDate: "2026-11-15", dueTime: "09:00" }),
         task({ id: "own", dueDate: "2026-11-16" }),
       ],
       people,
       projects,
       today,
+      new Map([["r1", "p1"]]),
     );
     const detail = (id: string) =>
       up.thisWeek.flatMap((d) => d.tasks).find((t) => t.id === id)?.detail;

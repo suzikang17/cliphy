@@ -86,7 +86,7 @@ describe("bot messages", () => {
 
   it("words a reminder as the task and the fact, with the action for its kind", () => {
     const m = reminderDue(
-      { id: "rem1" },
+      { id: "rem1", fireAt: "2026-11-14T17:00:00Z" },
       { id: "t1", kind: "do", title: "Homepage photo swap" },
       "Maren asked for this by today.",
     );
@@ -94,19 +94,31 @@ describe("bot messages", () => {
     expect(m.buttons.map((b) => b.label)).toEqual(["Start", "Done", "Tomorrow"]);
     expect(m.buttons[1].action).toEqual({ type: "task_state", taskId: "t1", state: "done" });
     expect(m.buttons[2].action).toEqual({ type: "snooze", taskId: "t1", days: 1 });
-    expect(m).toMatchObject({ kind: "reminder", refId: "rem1", link: { type: "task", id: "t1" } });
+    expect(m).toMatchObject({
+      kind: "reminder",
+      refId: "rem1:2026-11-14T17:00:00Z",
+      link: { type: "task", id: "t1" },
+    });
+  });
+
+  // A snoozed reminder is the same row with a new time; it must be said again.
+  it("treats the same reminder firing at a new time as a new thing to say", () => {
+    const task = { id: "t1", kind: "do" as const, title: "x" };
+    const first = reminderDue({ id: "rem1", fireAt: "2026-11-14T17:00:00Z" }, task, "Due today.");
+    const again = reminderDue({ id: "rem1", fireAt: "2026-11-15T17:00:00Z" }, task, "Due today.");
+    expect(first.refId).not.toBe(again.refId);
   });
 
   it("offers Send for a message to write and Got it for an errand", () => {
     const tell = reminderDue(
-      { id: "x" },
+      { id: "x", fireAt: "t" },
       { id: "t2", kind: "tell", title: "Tell Maren it's live" },
       "Due today.",
     );
     expect(tell.buttons.map((b) => b.label)).toEqual(["Send", "Tomorrow"]);
     expect(tell.buttons[0].action).toEqual({ type: "open", link: { type: "task", id: "t2" } });
     const get = reminderDue(
-      { id: "y" },
+      { id: "y", fireAt: "t" },
       { id: "t3", kind: "get", title: "Framing supplies" },
       "Due today.",
     );
@@ -115,7 +127,7 @@ describe("bot messages", () => {
 
   it("does not double the full stop when a title already ends with one", () => {
     const m = reminderDue(
-      { id: "x" },
+      { id: "x", fireAt: "t" },
       { id: "t", kind: "do", title: "Send invoice." },
       "Due today.",
     );

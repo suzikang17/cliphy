@@ -107,7 +107,17 @@ describe("coach fireReminders", () => {
   afterEach(() => vi.useRealTimers());
 
   it("claims due reminders in one guarded update, then sends each with who asked and by when", async () => {
-    db = world({ due: [{ id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" }] });
+    db = world({
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
+    });
     const out = await fire();
     expect(out.sent).toBe(1);
 
@@ -127,7 +137,13 @@ describe("coach fireReminders", () => {
   it("sends each reminder in its own step, so a retry does not repeat ones already sent", async () => {
     db = world({
       due: [
-        { id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" },
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
         { id: "r2", user_id: "u1", task_id: "t1", kind: "at_time" },
       ],
     });
@@ -137,13 +153,23 @@ describe("coach fireReminders", () => {
   });
 
   it("puts every reminder it sends into the chat thread too, with buttons", async () => {
-    db = world({ due: [{ id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" }] });
+    db = world({
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
+    });
     await fire();
     expect(postBot).toHaveBeenCalledWith(
       "u1",
       expect.objectContaining({
         kind: "reminder",
-        refId: "r1",
+        refId: "r1:2026-11-14T17:00:00+00:00",
         text: "Homepage photo swap. Maren asked for this by today.",
       }),
     );
@@ -185,7 +211,13 @@ describe("coach fireReminders", () => {
   it("puts a reminder back when its push fails, and still sends the others", async () => {
     db = world({
       due: [
-        { id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" },
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
         { id: "r2", user_id: "u1", task_id: "t1", kind: "at_time" },
       ],
     });
@@ -227,7 +259,15 @@ describe("coach fireReminders", () => {
 
   it("cancels a reminder whose task was finished, without sending", async () => {
     db = world({
-      due: [{ id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" }],
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
       task: task({ state: "done" }),
     });
     const out = await fire();

@@ -8,7 +8,8 @@ type Step = { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> };
 /** Tell the user their message was not answered. Keyed on the message, so it is said once. */
 export async function replyFailed(userId: string, messageId: string): Promise<void> {
   await postBotMessage(userId, {
-    text: "That didn't go through. Try again.",
+    // Some of what was asked may already be done, so do not invite a blind retry.
+    text: "I hit a problem part-way. Check Up next before asking again.",
     buttons: [],
     link: null,
     attachments: [],
@@ -20,7 +21,9 @@ export async function replyFailed(userId: string, messageId: string): Promise<vo
 /** One message at a time per user, so replies come back in the order things were said. */
 export const CHAT_JOB = {
   id: "coach-chat-reply",
-  retries: 1,
+  // The agent's tools write as they go. A retry would run them again and
+  // create a second task or rule, so a failed run is reported, not repeated.
+  retries: 0,
   concurrency: [{ key: "event.data.userId", limit: 1 }],
   triggers: [{ event: "coach/chat.message" }],
   onFailure: async ({ event }: { event: { data: { event: { data: unknown } } } }) => {
@@ -67,11 +70,18 @@ export const chatReply = inngest.createFunction(
 );
 
 /** After a request's question is answered, see whether a lasting rule follows. */
+export const LEARN_JOB = {
+  id: "coach-learn-from-answer",
+  // As with the chat reply: learning writes a rule, so it is never re-run.
+  retries: 0,
+  triggers: [{ event: "coach/answer.given" }],
+} as const;
+
 export const learnJob = inngest.createFunction(
-  { id: "coach-learn-from-answer", retries: 1, triggers: [{ event: "coach/answer.given" }] },
-  async ({ event, step }) => {
+  LEARN_JOB as never,
+  (async ({ event, step }: { event: { data: unknown }; step: Step }) => {
     const { userId, requestId } = event.data as { userId: string; requestId: string };
     const ruleId = await step.run("learn", () => learnFromAnswer(userId, requestId));
     return { ruleId };
-  },
+  }) as never,
 );

@@ -3,6 +3,7 @@ import type { CoachHealth } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { loadSettings, syncTaskReminders } from "../../services/coach/reminders.js";
+import { sendPush } from "../../services/push.js";
 import { isValidTimezone } from "../../services/coach/time.js";
 
 export const settingsRoutes = new Hono<AppEnv>();
@@ -101,4 +102,21 @@ healthRoutes.get("/", async (c) => {
     lastDeliveredAt: row?.last_delivered_at ?? null,
   };
   return c.json(health);
+});
+
+// ── POST /health/test-push — prove a reminder can arrive ─────────────────
+// Setup sends this and waits for the phone to report it, so "reminders work"
+// is something that was seen to happen, not assumed.
+
+healthRoutes.post("/test-push", async (c) => {
+  try {
+    const { sent } = await sendPush(c.get("userId"), {
+      title: "Cliphy",
+      body: "Reminders work.",
+      data: { type: "test" },
+    });
+    return c.json({ sent });
+  } catch {
+    return c.json({ error: "Could not reach the notification service" }, 502);
+  }
 });

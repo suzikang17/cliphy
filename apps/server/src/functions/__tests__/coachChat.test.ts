@@ -21,7 +21,7 @@ vi.mock("../../services/coach/chat.js", () => ({
   postBotMessage: (...a: unknown[]) => postBot(...a),
 }));
 
-const { chatReply, learnJob, CHAT_JOB, replyFailed } = await import("../coachChat.js");
+const { chatReply, learnJob, CHAT_JOB, LEARN_JOB, replyFailed } = await import("../coachChat.js");
 
 const step = { run: async (_n: string, fn: () => Promise<unknown>) => fn() };
 const reply = (data: unknown) =>
@@ -72,16 +72,22 @@ describe("coach chat jobs", () => {
     expect(postBot).not.toHaveBeenCalled();
   });
 
-  it("says so in the thread when it could not answer, once", async () => {
+  it("says so in the thread when it could not answer, once, without inviting a blind retry", async () => {
     await replyFailed("u1", "m1");
     expect(postBot).toHaveBeenCalledWith(
       "u1",
       expect.objectContaining({
-        text: "That didn't go through. Try again.",
+        text: "I hit a problem part-way. Check Up next before asking again.",
         kind: "answer",
         refId: "m1",
       }),
     );
+  });
+
+  // A retry would run the agent's tools a second time.
+  it("never re-runs the agent automatically, so nothing it did is done twice", () => {
+    expect(CHAT_JOB.retries).toBe(0);
+    expect(LEARN_JOB.retries).toBe(0);
   });
 
   it("runs the learning step for an answered request", async () => {

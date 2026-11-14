@@ -90,7 +90,7 @@ async function messageFor(r: Row): Promise<ReminderMessage | null> {
   return {
     push: { ...text, data: { type: "reminder", reminderId: r.id, taskId: task.id } },
     chat: reminderDue(
-      { id: r.id as string },
+      { id: r.id as string, fireAt: r.fire_at as string },
       { id: task.id as string, kind: task.kind as TaskKind, title: task.title as string },
       text.body,
     ),
@@ -133,7 +133,7 @@ export const fireReminders = inngest.createFunction(
         .update({ status: "sent", sent_at: now })
         .eq("status", "scheduled")
         .lte("fire_at", now)
-        .select("id, user_id, task_id, kind");
+        .select("id, user_id, task_id, kind, fire_at");
       return (data as Row[]) ?? [];
     });
 
@@ -164,7 +164,7 @@ export const fireReminders = inngest.createFunction(
       const now = new Date();
       const { data } = await supabase
         .from("coach_reminders")
-        .select("id, user_id, task_id, kind, status, sent_at, delivered_at, resends")
+        .select("id, user_id, task_id, kind, fire_at, status, sent_at, delivered_at, resends")
         .in("status", ["sent", "delivered"])
         .limit(500);
 

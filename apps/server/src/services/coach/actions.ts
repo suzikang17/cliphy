@@ -15,9 +15,19 @@ import { addDays, localParts } from "./time.js";
 export interface ActionResult {
   changed: boolean;
   say: string | null;
+  /**
+   * The tap should not count: the action could not be done now, or it only
+   * asked a follow-up. The button becomes tappable again.
+   */
+  release?: boolean;
 }
 
 const NOTHING: ActionResult = { changed: false, say: null };
+export const FAILED: ActionResult = {
+  changed: false,
+  say: "That didn't work. Try again.",
+  release: true,
+};
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -42,8 +52,9 @@ export async function setTaskState(
   const { tasks } = await loadTasks(userId);
   const task = tasks.find((t) => t.id === taskId);
   if (!task || task.state === state) return NOTHING;
-  if (state === "done" && task.blocked)
-    return { changed: false, say: "That is still waiting on something." };
+  if (state === "done" && task.blocked) {
+    return { changed: false, say: "That is still waiting on something.", release: true };
+  }
 
   const { data } = await supabase
     .from("coach_tasks")
@@ -141,7 +152,7 @@ async function confirm(
   if ((before.data as { status?: string } | null)?.status !== "new") return NOTHING;
 
   const result = await confirmRequest(userId, requestId, answer ? { answer } : {});
-  if (result.status !== 200) return NOTHING;
+  if (result.status !== 200) return FAILED;
   if (answer) await announceAnswer(userId, requestId);
   const n = result.body.tasks.length;
   return {
@@ -159,7 +170,7 @@ export async function executeAction(userId: string, action: ChatAction): Promise
       return confirm(userId, action.requestId, null);
     case "fix_request":
       // The correction itself is what the user types next.
-      return { changed: false, say: "What did I get wrong?" };
+      return { changed: false, say: "What did I get wrong?", release: true };
     case "task_state":
       return setTaskState(userId, action.taskId, action.state);
     case "task_sent":
