@@ -1,0 +1,55 @@
+{
+  "name": "cliphy-helper-app",
+  "productName": "Cliphy Helper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Menu-bar app that passes chosen Messages threads to the Cliphy coach.",
+  "author": "Cliphy",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "dist": "node build.mjs && electron-builder --mac --publish never",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "45.3.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.0",
+    "typescript": "~5.9.2"
+  },
+  "build": {
+    "appId": "app.cliphy.helper",
+    "productName": "Cliphy Helper",
+    "files": [
+      "dist/**",
+      "ui/**",
+      "assets/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "Cliphy Helper opens System Settings for you."
+      }
+    },
+    "dmg": {
+      "title": "Cliphy Helper"
+    }
+  }
+}

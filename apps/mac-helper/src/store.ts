@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { emptyState, type HelperState } from "./sync.js";
@@ -11,6 +11,8 @@ export const DEFAULT_DIR = path.join(homedir(), ".cliphy-helper");
 export interface HelperConfig {
   apiUrl: string;
   apiKey: string;
+  /** The account's email, when the key came from pairing. Shown, never used to sign in. */
+  account?: string;
 }
 
 /** Written to a temporary file and renamed, so a crash cannot leave half a file behind. */
@@ -36,7 +38,17 @@ export function saveConfig(dir: string, config: HelperConfig): void {
 
 export function loadConfig(dir: string): HelperConfig | null {
   const config = read<Partial<HelperConfig>>(dir, "config.json");
-  return config?.apiUrl && config.apiKey ? { apiUrl: config.apiUrl, apiKey: config.apiKey } : null;
+  if (!config?.apiUrl || !config.apiKey) return null;
+  return {
+    apiUrl: config.apiUrl,
+    apiKey: config.apiKey,
+    ...(typeof config.account === "string" ? { account: config.account } : {}),
+  };
+}
+
+/** Forget the key, so the helper has to be paired again. */
+export function clearConfig(dir: string): void {
+  rmSync(path.join(dir, "config.json"), { force: true });
 }
 
 export function saveState(dir: string, state: HelperState): void {

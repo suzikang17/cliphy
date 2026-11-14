@@ -105,7 +105,7 @@ async function pair(apiUrl: string = DEFAULT_API): Promise<void> {
       ),
     ),
   );
-  saveConfig(DEFAULT_DIR, { apiUrl, apiKey });
+  saveConfig(DEFAULT_DIR, { apiUrl, apiKey, ...(account ? { account } : {}) });
   console.log(`Connected${account ? ` to ${account}` : ""}.`);
   console.log("If that is not your account, delete ~/.cliphy-helper/config.json and pair again.");
 }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'"
+    />
+    <title>Cliphy Helper</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Cliphy Helper</h1>
+      <p id="status" class="muted"></p>
+    </header>
+
+    <ol id="steps" class="steps">
+      <li data-step="pair"><span class="dot"></span>Connect</li>
+      <li data-step="access"><span class="dot"></span>Allow Messages</li>
+      <li data-step="ready"><span class="dot"></span>People</li>
+    </ol>
+
+    <main>
+      <section id="pair" hidden>
+        <h2>Enter this code on your phone</h2>
+        <p class="muted">Cliphy → Chat → Setup → Mac messages</p>
+        <div id="code" class="code" aria-live="polite"></div>
+        <p id="pair-note" class="muted"></p>
+      </section>
+
+      <section id="access" hidden>
+        <h2>Let Cliphy Helper read Messages</h2>
+        <p>macOS asks you to switch this on yourself.</p>
+        <ol class="plain">
+          <li>Open Full Disk Access.</li>
+          <li>Switch on <b>Cliphy Helper</b>. Not listed? Press + and choose it.</li>
+          <li>Come back here. This screen moves on by itself.</li>
+        </ol>
+        <div class="row">
+          <button id="open-settings" class="primary">Open settings</button>
+          <button id="show-app">Find the app</button>
+        </div>
+        <p class="muted small">
+          Switched on and still here? <button id="relaunch" class="link">Restart the helper</button>
+        </p>
+      </section>
+
+      <section id="ready" hidden>
+        <h2>People</h2>
+        <p class="muted">Texts and photos from people you switch on go to Chat.</p>
+        <ul id="people" class="people"></ul>
+        <p id="no-people" class="muted" hidden>
+          Nobody yet. Add people on your phone: Chat → Setup → People.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <span id="account" class="muted small"></span>
+      <button id="disconnect" class="link small" hidden>Disconnect</button>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

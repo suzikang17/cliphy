@@ -1,0 +1,252 @@
+:root {
+  --bg: #fbf7ef;
+  --card: #ffffff;
+  --ink: #151515;
+  --muted: #6b665c;
+  --hair: #e4ddcf;
+  --ok: #166534;
+  --due: #92400e;
+  --accent: #ffd84d;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: 44px 22px 16px;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    14px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  /* The whole top strip drags the window; controls opt out below. */
+  -webkit-app-region: drag;
+}
+button,
+input,
+main,
+footer {
+  -webkit-app-region: no-drag;
+}
+h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 650;
+}
+p {
+  margin: 0 0 10px;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12px;
+}
+#status {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+#status.ok {
+  color: var(--ok);
+}
+#status.due {
+  color: var(--due);
+}
+
+.steps {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1.5px solid var(--hair);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.steps .dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.steps li.now {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--card);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 600;
+}
+.steps li.done {
+  color: var(--ok);
+  border-color: var(--hair);
+}
+.steps li.done .dot {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.code {
+  margin: 18px 0 12px;
+  padding: 18px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 2px 2px 0 var(--ink);
+  text-align: center;
+  font:
+    600 30px/1 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+  user-select: text;
+}
+.code.waiting {
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0;
+  font-family: inherit;
+  font-weight: 400;
+}
+ol.plain {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+ol.plain li {
+  margin-bottom: 4px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+button {
+  padding: 6px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+button:active {
+  transform: translate(1px, 1px);
+}
+button.primary {
+  background: var(--accent);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+button.primary:active {
+  box-shadow: 1px 1px 0 var(--ink);
+}
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.people {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--hair);
+}
+.people li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--hair);
+}
+.people .name {
+  font-weight: 550;
+}
+.people .hint {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+/* A small switch: outlined track, solid knob. */
+.switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 11px;
+  background: var(--card);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.12s ease;
+}
+.switch[aria-checked="true"] {
+  background: var(--accent);
+}
+.switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+}
+.switch:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  min-height: 28px;
+}
+#account {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

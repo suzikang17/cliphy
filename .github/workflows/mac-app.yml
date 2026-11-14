@@ -1,0 +1,84 @@
+name: Mac app
+
+# Builds Cliphy Helper (apps/mac-app) on a Mac, runs it once in a mode that
+# draws every screen with made-up data and saves pictures of them, then packs
+# the disk image. Unsigned for now: see docs/decisions/0061.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mac-app/**"
+      - "apps/mac-helper/**"
+      - ".github/workflows/mac-app.yml"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm exec vitest run apps/mac-app apps/mac-helper
+
+      - name: Build the app
+        working-directory: apps/mac-app
+        run: |
+          node build.mjs
+          pnpm exec electron-builder --mac --dir --publish never -c.mac.identity=null
+
+      # An app with no signature at all does not start on Apple silicon.
+      - name: Sign for this machine only
+        working-directory: apps/mac-app
+        run: |
+          APP="$(ls -d release/mac*/Cliphy\ Helper.app | head -1)"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep "$APP"
+
+      - name: Run it and take pictures of each screen
+        working-directory: apps/mac-app
+        env:
+          CLIPHY_SMOKE_OUT: ${{ runner.temp }}/smoke
+          CLIPHY_HELPER_DIR: ${{ runner.temp }}/helper-home
+        run: |
+          "$APP/Contents/MacOS/Cliphy Helper" &
+          pid=$!
+          for i in $(seq 1 60); do
+            if ! kill -0 $pid 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if kill -0 $pid 2>/dev/null; then echo "still running after 60s"; kill $pid; fi
+          wait $pid || echo "exit code $?"
+          cat "$CLIPHY_SMOKE_OUT/smoke.json"
+          ls -la "$CLIPHY_SMOKE_OUT"
+          test -f "$CLIPHY_SMOKE_OUT/3-ready.png"
+          grep -q '"sqlite"' "$CLIPHY_SMOKE_OUT/smoke.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: warn
+
+      - name: Pack the disk image
+        working-directory: apps/mac-app
+        run: pnpm exec electron-builder --mac dmg --prepackaged "$APP" --publish never -c.mac.identity=null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cliphy-Helper-dmg
+          path: apps/mac-app/release/*.dmg
+          if-no-files-found: error
