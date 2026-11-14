@@ -36,7 +36,8 @@ jobs:
         working-directory: apps/mac-app
         run: |
           node build.mjs
-          pnpm exec electron-builder --mac --dir --publish never -c.mac.identity=null
+          pnpm exec electron-builder --mac dir --universal --publish never -c.mac.identity=null
+          ls release
 
       # An app with no signature at all does not start on Apple silicon.
       - name: Sign for this machine only
@@ -46,6 +47,9 @@ jobs:
           echo "APP=$APP" >> "$GITHUB_ENV"
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep "$APP"
+          EXE="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
+          ls -la "$APP/Contents/MacOS"
+          echo "EXE=$EXE" >> "$GITHUB_ENV"
 
       - name: Run it and take pictures of each screen
         working-directory: apps/mac-app
@@ -53,7 +57,7 @@ jobs:
           CLIPHY_SMOKE_OUT: ${{ runner.temp }}/smoke
           CLIPHY_HELPER_DIR: ${{ runner.temp }}/helper-home
         run: |
-          "$APP/Contents/MacOS/Cliphy Helper" &
+          "$EXE" &
           pid=$!
           for i in $(seq 1 60); do
             if ! kill -0 $pid 2>/dev/null; then break; fi
