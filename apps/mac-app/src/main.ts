@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "ele
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createApi } from "../../mac-helper/src/api.js";
+import { contactFiles, readContacts, type ContactNames } from "../../mac-helper/src/contacts.js";
 import { prepareImage } from "../../mac-helper/src/images.js";
 import {
   maxRowId,
@@ -108,9 +109,13 @@ async function addPerson(
   if (!res.ok) throw new ApiError(`POST person → ${res.status}`, res.status);
 }
 
+let contacts: ContactNames | null = null;
+
 function listRecentThreads() {
   const db = openMessages();
   try {
+    // Contacts are read again with each list, so a newly saved name shows up.
+    contacts = readContacts(contactFiles());
     return recentThreads(db, 8);
   } finally {
     db.close();
@@ -132,6 +137,7 @@ const controller = new Controller({
   sync,
   setCapture,
   recentThreads: listRecentThreads,
+  contactName: (handle) => contacts?.nameFor(handle) ?? null,
   addPerson,
   now: () => new Date(),
   onChange: (state) => {
@@ -248,6 +254,7 @@ async function smoke(outDir: string): Promise<void> {
           },
           {
             handle: "sam@example.com",
+            name: "Sam",
             lastAtIso: new Date(Date.now() - 86_400_000).toISOString(),
             preview: "Photo",
           },

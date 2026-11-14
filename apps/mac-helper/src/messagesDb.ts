@@ -140,6 +140,8 @@ export interface RecentThread {
   lastAtIso: string;
   /** The latest words in the thread, or "Photo" when it was only a picture. */
   preview: string;
+  /** Their name in Contacts on this Mac, when the number or address is saved there. */
+  name?: string;
 }
 
 /** A person, not a service: an email address, or a number long enough to be a phone. */

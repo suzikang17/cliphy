@@ -15,7 +15,7 @@ function threadRow(thread) {
     input.type = "text";
     input.placeholder = "Their name";
     input.value = adding.name;
-    input.setAttribute("aria-label", `Name for ${thread.handle}`);
+    input.setAttribute("aria-label", `Name for ${thread.name ?? thread.handle}`);
     input.addEventListener("input", () => (adding.name = input.value));
     const save = document.createElement("button");
     save.className = "small-button primary";
@@ -35,7 +35,9 @@ function threadRow(thread) {
   }
   const text = document.createElement("span");
   text.className = "name thread-text";
-  text.textContent = thread.handle;
+  // The name from Contacts when there is one; the number stays a hover away.
+  text.textContent = thread.name ?? thread.handle;
+  if (thread.name) text.title = thread.handle;
   const hint = document.createElement("span");
   hint.className = "hint";
   hint.textContent = thread.preview;
@@ -43,9 +45,9 @@ function threadRow(thread) {
   const add = document.createElement("button");
   add.className = "small-button";
   add.textContent = "Add";
-  add.setAttribute("aria-label", `Add ${thread.handle}`);
+  add.setAttribute("aria-label", `Add ${thread.name ?? thread.handle}`);
   add.addEventListener("click", () => {
-    adding = { handle: thread.handle, name: "" };
+    adding = { handle: thread.handle, name: thread.name ?? "" };
     draw(last);
   });
   li.append(text, add);

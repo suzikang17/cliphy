@@ -38,6 +38,8 @@ export interface ControllerDeps {
   sync(config: HelperConfig): Promise<SyncResult>;
   setCapture(config: HelperConfig, personId: string, on: boolean): Promise<void>;
   recentThreads(): RecentThread[];
+  /** The name Contacts on this Mac has for a number or address, if any. */
+  contactName(handle: string): string | null;
   /** Create the person in the app with this handle and capture switched on. */
   addPerson(config: HelperConfig, input: { name: string; handle: string }): Promise<void>;
   now(): Date;
@@ -143,8 +145,22 @@ export class Controller {
         capture: p.captureThread,
         hasHandle: p.handles.length > 0,
       })),
-      threads: recent.filter((t) => !taken.has(t.handle.toLowerCase())),
+      threads: recent
+        .filter((t) => !taken.has(t.handle.toLowerCase()))
+        .map((t) => {
+          const name = this.contactName(t.handle);
+          return name ? { ...t, name } : t;
+        }),
     };
+  }
+
+  /** Names are a convenience too: without Contacts the numbers are shown. */
+  private contactName(handle: string): string | null {
+    try {
+      return this.deps.contactName(handle);
+    } catch {
+      return null;
+    }
   }
 
   async addPerson(handle: string, rawName: string): Promise<void> {

@@ -32,7 +32,22 @@ Run it from source on the Mac with `start`. Full Disk Access then belongs to
 the Electron program inside `node_modules`, which does not change when the code
 does, so it is granted once: add
 `node_modules/electron/dist/Electron.app` (at the top of the repo) under Full Disk Access.
+It is listed there as **Electron**, not Cliphy Helper.
 Quit the installed Cliphy Helper first; only one copy runs at a time.
+
+`start` opens Electron through `open` (see `start.mjs`) rather than as a child
+of the terminal. macOS charges Full Disk Access to the program that started a
+process, so a child of a terminal without that access is refused Messages even
+with Electron switched on. Two more things to know:
+
+- If macOS offers "Quit & Reopen" after the switch, it reopens a bare Electron
+  without the app. Quit that and run `start` again.
+- If Electron is switched on and still refused, remove it from the list and add
+  it again. If that does not help, give it a complete signature first:
+  `codesign --force --deep --sign - node_modules/electron/dist/Electron.app`.
+
+With setup finished the app starts without a window; run `start` a second time
+(or use the menu-bar item) to open it.
 
 ## Until it is signed
 

@@ -38,6 +38,7 @@ function setup(over: Partial<ControllerDeps> = {}, config: HelperConfig | null =
     },
     setCapture: async () => {},
     recentThreads: () => [],
+    contactName: () => null,
     addPerson: async () => {},
     now: () => new Date("2026-11-14T18:00:00Z"),
     onChange: (s) => seen.push(structuredClone(s)),
@@ -207,6 +208,36 @@ describe("mac app controller", () => {
 
     it("offers recent threads that do not belong to anyone yet", async () => {
       const { c } = setup({ recentThreads: () => threads }, paired);
+      await c.tick();
+      expect(c.state.threads.map((t) => t.handle)).toEqual(["sam@example.com"]);
+    });
+
+    it("names a thread from Contacts when the number is known there", async () => {
+      const { c } = setup(
+        {
+          recentThreads: () => threads,
+          contactName: (handle) => (handle === "sam@example.com" ? "Sam" : null),
+          people: async () => [],
+        },
+        paired,
+      );
+      await c.tick();
+      expect(c.state.threads.map((t) => [t.handle, t.name])).toEqual([
+        ["+15550100", undefined],
+        ["sam@example.com", "Sam"],
+      ]);
+    });
+
+    it("still offers threads when Contacts cannot be read", async () => {
+      const { c } = setup(
+        {
+          recentThreads: () => threads,
+          contactName: () => {
+            throw new Error("no access");
+          },
+        },
+        paired,
+      );
       await c.tick();
       expect(c.state.threads.map((t) => t.handle)).toEqual(["sam@example.com"]);
     });

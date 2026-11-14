@@ -25,5 +25,5 @@ The Mac helper was a terminal program: clone the repo, install Node, paste a key
 - The disk image is about 220 MB (universal build). arm64-only would halve it.
 - **Not signed yet.** CI signs "for this machine only" so the test run can start. A downloaded copy is blocked by Gatekeeper until allowed by hand, and Full Disk Access has to be granted again after every new build. Fix: a Developer ID Application certificate and notarization credentials in the repo's secrets.
 - Full Disk Access cannot be granted by the app; the screen opens the right Settings pane and waits.
-- People are switched on from the list the phone app already has; the app does not browse Messages threads by itself.
-- Not yet run by a person on a real Mac: pairing against the live server, the Full Disk Access screen and uploads are only covered by unit tests and the screenshots.
+- People are switched on from the list the phone app already has, or added from the recent one-to-one threads, which are named from the Mac's Contacts when the number is saved there. The names are read locally and only sent when the owner adds the person.
+- Run from source on a real Mac on 2026-11-14 (launch, Full Disk Access, People, From Messages). Pairing from source reached the code screen only; see the devlog for that day.
