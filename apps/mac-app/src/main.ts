@@ -65,7 +65,7 @@ async function sync(config: HelperConfig) {
   const db = openMessages();
   try {
     const state = loadState(DIR);
-    return await syncOnce({
+    const result = await syncOnce({
       api: createApi(config),
       messages: { read: (opts) => readThread(db, opts), maxRowId: () => maxRowId(db) },
       images: { prepare: (file, mimeType) => prepareImage(file, mimeType) },
@@ -74,6 +74,11 @@ async function sync(config: HelperConfig) {
       now: () => new Date(),
       log,
     });
+    // Counts only: no names, numbers or words go into the log.
+    if (result.uploaded > 0) {
+      log(`Uploaded ${result.uploaded} message(s) from ${result.people} captured thread(s).`);
+    }
+    return result;
   } finally {
     db.close();
   }
@@ -296,6 +301,7 @@ if (!app.requestSingleInstanceLock()) {
     );
     icon.setTemplateImage(true);
     tray = new Tray(icon);
+    log(`Started ${app.getVersion()} (${loadConfig(DIR) ? "connected" : "not connected"}).`);
     drawTray(controller.state);
 
     // Setup is not finished: show the window. Otherwise stay out of the way.
