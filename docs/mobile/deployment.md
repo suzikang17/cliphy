@@ -35,7 +35,7 @@ eas build --profile preview --platform ios       # ad-hoc test build
 eas build --profile production --platform ios    # store build
 ```
 
-- **From CI (no local Expo login needed):** `gh workflow run eas-build.yml -f profile=production -f submit=true` — `.github/workflows/eas-build.yml` starts the build on EAS with the repo's `EXPO_TOKEN`; `submit` sends a production build to TestFlight.
+- **From CI (no local Expo login needed):** `gh workflow run eas-build.yml -f profile=production -f submit=true` — `.github/workflows/eas-build.yml` runs the build on EAS, waits for it, and pushes the result to the phone through Bark (`BARK_KEY` secret, ADR 0059). It starts the build with the repo's `EXPO_TOKEN`; `submit` sends a production build to TestFlight.
 - **Apple 403 "A required agreement is missing or has expired"** during credential setup means the Program License Agreement needs accepting at developer.apple.com/account (account holder only). Nothing in the repo fixes it; re-run the workflow after accepting. (Hit 2026-11-14, build 8.)
 - Apple: **paid developer account** ($99/yr) — no 7-day signing expiry on any profile.
 - CNG workflow: `ios/`/`android/` are gitignored; EAS runs prebuild from `app.json` every build, so native config changes are just `app.json` edits.

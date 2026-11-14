@@ -19,6 +19,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Waits for the build on EAS so the run's result is the build's result.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -32,14 +34,39 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The build runs on Expo's machines; this job only starts it.
-      - name: Start iOS build
+      # The build runs on Expo's machines; this job starts it and waits.
+      - name: Build iOS
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           PROFILE: ${{ inputs.profile }}
           SUBMIT: ${{ inputs.submit && inputs.profile == 'production' }}
         run: |
-          args=(--platform ios --profile "$PROFILE" --non-interactive --no-wait)
+          args=(--platform ios --profile "$PROFILE" --non-interactive)
           if [ "$SUBMIT" = "true" ]; then args+=(--auto-submit); fi
           npx eas-cli@latest build "${args[@]}"
+
+      # Push to the owner's phone through Bark (https://bark.day.app). Skipped
+      # until the BARK_KEY secret is set.
+      - name: Notify
+        if: always()
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          STATUS: ${{ job.status }}
+          PROFILE: ${{ inputs.profile }}
+          SUBMIT: ${{ inputs.submit && inputs.profile == 'production' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$BARK_KEY" ]; then echo "BARK_KEY not set; skipping"; exit 0; fi
+          case "$STATUS" in
+            success)
+              title="Cliphy build finished"
+              body="iOS $PROFILE build is done."
+              if [ "$SUBMIT" = "true" ]; then body="$body Sent to TestFlight."; fi ;;
+            cancelled) title="Cliphy build cancelled"; body="iOS $PROFILE build was cancelled." ;;
+            *) title="Cliphy build failed"; body="iOS $PROFILE build failed. Tap for the log." ;;
+          esac
+          jq -n --arg k "$BARK_KEY" --arg t "$title" --arg b "$body" --arg u "$RUN_URL" \
+            '{device_key: $k, title: $t, body: $b, url: $u, group: "cliphy-builds", level: "timeSensitive"}' |
+            curl -sS --fail-with-body -m 20 -X POST https://api.day.app/push \
+              -H 'Content-Type: application/json; charset=utf-8' -d @- || echo "Bark push failed"
