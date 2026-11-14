@@ -1,0 +1,45 @@
+name: EAS Build
+
+# Manual: a native build is only needed when app.json plugins or native
+# dependencies change (see docs/mobile/deployment.md). Everything else ships
+# through the EAS Update workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Build profile from apps/mobile/eas.json
+        type: choice
+        options: [production, preview, development]
+        default: production
+      submit:
+        description: Send the finished build to TestFlight (production only)
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The build runs on Expo's machines; this job only starts it.
+      - name: Start iOS build
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROFILE: ${{ inputs.profile }}
+          SUBMIT: ${{ inputs.submit && inputs.profile == 'production' }}
+        run: |
+          args=(--platform ios --profile "$PROFILE" --non-interactive --no-wait)
+          if [ "$SUBMIT" = "true" ]; then args+=(--auto-submit); fi
+          npx eas-cli@latest build "${args[@]}"
