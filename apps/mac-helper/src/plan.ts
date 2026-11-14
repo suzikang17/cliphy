@@ -21,7 +21,13 @@ export interface ThreadMessage {
   text: string;
   sentAtIso: string;
   isFromMe: boolean;
-  attachments: { path: string | null; mimeType: string | null }[];
+  attachments: {
+    /** Where the file is, or null when it is not on disk. */
+    path: string | null;
+    mimeType: string | null;
+    /** False while Messages is still downloading it. */
+    ready: boolean;
+  }[];
 }
 
 export interface UploadedAttachment {

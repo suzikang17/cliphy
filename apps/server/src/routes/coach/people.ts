@@ -15,6 +15,23 @@ interface PersonBody {
   historyDays?: unknown;
 }
 
+/**
+ * A phone number or email in the form Messages stores it, so the Mac helper
+ * can find the thread: numbers as +15551234567, emails in lower case.
+ * A 10-digit number is taken to be US/Canada; one with a leading + keeps its
+ * country code.
+ */
+export function normalizeHandle(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "";
+  if (value.includes("@")) return value.toLowerCase();
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  if (value.startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  return `+${digits}`;
+}
+
 /** Validate a create (all required fields) or patch (`partial`) body into column values. */
 function personColumns(
   body: PersonBody,
@@ -37,7 +54,7 @@ function personColumns(
     if (!Array.isArray(body.handles) || body.handles.some((h) => typeof h !== "string")) {
       return { error: "handles must be a list of strings" };
     }
-    values.handles = (body.handles as string[]).map((h) => h.trim()).filter(Boolean);
+    values.handles = [...new Set((body.handles as string[]).map(normalizeHandle).filter(Boolean))];
   }
   if (body.captureThread !== undefined) values.capture_thread = Boolean(body.captureThread);
   if (body.historyWindow !== undefined) {

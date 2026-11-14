@@ -8,21 +8,58 @@ import {
   type UploadedAttachment,
 } from "./plan.js";
 
-/** Messages per upload. Also the server's own limit is 200 per call. */
+/** Messages per upload. The server's own limit is 200 per call. */
 export const BATCH_SIZE = 100;
 /** Batches per person per cycle, so a long catch-up never blocks everyone else. */
 export const MAX_BATCHES_PER_CYCLE = 5;
+/** Cycles an attachment may fail before the message is sent without it. */
+export const ATTACHMENT_TRIES = 3;
+/** How long to wait for a photo that Messages is still downloading. */
+const PENDING_WAIT_MS = 10 * 60_000;
+/**
+ * A message this much older than the helper's last sync did not just arrive:
+ * it is an old one that Messages gave a new row (an iCloud re-sync, a
+ * restore). It is sent as history, not as something new to act on.
+ */
+const STALE_MS = 24 * 60 * 60_000;
+
+/** An API refusal, with its HTTP status, so a permanent "no" can be told from a blip. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 export interface HelperState {
-  /** The last message row id uploaded, per person. */
+  /** The last message row id handled, per person. */
   cursors: Record<string, number>;
   /** People whose first sync (start from now, or read back history) is finished. */
   connected: Record<string, boolean>;
-  /** A history read still in progress: its fixed lower bound, and where the thread ended when it began. */
+  /** A history read still in progress: its lower bound in time, and the row the thread ended at when it began. */
   backfill: Record<string, { sinceIso: string | null; maxAtStart: number }>;
+  /** The handles each person's state was built for. If they change, the person starts over. */
+  handles: Record<string, string>;
+  /** When the last complete cycle finished. Tells missed messages from re-synced old ones. */
+  lastSyncAt: string | null;
+  /** Attachments already uploaded for a batch the server has not yet accepted. */
+  uploaded: Record<string, UploadedAttachment>;
+  /** How many cycles each attachment has failed. */
+  attachmentTries: Record<string, number>;
 }
 
-export const emptyState = (): HelperState => ({ cursors: {}, connected: {}, backfill: {} });
+export const emptyState = (): HelperState => ({
+  cursors: {},
+  connected: {},
+  backfill: {},
+  handles: {},
+  lastSyncAt: null,
+  uploaded: {},
+  attachmentTries: {},
+});
 
 /** Everything the sync cycle touches, so it can be run against fakes. */
 export interface SyncDeps {
@@ -61,6 +98,13 @@ export interface SyncResult {
   offline: boolean;
 }
 
+function forget(state: HelperState, personId: string): void {
+  delete state.cursors[personId];
+  delete state.connected[personId];
+  delete state.backfill[personId];
+  delete state.handles[personId];
+}
+
 /**
  * One pass: for each person whose thread is captured, upload what is new.
  *
@@ -71,17 +115,39 @@ export interface SyncResult {
  */
 export async function syncOnce(deps: SyncDeps): Promise<SyncResult> {
   const result: SyncResult = { uploaded: 0, skippedAttachments: 0, people: 0, offline: false };
+  const { state } = deps;
 
-  let people: CapturedPerson[];
+  let everyone: CapturedPerson[];
   try {
-    people = (await deps.api.people()).filter((p) => p.captureThread && p.handles.length > 0);
+    everyone = await deps.api.people();
   } catch (err) {
     deps.log(`Cannot reach the server: ${String(err)}`);
     return { ...result, offline: true };
   }
+  const people = everyone.filter((p) => p.captureThread && p.handles.length > 0);
   result.people = people.length;
 
+  // Capture turned off (or the person removed): forget them, so turning it
+  // back on follows the choice made then and does not upload what was sent
+  // in between.
+  const captured = new Set(people.map((p) => p.id));
+  for (const id of new Set([
+    ...Object.keys(state.cursors),
+    ...Object.keys(state.connected),
+    ...Object.keys(state.backfill),
+    ...Object.keys(state.handles),
+  ])) {
+    if (!captured.has(id)) forget(state, id);
+  }
+
   for (const person of people) {
+    // A different number is a different thread: start over for it.
+    const key = [...person.handles].sort().join(",");
+    if (state.handles[person.id] !== undefined && state.handles[person.id] !== key) {
+      forget(state, person.id);
+    }
+    state.handles[person.id] = key;
+
     try {
       await syncPerson(deps, person, result);
     } catch (err) {
@@ -89,6 +155,9 @@ export async function syncOnce(deps: SyncDeps): Promise<SyncResult> {
       deps.log(`${person.name}: ${String(err)}`);
     }
   }
+
+  state.lastSyncAt = deps.now().toISOString();
+  deps.save();
 
   try {
     await deps.api.heartbeat();
@@ -105,6 +174,9 @@ async function syncPerson(
 ): Promise<void> {
   const { state } = deps;
   const id = person.id;
+  const now = deps.now().getTime();
+  // Fixed for the whole cycle: what counts as "old" must not shift as it runs.
+  const staleBefore = state.lastSyncAt ? Date.parse(state.lastSyncAt) - STALE_MS : null;
 
   // First time: follow the person's history choice.
   if (!state.connected[id] && !state.backfill[id]) {
@@ -120,51 +192,92 @@ async function syncPerson(
     deps.save();
   }
 
-  const backfill = state.backfill[id];
-  const historical = backfill !== undefined;
-
   for (let batch = 0; batch < MAX_BATCHES_PER_CYCLE; batch++) {
-    const rows = deps.messages.read({
+    const backfill = state.backfill[id];
+    let rows = deps.messages.read({
       handles: person.handles,
       afterRowId: state.cursors[id] ?? 0,
+      // History stops where the thread stood when the read began. Anything
+      // after that arrived since, and is handled as live once history is done.
+      uptoRowId: backfill ? backfill.maxAtStart : null,
       sinceIso: backfill ? backfill.sinceIso : null,
       limit: BATCH_SIZE,
     });
 
     if (rows.length === 0) {
-      if (backfill) {
-        // History is done. Never go back below where the thread stood when it
-        // began, or messages older than the window would be uploaded as new.
-        state.cursors[id] = Math.max(state.cursors[id] ?? 0, backfill.maxAtStart);
-        delete state.backfill[id];
-        state.connected[id] = true;
-        deps.save();
-      }
-      return;
+      if (!backfill) return;
+      // History is done. Never go back below where the thread stood, or
+      // messages older than the window would be uploaded as new.
+      state.cursors[id] = Math.max(state.cursors[id] ?? 0, backfill.maxAtStart);
+      delete state.backfill[id];
+      state.connected[id] = true;
+      deps.save();
+      continue;
     }
+    const full = rows.length === BATCH_SIZE;
 
-    const messages: IntakeMessage[] = [];
+    // A recent message whose photo is still downloading: stop before it and
+    // come back, instead of sending it without the photo for good.
+    const waiting = rows.findIndex(
+      (r) => r.attachments.some((a) => !a.ready) && now - Date.parse(r.sentAtIso) < PENDING_WAIT_MS,
+    );
+    if (waiting !== -1) rows = rows.slice(0, waiting);
+    if (rows.length === 0) return;
+
+    const history: IntakeMessage[] = [];
+    const live: IntakeMessage[] = [];
     for (const row of rows) {
-      messages.push(toIntakeMessage(row, await uploadAttachments(deps, row, result)));
+      const uploaded = await uploadAttachments(deps, row, result);
+      // No words and nothing attached (an unsent message, or one whose only
+      // attachment was skipped) says nothing: do not send it.
+      if (!row.text.trim() && uploaded.length === 0) continue;
+      const old = staleBefore !== null && Date.parse(row.sentAtIso) < staleBefore;
+      (backfill || old ? history : live).push(toIntakeMessage(row, uploaded));
     }
-    await deps.api.postMessages({ personId: id, historical, messages });
+    if (history.length > 0) {
+      await deps.api.postMessages({ personId: id, historical: true, messages: history });
+    }
+    if (live.length > 0) {
+      await deps.api.postMessages({ personId: id, historical: false, messages: live });
+    }
 
     state.cursors[id] = rows[rows.length - 1].rowId;
+    for (const row of rows) {
+      row.attachments.forEach((_, i) => {
+        delete state.uploaded[`${row.guid}:${i}`];
+        delete state.attachmentTries[`${row.guid}:${i}`];
+      });
+    }
     deps.save();
-    result.uploaded += rows.length;
+    result.uploaded += history.length + live.length;
 
-    if (rows.length < BATCH_SIZE && !backfill) return;
+    if (waiting !== -1 || (!full && !backfill)) return;
   }
 }
 
-/** Upload a message's image attachments. A missing or non-image attachment is skipped, not fatal. */
+/**
+ * Upload a message's image attachments.
+ *
+ * A missing or non-image attachment is skipped. One the server refuses
+ * outright, or that keeps failing for several cycles, is also skipped, so a
+ * single bad file cannot hold up a person's thread for ever. What did upload
+ * is remembered until the batch is accepted, so a retry does not upload it
+ * again.
+ */
 async function uploadAttachments(
   deps: SyncDeps,
   row: ThreadMessage,
   result: SyncResult,
 ): Promise<UploadedAttachment[]> {
+  const { state } = deps;
   const uploaded: UploadedAttachment[] = [];
-  for (const attachment of row.attachments) {
+
+  for (const [index, attachment] of row.attachments.entries()) {
+    const key = `${row.guid}:${index}`;
+    if (state.uploaded[key]) {
+      uploaded.push(state.uploaded[key]);
+      continue;
+    }
     const prepared = attachment.path
       ? await deps.images.prepare(attachment.path, attachment.mimeType)
       : null;
@@ -172,9 +285,29 @@ async function uploadAttachments(
       result.skippedAttachments++;
       continue;
     }
-    const { path, signedUrl } = await deps.api.uploadUrl(prepared.mediaType);
-    await deps.api.put(signedUrl, prepared.bytes, prepared.mediaType);
-    uploaded.push({ storagePath: path, mediaType: prepared.mediaType });
+    try {
+      const { path, signedUrl } = await deps.api.uploadUrl(prepared.mediaType);
+      await deps.api.put(signedUrl, prepared.bytes, prepared.mediaType);
+      state.uploaded[key] = { storagePath: path, mediaType: prepared.mediaType };
+      uploaded.push(state.uploaded[key]);
+    } catch (err) {
+      const refused =
+        err instanceof ApiError &&
+        err.status >= 400 &&
+        err.status < 500 &&
+        err.status !== 408 &&
+        err.status !== 429;
+      const tries = (state.attachmentTries[key] ?? 0) + 1;
+      if (refused || tries >= ATTACHMENT_TRIES) {
+        deps.log(`Skipping an attachment that will not upload: ${String(err)}`);
+        delete state.attachmentTries[key];
+        result.skippedAttachments++;
+        continue;
+      }
+      state.attachmentTries[key] = tries;
+      deps.save();
+      throw err;
+    }
   }
   return uploaded;
 }

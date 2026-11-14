@@ -242,7 +242,8 @@ intakeRoutes.post("/messages", async (c) => {
       .eq("user_id", userId);
   }
   for (const bundleId of touched) {
-    await inngest.send({ name: "coach/bundle.touched", data: { bundleId, userId } });
+    // `historical` lets the job read history cheaply and after live bundles.
+    await inngest.send({ name: "coach/bundle.touched", data: { bundleId, userId, historical } });
   }
 
   return c.json({ stored, duplicates, bundleIds: touched });

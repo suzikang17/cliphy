@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import path from "node:path";
-import { appleTimeToIso, textFromAttributedBody } from "./convert.js";
+import { appleTimeToIso, mimeFor, textFromAttributedBody } from "./convert.js";
 import type { ThreadMessage } from "./plan.js";
 
 // Reading the Messages history. The database is opened read-only and is never
@@ -35,6 +35,8 @@ export interface ReadOptions {
   handles: string[];
   /** Only messages with a larger row id. */
   afterRowId: number;
+  /** Only messages up to and including this row id (for reading history up to a fixed point). */
+  uptoRowId?: number | null;
   /** Only messages sent at or after this time, or null for no lower bound. */
   sinceIso: string | null;
   limit: number;
@@ -42,8 +44,9 @@ export interface ReadOptions {
 
 /**
  * A person's one-to-one thread, oldest first, both directions.
- * Group chats they are in are left out, and so are reactions ("Loved …"),
- * which Messages stores as messages but are not something anyone wrote.
+ * Group chats they are in are left out, and so are reactions ("Loved …") and
+ * other rows Messages stores as messages that nobody wrote. A message that
+ * belongs to two chat rows for the same person (SMS and iMessage) comes once.
  */
 export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
   if (opts.handles.length === 0) return [];
@@ -66,8 +69,11 @@ export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
         where h.id in (${marks})
       )
       and m.ROWID > ?
+      and (? is null or m.ROWID <= ?)
       and coalesce(m.associated_message_type, 0) = 0
+      and coalesce(m.item_type, 0) = 0
       and (? is null or m.date >= ?)
+    group by m.ROWID
     order by m.ROWID asc
     limit ?
   `);
@@ -75,14 +81,24 @@ export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
   messages.setReadBigInts(true);
 
   const attachments = db.prepare(`
-    select a.filename as filename, a.mime_type as mimeType
+    select a.filename as filename, a.mime_type as mimeType, a.uti as uti,
+           a.transfer_state as transferState
     from attachment a
     join message_attachment_join j on j.attachment_id = a.ROWID
     where j.message_id = ?
     order by a.ROWID asc
   `);
 
-  const rows = messages.all(...opts.handles, opts.afterRowId, since, since, opts.limit) as {
+  const upto = opts.uptoRowId ?? null;
+  const rows = messages.all(
+    ...opts.handles,
+    opts.afterRowId,
+    upto,
+    upto,
+    since,
+    since,
+    opts.limit,
+  ) as {
     rowId: bigint;
     guid: string;
     text: string | null;
@@ -93,18 +109,26 @@ export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
 
   return rows.map((r) => {
     const rowId = Number(r.rowId);
-    const files = attachments.all(rowId) as { filename: string | null; mimeType: string | null }[];
+    const files = attachments.all(rowId) as {
+      filename: string | null;
+      mimeType: string | null;
+      uti: string | null;
+      transferState: bigint | number | null;
+    }[];
     return {
       rowId,
       guid: r.guid,
       // Newer macOS leaves `text` empty and keeps the words in `attributedBody`.
-      text: r.text ?? textFromAttributedBody(r.body),
+      // Messages marks where an image sits with U+FFFC; that is not something anyone wrote.
+      text: (r.text || textFromAttributedBody(r.body)).replace(/\uFFFC/g, "").trim(),
       sentAtIso: appleTimeToIso(r.date),
       isFromMe: Number(r.fromMe) === 1,
       attachments: files.map((f) => ({
         // Messages writes paths as "~/Library/…". No filename means it is not on disk (yet).
         path: f.filename ? f.filename.replace(/^~(?=\/)/, homedir()) : null,
-        mimeType: f.mimeType,
+        mimeType: mimeFor(f.mimeType, f.uti, f.filename),
+        // 5 is "finished". Anything else, or no file, means it is still arriving.
+        ready: Boolean(f.filename) && (f.transferState === null || Number(f.transferState) === 5),
       })),
     };
   });

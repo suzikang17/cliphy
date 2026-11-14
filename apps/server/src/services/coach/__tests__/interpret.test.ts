@@ -352,6 +352,21 @@ describe("coach interpretation", () => {
       expect(req.tools.map((t: { name: string }) => t.name)).toEqual(["record_interpretation"]);
     });
 
+    it("uses another model when asked, for reading history cheaply", async () => {
+      createMock.mockResolvedValue({
+        stop_reason: "tool_use",
+        content: [
+          {
+            type: "tool_use",
+            name: "record_interpretation",
+            input: { kind: "chat", understood: "" },
+          },
+        ],
+      });
+      await interpretBundle([textMessage("old message")], [], ctx, { model: "claude-haiku-5-5" });
+      expect(createMock.mock.calls[0][0].model).toBe("claude-haiku-5-5");
+    });
+
     it("throws when the model answers without calling the tool", async () => {
       createMock.mockResolvedValue({
         stop_reason: "end_turn",

@@ -80,6 +80,28 @@ describe("coach people", () => {
     });
   });
 
+  // Messages stores numbers as +15551234567; a number typed any other way would match nothing.
+  it("stores phone numbers the way Messages does, and emails in lower case", async () => {
+    db = makeDb((op) => (op.action === "insert" ? { data: personRow() } : undefined));
+    await post("/api/coach/people", {
+      name: "Maren",
+      role: "client",
+      handles: [
+        "(555) 123-4567",
+        "1-555-987-6543",
+        "+44 20 7946 0958",
+        " Maren@Example.COM ",
+        "  ",
+      ],
+    });
+    expect((db.written("coach_people")[0] as { handles: string[] }).handles).toEqual([
+      "+15551234567",
+      "+15559876543",
+      "+442079460958",
+      "maren@example.com",
+    ]);
+  });
+
   it("lists the caller's people", async () => {
     db = makeDb(() => ({ data: [personRow()] }));
     const res = await app().request("/api/coach/people");

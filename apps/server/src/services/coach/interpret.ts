@@ -14,6 +14,11 @@ import {
 const anthropic = new Anthropic({ timeout: 120_000 });
 
 export const INTERPRET_MODEL = "claude-opus-5-5";
+/**
+ * For bundles read from a thread's past. They only become a line of history
+ * (no question, no tasks), and a whole-thread import can be thousands of them.
+ */
+export const HISTORY_MODEL = "claude-haiku-5-5";
 const TOOL_NAME = "record_interpretation";
 /** How many images one reading may carry, and how large each may be (raw bytes). */
 const MAX_IMAGES = 8;
@@ -335,12 +340,14 @@ export async function interpretBundle(
   messages: InboundMessage[],
   images: { bytes: Buffer; mediaType: string }[],
   ctx: InterpretContext,
+  /** `model` overrides the default, e.g. the small model for reading old history. */
+  opts: { model?: string } = {},
 ): Promise<Interpretation> {
   // Current models reject a forced tool call, so the tool is offered with
   // `auto` and the system prompt requires it. A reply without it is an error
   // the caller retries, never a silent "chat".
   const response = await anthropic.messages.create({
-    model: INTERPRET_MODEL,
+    model: opts.model ?? INTERPRET_MODEL,
     max_tokens: 16000,
     system: SYSTEM_PROMPT,
     tools: [TOOL],

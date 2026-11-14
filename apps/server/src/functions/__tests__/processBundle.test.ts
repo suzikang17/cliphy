@@ -21,6 +21,7 @@ vi.mock("../../lib/storage.js", () => ({
 }));
 const interpretMock = vi.fn();
 vi.mock("../../services/coach/interpret.js", () => ({
+  HISTORY_MODEL: "claude-haiku-5-5",
   interpretBundle: (...a: unknown[]) => interpretMock(...a),
 }));
 const postBot = vi.fn();
@@ -405,6 +406,24 @@ describe("coach processBundle", () => {
       expect(interpretMock.mock.calls[0][1][0].mediaType).toBe("image/heic");
     });
 
+    // A whole-thread history import is thousands of bundles: read them cheaply.
+    it("reads history with the small model and without downloading its images", async () => {
+      db = storeDb(bundle({ historical: true }), messagesWithTwoImages());
+      interpretMock.mockResolvedValue(requestInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(downloadImage).not.toHaveBeenCalled();
+      expect(interpretMock.mock.calls[0][1]).toEqual([]);
+      expect(interpretMock.mock.calls[0][3]).toEqual({ model: "claude-haiku-5-5" });
+    });
+
+    it("reads a live bundle with the full model and its images", async () => {
+      db = storeDb(bundle(), messagesWithTwoImages());
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(downloadImage).toHaveBeenCalledTimes(2);
+      expect(interpretMock.mock.calls[0][3]).toBeUndefined();
+    });
+
     it("skips a bundle that is already done", async () => {
       db = storeDb(bundle({ status: "done" }));
       await run({ bundleId: "b1", userId: "u1" });
@@ -453,6 +472,12 @@ describe("coach bundle job configuration", () => {
       triggers: [{ event: "coach/bundle.touched" }],
     });
     expect(BUNDLE_JOB.onFailure).toEqual(expect.any(Function));
+  });
+
+  it("runs live bundles ahead of history", () => {
+    expect(BUNDLE_JOB).toMatchObject({
+      priority: { run: "event.data.historical == true ? -600 : 0" },
+    });
   });
 
   it("re-reads straight away for a fix or a sweep, still one at a time per user", () => {

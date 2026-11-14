@@ -20,9 +20,10 @@ function fixture() {
     create table chat (ROWID integer primary key, chat_identifier text, style integer);
     create table chat_handle_join (chat_id integer, handle_id integer);
     create table message (ROWID integer primary key, guid text, text text, attributedBody blob,
-      handle_id integer, date integer, is_from_me integer, associated_message_type integer default 0);
+      handle_id integer, date integer, is_from_me integer, associated_message_type integer default 0,
+      item_type integer default 0);
     create table chat_message_join (chat_id integer, message_id integer);
-    create table attachment (ROWID integer primary key, filename text, mime_type text, transfer_state integer);
+    create table attachment (ROWID integer primary key, filename text, mime_type text, uti text, transfer_state integer);
     create table message_attachment_join (message_id integer, attachment_id integer);
 
     insert into handle values (1, '+15550100'), (2, '+15550199');
@@ -40,13 +41,25 @@ function fixture() {
   msg.run(13, "g-13", "Group chatter", null, 1, apple("2026-11-14T17:43:00Z"), 0, 0);
   msg.run(14, "g-14", "Loved “First”", null, 1, apple("2026-11-14T17:44:00Z"), 0, 2000);
   msg.run(15, "g-15", "Old one", null, 1, apple("2022-03-01T10:00:00Z"), 0, 0);
-  for (const id of [10, 11, 12, 14, 15]) link.run(1, id);
+  // A screenshot: Messages puts an object-replacement character where the image sits.
+  msg.run(16, "g-16", "\uFFFC look at this", null, 1, apple("2026-11-14T17:45:00Z"), 0, 0);
+  for (const id of [10, 11, 12, 14, 15, 16]) link.run(1, id);
   link.run(2, 13);
   db.exec(`
     insert into attachment values
-      (1, '~/Library/Messages/Attachments/aa/page1.heic', 'image/heic', 5),
-      (2, null, 'image/png', 0);
-    insert into message_attachment_join values (11, 1), (11, 2);
+      (1, '~/Library/Messages/Attachments/aa/page1.heic', 'image/heic', 'public.heic', 5),
+      (2, null, 'image/png', 'public.png', 0),
+      (3, '~/Library/Messages/Attachments/bb/shot.png', null, 'public.png', 5),
+      (4, '~/Library/Messages/Attachments/cc/IMG_1.JPG', null, null, 5);
+    insert into message_attachment_join values (11, 1), (11, 2), (16, 3), (16, 4);
+    -- A group-name change: stored as a message, but nobody wrote it.
+    insert into message (ROWID, guid, text, handle_id, date, is_from_me, item_type)
+      values (17, 'g-17', null, 1, 800000000000000000, 0, 2);
+    insert into chat_message_join values (1, 17);
+    -- The same one-to-one thread as a second chat row (SMS and iMessage), with a message joined to both.
+    insert into chat values (3, '+15550100', 45);
+    insert into chat_handle_join values (3, 1);
+    insert into chat_message_join values (3, 10);
   `);
   db.close();
 }
@@ -75,6 +88,7 @@ describe("reading Messages", () => {
       [11, "g-11", false],
       [12, "g-12", true],
       [15, "g-15", false],
+      [16, "g-16", false],
     ]);
     expect(rows[0]).toMatchObject({ text: "First", sentAtIso: "2026-11-14T17:40:00.000Z" });
     db.close();
@@ -116,10 +130,11 @@ describe("reading Messages", () => {
     expect(row.guid).toBe("g-11");
     expect(row.text).toBe("");
     expect(row.attachments).toHaveLength(2);
-    expect(row.attachments[0].mimeType).toBe("image/heic");
+    expect(row.attachments[0]).toMatchObject({ mimeType: "image/heic", ready: true });
     expect(row.attachments[0].path).toMatch(/\/Library\/Messages\/Attachments\/aa\/page1\.heic$/);
     expect(row.attachments[0].path?.startsWith("~")).toBe(false);
-    expect(row.attachments[1]).toEqual({ path: null, mimeType: "image/png" });
+    // Not downloaded yet: no file, and not marked finished.
+    expect(row.attachments[1]).toEqual({ path: null, mimeType: "image/png", ready: false });
     db.close();
   });
 
@@ -144,7 +159,7 @@ describe("reading Messages", () => {
       limit: 50,
     });
     expect(rows.map((r) => r.guid)).not.toContain("g-15");
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     db.close();
   });
 
@@ -157,7 +172,7 @@ describe("reading Messages", () => {
         sinceIso: null,
         limit: 50,
       }),
-    ).toHaveLength(4);
+    ).toHaveLength(5);
     expect(
       readThread(db, { handles: ["+19990000"], afterRowId: 0, sinceIso: null, limit: 50 }),
     ).toEqual([]);
@@ -165,9 +180,45 @@ describe("reading Messages", () => {
     db.close();
   });
 
+  const all = { handles: ["+15550100"], afterRowId: 0, sinceIso: null, limit: 50 };
+
+  it("returns a message once even when it belongs to two chat rows for the same person", () => {
+    const db = openMessages(file);
+    const guids = readThread(db, all).map((r) => r.guid);
+    expect(guids.filter((g) => g === "g-10")).toHaveLength(1);
+    db.close();
+  });
+
+  it("leaves out rows that are not messages anyone wrote", () => {
+    const db = openMessages(file);
+    expect(readThread(db, all).map((r) => r.guid)).not.toContain("g-17");
+    db.close();
+  });
+
+  it("strips the placeholder Messages leaves where an image sits", () => {
+    const db = openMessages(file);
+    const row = readThread(db, { ...all, afterRowId: 15, limit: 1 })[0];
+    expect(row.text).toBe("look at this");
+    db.close();
+  });
+
+  it("works out an image's type from its uti or file name when Messages gives no mime type", () => {
+    const db = openMessages(file);
+    const row = readThread(db, { ...all, afterRowId: 15, limit: 1 })[0];
+    expect(row.attachments.map((a) => a.mimeType)).toEqual(["image/png", "image/jpeg"]);
+    db.close();
+  });
+
+  it("can stop at a row id, for reading history up to where the thread stood", () => {
+    const db = openMessages(file);
+    const rows = readThread(db, { ...all, uptoRowId: 12 });
+    expect(rows.map((r) => r.rowId)).toEqual([10, 11, 12]);
+    db.close();
+  });
+
   it("knows the newest message id, to start from now", () => {
     const db = openMessages(file);
-    expect(maxRowId(db)).toBe(15);
+    expect(maxRowId(db)).toBe(17);
     db.close();
   });
 

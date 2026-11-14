@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,15 +34,32 @@ function log(message: string): void {
   console.log(`${new Date().toISOString()} ${message}`);
 }
 
-function open(): MessagesDb {
+/** Open the Messages history, or explain what is wrong. Null when it cannot be read. */
+function tryOpen(): MessagesDb | null {
+  let db: MessagesDb;
   try {
-    const db = openMessages();
+    db = openMessages();
+  } catch (err) {
+    // Not an access problem: this Node cannot open SQLite at all, or the file is not there.
+    console.error(
+      `Cannot open ${DEFAULT_DB_PATH}: ${String(err)}\nThis needs Node 22.13 or later.`,
+    );
+    return null;
+  }
+  try {
     maxRowId(db); // Opening succeeds without access; reading is what fails.
     return db;
   } catch {
+    db.close();
     console.error(ACCESS_HELP);
-    process.exit(1);
+    return null;
   }
+}
+
+function open(): MessagesDb {
+  const db = tryOpen();
+  if (!db) process.exit(1);
+  return db;
 }
 
 function deps(db: MessagesDb): SyncDeps {
@@ -113,8 +130,25 @@ async function once(): Promise<void> {
   db.close();
 }
 
+/** Keep the log from growing for ever: start it over once it is large. */
+function trimLog(): void {
+  const file = path.join(DEFAULT_DIR, "helper.log");
+  try {
+    if (statSync(file).size > 5_000_000) truncateSync(file);
+  } catch {
+    // No log yet.
+  }
+}
+
 async function runForever(): Promise<void> {
-  const db = open();
+  trimLog();
+  // Under launchd, exiting on a setup problem would be restarted for ever.
+  // Say what is wrong once, then wait here and try again.
+  let db = tryOpen();
+  while (!db) {
+    await new Promise((resolve) => setTimeout(resolve, 5 * 60_000));
+    db = tryOpen();
+  }
   const d = deps(db);
   let stopping = false;
   const stop = () => {

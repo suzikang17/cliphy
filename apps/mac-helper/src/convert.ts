@@ -47,3 +47,41 @@ export function textFromAttributedBody(body: Uint8Array | null | undefined): str
   if (at + length > bytes.length) return "";
   return bytes.subarray(at, at + length).toString("utf8");
 }
+
+const UTI_TYPES: Record<string, string> = {
+  "public.jpeg": "image/jpeg",
+  "public.png": "image/png",
+  "public.heic": "image/heic",
+  "public.heif": "image/heif",
+  "public.webp": "image/webp",
+  "org.webmproject.webp": "image/webp",
+  "com.compuserve.gif": "image/gif",
+  "public.tiff": "image/tiff",
+};
+const EXTENSION_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  heic: "image/heic",
+  heif: "image/heif",
+  webp: "image/webp",
+  gif: "image/gif",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+};
+
+/**
+ * An attachment's type. Messages often leaves `mime_type` empty and records
+ * only a uti, or nothing but the file name, so fall back through those.
+ * Null when it is not something recognisable as an image.
+ */
+export function mimeFor(
+  mimeType: string | null | undefined,
+  uti: string | null | undefined,
+  filename: string | null | undefined,
+): string | null {
+  if (mimeType) return mimeType;
+  if (uti && UTI_TYPES[uti]) return UTI_TYPES[uti];
+  const extension = filename?.split(".").pop()?.toLowerCase();
+  return (extension && EXTENSION_TYPES[extension]) || null;
+}

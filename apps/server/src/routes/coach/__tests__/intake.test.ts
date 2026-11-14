@@ -92,7 +92,7 @@ describe("coach intake", () => {
     expect(inngestSend).toHaveBeenCalledTimes(1);
     expect(inngestSend).toHaveBeenCalledWith({
       name: "coach/bundle.touched",
-      data: { bundleId: "b1", userId: "test-user-id" },
+      data: { bundleId: "b1", userId: "test-user-id", historical: false },
     });
   });
 
@@ -220,6 +220,14 @@ describe("coach intake", () => {
   it("marks a new bundle historical when the batch is from a thread's past", async () => {
     await post("/api/coach/intake/messages", { ...batch, historical: true });
     expect(db.written("coach_bundles", "insert")[0]).toMatchObject({ historical: true });
+  });
+
+  it("tells the job when a bundle is history, so it can be read cheaply and after live ones", async () => {
+    await post("/api/coach/intake/messages", { ...batch, historical: true });
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "coach/bundle.touched",
+      data: { bundleId: "b1", userId: "test-user-id", historical: true },
+    });
   });
 
   it("rejects an attachment path outside the caller's folder", async () => {

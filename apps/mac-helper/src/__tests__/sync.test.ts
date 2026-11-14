@@ -3,6 +3,8 @@ import { layer, epic, feature } from "allure-js-commons";
 import type { CapturedPerson, IntakeMessage, ThreadMessage } from "../plan.js";
 import type { ReadOptions } from "../messagesDb.js";
 import {
+  ApiError,
+  ATTACHMENT_TRIES,
   BATCH_SIZE,
   MAX_BATCHES_PER_CYCLE,
   emptyState,
@@ -29,6 +31,12 @@ const row = (rowId: number, over: Partial<ThreadMessage> = {}): ThreadMessage =>
   attachments: [],
   ...over,
 });
+const image = (path: string | null, over: Partial<ThreadMessage["attachments"][number]> = {}) => ({
+  path,
+  mimeType: "image/png",
+  ready: path !== null,
+  ...over,
+});
 
 interface Posted {
   personId: string;
@@ -45,7 +53,11 @@ function world(
   const reads: ReadOptions[] = [];
   const uploads: string[] = [];
   const logs: string[] = [];
-  const fail = { post: false, put: false, people: false };
+  const fail: { post: boolean; put: false | "network" | 413; people: boolean } = {
+    post: false,
+    put: false,
+    people: false,
+  };
   let saves = 0;
   let heartbeats = 0;
   const state = opts.state ?? emptyState();
@@ -61,7 +73,8 @@ function world(
         return { path: `coach/u/${uploads.length}.jpg`, signedUrl: `https://up/${uploads.length}` };
       },
       put: async () => {
-        if (fail.put) throw new Error("upload failed");
+        if (fail.put === "network") throw new Error("upload failed");
+        if (fail.put) throw new ApiError("Upload → 413", fail.put);
       },
       postMessages: async (body) => {
         if (fail.post) throw new Error("server down");
@@ -76,7 +89,10 @@ function world(
         reads.push(o);
         return rows
           .filter(
-            (r) => r.rowId > o.afterRowId && (o.sinceIso === null || r.sentAtIso >= o.sinceIso),
+            (r) =>
+              r.rowId > o.afterRowId &&
+              (o.uptoRowId == null || r.rowId <= o.uptoRowId) &&
+              (o.sinceIso === null || r.sentAtIso >= o.sinceIso),
           )
           .slice(0, o.limit);
       },
@@ -113,9 +129,11 @@ function world(
 }
 
 const connected = (cursor: number): HelperState => ({
+  ...emptyState(),
   cursors: { p1: cursor },
   connected: { p1: true },
-  backfill: {},
+  handles: { p1: "+15550100" },
+  lastSyncAt: "2026-11-14T17:59:40.000Z",
 });
 
 describe("mac helper sync", () => {
@@ -164,10 +182,10 @@ describe("mac helper sync", () => {
 
   it("does not post a batch whose attachment upload failed, and does not move the cursor", async () => {
     const w = world({
-      rows: [row(11, { attachments: [{ path: "/a/page1.png", mimeType: "image/png" }] })],
+      rows: [row(11, { attachments: [image("/a/page1.png")] })],
       state: connected(10),
     });
-    w.fail.put = true;
+    w.fail.put = "network";
     await syncOnce(w.deps);
     expect(w.posted).toEqual([]);
     expect(w.state.cursors.p1).toBe(10);
@@ -178,10 +196,7 @@ describe("mac helper sync", () => {
       rows: [
         row(11, {
           text: "",
-          attachments: [
-            { path: "/a/page1.png", mimeType: "image/png" },
-            { path: "/a/page2.heic", mimeType: "image/heic" },
-          ],
+          attachments: [image("/a/page1.png"), image("/a/page2.heic", { mimeType: "image/heic" })],
         }),
       ],
       state: connected(10),
@@ -201,10 +216,10 @@ describe("mac helper sync", () => {
       rows: [
         row(11, {
           attachments: [
-            { path: null, mimeType: "image/png" },
-            { path: "/a/missing.png", mimeType: "image/png" },
-            { path: "/a/contract.pdf", mimeType: "application/pdf" },
-            { path: "/a/ok.png", mimeType: "image/png" },
+            image(null, { ready: true }),
+            image("/a/missing.png"),
+            image("/a/contract.pdf", { mimeType: "application/pdf" }),
+            image("/a/ok.png"),
           ],
         }),
       ],
@@ -300,7 +315,13 @@ describe("mac helper sync", () => {
     const w = world({
       rows: [row(11)],
       people: [maren, { ...maren, id: "p2", name: "Jo" }],
-      state: { cursors: { p1: 10, p2: 10 }, connected: { p1: true, p2: true }, backfill: {} },
+      state: {
+        ...emptyState(),
+        cursors: { p1: 10, p2: 10 },
+        connected: { p1: true, p2: true },
+        handles: { p1: "+15550100", p2: "+15550100" },
+        lastSyncAt: "2026-11-14T17:59:40.000Z",
+      },
     });
     let calls = 0;
     const post = w.deps.api.postMessages;
@@ -320,5 +341,203 @@ describe("mac helper sync", () => {
     const out = await syncOnce(w.deps);
     expect(out).toMatchObject({ uploaded: 0, offline: true });
     expect(w.state.cursors.p1).toBe(10);
+  });
+
+  // A message that arrives while history is being read must not be buried as history.
+  it("sends messages that arrive during a history read as live, not as history", async () => {
+    const rows = [
+      row(1, { sentAtIso: "2026-10-01T10:00:00.000Z" }),
+      row(2, { sentAtIso: "2026-11-01T10:00:00.000Z" }),
+    ];
+    const w = world({ rows, people: [{ ...maren, historyWindow: "all" }] });
+    // The thread stood at row 2 when the history read began; row 3 arrives during it.
+    const read = w.deps.messages.read;
+    let added = false;
+    w.deps.messages.read = (o) => {
+      if (!added) {
+        added = true;
+        rows.push(row(3, { sentAtIso: "2026-11-14T17:59:50.000Z" }));
+      }
+      return read(o);
+    };
+    await syncOnce(w.deps);
+    await syncOnce(w.deps);
+    const ids = (historical: boolean) =>
+      w.posted
+        .filter((p) => p.historical === historical)
+        .flatMap((p) => p.messages.map((m) => m.externalId));
+    expect(ids(true)).toEqual(["g-1", "g-2"]);
+    expect(ids(false)).toEqual(["g-3"]);
+  });
+
+  // One attachment the server will never take must not block the thread for good.
+  it("sends the message without an attachment the server refuses outright", async () => {
+    const w = world({
+      rows: [row(11, { attachments: [image("/a/huge.png")] }), row(12)],
+      state: connected(10),
+    });
+    w.fail.put = 413;
+    const out = await syncOnce(w.deps);
+    expect(out.skippedAttachments).toBe(1);
+    expect(w.posted[0].messages.map((m) => [m.externalId, m.attachments.length])).toEqual([
+      ["g-11", 0],
+      ["g-12", 0],
+    ]);
+    expect(w.state.cursors.p1).toBe(12);
+  });
+
+  it("gives up on an attachment that keeps failing after a few cycles, and sends the message without it", async () => {
+    const w = world({
+      rows: [row(11, { attachments: [image("/a/flaky.png")] })],
+      state: connected(10),
+    });
+    w.fail.put = "network";
+    for (let i = 0; i < ATTACHMENT_TRIES - 1; i++) {
+      await syncOnce(w.deps);
+      expect(w.posted).toEqual([]);
+    }
+    await syncOnce(w.deps);
+    expect(w.posted[0].messages[0].attachments).toEqual([]);
+    expect(w.state.cursors.p1).toBe(11);
+  });
+
+  it("does not upload an attachment again when a later one in the batch fails", async () => {
+    const w = world({
+      rows: [row(11, { attachments: [image("/a/one.png"), image("/a/two.png")] })],
+      state: connected(10),
+    });
+    let puts = 0;
+    w.deps.api.put = async () => {
+      puts++;
+      if (puts === 2) throw new Error("network blip");
+    };
+    await syncOnce(w.deps);
+    await syncOnce(w.deps);
+    // one.png once, two.png twice: three puts, not four.
+    expect(puts).toBe(3);
+    expect(w.posted[0].messages[0].attachments).toHaveLength(2);
+  });
+
+  // Messages re-synced from iCloud get new row ids but are old.
+  it("treats a long-old message that shows up with a new row id as history", async () => {
+    const w = world({
+      rows: [
+        row(11, { sentAtIso: "2026-09-01T10:00:00.000Z" }),
+        row(12, { sentAtIso: "2026-11-14T17:59:55.000Z" }),
+      ],
+      state: connected(10),
+    });
+    await syncOnce(w.deps);
+    expect(w.posted.map((p) => [p.historical, p.messages.map((m) => m.externalId)])).toEqual([
+      [true, ["g-11"]],
+      [false, ["g-12"]],
+    ]);
+    expect(w.state.cursors.p1).toBe(12);
+  });
+
+  it("still treats a week of missed messages as live when the Mac was off", async () => {
+    const w = world({
+      rows: [
+        row(11, { sentAtIso: "2026-11-10T10:00:00.000Z" }),
+        row(12, { sentAtIso: "2026-11-13T10:00:00.000Z" }),
+      ],
+      state: { ...connected(10), lastSyncAt: "2026-11-07T09:00:00.000Z" },
+    });
+    await syncOnce(w.deps);
+    expect(w.posted).toHaveLength(1);
+    expect(w.posted[0].historical).toBe(false);
+  });
+
+  it("records when it last synced, so old messages can be told from missed ones", async () => {
+    const w = world({ rows: [], state: connected(0) });
+    await syncOnce(w.deps);
+    expect(w.state.lastSyncAt).toBe("2026-11-14T18:00:00.000Z");
+  });
+
+  // Turning capture off and on must honour the new choice, and not upload what was sent in between.
+  it("forgets a person when their capture is turned off", async () => {
+    const w = world({
+      rows: [row(11)],
+      people: [{ ...maren, captureThread: false }],
+      state: connected(10),
+    });
+    await syncOnce(w.deps);
+    expect(w.state.connected.p1).toBeUndefined();
+    expect(w.state.cursors.p1).toBeUndefined();
+
+    // Turned back on as "new only": what arrived while it was off is not uploaded.
+    w.deps.api.people = async () => [maren];
+    await syncOnce(w.deps);
+    expect(w.posted).toEqual([]);
+    expect(w.state.cursors.p1).toBe(11);
+  });
+
+  it("starts a person over when their phone number changes, so history is read for the right thread", async () => {
+    const w = world({
+      rows: [row(1, { sentAtIso: "2026-11-01T10:00:00.000Z" })],
+      people: [{ ...maren, handles: ["+15550111"], historyWindow: "all" }],
+      state: connected(1),
+    });
+    await syncOnce(w.deps);
+    expect(w.posted[0]).toMatchObject({ historical: true });
+    expect(w.state.handles.p1).toBe("+15550111");
+  });
+
+  // A photo that is still downloading: wait for it instead of sending the message without it.
+  it("waits for a recent message whose photo is still downloading", async () => {
+    const w = world({
+      rows: [
+        row(11),
+        row(12, {
+          sentAtIso: "2026-11-14T17:59:30.000Z",
+          attachments: [image(null, { ready: false })],
+        }),
+        row(13),
+      ],
+      state: connected(10),
+    });
+    await syncOnce(w.deps);
+    expect(w.posted[0].messages.map((m) => m.externalId)).toEqual(["g-11"]);
+    expect(w.state.cursors.p1).toBe(11);
+  });
+
+  it("stops waiting for a photo that never arrives", async () => {
+    const w = world({
+      rows: [
+        row(12, {
+          sentAtIso: "2026-11-14T17:30:00.000Z",
+          attachments: [image(null, { ready: false })],
+        }),
+      ],
+      state: connected(10),
+    });
+    const out = await syncOnce(w.deps);
+    expect(out.skippedAttachments).toBe(1);
+    expect(w.state.cursors.p1).toBe(12);
+  });
+
+  // An unsent message, or one whose only attachment was skipped, says nothing.
+  it("does not upload a message with no words and no attachment, but moves past it", async () => {
+    const w = world({
+      rows: [
+        row(11, { text: "" }),
+        row(12, {
+          text: "",
+          attachments: [image("/a/contract.pdf", { mimeType: "application/pdf" })],
+        }),
+        row(13),
+      ],
+      state: connected(10),
+    });
+    await syncOnce(w.deps);
+    expect(w.posted[0].messages.map((m) => m.externalId)).toEqual(["g-13"]);
+    expect(w.state.cursors.p1).toBe(13);
+  });
+
+  it("moves past a batch that had nothing worth sending", async () => {
+    const w = world({ rows: [row(11, { text: "" })], state: connected(10) });
+    await syncOnce(w.deps);
+    expect(w.posted).toEqual([]);
+    expect(w.state.cursors.p1).toBe(11);
   });
 });

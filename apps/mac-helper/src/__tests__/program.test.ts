@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createApi } from "../api.js";
 import { prepareImage } from "../images.js";
 import { loadState, saveState, loadConfig, saveConfig } from "../store.js";
 import { launchdPlist } from "../launchd.js";
+import { emptyState } from "../sync.js";
+import { mimeFor } from "../convert.js";
 
 const fetchMock = vi.fn();
 const ok = (body: unknown) => ({
@@ -109,7 +111,7 @@ describe("mac helper program parts", () => {
 
   it("keeps the key and the cursor in files only the user can read", () => {
     saveConfig(dir, { apiUrl: "https://api.example.com", apiKey: "secret" });
-    saveState(dir, { cursors: { p1: 41 }, connected: { p1: true }, backfill: {} });
+    saveState(dir, { ...emptyState(), cursors: { p1: 41 }, connected: { p1: true } });
     expect(loadConfig(dir)).toEqual({ apiUrl: "https://api.example.com", apiKey: "secret" });
     expect(loadState(dir).cursors.p1).toBe(41);
     expect(statSync(path.join(dir, "config.json")).mode & 0o777).toBe(0o600);
@@ -117,10 +119,21 @@ describe("mac helper program parts", () => {
   });
 
   it("starts with an empty state, and survives a damaged state file", () => {
-    expect(loadState(dir)).toEqual({ cursors: {}, connected: {}, backfill: {} });
+    expect(loadState(dir)).toEqual(emptyState());
     writeFileSync(path.join(dir, "state.json"), "{ not json");
-    expect(loadState(dir)).toEqual({ cursors: {}, connected: {}, backfill: {} });
+    expect(loadState(dir)).toEqual(emptyState());
+    // The right shape with a null where a map belongs must not crash a cycle.
+    writeFileSync(
+      path.join(dir, "state.json"),
+      JSON.stringify({ cursors: null, connected: { p1: true } }),
+    );
+    expect(loadState(dir)).toEqual({ ...emptyState(), connected: { p1: true } });
     expect(loadConfig(dir)).toBeNull();
+  });
+
+  it("writes the state in one step, so a crash cannot leave half a file", () => {
+    saveState(dir, { ...emptyState(), cursors: { p1: 41 } });
+    expect(readdirSync(dir).sort()).toEqual(["state.json"]);
   });
 
   it("writes a launchd job that runs at login and restarts itself", () => {
@@ -134,7 +147,20 @@ describe("mac helper program parts", () => {
     expect(plist).toContain("<string>/usr/local/bin/node</string>");
     expect(plist).toContain("<string>run</string>");
     expect(plist).toMatch(/<key>RunAtLoad<\/key>\s*<true\/>/);
-    expect(plist).toMatch(/<key>KeepAlive<\/key>\s*<true\/>/);
+    // Restarted if it crashes, but not in a loop when it exits cleanly to wait for setup.
+    expect(plist).toMatch(
+      /<key>KeepAlive<\/key>\s*<dict>\s*<key>SuccessfulExit<\/key>\s*<false\/>\s*<\/dict>/,
+    );
     expect(plist).toContain("/Users/me/.cliphy-helper/helper.log");
+  });
+
+  it("works out an attachment's type from the mime type, then the uti, then the file name", () => {
+    expect(mimeFor("image/heic", "public.png", "a.jpg")).toBe("image/heic");
+    expect(mimeFor(null, "public.heic", "a.bin")).toBe("image/heic");
+    expect(mimeFor(null, "public.jpeg", null)).toBe("image/jpeg");
+    expect(mimeFor(null, null, "/x/IMG_1.JPG")).toBe("image/jpeg");
+    expect(mimeFor(null, null, "/x/shot.PNG")).toBe("image/png");
+    expect(mimeFor(null, "com.adobe.pdf", "/x/contract.pdf")).toBeNull();
+    expect(mimeFor(null, null, null)).toBeNull();
   });
 });

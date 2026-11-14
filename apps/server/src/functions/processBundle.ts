@@ -5,6 +5,7 @@ import { logger } from "../lib/logger.js";
 import { downloadImage } from "../lib/storage.js";
 import { toMessage } from "../lib/coachMappers.js";
 import {
+  HISTORY_MODEL,
   interpretBundle,
   type InterpretContext,
   type Interpretation,
@@ -297,7 +298,10 @@ async function runBundle({
     const parsed: InboundMessage[] = messages.map(toMessage);
 
     const images: { bytes: Buffer; mediaType: string }[] = [];
-    for (const m of parsed) {
+    // History becomes one line in a project's trail: the words are enough, so
+    // its images are not downloaded or sent to the model.
+    const historical = bundle.historical === true;
+    for (const m of historical ? [] : parsed) {
       for (const a of m.attachments) {
         try {
           const { bytes } = await downloadImage(a.storagePath);
@@ -313,7 +317,9 @@ async function runBundle({
       }
     }
     return {
-      interp: await interpretBundle(parsed, images, ctx),
+      interp: historical
+        ? await interpretBundle(parsed, images, ctx, { model: HISTORY_MODEL })
+        : await interpretBundle(parsed, images, ctx),
       messages,
       waitingAsks: ctx.waitingAsks,
     };
@@ -379,6 +385,8 @@ export const BUNDLE_JOB = {
   // `timeout` bounds the wait, so a thread that never pauses is still read.
   debounce: { key: "event.data.bundleId", period: "3m", timeout: "15m" },
   concurrency: PER_USER,
+  // A history import must not hold up a request that has just arrived.
+  priority: { run: "event.data.historical == true ? -600 : 0" },
   triggers: [{ event: "coach/bundle.touched" }],
   onFailure,
 } as const;

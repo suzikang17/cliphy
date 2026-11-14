@@ -1,6 +1,6 @@
 import type { CapturedPerson, IntakeMessage } from "./plan.js";
 import type { HelperConfig } from "./store.js";
-import type { SyncDeps } from "./sync.js";
+import { ApiError, type SyncDeps } from "./sync.js";
 
 /** The coach API as the sync cycle needs it. Any refusal throws, so a cursor is never moved past it. */
 export function createApi(config: HelperConfig): SyncDeps["api"] {
@@ -11,10 +11,11 @@ export function createApi(config: HelperConfig): SyncDeps["api"] {
       method,
       headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`${method} ${route} → ${res.status} ${detail.slice(0, 200)}`);
+      throw new ApiError(`${method} ${route} → ${res.status} ${detail.slice(0, 200)}`, res.status);
     }
     return (await res.json()) as T;
   }
@@ -29,8 +30,9 @@ export function createApi(config: HelperConfig): SyncDeps["api"] {
         method: "PUT",
         headers: { "Content-Type": mediaType },
         body: new Uint8Array(bytes),
+        signal: AbortSignal.timeout(300_000),
       });
-      if (!res.ok) throw new Error(`Upload → ${res.status}`);
+      if (!res.ok) throw new ApiError(`Upload → ${res.status}`, res.status);
     },
     postMessages: async (body: {
       personId: string;
