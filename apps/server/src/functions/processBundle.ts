@@ -184,7 +184,7 @@ async function loadContext(
       .select("id, project_id, understood")
       .eq("user_id", userId)
       .eq("person_id", personId)
-      .in("status", ["new", "confirmed"])
+      .in("status", ["new", "confirmed", "closed"])
       .neq("bundle_id", bundle.id as string)
       .order("created_at", { ascending: false })
       .limit(20),

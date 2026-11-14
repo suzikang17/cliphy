@@ -276,6 +276,13 @@ describe("coach processBundle", () => {
       expect(ctx.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
+    it("offers closed and historical requests as candidates to replace, but not replaced ones", async () => {
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      const op = db.ops.find((o) => o.table === "coach_requests" && o.action === "select");
+      expect(op?.filters).toContainEqual(["in", "status", ["new", "confirmed", "closed"]]);
+    });
+
     it("downloads each attachment and skips one that cannot be fetched", async () => {
       db = storeDb(bundle(), messagesWithTwoImages());
       downloadImage.mockRejectedValueOnce(new Error("gone"));

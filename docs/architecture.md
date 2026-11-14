@@ -452,3 +452,21 @@ A reference of all external services, APIs, and third-party integrations used ac
 - `VITE_API_URL` — Backend API endpoint (default: `http://localhost:3001`)
 
 > Note: the live source of truth for env vars and the Vercel deploy model is also captured in the agent memory files; this reflects the Notion snapshot as of migration.
+
+## Coach (creative coach, build 1a server core — 2026-11-14)
+
+Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route returns `403 coach_not_enabled` without it. Decision record: [ADR 0054](decisions/0054-coach-server-core-bundles-requests-and-task-chains.md).
+
+**Flow:** captured messages → bundle → request → tasks.
+
+1. A capturer (the Mac helper or the share sheet, both later plans) uploads attachments via `POST /coach/intake/upload-url` and posts messages to `POST /coach/intake/messages`. Re-uploads are ignored by `(user, channel, external_id)`.
+2. Incoming messages from one person within 3 minutes join one `coach_bundles` row; outgoing messages are stored as context only.
+3. Inngest `coach-process-bundle` (debounced 3 minutes per bundle) asks Claude what the bundle is: a **request**, a **reply** to a waiting ask, or **chat** (stores nothing). Bundles read from a thread's past become closed, historical requests.
+4. A request holds what was understood, at most one open question, the request it would replace, and a proposed chain of tasks. `POST /coach/requests/:id/confirm` creates the tasks; `/fix` re-reads the bundle with a correction.
+5. Tasks have one kind (`do`, `tell`, `ask`, `get`) and may wait on another task. `blocked` is computed on read.
+
+**Tables** (migration `038_coach_core.sql`): `coach_people`, `coach_projects`, `coach_project_people`, `coach_bundles`, `coach_messages`, `coach_requests`, `coach_tasks`.
+
+**Routes:** `/coach/people`, `/coach/projects` (+ `/seed`, `/:id/history`), `/coach/intake`, `/coach/requests` (+ `/:id/confirm`, `/:id/fix`), `/coach/tasks` (+ `/:id/sent`).
+
+**Not built yet:** reminders and push, the chat thread and learned rules, the phone screens, the Mac helper.
