@@ -128,3 +128,44 @@ export interface CoachTask {
   createdAt: string;
   doneAt: string | null;
 }
+
+// ── Reminders (plan 2) ───────────────────────────────────────────────────
+
+export type ReminderKind = "day_before" | "morning_of" | "at_time";
+export type ReminderStatus = "scheduled" | "sent" | "delivered" | "acked" | "cancelled" | "expired";
+
+/** A reminder as the phone needs it: when, and the words to show. */
+export interface CoachReminder {
+  id: string;
+  taskId: string;
+  kind: ReminderKind;
+  fireAt: string;
+  status: ReminderStatus;
+  title: string;
+  body: string;
+}
+
+export interface CoachSettings {
+  /** IANA name, e.g. "America/Los_Angeles". */
+  timezone: string;
+  /** Nothing notifies from quietStart to quietEnd, local time, "HH:MM". */
+  quietStart: string;
+  quietEnd: string;
+  /** Weekly back-burner review: day (0 = Sunday) and local time. */
+  reviewDow: number;
+  reviewTime: string;
+}
+
+export const DEFAULT_COACH_SETTINGS: CoachSettings = {
+  timezone: "UTC",
+  quietStart: "21:00",
+  quietEnd: "08:00",
+  reviewDow: 0,
+  reviewTime: "18:00",
+};
+
+export interface CoachHealth {
+  pushTokens: number;
+  pushOk: boolean;
+  lastDeliveredAt: string | null;
+}
