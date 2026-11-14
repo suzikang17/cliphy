@@ -12,6 +12,7 @@ import { inngest } from "../../lib/inngest.js";
 import { signImageUrl } from "../../lib/storage.js";
 import { toMessage, toRequest, toTask } from "../../lib/coachMappers.js";
 import { isBlocked, materializeChain } from "../../services/coach/chain.js";
+import { syncTaskReminders } from "../../services/coach/reminders.js";
 
 export const requestRoutes = new Hono<AppEnv>();
 
@@ -152,6 +153,10 @@ requestRoutes.post("/:id/confirm", async (c) => {
     if (current.status === "confirmed" && tasks.length === 0 && stale) {
       const repaired = await createChain(current, userId);
       if ("error" in repaired) return c.json({ error: "Failed to create tasks" }, 500);
+      await syncTaskReminders(
+        userId,
+        repaired.rows.map((r) => r.id as string),
+      );
       tasks = withBlocked(repaired.rows);
     }
     return c.json({ request: current, tasks });
@@ -205,6 +210,7 @@ requestRoutes.post("/:id/confirm", async (c) => {
     return c.json({ error: "Failed to create tasks" }, 500);
   }
 
+  let droppedIds: string[] = [];
   if (replacesId) {
     // The earlier request stays, marked; nothing is deleted. Work still open
     // for it is superseded, so it leaves the plate (dropped, not removed).
@@ -213,13 +219,18 @@ requestRoutes.post("/:id/confirm", async (c) => {
       .update({ status: "replaced" })
       .eq("id", replacesId)
       .eq("user_id", userId);
-    await supabase
+    const { data: dropped } = await supabase
       .from("coach_tasks")
       .update({ state: "dropped" })
       .eq("request_id", replacesId)
       .eq("user_id", userId)
-      .in("state", ["open", "waiting"]);
+      .in("state", ["open", "waiting"])
+      .select("id");
+    droppedIds = ((dropped as { id: string }[]) ?? []).map((t) => t.id);
   }
+
+  // New tasks get their reminders; dropped ones lose theirs.
+  await syncTaskReminders(userId, [...created.rows.map((r) => r.id as string), ...droppedIds]);
 
   return c.json({ request, tasks: withBlocked(created.rows) });
 });

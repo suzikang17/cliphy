@@ -11,6 +11,7 @@ import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { toTask } from "../../lib/coachMappers.js";
 import { isBlocked, stateAfterSent } from "../../services/coach/chain.js";
+import { syncTaskReminders } from "../../services/coach/reminders.js";
 
 export const taskRoutes = new Hono<AppEnv>();
 
@@ -190,6 +191,7 @@ taskRoutes.post("/", async (c) => {
     .select("*")
     .single();
   if (error || !data) return c.json({ error: "Failed to create task" }, 500);
+  await syncTaskReminders(userId, [(data as Row).id as string]);
   return c.json({ task: toTask(data as Row, false) }, 201);
 });
 
@@ -228,6 +230,10 @@ taskRoutes.patch("/:id", async (c) => {
     .select("*")
     .maybeSingle();
   if (error || !data) return c.json({ error: "Failed to update task" }, 500);
+  // Reminders follow the date, the time and whether the task is still live.
+  if ("due_date" in values || "due_time" in values || "state" in values) {
+    await syncTaskReminders(userId, [id]);
+  }
   return c.json({ task: toTask(data as Row, body.state === undefined ? task.blocked : false) });
 });
 
@@ -256,5 +262,6 @@ taskRoutes.post("/:id/sent", async (c) => {
     .select("*")
     .maybeSingle();
   if (error || !data) return c.json({ error: "Failed to update task" }, 500);
+  await syncTaskReminders(userId, [id]);
   return c.json({ task: toTask(data as Row, false) });
 });

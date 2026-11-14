@@ -13,6 +13,10 @@ const inngestSend = vi.fn();
 vi.mock("../../../lib/inngest.js", () => ({
   inngest: { send: (...a: unknown[]) => inngestSend(...a) },
 }));
+const syncMock = vi.fn();
+vi.mock("../../../services/coach/reminders.js", () => ({
+  syncTaskReminders: (...a: unknown[]) => syncMock(...a),
+}));
 vi.mock("../../../middleware/auth.js", () => passAuth);
 vi.mock("../../../middleware/require-coach.js", () => passCoach);
 
@@ -121,6 +125,7 @@ describe("coach requests", () => {
     epic("Coach");
     feature("Requests");
     inngestSend.mockReset();
+    syncMock.mockReset();
     db = requestDb();
   });
 
@@ -170,6 +175,29 @@ describe("coach requests", () => {
     const res = await post("/api/coach/requests/r1/confirm", {});
     const kinds = (await res.json()).tasks.map((t: CoachTask) => t.kind);
     expect(kinds).toEqual(["ask", "do", "tell"]);
+  });
+
+  it("schedules reminders for the new chain and clears those of the tasks it dropped", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_requests" && op.action === "select") {
+        return { data: op.single ? requestRow() : [requestRow()] };
+      }
+      if (op.table === "coach_requests" && op.action === "update") {
+        const p = op.payload as Record<string, unknown>;
+        return { data: p.status === "confirmed" ? { ...requestRow(), ...p } : null };
+      }
+      if (op.table === "coach_tasks" && op.action === "insert") {
+        return {
+          data: (op.payload as object[]).map((p) => ({ state: "open", created_at: "x", ...p })),
+        };
+      }
+      // The tasks of the replaced request that were dropped.
+      if (op.table === "coach_tasks" && op.action === "update") return { data: [{ id: "old-1" }] };
+      return { data: [] };
+    });
+    const res = await post("/api/coach/requests/r1/confirm", { answer: "Only the words" });
+    const ids = (await res.json()).tasks.map((t: CoachTask) => t.id);
+    expect(syncMock).toHaveBeenCalledWith("test-user-id", [...ids, "old-1"]);
   });
 
   it("drops the open tasks of the request it replaces", async () => {

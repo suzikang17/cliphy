@@ -33,6 +33,7 @@ import { podcastRoutes } from "./routes/podcasts.js";
 import { tabsRoutes } from "./routes/tabs.js";
 import { trailRoutes } from "./routes/trail.js";
 import { coachRoutes } from "./routes/coach/index.js";
+import { fireReminders, weeklyReview } from "./functions/coachReminders.js";
 import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
@@ -100,6 +101,8 @@ app.on(
       processBundle,
       reprocessBundle,
       sweepBundles,
+      fireReminders,
+      weeklyReview,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",

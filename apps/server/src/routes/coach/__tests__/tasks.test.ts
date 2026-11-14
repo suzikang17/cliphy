@@ -8,6 +8,10 @@ let db: FakeDb;
 vi.mock("../../../lib/supabase.js", () => ({ supabase: { from: (t: string) => db.from(t) } }));
 vi.mock("../../../lib/storage.js", () => ({ signImageUrl: vi.fn() }));
 vi.mock("../../../lib/inngest.js", () => ({ inngest: { send: vi.fn() } }));
+const syncMock = vi.fn();
+vi.mock("../../../services/coach/reminders.js", () => ({
+  syncTaskReminders: (...a: unknown[]) => syncMock(...a),
+}));
 vi.mock("../../../middleware/auth.js", () => passAuth);
 vi.mock("../../../middleware/require-coach.js", () => passCoach);
 
@@ -55,6 +59,7 @@ describe("coach tasks", () => {
     layer("unit");
     epic("Coach");
     feature("Tasks");
+    syncMock.mockReset();
     db = taskDb([]);
   });
 
@@ -225,6 +230,31 @@ describe("coach tasks", () => {
     db = taskDb([taskRow({ id: "d", due_date: "2026-11-20", due_time: "09:00" })]);
     await patch("/api/coach/tasks/d", { dueDate: null });
     expect(updated()).toMatchObject({ due_date: null, due_time: null });
+  });
+
+  it("schedules reminders for a new dated task", async () => {
+    await post("/api/coach/tasks", { kind: "do", title: "Frame the print", dueDate: "2026-11-20" });
+    expect(syncMock).toHaveBeenCalledWith("test-user-id", ["new"]);
+  });
+
+  it("re-syncs reminders when a task's date, time or state changes", async () => {
+    db = taskDb([taskRow({ id: "d", due_date: "2026-11-20" })]);
+    await patch("/api/coach/tasks/d", { dueDate: "2026-11-22" });
+    await patch("/api/coach/tasks/d", { state: "done" });
+    expect(syncMock).toHaveBeenCalledTimes(2);
+    expect(syncMock).toHaveBeenCalledWith("test-user-id", ["d"]);
+  });
+
+  it("does not touch reminders when only the title changes", async () => {
+    db = taskDb([taskRow({ id: "d", due_date: "2026-11-20" })]);
+    await patch("/api/coach/tasks/d", { title: "New title" });
+    expect(syncMock).not.toHaveBeenCalled();
+  });
+
+  it("re-syncs reminders when a message is sent", async () => {
+    db = taskDb([taskRow({ id: "t1", kind: "tell", due_date: "2026-11-20" })]);
+    await post("/api/coach/tasks/t1/sent", {});
+    expect(syncMock).toHaveBeenCalledWith("test-user-id", ["t1"]);
   });
 
   it("404s a task that is not the caller's", async () => {
