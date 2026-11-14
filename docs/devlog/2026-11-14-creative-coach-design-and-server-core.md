@@ -105,3 +105,28 @@ Tests at the end: `pnpm vitest run apps` → 1399 passed; the 3 failing tests in
 - Adding the `apps/mac-app` workspace did not change the phone app's fingerprint (checked with `@expo/fingerprint` before and after).
 - `supabase db query --remote=<ref> -f file` needs `--yes` when run by an agent, and `--read-only` for looking.
 - Not yet run by a person: pairing end to end, the Mac app on a real Mac, the share path on the phone.
+
+#### First run of the Mac app from source on a real Mac
+
+**What got done**
+
+- `pnpm --filter cliphy-helper-app start` built, fetched Electron and launched on Apple silicon (macOS 26.3, Node 22.22.1) with no change needed to get a window.
+- **Pair screen:** showed a code from the live server and "Not connected". Claiming the code from the phone was not repeated from source; the owner had already paired the installed build that morning and the saved key was reused.
+- **Allow Messages → People:** with the saved key the app went straight to Allow Messages with the account's email in the footer, and to People once Electron could read Messages. "From Messages" listed 8 recent one-to-one threads.
+- **Contact names** (asked for during the run): threads are named from the Mac's Contacts databases and the name is prefilled when adding (`contacts.ts`, `35a592f`). Read locally, read-only, covered by the same Full Disk Access. 6 of the 8 threads had a name; the rest still show the number.
+- `helper.log` now records the app starting and how many messages each cycle uploaded, counts only (`6b825ec`). Before, a healthy helper wrote nothing.
+
+**Issues**
+
+- **The app could only be quit from its own menu.** The window's close handler refused unless Quit came from the tray, so Cmd+Q, an AppleScript quit, SIGTERM, and with them logout and shutdown, were all cancelled. The installed build had to be force-killed. Fixed by listening for `before-quit` (`quit.ts`, `e6e0746`).
+- **Full Disk Access switched on, still refused (`EPERM` on `chat.db`).** Started as a child of a terminal, Electron is charged to that terminal for privacy checks, not to itself. Started through `open` it reads Messages. `start` now goes through `open` (`start.mjs`).
+- Two other things changed before it worked, so their share is not proven: Electron from npm has only a linker signature (`codesign --verify` fails), and it was re-signed ad hoc; and the first "Electron" row in the list was removed (`tccutil reset SystemPolicyAllFiles com.github.Electron`) and added again. The README lists both as things to try.
+- "Quit & Reopen" in System Settings reopens a bare Electron without the app; it has to be quit and `start` run again. The Allow Messages screen therefore never "moved on by itself" in the source build. Whether it does in the packaged app without a restart is still unknown.
+- The terminal that ran the session had no Screen Recording permission, so the window was photographed through Electron's debugging port (`start --remote-debugging-port=9333`) and the menu-bar item could not be photographed at all.
+
+**What to remember**
+
+- When run from source the app is "Electron" (`com.github.Electron`) to macOS: that is the name in Full Disk Access, and every Electron checkout on the Mac shares it. The Allow Messages screen still says "Cliphy Helper".
+- With setup finished the app opens no window. Running `start` again brings the window up through the single-instance handler.
+- Contacts live in `~/Library/Application Support/AddressBook/` as one SQLite file at the top and one per account under `Sources/`; phone numbers are free text, so matching is on the last ten digits.
+- Still not checked by a person: the menu-bar icon and menu, capture switches (the account had no people yet), Add from Messages, and a text reaching Chat.
