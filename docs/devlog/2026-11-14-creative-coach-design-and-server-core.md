@@ -82,3 +82,26 @@ Tests at the end: `pnpm vitest run apps` → 1399 passed; the 3 failing tests in
 - **No background notification task.** A locked phone that received a push still shows the local backup 15 minutes later unless the app was opened. Revisit on a device (needs `expo-task-manager`).
 - **Not built:** a "Fix it" for a bundle misread as ordinary chat; corrections to a filing becoming learned rules; a location or calendar signal for focus; the client's window and the AI doing the work (builds 2–4).
 - Each plan's ledger, with every ruling and deferred minor, is in `.superpowers/sdd/` on devbox2 (git-ignored).
+
+### Later the same day: going live, and the Mac app
+
+**What got done**
+
+- **Database:** migrations `038`–`042` were already in the Cliphy project. `push_tokens` did not exist anywhere (the devices endpoint and push sender had used it since `fb71f4c` with no migration): added `043` and applied it (`785c1c5`). Coach switched on for the owner's account.
+- **Phone build from CI:** `.github/workflows/eas-build.yml` runs `eas build` with the repo's `EXPO_TOKEN`, waits, and pushes the result to the owner's phone through Bark ([ADR 0059](../decisions/0059-bark-for-build-notifications.md)). Build 11 went to TestFlight (`454a547`).
+- **Wording:** Setup says "Notifications … Enabled", not "Reminders … Working" (`09de3b5`).
+- **Pairing:** the Mac shows an 8-character code, the phone claims it, the Mac collects its own key ([ADR 0060](../decisions/0060-mac-helper-pairs-with-a-code-typed-on-the-phone.md)). Migration `044`, applied. Live check: `POST /api/pair/start` → 201 with a code (`b750358`).
+- **Cliphy Helper:** `apps/mac-app`, an Electron menu-bar app around the helper's code ([ADR 0061](../decisions/0061-mac-menu-bar-app-in-electron-around-the-helper.md)). CI builds it on a Mac and saves a picture of each screen (`35e0f64`).
+
+**Issues**
+
+- **EAS build refused by Apple (403, "A required agreement is missing or has expired")** three times: the Program License Agreement issued 29 Oct had to be accepted by the account holder, and the acceptance took a few minutes to reach the API. Each failed attempt still used up a build number (7 → 11).
+- **OTA updates had been going nowhere.** `runtimeVersion` is `fingerprint` and the share-extension change altered it, so every update pushed during the day targeted a runtime no installed build had.
+- **CI could not find the packaged app's executable** by a guessed name; it now reads `CFBundleExecutable` from the app's `Info.plist`.
+
+**What to remember**
+
+- An unsigned Mac app does not start on Apple silicon at all; CI signs it ad hoc so the test run can start. That is not distribution signing.
+- Adding the `apps/mac-app` workspace did not change the phone app's fingerprint (checked with `@expo/fingerprint` before and after).
+- `supabase db query --remote=<ref> -f file` needs `--yes` when run by an agent, and `--read-only` for looking.
+- Not yet run by a person: pairing end to end, the Mac app on a real Mac, the share path on the phone.
