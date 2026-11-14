@@ -97,6 +97,32 @@ async function messageFor(r: Row): Promise<ReminderMessage | null> {
   };
 }
 
+/**
+ * Keep track of whether pushes are getting through, from the one honest
+ * signal the server has: whether the push service accepted the message for at
+ * least one device. (The phone's own delivery report only arrives when the
+ * app is running, so its absence proves nothing.) Two refusals in a row are
+ * said in chat; an accepted push clears the count.
+ */
+async function notePushResult(userId: string, accepted: number, now: Date): Promise<void> {
+  const state = await settingsState(userId);
+  if (accepted > 0) {
+    if (state.pushFailures > 0) {
+      await supabase
+        .from("coach_settings")
+        .upsert({ user_id: userId, push_failures: 0 }, { onConflict: "user_id" });
+    }
+    return;
+  }
+  const failures = state.pushFailures + 1;
+  await supabase
+    .from("coach_settings")
+    .upsert({ user_id: userId, push_failures: failures }, { onConflict: "user_id" });
+  if (failures >= 2) {
+    await postBotMessage(userId, pushNotWorking(localParts(now, state.settings.timezone).date));
+  }
+}
+
 /** Update a reminder, optionally only while it is still in one of `onlyIf` statuses. */
 async function setReminder(id: string, values: Row, onlyIf?: string[]): Promise<void> {
   const query = supabase.from("coach_reminders").update(values).eq("id", id);
@@ -148,7 +174,8 @@ export const fireReminders = inngest.createFunction(
         // The chat thread is the record; the notification is the delivery.
         await postBotMessage(r.user_id as string, message.chat);
         try {
-          await sendPush(r.user_id as string, message.push);
+          const { sent: accepted } = await sendPush(r.user_id as string, message.push);
+          await notePushResult(r.user_id as string, accepted, new Date());
         } catch (err) {
           // The push service is down. Put this one back for the next minute and
           // carry on, so one failure does not leave the rest claimed but unsent.
@@ -213,7 +240,8 @@ export const fireReminders = inngest.createFunction(
           continue;
         }
         try {
-          await sendPush(userId, message.push);
+          const { sent: accepted } = await sendPush(userId, message.push);
+          await notePushResult(userId, accepted, now);
         } catch (err) {
           log.warn("Re-send failed", { reminderId: r.id, err: String(err) });
           continue;
@@ -229,20 +257,6 @@ export const fireReminders = inngest.createFunction(
           },
           ["sent", "delivered"],
         );
-        // Never reported as received: notifications may not be getting through.
-        if (r.status === "sent") {
-          state.pushFailures += 1;
-          // Two in a row never reported as received: say so where it will be seen.
-          if (state.pushFailures >= 2) {
-            await postBotMessage(userId, pushNotWorking(localParts(now, settings.timezone).date));
-          }
-          await supabase
-            .from("coach_settings")
-            .upsert(
-              { user_id: userId, push_failures: state.pushFailures },
-              { onConflict: "user_id" },
-            );
-        }
         resent++;
       }
       return { resent, expired };

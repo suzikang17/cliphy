@@ -180,22 +180,20 @@ describe("coach fireReminders", () => {
     ]);
   });
 
-  it("says in chat that reminders are not reaching the phone after the second miss", async () => {
+  it("says in chat that reminders are not reaching the phone after the second refusal", async () => {
     db = world({
       settings: settingsRow({ push_failures: 1 }),
-      pending: [
+      due: [
         {
           id: "r1",
           user_id: "u1",
           task_id: "t1",
           kind: "morning_of",
-          status: "sent",
-          sent_at: "2026-11-14T16:45:00Z",
-          delivered_at: null,
-          resends: 1,
+          fire_at: "2026-11-14T17:00:00+00:00",
         },
       ],
     });
+    sendPush.mockResolvedValue({ sent: 0, dead: 0 });
     await fire();
     expect(postBot).toHaveBeenCalledWith(
       "u1",
@@ -243,7 +241,7 @@ describe("coach fireReminders", () => {
           task_id: "t1",
           kind: "morning_of",
           status: "sent",
-          sent_at: "2026-11-14T16:45:00Z",
+          sent_at: "2026-11-14T14:00:00Z",
           delivered_at: null,
           resends: 0,
         },
@@ -285,7 +283,7 @@ describe("coach fireReminders", () => {
     expect(sendPush).not.toHaveBeenCalled();
   });
 
-  it("re-sends a reminder the phone never reported receiving, and counts the failure", async () => {
+  it("re-sends an unanswered reminder after two hours without calling it a failure", async () => {
     db = world({
       pending: [
         {
@@ -293,8 +291,9 @@ describe("coach fireReminders", () => {
           user_id: "u1",
           task_id: "t1",
           kind: "morning_of",
+          fire_at: "2026-11-14T15:00:00+00:00",
           status: "sent",
-          sent_at: "2026-11-14T16:45:00Z",
+          sent_at: "2026-11-14T14:59:00Z",
           delivered_at: null,
           resends: 0,
         },
@@ -302,15 +301,71 @@ describe("coach fireReminders", () => {
     });
     const out = await fire();
     expect(out.resent).toBe(1);
-    expect(sendPush).toHaveBeenCalledTimes(1);
     expect(reminderUpdates().at(-1)?.payload).toEqual({
       status: "sent",
       sent_at: NOW,
       delivered_at: null,
       resends: 1,
     });
-    const failure = db.written("coach_settings", "upsert")[0] as Record<string, unknown>;
-    expect(failure).toMatchObject({ user_id: "u1", push_failures: 1 });
+    // Unanswered is not the same as not reaching the phone.
+    expect(db.written("coach_settings")).toEqual([]);
+  });
+
+  // The failure signal is the push service refusing: no device, or a dead token.
+  it("counts a failure when the push service accepts the message for no device", async () => {
+    db = world({
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
+    });
+    sendPush.mockResolvedValue({ sent: 0, dead: 1 });
+    await fire();
+    expect(db.written("coach_settings", "upsert")[0]).toMatchObject({
+      user_id: "u1",
+      push_failures: 1,
+    });
+  });
+
+  it("clears the failure count when a push is accepted again", async () => {
+    db = world({
+      settings: settingsRow({ push_failures: 3 }),
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
+    });
+    await fire();
+    expect(db.written("coach_settings", "upsert")[0]).toMatchObject({
+      user_id: "u1",
+      push_failures: 0,
+    });
+  });
+
+  it("leaves the count alone when nothing has been failing", async () => {
+    db = world({
+      due: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+        },
+      ],
+    });
+    await fire();
+    expect(db.written("coach_settings")).toEqual([]);
   });
 
   it("re-sends a delivered reminder nobody opened after two hours, without counting a failure", async () => {
@@ -343,7 +398,7 @@ describe("coach fireReminders", () => {
           task_id: "t1",
           kind: "morning_of",
           status: "sent",
-          sent_at: "2026-11-14T16:00:00Z",
+          sent_at: "2026-11-14T14:00:00Z",
           delivered_at: null,
           resends: 3,
         },
@@ -365,7 +420,7 @@ describe("coach fireReminders", () => {
           task_id: "t1",
           kind: "at_time",
           status: "sent",
-          sent_at: "2026-11-15T04:45:00Z",
+          sent_at: "2026-11-15T03:00:00Z",
           delivered_at: null,
           resends: 0,
         },

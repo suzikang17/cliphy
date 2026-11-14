@@ -17,9 +17,11 @@ export const REMINDER_DEFAULTS = {
   quietLeadMinutes: 15,
   /** Reminders closer together than this collapse into the earlier one. */
   collapseMs: 30 * 60_000,
-  /** Re-send when the phone has not reported receiving it. */
-  undeliveredResendMs: 10 * 60_000,
-  /** Re-send when it was received but not opened or answered. */
+  /**
+   * Bring a reminder back when it has not been opened or answered. Whether the
+   * phone reported receiving it does not matter: a locked phone cannot report,
+   * so "not reported" must not be read as "not delivered".
+   */
   unackedResendMs: 2 * 60 * 60_000,
   maxResends: 3,
 } as const;
@@ -114,8 +116,6 @@ export function nextResend(
   now: Date,
 ): "resend" | "expire" | null {
   if ((r.status !== "sent" && r.status !== "delivered") || !r.sentAt) return null;
-  const wait =
-    r.status === "sent" ? REMINDER_DEFAULTS.undeliveredResendMs : REMINDER_DEFAULTS.unackedResendMs;
-  if (now.getTime() - Date.parse(r.sentAt) < wait) return null;
+  if (now.getTime() - Date.parse(r.sentAt) < REMINDER_DEFAULTS.unackedResendMs) return null;
   return r.resends >= REMINDER_DEFAULTS.maxResends ? "expire" : "resend";
 }

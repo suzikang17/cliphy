@@ -113,10 +113,17 @@ describe("nextResend", () => {
   const sentAt = "2026-11-14T17:00:00Z";
   const after = (ms: number) => new Date(Date.parse(sentAt) + ms);
 
-  it("re-sends a reminder the phone never reported receiving after 10 minutes", () => {
+  // A locked phone cannot report that a push arrived, so "not reported" is not
+  // treated as "not delivered": it would re-send every reminder to a phone in a pocket.
+  it("does not re-send just because the phone has not reported receiving it", () => {
     const r = { status: "sent" as const, sentAt, deliveredAt: null, resends: 0 };
-    expect(nextResend(r, after(9 * 60_000))).toBeNull();
-    expect(nextResend(r, after(10 * 60_000))).toBe("resend");
+    expect(nextResend(r, after(10 * 60_000))).toBeNull();
+    expect(nextResend(r, after(119 * 60_000))).toBeNull();
+  });
+
+  it("brings back a reminder nobody opened or answered after 2 hours, reported or not", () => {
+    const r = { status: "sent" as const, sentAt, deliveredAt: null, resends: 0 };
+    expect(nextResend(r, after(120 * 60_000))).toBe("resend");
   });
 
   it("re-sends a delivered reminder nobody opened after 2 hours", () => {
@@ -132,7 +139,7 @@ describe("nextResend", () => {
       deliveredAt: null,
       resends: REMINDER_DEFAULTS.maxResends,
     };
-    expect(nextResend(r, after(60 * 60_000))).toBe("expire");
+    expect(nextResend(r, after(180 * 60_000))).toBe("expire");
   });
 
   it("leaves acknowledged, cancelled and scheduled reminders alone", () => {
