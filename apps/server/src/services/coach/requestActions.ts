@@ -240,3 +240,51 @@ export async function fixRequest(userId: string, id: string, rawNote: unknown): 
 
   return { status: 202, body: { ok: true } };
 }
+
+/**
+ * Given to the re-read the way a "Fix it" note is. Without it, an old message
+ * could be taken for a reply to something being waited on today, or for chat.
+ */
+export const REOPEN_NOTE =
+  "These are older messages. The owner says what they ask for still needs doing: read them as a request to confirm, not as a reply or as chat.";
+
+export type ReopenResult =
+  | { status: 202; body: { ok: true } }
+  | { status: 404 | 409 | 500; body: { error: string } };
+
+/**
+ * "Still needs doing": a request filed as history is read again as if it had
+ * just arrived. The request row is left alone here; the bundle job rewrites
+ * the same row (one per bundle) as a new request and says so in the chat.
+ */
+export async function reopenRequest(userId: string, id: string): Promise<ReopenResult> {
+  const row = await loadRequest(id, userId);
+  if (!row) return { status: 404, body: { error: "request not found" } };
+  if (row.historical !== true || row.status !== "closed") {
+    return { status: 409, body: { error: "request is not history" } };
+  }
+
+  const bundleId = row.bundle_id as string;
+  const { data: bundle } = await supabase
+    .from("coach_bundles")
+    .select("id, historical")
+    .eq("id", bundleId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!bundle) return { status: 404, body: { error: "request not found" } };
+  // Already being read again (a second tap, or a retried call): say yes, do nothing.
+  if ((bundle as Row).historical !== true) return { status: 202, body: { ok: true } };
+
+  const setBundle = (values: Record<string, unknown>) =>
+    supabase.from("coach_bundles").update(values).eq("id", bundleId).eq("user_id", userId);
+
+  await setBundle({ historical: false, status: "collecting", kind: null, fix_note: REOPEN_NOTE });
+  try {
+    await inngest.send({ name: "coach/bundle.retry", data: { bundleId, userId } });
+  } catch {
+    // Back to history, so the button still works next time.
+    await setBundle({ historical: true, status: "done", fix_note: null });
+    return { status: 500, body: { error: "Could not start the re-read" } };
+  }
+  return { status: 202, body: { ok: true } };
+}

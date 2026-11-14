@@ -9,6 +9,7 @@ import {
   confirmRequest,
   fixRequest,
   loadRequest,
+  reopenRequest,
   type ConfirmBody,
 } from "../../services/coach/requestActions.js";
 
@@ -74,5 +75,16 @@ requestRoutes.post("/:id/confirm", async (c) => {
 requestRoutes.post("/:id/fix", async (c) => {
   const body = await c.req.json<{ note?: unknown }>().catch(() => ({}) as { note?: unknown });
   const result = await fixRequest(c.get("userId"), c.req.param("id"), body.note);
+  return c.json(result.body, result.status);
+});
+
+// ── POST /:id/reopen — "Still needs doing": history becomes a new request ─
+
+requestRoutes.post("/:id/reopen", async (c) => {
+  // The owner's decision, made on the phone: not something a helper's key can do.
+  if (c.get("authMethod") === "api_key") {
+    return c.json({ error: "Sign in on the phone to do this" }, 403);
+  }
+  const result = await reopenRequest(c.get("userId"), c.req.param("id"));
   return c.json(result.body, result.status);
 });

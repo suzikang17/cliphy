@@ -319,6 +319,91 @@ describe("coach requests", () => {
     });
   });
 
+  describe("reopening a history request", () => {
+    /** A request filed as history, and the bundle it was read from. */
+    const historyDb = (
+      request: Record<string, unknown> | null = {},
+      bundle: Record<string, unknown> = {},
+    ) =>
+      makeDb((op: Op) => {
+        if (op.table === "coach_requests" && op.action === "select") {
+          return {
+            data: request && requestRow({ historical: true, status: "closed", ...request }),
+          };
+        }
+        if (op.table === "coach_bundles" && op.action === "select") {
+          return { data: { id: "b1", historical: true, status: "done", ...bundle } };
+        }
+        return { data: null };
+      });
+    const reopen = () => post("/api/coach/requests/r1/reopen", {});
+
+    it("sends a history request to be read again as a live one", async () => {
+      db = historyDb();
+      expect((await reopen()).status).toBe(202);
+      expect(db.written("coach_bundles", "update")).toEqual([
+        {
+          historical: false,
+          status: "collecting",
+          kind: null,
+          // Steers the re-read: old messages are a request, not a reply to today's asks.
+          fix_note: expect.stringContaining("still needs doing"),
+        },
+      ]);
+      expect(inngestSend).toHaveBeenCalledWith({
+        name: "coach/bundle.retry",
+        data: { bundleId: "b1", userId: "test-user-id" },
+      });
+      // The same row is rewritten by the bundle job: nothing is added or removed here.
+      expect(db.ops.some((o) => o.table === "coach_requests" && o.action !== "select")).toBe(false);
+    });
+
+    it.each([
+      { historical: false, status: "new" },
+      { historical: false, status: "confirmed" },
+      { historical: true, status: "replaced" },
+    ])("refuses a request that is not closed history: %o", async (request) => {
+      db = historyDb(request);
+      expect((await reopen()).status).toBe(409);
+      expect(db.writtenTables()).toEqual([]);
+      expect(inngestSend).not.toHaveBeenCalled();
+    });
+
+    it("is answered once: a second call while the re-read is under way sends nothing", async () => {
+      db = historyDb({}, { historical: false, status: "collecting" });
+      expect((await reopen()).status).toBe(202);
+      expect(db.writtenTables()).toEqual([]);
+      expect(inngestSend).not.toHaveBeenCalled();
+    });
+
+    it("puts the bundle back when the re-read cannot be started", async () => {
+      db = historyDb();
+      inngestSend.mockRejectedValue(new Error("inngest down"));
+      expect((await reopen()).status).toBe(500);
+      expect(db.written("coach_bundles", "update").at(-1)).toEqual({
+        historical: true,
+        status: "done",
+        fix_note: null,
+      });
+    });
+
+    it("is 404 for a request that is not this account's", async () => {
+      db = historyDb(null);
+      expect((await reopen()).status).toBe(404);
+    });
+
+    it("is for the phone: an API key is refused", async () => {
+      db = historyDb();
+      passAuth.authMiddleware.mockImplementationOnce(async (c, next) => {
+        c.set("userId", "test-user-id");
+        c.set("authMethod", "api_key");
+        await next();
+      });
+      expect((await reopen()).status).toBe(403);
+      expect(db.writtenTables()).toEqual([]);
+    });
+  });
+
   it("shows a request with its messages, signed attachment links and what it would replace", async () => {
     const res = await app().request("/api/coach/requests/r1");
     const body = await res.json();
