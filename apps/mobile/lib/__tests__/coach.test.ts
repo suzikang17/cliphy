@@ -283,8 +283,8 @@ describe("reopening a history request", () => {
     expect(reopenOutcome({ historical: false, status: "new" }, 6_000)).toBe("reopened");
   });
 
-  it("gives up after a minute: read again, and judged not to be a request", () => {
+  it("stops watching after a minute without claiming to know the outcome", () => {
     expect(reopenOutcome(history, 59_000)).toBe("waiting");
-    expect(reopenOutcome(history, 60_000)).toBe("not-a-request");
+    expect(reopenOutcome(history, 60_000)).toBe("still-reading");
   });
 });

@@ -13,6 +13,7 @@ import {
 import { replyArrived, requestArrived } from "../services/coach/botMessages.js";
 import { postBotMessage } from "../services/coach/chat.js";
 import { projectTag } from "../services/coach/projects.js";
+import { isReopen } from "../services/coach/reopen.js";
 import { loadSettings } from "../services/coach/reminders.js";
 import { localParts } from "../services/coach/time.js";
 import { createImageClip } from "../services/imageClip.js";
@@ -25,6 +26,8 @@ interface BundleRow {
   id: string;
   person_id: string;
   historical: boolean;
+  /** History the owner reopened: read as a new request, never as a replacement. */
+  reopened?: boolean;
 }
 
 /** Save each attachment as a Library clip and note the clip on its message. */
@@ -143,7 +146,7 @@ export async function storeInterpretation(
         // Read from a thread's past: history only, nothing to confirm or do.
         status: historical ? "closed" : "new",
         historical,
-        proposed_replaces_id: historical ? null : interp.replacesRequestId,
+        proposed_replaces_id: historical || bundle.reopened ? null : interp.replacesRequestId,
         proposed_tasks: historical ? [] : interp.tasks,
         due_date: historical ? null : interp.dueDate,
       },
@@ -231,6 +234,10 @@ async function loadContext(
     for (const h of (hintRows as { tag: string; hints: string }[]) ?? []) hints.set(h.tag, h.hints);
   }
 
+  // Old messages the owner reopened are read on their own: they must not be
+  // taken for the answer to something asked today, or for a newer request's
+  // replacement.
+  const reopened = isReopen(bundle);
   const person = personRes.data as { id: string; name: string } | null;
   const { timezone } = await loadSettings(userId);
   const { data: ruleRows } = await supabase
@@ -246,10 +253,12 @@ async function loadContext(
       // "By Wednesday" means the user's Wednesday, so today is their date, not the server's.
       today: localParts(new Date(), timezone).date,
       projects: projects.map((p) => ({ id: p.id, name: p.name, hints: hints.get(p.tag) ?? "" })),
-      recentRequests: (
-        (requestsRes.data as { id: string; project_id: string | null; understood: string }[]) ?? []
+      recentRequests: (reopened
+        ? []
+        : ((requestsRes.data as { id: string; project_id: string | null; understood: string }[]) ??
+          [])
       ).map((r) => ({ id: r.id, projectId: r.project_id, understood: r.understood })),
-      waitingAsks: (asksRes.data as { id: string; title: string }[]) ?? [],
+      waitingAsks: reopened ? [] : ((asksRes.data as { id: string; title: string }[]) ?? []),
       fixNote: (bundle.fix_note as string) ?? null,
       rules: ((ruleRows as { sentence: string }[]) ?? []).map((r) => r.sentence),
     },
@@ -325,12 +334,26 @@ async function runBundle({
     };
   });
 
+  // Reopened, read again, and still not a request: it stays the history it
+  // was. Nothing is linked or said, and the owner can try again.
+  if (isReopen(bundle) && interp.kind !== "request") {
+    await step.run("finish", async () => {
+      await supabase
+        .from("coach_bundles")
+        .update({ status: "done", kind: "request", historical: true, fix_note: null })
+        .eq("id", bundleId)
+        .eq("user_id", userId);
+    });
+    return { kind: interp.kind, requestId: null, reopened: false };
+  }
+
   const { requestId } = await step.run("store", () =>
     storeInterpretation(
       {
         id: bundleId,
         person_id: bundle.person_id as string,
         historical: bundle.historical === true,
+        reopened: isReopen(bundle),
       },
       messages,
       interp,

@@ -220,14 +220,14 @@ export const pairCodeComplete = (code: string): boolean => formatPairCode(code).
 export const REOPEN_WAIT_MS = 60_000;
 
 /**
- * After "Still needs doing": has the request come back as a new one? When it
- * is still history after a minute, it was read again and judged to hold
- * nothing to do.
+ * After "Still needs doing": has the request come back as a new one? After a
+ * minute the page stops watching. That is not a verdict: a slow re-read still
+ * arrives in Chat, and one that finds nothing to do never does.
  */
 export function reopenOutcome(
   now: { historical: boolean; status: string } | null,
   waitedMs: number,
-): "waiting" | "reopened" | "not-a-request" {
+): "waiting" | "reopened" | "still-reading" {
   if (now && !now.historical && now.status === "new") return "reopened";
-  return waitedMs >= REOPEN_WAIT_MS ? "not-a-request" : "waiting";
+  return waitedMs >= REOPEN_WAIT_MS ? "still-reading" : "waiting";
 }

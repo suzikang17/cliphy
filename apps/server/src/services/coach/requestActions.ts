@@ -5,6 +5,7 @@ import { inngest } from "../../lib/inngest.js";
 import { toRequest, toTask } from "../../lib/coachMappers.js";
 import { isBlocked, materializeChain } from "./chain.js";
 import { syncTaskReminders } from "./reminders.js";
+import { REOPEN_NOTE } from "./reopen.js";
 
 // What can be done to a request. Used by the HTTP routes, by chat buttons and
 // by the chat agent, so all three behave identically.
@@ -241,13 +242,6 @@ export async function fixRequest(userId: string, id: string, rawNote: unknown): 
   return { status: 202, body: { ok: true } };
 }
 
-/**
- * Given to the re-read the way a "Fix it" note is. Without it, an old message
- * could be taken for a reply to something being waited on today, or for chat.
- */
-export const REOPEN_NOTE =
-  "These are older messages. The owner says what they ask for still needs doing: read them as a request to confirm, not as a reply or as chat.";
-
 export type ReopenResult =
   | { status: 202; body: { ok: true } }
   | { status: 404 | 409 | 500; body: { error: string } };
@@ -267,13 +261,18 @@ export async function reopenRequest(userId: string, id: string): Promise<ReopenR
   const bundleId = row.bundle_id as string;
   const { data: bundle } = await supabase
     .from("coach_bundles")
-    .select("id, historical")
+    .select("id, historical, status")
     .eq("id", bundleId)
     .eq("user_id", userId)
     .maybeSingle();
   if (!bundle) return { status: 404, body: { error: "request not found" } };
   // Already being read again (a second tap, or a retried call): say yes, do nothing.
-  if ((bundle as Row).historical !== true) return { status: 202, body: { ok: true } };
+  // A re-read that ended without producing a request (it failed, or was
+  // interrupted) leaves the request as history, and may be started again.
+  const b = bundle as Row;
+  if (b.historical !== true && (b.status === "collecting" || b.status === "processing")) {
+    return { status: 202, body: { ok: true } };
+  }
 
   const setBundle = (values: Record<string, unknown>) =>
     supabase.from("coach_bundles").update(values).eq("id", bundleId).eq("user_id", userId);

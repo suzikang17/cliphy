@@ -33,6 +33,7 @@ vi.mock("../../services/imageClip.js", () => ({
   createImageClip: (...a: unknown[]) => createImageClipMock(...a),
 }));
 
+const { REOPEN_NOTE } = await import("../../services/coach/reopen.js");
 const {
   processBundle,
   storeInterpretation,
@@ -325,6 +326,86 @@ describe("coach processBundle", () => {
         refId: "b1",
         text: "Maren said only the words.",
         link: { type: "task", id: "t-ask" },
+      });
+    });
+
+    describe("a history request the owner reopened", () => {
+      // What reopenRequest leaves on the bundle: no longer history, to be read again, marked.
+      const reopened = () => bundle({ fix_note: REOPEN_NOTE });
+      /** A database that also has a newer request and an ask being waited on today. */
+      const withTodaysWork = (bundleRow = reopened()) => {
+        const inner = storeDb(bundleRow);
+        return makeDb((op: Op) => {
+          if (op.table === "coach_tasks" && op.action === "select") {
+            return { data: [{ id: "t-ask", title: "Words or type?" }] };
+          }
+          if (op.table === "coach_requests" && op.action === "select") {
+            return { data: [{ id: "r-newer", project_id: "pr1", understood: "A later ask" }] };
+          }
+          return inner.respond(op);
+        });
+      };
+
+      it("becomes a new request on the same row and is announced once", async () => {
+        db = withTodaysWork();
+        interpretMock.mockResolvedValue(requestInterp({ replacesRequestId: null }));
+        await run({ bundleId: "b1", userId: "u1" });
+        await run({ bundleId: "b1", userId: "u1" });
+        const stored = db.written("coach_requests", "upsert")[0] as Record<string, unknown>;
+        expect(stored).toMatchObject({ bundle_id: "b1", status: "new", historical: false });
+        expect((stored.proposed_tasks as unknown[]).length).toBe(3);
+        // Announcing is keyed on the request, so the chat table keeps one message.
+        expect(postBot.mock.calls.map((c) => [c[1].kind, c[1].refId])).toEqual([
+          ["request", "r1"],
+          ["request", "r1"],
+        ]);
+        expect(db.written("coach_bundles", "update").at(-1)).toEqual({
+          status: "done",
+          kind: "request",
+          fix_note: null,
+        });
+      });
+
+      it("is read without today's waiting asks or other requests, so it cannot answer or replace them", async () => {
+        db = withTodaysWork();
+        interpretMock.mockResolvedValue(requestInterp());
+        await run({ bundleId: "b1", userId: "u1" });
+        const ctx = interpretMock.mock.calls[0][2];
+        expect(ctx.waitingAsks).toEqual([]);
+        expect(ctx.recentRequests).toEqual([]);
+        // Even if the model names one anyway, nothing is proposed for replacement.
+        const stored = db.written("coach_requests", "upsert")[0] as Record<string, unknown>;
+        expect(stored.proposed_replaces_id).toBeNull();
+      });
+
+      it.each([
+        ["a reply", () => replyInterp("t-ask")],
+        ["chat", () => chatInterp()],
+      ])(
+        "judged to be %s: links nothing, says nothing, and goes back to history",
+        async (_label, interp) => {
+          db = withTodaysWork();
+          interpretMock.mockResolvedValue(interp());
+          await run({ bundleId: "b1", userId: "u1" });
+          expect(db.written("coach_tasks", "update")).toEqual([]);
+          expect(db.written("coach_requests", "upsert")).toEqual([]);
+          expect(postBot).not.toHaveBeenCalled();
+          expect(db.written("coach_bundles", "update").at(-1)).toEqual({
+            status: "done",
+            kind: "request",
+            historical: true,
+            fix_note: null,
+          });
+        },
+      );
+
+      it("an ordinary Fix-it note still sees today's asks and requests", async () => {
+        db = withTodaysWork(bundle({ fix_note: "It's the homepage" }));
+        interpretMock.mockResolvedValue(chatInterp());
+        await run({ bundleId: "b1", userId: "u1" });
+        const ctx = interpretMock.mock.calls[0][2];
+        expect(ctx.waitingAsks).toHaveLength(1);
+        expect(ctx.recentRequests).toHaveLength(1);
       });
     });
 

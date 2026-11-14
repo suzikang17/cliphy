@@ -37,8 +37,8 @@ export default function RequestScreen() {
   const [fixing, setFixing] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
   const [note, setNote] = useState("");
-  // "Still needs doing" on a history request: idle, reading again, or read and nothing found.
-  const [reopening, setReopening] = useState<"idle" | "waiting" | "nothing">("idle");
+  // "Still needs doing" on a history request: idle, reading again, or no longer watching.
+  const [reopening, setReopening] = useState<"idle" | "waiting" | "slow">("idle");
   const onScreen = useRef(true);
   useEffect(
     () => () => {
@@ -125,7 +125,7 @@ export default function RequestScreen() {
         void refreshCoach({ full: true });
         void refreshStrip();
       }
-      setReopening(outcome === "reopened" ? "idle" : "nothing");
+      setReopening(outcome === "reopened" ? "idle" : "slow");
       setBusy(false);
       return;
     }
@@ -274,7 +274,7 @@ export default function RequestScreen() {
                 <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 22 }}>
                   {reopening === "waiting"
                     ? "Reading it again…"
-                    : "Read again, and there was nothing to do in it."}
+                    : "Still reading. It will appear in Chat if there is something to do."}
                 </Text>
               )
             ) : (

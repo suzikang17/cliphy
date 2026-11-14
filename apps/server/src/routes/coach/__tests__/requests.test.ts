@@ -376,6 +376,24 @@ describe("coach requests", () => {
       expect(inngestSend).not.toHaveBeenCalled();
     });
 
+    it.each(["collecting", "processing"])(
+      "does nothing more while the re-read is still %s",
+      async (status) => {
+        db = historyDb({}, { historical: false, status });
+        expect((await reopen()).status).toBe(202);
+        expect(inngestSend).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["failed", "done"])(
+      "starts again when an earlier re-read ended %s without producing a request",
+      async (status) => {
+        db = historyDb({}, { historical: false, status });
+        expect((await reopen()).status).toBe(202);
+        expect(inngestSend).toHaveBeenCalledTimes(1);
+      },
+    );
+
     it("puts the bundle back when the re-read cannot be started", async () => {
       db = historyDb();
       inngestSend.mockRejectedValue(new Error("inngest down"));
