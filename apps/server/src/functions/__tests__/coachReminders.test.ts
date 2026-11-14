@@ -13,6 +13,10 @@ vi.mock("../../lib/logger.js", () => ({
 const sendPush = vi.fn();
 vi.mock("../../services/push.js", () => ({ sendPush: (...a: unknown[]) => sendPush(...a) }));
 
+const postBot = vi.fn();
+vi.mock("../../services/coach/chat.js", () => ({
+  postBotMessage: (...a: unknown[]) => postBot(...a),
+}));
 const syncReminders = vi.fn();
 vi.mock("../../services/coach/reminders.js", async (orig) => ({
   ...(await orig<typeof import("../../services/coach/reminders.js")>()),
@@ -96,6 +100,7 @@ describe("coach fireReminders", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(NOW));
     sendPush.mockReset();
+    postBot.mockReset();
     sendPush.mockResolvedValue({ sent: 1, dead: 0 });
     steps.length = 0;
   });
@@ -129,6 +134,51 @@ describe("coach fireReminders", () => {
     await fire();
     expect(steps).toEqual(["claim", "send-r1", "send-r2", "resend"]);
     expect(FIRE_JOB).toMatchObject({ concurrency: 1, triggers: [{ cron: "* * * * *" }] });
+  });
+
+  it("puts every reminder it sends into the chat thread too, with buttons", async () => {
+    db = world({ due: [{ id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" }] });
+    await fire();
+    expect(postBot).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({
+        kind: "reminder",
+        refId: "r1",
+        text: "Homepage photo swap. Maren asked for this by today.",
+      }),
+    );
+    expect(postBot.mock.calls[0][1].buttons.map((b: { label: string }) => b.label)).toEqual([
+      "Start",
+      "Done",
+      "Tomorrow",
+    ]);
+  });
+
+  it("says in chat that reminders are not reaching the phone after the second miss", async () => {
+    db = world({
+      settings: settingsRow({ push_failures: 1 }),
+      pending: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          status: "sent",
+          sent_at: "2026-11-14T16:45:00Z",
+          delivered_at: null,
+          resends: 1,
+        },
+      ],
+    });
+    await fire();
+    expect(postBot).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({
+        kind: "health",
+        refId: "2026-11-14",
+        text: "Reminders are not reaching your phone.",
+      }),
+    );
   });
 
   // One failed send must not strand the rest of the batch as "sent".
@@ -301,6 +351,7 @@ describe("coach weeklyReview", () => {
     feature("Reminders");
     vi.useFakeTimers();
     vi.setSystemTime(new Date(NOW)); // Saturday 09:00 in LA; review_dow 6, review_time 09:00
+    postBot.mockReset();
     sendPush.mockReset();
     sendPush.mockResolvedValue({ sent: 1, dead: 0 });
   });
@@ -318,6 +369,19 @@ describe("coach weeklyReview", () => {
       user_id: "u1",
       last_review_at: NOW,
     });
+  });
+
+  it("puts the weekly review in the chat thread, once for that week", async () => {
+    db = world({ users: [{ id: "u1" }], undated: [{ id: "a" }, { id: "b" }] });
+    await review();
+    expect(postBot).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({
+        kind: "review",
+        refId: "2026-11-14",
+        text: "2 things on the back burner.",
+      }),
+    );
   });
 
   it("says 1 thing, not 1 things", async () => {

@@ -1,4 +1,4 @@
-import type { InboundMessage } from "@cliphy/shared";
+import type { Attachment, InboundMessage } from "@cliphy/shared";
 import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
@@ -9,6 +9,8 @@ import {
   type InterpretContext,
   type Interpretation,
 } from "../services/coach/interpret.js";
+import { replyArrived, requestArrived } from "../services/coach/botMessages.js";
+import { postBotMessage } from "../services/coach/chat.js";
 import { projectTag } from "../services/coach/projects.js";
 import { loadSettings } from "../services/coach/reminders.js";
 import { localParts } from "../services/coach/time.js";
@@ -283,7 +285,7 @@ async function runBundle({
 
   // Load, download and interpret in one step: image bytes do not survive
   // being passed between steps.
-  const { interp, messages } = await step.run("interpret", async () => {
+  const { interp, messages, waitingAsks } = await step.run("interpret", async () => {
     const { ctx, messages } = await loadContext(bundle, userId);
     const parsed: InboundMessage[] = messages.map(toMessage);
 
@@ -303,7 +305,11 @@ async function runBundle({
         }
       }
     }
-    return { interp: await interpretBundle(parsed, images, ctx), messages };
+    return {
+      interp: await interpretBundle(parsed, images, ctx),
+      messages,
+      waitingAsks: ctx.waitingAsks,
+    };
   });
 
   const { requestId } = await step.run("store", () =>
@@ -318,6 +324,25 @@ async function runBundle({
       userId,
     ),
   );
+
+  // Say it in the chat thread. Posting is keyed on the request or bundle, so
+  // a retry of this run cannot say it twice. History read from the past is silent.
+  await step.run("announce", async () => {
+    if (bundle.historical === true) return;
+    if (interp.kind === "request" && requestId) {
+      const attachments = messages.flatMap((m) => (m.attachments as Attachment[]) ?? []);
+      await postBotMessage(
+        userId,
+        requestArrived(
+          { id: requestId, understood: interp.understood, openQuestion: interp.question },
+          attachments,
+        ),
+      );
+    } else if (interp.kind === "reply") {
+      const ask = waitingAsks.find((t) => t.id === interp.repliesToTaskId) ?? null;
+      await postBotMessage(userId, replyArrived(ask, interp.understood, bundleId));
+    }
+  });
 
   await step.run("finish", async () => {
     await supabase

@@ -160,6 +160,7 @@ describe("coach tasks", () => {
   it("rejects a malformed date or time, an unknown kind and an empty title", async () => {
     const bad = [
       { kind: "do", title: "x", dueDate: "next week" },
+      { kind: "do", title: "x", dueDate: "2026-13-45" },
       { kind: "do", title: "x", dueDate: "2026-11-20", dueTime: "9am" },
       { kind: "dance", title: "x" },
       { kind: "do", title: "  " },
@@ -255,6 +256,37 @@ describe("coach tasks", () => {
     db = taskDb([taskRow({ id: "t1", kind: "tell", due_date: "2026-11-20" })]);
     await post("/api/coach/tasks/t1/sent", {});
     expect(syncMock).toHaveBeenCalledWith("test-user-id", ["t1"]);
+  });
+
+  it("says the next step is ready when a task is finished", async () => {
+    db = taskDb([
+      taskRow({ id: "a", kind: "do" }),
+      taskRow({ id: "b", kind: "tell", title: "Tell Maren it's live", after_task_id: "a" }),
+    ]);
+    await patch("/api/coach/tasks/a", { state: "done" });
+    expect(db.written("coach_chat_messages")[0]).toMatchObject({
+      kind: "unblocked",
+      ref_id: "b",
+      text: "Tell Maren it's live is ready.",
+    });
+  });
+
+  it("says the next step is ready when a message is sent", async () => {
+    db = taskDb([
+      taskRow({ id: "t1", kind: "tell" }),
+      taskRow({ id: "after", kind: "do", title: "Archive the old copy", after_task_id: "t1" }),
+    ]);
+    await post("/api/coach/tasks/t1/sent", {});
+    expect(db.written("coach_chat_messages")[0]).toMatchObject({
+      kind: "unblocked",
+      ref_id: "after",
+    });
+  });
+
+  it("does not announce anything when the finished task had nothing waiting on it", async () => {
+    db = taskDb([taskRow({ id: "a" })]);
+    await patch("/api/coach/tasks/a", { state: "done" });
+    expect(db.written("coach_chat_messages")).toEqual([]);
   });
 
   it("404s a task that is not the caller's", async () => {

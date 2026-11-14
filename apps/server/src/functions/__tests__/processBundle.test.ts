@@ -23,6 +23,10 @@ const interpretMock = vi.fn();
 vi.mock("../../services/coach/interpret.js", () => ({
   interpretBundle: (...a: unknown[]) => interpretMock(...a),
 }));
+const postBot = vi.fn();
+vi.mock("../../services/coach/chat.js", () => ({
+  postBotMessage: (...a: unknown[]) => postBot(...a),
+}));
 const createImageClipMock = vi.fn();
 vi.mock("../../services/imageClip.js", () => ({
   createImageClip: (...a: unknown[]) => createImageClipMock(...a),
@@ -164,6 +168,7 @@ describe("coach processBundle", () => {
     epic("Coach");
     feature("Process bundle");
     interpretMock.mockReset();
+    postBot.mockReset();
     createImageClipMock.mockReset();
     downloadImage.mockReset();
     createImageClipMock.mockImplementation(async () => ({ id: "clip-1" }));
@@ -274,6 +279,52 @@ describe("coach processBundle", () => {
       const updates = db.written("coach_bundles", "update");
       expect(updates[0]).toEqual({ status: "processing" });
       expect(updates.at(-1)).toEqual({ status: "done", kind: "request", fix_note: null });
+    });
+
+    it("tells the user about a new request, with its question and the first screenshots", async () => {
+      db = storeDb(bundle(), messagesWithTwoImages());
+      interpretMock.mockResolvedValue(requestInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(postBot).toHaveBeenCalledTimes(1);
+      const [userId, msg] = postBot.mock.calls[0];
+      expect(userId).toBe("u1");
+      expect(msg).toMatchObject({
+        kind: "request",
+        refId: "r1",
+        text: "Maren asked to replace the page 2 text.\n\nWords or type?",
+        link: { type: "request", id: "r1" },
+      });
+      expect(msg.buttons.map((b: { label: string }) => b.label)).toEqual([
+        "Only words",
+        "Type too",
+      ]);
+      expect(msg.attachments).toHaveLength(2);
+    });
+
+    it("says nothing about ordinary chat or about history read from the past", async () => {
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      db = storeDb(bundle({ historical: true }));
+      interpretMock.mockResolvedValue(requestInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(postBot).not.toHaveBeenCalled();
+    });
+
+    it("tells the user when a reply to a waiting ask arrives", async () => {
+      const inner = storeDb();
+      db = makeDb((op: Op) =>
+        op.table === "coach_tasks" && op.action === "select"
+          ? { data: [{ id: "t-ask", title: "Words or type?" }] }
+          : inner.respond(op),
+      );
+      interpretMock.mockResolvedValue(replyInterp("t-ask"));
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(postBot.mock.calls[0][1]).toMatchObject({
+        kind: "reply",
+        refId: "b1",
+        text: "Maren said only the words.",
+        link: { type: "task", id: "t-ask" },
+      });
     });
 
     it("passes the person, projects and the fix note to the interpreter", async () => {

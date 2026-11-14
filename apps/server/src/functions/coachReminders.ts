@@ -8,6 +8,13 @@ import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { sendPush, type PushMessage } from "../services/push.js";
+import {
+  pushNotWorking,
+  reminderDue,
+  weeklyReview as weeklyReviewMessage,
+  type BotMessage,
+} from "../services/coach/botMessages.js";
+import { postBotMessage } from "../services/coach/chat.js";
 import { nextResend } from "../services/coach/reminderPlan.js";
 import { syncTaskReminders } from "../services/coach/reminders.js";
 import { reminderText } from "../services/coach/reminderText.js";
@@ -44,8 +51,14 @@ async function settingsState(userId: string): Promise<SettingsState> {
   };
 }
 
-/** The notification for a reminder, or null when its task is gone or no longer live. */
-async function messageFor(r: Row): Promise<PushMessage | null> {
+interface ReminderMessage {
+  push: PushMessage;
+  /** The same reminder as a chat message, with the buttons that answer it. */
+  chat: BotMessage;
+}
+
+/** The words for a reminder, or null when its task is gone or no longer live. */
+async function messageFor(r: Row): Promise<ReminderMessage | null> {
   const { data } = await supabase
     .from("coach_tasks")
     .select("id, title, kind, state, due_time, with_person_id, request_id")
@@ -74,7 +87,14 @@ async function messageFor(r: Row): Promise<PushMessage | null> {
     fromRequest: Boolean(task.request_id),
     dueTime: (task.due_time as string) ?? null,
   });
-  return { ...text, data: { type: "reminder", reminderId: r.id, taskId: task.id } };
+  return {
+    push: { ...text, data: { type: "reminder", reminderId: r.id, taskId: task.id } },
+    chat: reminderDue(
+      { id: r.id as string },
+      { id: task.id as string, kind: task.kind as TaskKind, title: task.title as string },
+      text.body,
+    ),
+  };
 }
 
 /** Update a reminder, optionally only while it is still in one of `onlyIf` statuses. */
@@ -125,8 +145,10 @@ export const fireReminders = inngest.createFunction(
           await setReminder(r.id as string, { status: "cancelled" });
           return 0;
         }
+        // The chat thread is the record; the notification is the delivery.
+        await postBotMessage(r.user_id as string, message.chat);
         try {
-          await sendPush(r.user_id as string, message);
+          await sendPush(r.user_id as string, message.push);
         } catch (err) {
           // The push service is down. Put this one back for the next minute and
           // carry on, so one failure does not leave the rest claimed but unsent.
@@ -191,7 +213,7 @@ export const fireReminders = inngest.createFunction(
           continue;
         }
         try {
-          await sendPush(userId, message);
+          await sendPush(userId, message.push);
         } catch (err) {
           log.warn("Re-send failed", { reminderId: r.id, err: String(err) });
           continue;
@@ -210,6 +232,10 @@ export const fireReminders = inngest.createFunction(
         // Never reported as received: notifications may not be getting through.
         if (r.status === "sent") {
           state.pushFailures += 1;
+          // Two in a row never reported as received: say so where it will be seen.
+          if (state.pushFailures >= 2) {
+            await postBotMessage(userId, pushNotWorking(localParts(now, settings.timezone).date));
+          }
           await supabase
             .from("coach_settings")
             .upsert(
@@ -255,6 +281,7 @@ export const weeklyReview = inngest.createFunction(
         const n = ((undated as unknown[]) ?? []).length;
         if (n === 0) continue;
 
+        await postBotMessage(user.id, weeklyReviewMessage(n, local.date));
         await sendPush(user.id, {
           title: "Back burner",
           body: `${n} ${n === 1 ? "thing" : "things"} on the back burner.`,
