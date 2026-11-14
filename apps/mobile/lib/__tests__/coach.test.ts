@@ -14,6 +14,8 @@ import {
   setupSteps,
   agoLabel,
   helperRunning,
+  formatPairCode,
+  pairCodeComplete,
   dayParts,
   MIRROR_DELAY_MS,
 } from "../coach";
@@ -248,5 +250,20 @@ describe("coach phone logic", () => {
   it("splits a date into the number and short day for a list row", () => {
     expect(dayParts("2026-11-14")).toEqual({ num: "14", dow: "Sat" });
     expect(dayParts("2026-12-01")).toEqual({ num: "1", dow: "Tue" });
+  });
+});
+
+describe("formatPairCode", () => {
+  it("upper-cases and groups the code as it is typed", () => {
+    expect(formatPairCode("abcd")).toBe("ABCD");
+    expect(formatPairCode("abcde")).toBe("ABCD-E");
+    expect(formatPairCode("abcdefgh")).toBe("ABCD-EFGH");
+  });
+  it("ignores spaces, dashes and anything past eight characters", () => {
+    expect(formatPairCode(" ab-cd ef gh ij ")).toBe("ABCD-EFGH");
+  });
+  it("knows when the code is complete", () => {
+    expect(pairCodeComplete("ABCD-EFG")).toBe(false);
+    expect(pairCodeComplete("ABCD-EFGH")).toBe(true);
   });
 });

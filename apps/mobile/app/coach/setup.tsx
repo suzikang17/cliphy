@@ -2,9 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import type { CoachHealth, CoachRule, Person, PersonRole } from "@cliphy/shared";
-import { agoLabel, helperRunning, setupSteps, type SetupStep } from "../../lib/coach";
+import {
+  agoLabel,
+  formatPairCode,
+  helperRunning,
+  pairCodeComplete,
+  setupSteps,
+  type SetupStep,
+} from "../../lib/coach";
 import {
   addPerson,
+  claimPairCode,
   deleteRule,
   getCoachSettings,
   getHealth,
@@ -65,6 +73,10 @@ export default function SetupScreen() {
   const [workEnd, setWorkEnd] = useState("17:00");
   const [workSet, setWorkSet] = useState(false);
   const [workNote, setWorkNote] = useState<string | null>(null);
+  const [pairOpen, setPairOpen] = useState(false);
+  const [pairCode, setPairCode] = useState("");
+  const [pairing, setPairing] = useState(false);
+  const [pairNote, setPairNote] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -133,6 +145,23 @@ export default function SetupScreen() {
     } catch {
       setTesting(false);
       setFailed(true);
+    }
+  };
+
+  // The Mac helper shows a code; typing it here connects that Mac to this account.
+  const connectMac = async () => {
+    if (pairing || !pairCodeComplete(pairCode)) return;
+    setPairing(true);
+    setPairNote(null);
+    try {
+      await claimPairCode(pairCode);
+      setPairCode("");
+      setPairNote("Connected. The Mac starts in a moment.");
+      setTimeout(() => void load(), 5000);
+    } catch (err) {
+      setPairNote(err instanceof Error ? err.message : "Could not connect");
+    } finally {
+      setPairing(false);
     }
   };
 
@@ -273,8 +302,8 @@ export default function SetupScreen() {
               {steps[0] === "person" ? <Body>Who do you work with? Add them below.</Body> : null}
               {steps[0] === "messages" ? (
                 <Body>
-                  Your Mac can pass me a person's texts and attachments. Run the Cliphy helper on
-                  the Mac and choose their thread there.
+                  Your Mac can pass me a person's texts and attachments. Open Cliphy Helper on the
+                  Mac, then tap Mac messages below and enter its code.
                 </Body>
               ) : null}
               {steps[0] === "try" ? (
@@ -309,9 +338,35 @@ export default function SetupScreen() {
                   ? `Mac last seen ${agoLabel(health?.helperSeenAt, new Date())}`
                   : "The Mac helper has not connected"
           }
-          right={captured.length === 0 ? "Later" : macOn ? "Working" : "Check"}
-          rightColor={captured.length === 0 ? t.muted : macOn ? t.ok : t.due}
+          right={macOn ? "Working" : "Connect"}
+          rightColor={macOn ? t.ok : t.due}
+          onPress={macOn ? undefined : () => setPairOpen((open) => !open)}
         />
+        {pairOpen && !macOn ? (
+          <View style={{ marginBottom: 8 }}>
+            <Body>Open Cliphy Helper on the Mac and enter the code it shows.</Body>
+            <TextInput
+              value={pairCode}
+              onChangeText={(v) => setPairCode(formatPairCode(v))}
+              placeholder="XXXX-XXXX"
+              placeholderTextColor={t.muted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={9}
+              accessibilityLabel="Code from the Mac"
+              style={input}
+            />
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+              <QuickButton
+                label={pairing ? "Connecting" : "Connect"}
+                primary
+                disabled={pairing || !pairCodeComplete(pairCode)}
+                onPress={connectMac}
+              />
+            </View>
+            {pairNote ? <Body>{pairNote}</Body> : null}
+          </View>
+        ) : null}
         <Row title="Share sheet" detail="Share to Cliphy, then Send to Chat" />
 
         <SectionLabel>People</SectionLabel>

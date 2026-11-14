@@ -12,6 +12,7 @@ import {
   readThread,
   type MessagesDb,
 } from "./messagesDb.js";
+import { pairWithPhone, realPairDeps } from "./pair.js";
 import { DEFAULT_DIR, loadConfig, loadState, saveConfig, saveState } from "./store.js";
 import { syncOnce, type SyncDeps } from "./sync.js";
 
@@ -65,9 +66,7 @@ function open(): MessagesDb {
 function deps(db: MessagesDb): SyncDeps {
   const config = loadConfig(DEFAULT_DIR);
   if (!config) {
-    console.error(
-      "Not signed in. Run: login <api url> <api key>   (create a key in the app: Settings → API keys)",
-    );
+    console.error("Not connected to the app yet. Run: pair");
     process.exit(1);
   }
   const state = loadState(DEFAULT_DIR);
@@ -92,6 +91,23 @@ async function login(apiUrl?: string, apiKey?: string): Promise<void> {
   console.log(
     `Signed in. ${people.length} ${people.length === 1 ? "person" : "people"} in the app.`,
   );
+}
+
+const DEFAULT_API = "https://api.cliphy.app";
+
+/** Connect this Mac to an account by typing a code into the phone. */
+async function pair(apiUrl: string = DEFAULT_API): Promise<void> {
+  const { apiKey, account } = await pairWithPhone(
+    apiUrl,
+    realPairDeps((code) =>
+      console.log(
+        `\nOn your phone: Chat → Setup → Mac messages → enter this code\n\n    ${code}\n\nWaiting…`,
+      ),
+    ),
+  );
+  saveConfig(DEFAULT_DIR, { apiUrl, apiKey });
+  console.log(`Connected${account ? ` to ${account}` : ""}.`);
+  console.log("If that is not your account, delete ~/.cliphy-helper/config.json and pair again.");
 }
 
 async function check(): Promise<void> {
@@ -201,6 +217,9 @@ Full Disk Access must be granted to:
 
 const [command, ...args] = process.argv.slice(2);
 switch (command) {
+  case "pair":
+    await pair(args[0]);
+    break;
   case "login":
     await login(args[0], args[1]);
     break;
@@ -217,5 +236,5 @@ switch (command) {
     install();
     break;
   default:
-    console.log("Usage: login <api url> <api key> | check | once | run | install");
+    console.log("Usage: pair | check | once | run | install   (or: login <api url> <api key>)");
 }

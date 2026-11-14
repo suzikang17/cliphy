@@ -204,3 +204,14 @@ export function agoLabel(iso: string | null | undefined, now: Date): string | nu
 export function helperRunning(seenAt: string | null | undefined, now: Date): boolean {
   return Boolean(seenAt) && now.getTime() - Date.parse(seenAt as string) < 5 * 60_000;
 }
+
+/** The Mac helper's pairing code as it is typed: upper case, grouped 4-4. */
+export function formatPairCode(raw: string): string {
+  const chars = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8);
+  return chars.length > 4 ? `${chars.slice(0, 4)}-${chars.slice(4)}` : chars;
+}
+
+export const pairCodeComplete = (code: string): boolean => formatPairCode(code).length === 9;

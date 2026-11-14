@@ -13,6 +13,7 @@ import { focusRoutes, healthRoutes, settingsRoutes } from "./settings.js";
 import { ruleRoutes } from "./rules.js";
 import { taskRoutes } from "./tasks.js";
 import { upNextRoutes } from "./upnext.js";
+import { pairClaimRoutes } from "../pair.js";
 
 /** Creative coach API. Every route needs auth and the per-account switch. */
 export const coachRoutes = new Hono<AppEnv>();
@@ -33,3 +34,4 @@ coachRoutes.route("/chat", chatRoutes);
 coachRoutes.route("/upnext", upNextRoutes);
 coachRoutes.route("/rules", ruleRoutes);
 coachRoutes.route("/progress", progressRoutes);
+coachRoutes.route("/pair", pairClaimRoutes);

@@ -33,6 +33,7 @@ import { podcastRoutes } from "./routes/podcasts.js";
 import { tabsRoutes } from "./routes/tabs.js";
 import { trailRoutes } from "./routes/trail.js";
 import { coachRoutes } from "./routes/coach/index.js";
+import { pairRoutes } from "./routes/pair.js";
 import { chatReply, learnJob } from "./functions/coachChat.js";
 import { checkIns } from "./functions/coachCheckins.js";
 import { fireReminders, reconcileReminders, weeklyReview } from "./functions/coachReminders.js";
@@ -133,6 +134,7 @@ app.route("/podcasts", podcastRoutes);
 app.route("/tabs", tabsRoutes);
 app.route("/trail", trailRoutes);
 app.route("/coach", coachRoutes);
+app.route("/pair", pairRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {

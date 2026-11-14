@@ -124,6 +124,9 @@ export const updateCoachSettings = (body: Partial<CoachSettings>) =>
 export const getHealth = () => apiFetch<CoachHealth>("/api/coach/health");
 export const sendTestPush = () =>
   apiFetch<{ sent: number }>("/api/coach/health/test-push", json("POST"));
+/** Connect the Mac helper that is showing this code to the signed-in account. */
+export const claimPairCode = (code: string) =>
+  apiFetch<{ paired: true }>("/api/coach/pair/claim", json("POST", { code }));
 
 // Learned rules
 export const getRules = () => apiFetch<{ rules: CoachRule[] }>("/api/coach/rules");

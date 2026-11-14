@@ -14,14 +14,15 @@ in the background; everything you see and do stays on your phone.
 
 Needs Node 22.13 or later, and this repo with `pnpm install` done.
 
-1. **Sign in.** In the phone app, create an API key: Library → Subscriptions →
-   "Add from anywhere (Apple Shortcut)" → generate a key (it is copied to the
-   clipboard). Then:
+1. **Connect it to your account.**
 
    ```sh
    cd apps/mac-helper
-   pnpm tsx src/main.ts login https://api.cliphy.app <api key>
+   pnpm tsx src/main.ts pair
    ```
+
+   It shows a code. On the phone: Chat → Setup → Mac messages → enter the code.
+   The helper then says which account it is connected to.
 
 2. **Allow it to read Messages.** System Settings → Privacy & Security → Full
    Disk Access → add the `node` program the helper runs with (`which node`),
@@ -43,13 +44,14 @@ Needs Node 22.13 or later, and this repo with `pnpm install` done.
 
 ## Commands
 
-| Command                     | What it does                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| `login <api url> <api key>` | Saves the key in `~/.cliphy-helper/config.json` (readable only by you).         |
-| `check`                     | Confirms Messages is readable and shows the latest message per captured person. |
-| `once`                      | Uploads anything new, then exits.                                               |
-| `run`                       | Uploads anything new every 20 seconds until stopped.                            |
-| `install`                   | Writes the launchd job that runs `run` at login and restarts it.                |
+| Command                     | What it does                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pair`                      | Shows a code to enter on the phone, then saves this Mac's key in `~/.cliphy-helper/config.json`. |
+| `login <api url> <api key>` | The same, with a key made by hand.                                                               |
+| `check`                     | Confirms Messages is readable and shows the latest message per captured person.                  |
+| `once`                      | Uploads anything new, then exits.                                                                |
+| `run`                       | Uploads anything new every 20 seconds until stopped.                                             |
+| `install`                   | Writes the launchd job that runs `run` at login and restarts it.                                 |
 
 ## How far back it reads
 
