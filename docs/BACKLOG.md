@@ -53,3 +53,4 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Eval Haiku 5.5 vs 4.5 (tab grouping, enrich, auto-tag) and Sonnet 5.5 vs 4.6 (summaries) — 10× / ~33% cheaper; switch only if quality holds.
 - [ ] Tabs view: optional "related pages of one site" nesting (e.g. wecuratelife-mockups /c /d /e) distinct from duplicates.
 - [ ] Merge groups: optional "also re-tag saved clips" (library-wide tag merge with confirmation).
+- [ ] Upgrade `@anthropic-ai/sdk` from 0.39 to 1.x (strict tools, structured outputs, effort, refusal fallbacks); coach interpretation currently validates model output by hand because the installed SDK predates them.

@@ -1,0 +1,81 @@
+{
+  "note": "Fictional client and project. The shape matches a real small request: two screenshots, one loose sentence, replacement copy.",
+  "context": {
+    "person": {
+      "id": "p-maren",
+      "name": "Maren"
+    },
+    "today": "2026-11-14",
+    "projects": [
+      {
+        "id": "pr-alder",
+        "name": "Alder House",
+        "hints": "interior project page on Maren's site"
+      }
+    ],
+    "recentRequests": [
+      {
+        "id": "r-2022",
+        "projectId": "pr-alder",
+        "understood": "Maren asked for the Alder House page 2 text."
+      }
+    ],
+    "waitingAsks": [],
+    "fixNote": null
+  },
+  "messages": [
+    {
+      "id": "m1",
+      "personId": "p-maren",
+      "channel": "imessage",
+      "direction": "in",
+      "text": "",
+      "attachments": [
+        {
+          "storagePath": "alder-house-page-1.png",
+          "mediaType": "image/png"
+        }
+      ],
+      "sentAt": "2026-11-14T09:42:00Z"
+    },
+    {
+      "id": "m2",
+      "personId": "p-maren",
+      "channel": "imessage",
+      "direction": "in",
+      "text": "",
+      "attachments": [
+        {
+          "storagePath": "alder-house-page-2.png",
+          "mediaType": "image/png"
+        }
+      ],
+      "sentAt": "2026-11-14T09:42:05Z"
+    },
+    {
+      "id": "m3",
+      "personId": "p-maren",
+      "channel": "imessage",
+      "direction": "in",
+      "text": "I like the writing on page 1 more than page 2",
+      "attachments": [],
+      "sentAt": "2026-11-14T09:42:40Z"
+    },
+    {
+      "id": "m4",
+      "personId": "p-maren",
+      "channel": "imessage",
+      "direction": "in",
+      "text": "Set above the valley, Alder House takes a quieter approach to family living.",
+      "attachments": [],
+      "sentAt": "2026-11-14T09:43:10Z"
+    }
+  ],
+  "expected": {
+    "kind": "request",
+    "projectId": "pr-alder",
+    "replacesRequestId": "r-2022",
+    "questionPresent": true,
+    "taskKinds": ["ask", "do", "tell"]
+  }
+}

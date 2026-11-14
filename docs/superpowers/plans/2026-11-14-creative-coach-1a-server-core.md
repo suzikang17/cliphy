@@ -19,14 +19,14 @@ title: Creative coach 1a, plan 1 — server core (people, intake, requests, task
 
 The spec's 1a is five subsystems. Each gets its own plan and each ends in working, testable software. This is plan 1.
 
-| Plan | Delivers | Depends on |
-| ---- | -------- | ---------- |
-| **1. Server core (this)** | people, projects, intake, requests with history, tasks | — |
-| 2. Reminders and push | reminder scheduling, sending, delivery reports, re-fire, weekly review | 1 |
-| 3. Chat bot | the chat thread, bot tools, learned rules, filing tiers | 1, 2 |
-| 4. Phone app | Library/plus/Chat bar, Chat, request page, Up next, project history, "Send to Chat" share, Setup | 1–3 |
-| 5. Mac helper | background script reading Messages, per-person history window, heartbeat | 1 |
-| 6. 1b | working hours, check-ins, focus, progress photos | 1–4 |
+| Plan                      | Delivers                                                                                         | Depends on |
+| ------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| **1. Server core (this)** | people, projects, intake, requests with history, tasks                                           | —          |
+| 2. Reminders and push     | reminder scheduling, sending, delivery reports, re-fire, weekly review                           | 1          |
+| 3. Chat bot               | the chat thread, bot tools, learned rules, filing tiers                                          | 1, 2       |
+| 4. Phone app              | Library/plus/Chat bar, Chat, request page, Up next, project history, "Send to Chat" share, Setup | 1–3        |
+| 5. Mac helper             | background script reading Messages, per-person history window, heartbeat                         | 1          |
+| 6. 1b                     | working hours, check-ins, focus, progress photos                                                 | 1–4        |
 
 Not in this plan: reminders, notifications, the chat thread, learned rules, any phone or Mac code.
 
@@ -43,7 +43,7 @@ Not in this plan: reminders, notifications, the chat thread, learned rules, any 
 - A person is `client`, `collaborator` or `both`. The role is a label; no behaviour branches on it.
 - Nothing is deleted when a request is replaced.
 - Commit to `main`, imperative mood, one commit per task. End commit messages with `Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>`.
-- Interpretation model: `claude-sonnet-5-5`. Load the `claude-api` skill before writing the Anthropic call.
+- Interpretation model: `claude-opus-5-5` (amended during execution: the API guide defaults to it, and forced tool calls are rejected by current models, so the call uses `tool_choice: auto` plus an instruction). Load the `claude-api` skill before writing the Anthropic call.
 
 ## Review Focus
 
@@ -55,28 +55,29 @@ Not in this plan: reminders, notifications, the chat thread, learned rules, any 
 
 ## File Structure
 
-| File | Responsibility |
-| ---- | -------------- |
-| `apps/server/supabase/migrations/038_coach_core.sql` | switch column and the seven tables |
-| `packages/shared/src/coach.ts` | types and constants shared with the phone app |
-| `apps/server/src/middleware/require-coach.ts` | the per-account switch |
-| `apps/server/src/lib/coachMappers.ts` | row → API shape for coach tables |
-| `apps/server/src/services/coach/bundling.ts` | pure: which bundle a message joins |
-| `apps/server/src/services/coach/interpret.ts` | prompt, Claude call, pure `parseInterpretation` |
-| `apps/server/src/services/coach/chain.ts` | pure: proposed chain → task rows; blocked; sent |
-| `apps/server/src/services/coach/history.ts` | pure: requests → project history |
-| `apps/server/src/services/coach/projects.ts` | seed projects from `project:` tags |
-| `apps/server/src/services/imageClip.ts` | `createImageClip`, extracted from `routes/clips.ts` |
-| `apps/server/src/functions/processBundle.ts` | Inngest: debounce, interpret, store |
-| `apps/server/src/routes/coach/{people,projects,intake,requests,tasks}.ts` | HTTP |
-| `apps/server/src/routes/coach/index.ts` | mounts the five under `/coach` |
-| `apps/server/eval/fixtures/coach/alder-house.json` | the proof fixture |
+| File                                                                      | Responsibility                                      |
+| ------------------------------------------------------------------------- | --------------------------------------------------- |
+| `apps/server/supabase/migrations/038_coach_core.sql`                      | switch column and the seven tables                  |
+| `packages/shared/src/coach.ts`                                            | types and constants shared with the phone app       |
+| `apps/server/src/middleware/require-coach.ts`                             | the per-account switch                              |
+| `apps/server/src/lib/coachMappers.ts`                                     | row → API shape for coach tables                    |
+| `apps/server/src/services/coach/bundling.ts`                              | pure: which bundle a message joins                  |
+| `apps/server/src/services/coach/interpret.ts`                             | prompt, Claude call, pure `parseInterpretation`     |
+| `apps/server/src/services/coach/chain.ts`                                 | pure: proposed chain → task rows; blocked; sent     |
+| `apps/server/src/services/coach/history.ts`                               | pure: requests → project history                    |
+| `apps/server/src/services/coach/projects.ts`                              | seed projects from `project:` tags                  |
+| `apps/server/src/services/imageClip.ts`                                   | `createImageClip`, extracted from `routes/clips.ts` |
+| `apps/server/src/functions/processBundle.ts`                              | Inngest: debounce, interpret, store                 |
+| `apps/server/src/routes/coach/{people,projects,intake,requests,tasks}.ts` | HTTP                                                |
+| `apps/server/src/routes/coach/index.ts`                                   | mounts the five under `/coach`                      |
+| `apps/server/eval/fixtures/coach/alder-house.json`                        | the proof fixture                                   |
 
 ---
 
 ### Task 1: Schema, shared types and the switch
 
 **Files:**
+
 - Create: `apps/server/supabase/migrations/038_coach_core.sql`, `packages/shared/src/coach.ts`, `apps/server/src/middleware/require-coach.ts`, `apps/server/src/lib/coachMappers.ts`
 - Modify: `packages/shared/src/index.ts` (add `export * from "./coach";`)
 - Test: `apps/server/src/middleware/__tests__/require-coach.test.ts`, `apps/server/src/lib/__tests__/coachMappers.test.ts`
@@ -98,28 +99,96 @@ export type TaskState = "open" | "waiting" | "done" | "dropped";
 export const BUNDLE_QUIET_MS = 180_000;
 export const MAX_QUESTION_OPTIONS = 3;
 
-export interface Person { id: string; name: string; role: PersonRole; handles: string[];
-  captureThread: boolean; historyWindow: HistoryWindow; historyDays: number | null }
-export interface Project { id: string; name: string; tag: string; active: boolean;
-  stateLine: string; personIds: string[] }
-export interface Attachment { storagePath: string; mediaType: string; url?: string; clipId?: string }
-export interface InboundMessage { id: string; personId: string; channel: Channel;
-  direction: Direction; text: string; attachments: Attachment[]; sentAt: string }
-export interface OpenQuestion { text: string; options: string[] }
-export interface ChecklistItem { text: string; done: boolean }
-export interface TaskKit { materials?: string[]; target?: string; doneWhen?: string; draft?: string }
-export interface ProposedTask { kind: TaskKind; title: string; withPerson: boolean;
-  after: number | null; answersQuestion: boolean; kit: TaskKit }
-export interface CoachRequest { id: string; bundleId: string; projectId: string | null;
-  personId: string; understood: string; openQuestion: OpenQuestion | null; answer: string | null;
-  status: RequestStatus; replacesId: string | null; proposedReplacesId: string | null;
-  proposedTasks: ProposedTask[]; dueDate: string | null; historical: boolean;
-  createdAt: string; confirmedAt: string | null }
-export interface CoachTask { id: string; requestId: string | null; projectId: string | null;
-  kind: TaskKind; state: TaskState; title: string; kit: TaskKit; withPersonId: string | null;
-  afterTaskId: string | null; blocked: boolean; dueDate: string | null; dueTime: string | null;
-  place: string | null; checklist: ChecklistItem[]; replyBundleId: string | null;
-  createdAt: string; doneAt: string | null }
+export interface Person {
+  id: string;
+  name: string;
+  role: PersonRole;
+  handles: string[];
+  captureThread: boolean;
+  historyWindow: HistoryWindow;
+  historyDays: number | null;
+}
+export interface Project {
+  id: string;
+  name: string;
+  tag: string;
+  active: boolean;
+  stateLine: string;
+  personIds: string[];
+}
+export interface Attachment {
+  storagePath: string;
+  mediaType: string;
+  url?: string;
+  clipId?: string;
+}
+export interface InboundMessage {
+  id: string;
+  personId: string;
+  channel: Channel;
+  direction: Direction;
+  text: string;
+  attachments: Attachment[];
+  sentAt: string;
+}
+export interface OpenQuestion {
+  text: string;
+  options: string[];
+}
+export interface ChecklistItem {
+  text: string;
+  done: boolean;
+}
+export interface TaskKit {
+  materials?: string[];
+  target?: string;
+  doneWhen?: string;
+  draft?: string;
+}
+export interface ProposedTask {
+  kind: TaskKind;
+  title: string;
+  withPerson: boolean;
+  after: number | null;
+  answersQuestion: boolean;
+  kit: TaskKit;
+}
+export interface CoachRequest {
+  id: string;
+  bundleId: string;
+  projectId: string | null;
+  personId: string;
+  understood: string;
+  openQuestion: OpenQuestion | null;
+  answer: string | null;
+  status: RequestStatus;
+  replacesId: string | null;
+  proposedReplacesId: string | null;
+  proposedTasks: ProposedTask[];
+  dueDate: string | null;
+  historical: boolean;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+export interface CoachTask {
+  id: string;
+  requestId: string | null;
+  projectId: string | null;
+  kind: TaskKind;
+  state: TaskState;
+  title: string;
+  kit: TaskKit;
+  withPersonId: string | null;
+  afterTaskId: string | null;
+  blocked: boolean;
+  dueDate: string | null;
+  dueTime: string | null;
+  place: string | null;
+  checklist: ChecklistItem[];
+  replyBundleId: string | null;
+  createdAt: string;
+  doneAt: string | null;
+}
 ```
 
 ```ts
@@ -135,16 +204,16 @@ export function toTask(row: Record<string, unknown>, blocked: boolean): CoachTas
 
 **Tables** (columns beyond `id uuid primary key default gen_random_uuid()`, `user_id`, `created_at timestamptz not null default now()`):
 
-| Table | Columns |
-| ----- | ------- |
-| `users` (alter) | `coach_enabled boolean not null default false` |
-| `coach_people` | `name text not null`, `role text not null check (role in ('client','collaborator','both'))`, `handles text[] not null default '{}'`, `capture_thread boolean not null default false`, `history_window text not null default 'new' check (...)`, `history_days int` |
-| `coach_projects` | `name text not null`, `tag text not null`, `active boolean not null default true`, `state_line text not null default ''`, `unique (user_id, tag)` |
-| `coach_project_people` | `project_id`, `person_id`, primary key on both, both `on delete cascade`; no `id`/`user_id` |
-| `coach_bundles` | `person_id` → people, `status text not null default 'collecting'`, `kind text`, `last_message_at timestamptz not null`, `historical boolean not null default false`, `fix_note text` |
-| `coach_messages` | `person_id`, `bundle_id` (nullable), `channel`, `direction`, `external_id text not null`, `text text not null default ''`, `attachments jsonb not null default '[]'`, `sent_at timestamptz not null`, `unique (user_id, channel, external_id)` |
-| `coach_requests` | `bundle_id`, `person_id`, `project_id` (nullable), `understood text not null`, `open_question jsonb`, `answer text`, `status text not null default 'new'`, `replaces_id` → requests, `proposed_replaces_id` → requests, `proposed_tasks jsonb not null default '[]'`, `due_date date`, `historical boolean not null default false`, `confirmed_at timestamptz`, `unique (bundle_id)` |
-| `coach_tasks` | `request_id`, `project_id`, `kind`, `state text not null default 'open'`, `title text not null`, `kit jsonb not null default '{}'`, `with_person_id`, `after_task_id` → tasks, `due_date date`, `due_time time`, `place text`, `checklist jsonb not null default '[]'`, `reply_bundle_id` → bundles, `position int not null default 0`, `done_at timestamptz` |
+| Table                  | Columns                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `users` (alter)        | `coach_enabled boolean not null default false`                                                                                                                                                                                                                                                                                                                                       |
+| `coach_people`         | `name text not null`, `role text not null check (role in ('client','collaborator','both'))`, `handles text[] not null default '{}'`, `capture_thread boolean not null default false`, `history_window text not null default 'new' check (...)`, `history_days int`                                                                                                                   |
+| `coach_projects`       | `name text not null`, `tag text not null`, `active boolean not null default true`, `state_line text not null default ''`, `unique (user_id, tag)`                                                                                                                                                                                                                                    |
+| `coach_project_people` | `project_id`, `person_id`, primary key on both, both `on delete cascade`; no `id`/`user_id`                                                                                                                                                                                                                                                                                          |
+| `coach_bundles`        | `person_id` → people, `status text not null default 'collecting'`, `kind text`, `last_message_at timestamptz not null`, `historical boolean not null default false`, `fix_note text`                                                                                                                                                                                                 |
+| `coach_messages`       | `person_id`, `bundle_id` (nullable), `channel`, `direction`, `external_id text not null`, `text text not null default ''`, `attachments jsonb not null default '[]'`, `sent_at timestamptz not null`, `unique (user_id, channel, external_id)`                                                                                                                                       |
+| `coach_requests`       | `bundle_id`, `person_id`, `project_id` (nullable), `understood text not null`, `open_question jsonb`, `answer text`, `status text not null default 'new'`, `replaces_id` → requests, `proposed_replaces_id` → requests, `proposed_tasks jsonb not null default '[]'`, `due_date date`, `historical boolean not null default false`, `confirmed_at timestamptz`, `unique (bundle_id)` |
+| `coach_tasks`          | `request_id`, `project_id`, `kind`, `state text not null default 'open'`, `title text not null`, `kit jsonb not null default '{}'`, `with_person_id`, `after_task_id` → tasks, `due_date date`, `due_time time`, `place text`, `checklist jsonb not null default '[]'`, `reply_bundle_id` → bundles, `position int not null default 0`, `done_at timestamptz`                        |
 
 Add check constraints for every enum column using the shared type's values. Index `coach_messages (bundle_id)`, `coach_bundles (user_id, person_id, status)`, `coach_requests (user_id, project_id, created_at desc)`, `coach_tasks (user_id, state)`.
 
@@ -165,14 +234,37 @@ it("passes through when the switch is on", async () => {
 
 // coachMappers.test.ts
 it("maps a task row and carries the computed blocked flag", () => {
-  const t = toTask({ id: "t1", kind: "do", state: "open", title: "Replace page 2 copy",
-    kit: { doneWhen: "New copy is live" }, after_task_id: "t0", checklist: [],
-    due_date: "2026-11-18", due_time: null, created_at: "2026-11-14T09:44:00Z" }, true);
-  expect(t).toMatchObject({ kind: "do", afterTaskId: "t0", blocked: true, dueDate: "2026-11-18",
-    kit: { doneWhen: "New copy is live" } });
+  const t = toTask(
+    {
+      id: "t1",
+      kind: "do",
+      state: "open",
+      title: "Replace page 2 copy",
+      kit: { doneWhen: "New copy is live" },
+      after_task_id: "t0",
+      checklist: [],
+      due_date: "2026-11-18",
+      due_time: null,
+      created_at: "2026-11-14T09:44:00Z",
+    },
+    true,
+  );
+  expect(t).toMatchObject({
+    kind: "do",
+    afterTaskId: "t0",
+    blocked: true,
+    dueDate: "2026-11-18",
+    kit: { doneWhen: "New copy is live" },
+  });
 });
 it("defaults a request's proposedTasks and openQuestion", () => {
-  const r = toRequest({ id: "r1", bundle_id: "b1", person_id: "p1", understood: "x", status: "new" });
+  const r = toRequest({
+    id: "r1",
+    bundle_id: "b1",
+    person_id: "p1",
+    understood: "x",
+    status: "new",
+  });
   expect(r.proposedTasks).toEqual([]);
   expect(r.openQuestion).toBeNull();
 });
@@ -189,11 +281,13 @@ it("defaults a request's proposedTasks and openQuestion", () => {
 ### Task 2: People and projects API
 
 **Files:**
+
 - Create: `apps/server/src/routes/coach/people.ts`, `apps/server/src/routes/coach/projects.ts`, `apps/server/src/routes/coach/index.ts`, `apps/server/src/services/coach/projects.ts`
 - Modify: `apps/server/src/app.ts` (`app.route("/coach", coachRoutes)` after the `/trail` line)
 - Test: `apps/server/src/routes/coach/__tests__/people.test.ts`, `.../projects.test.ts`, `apps/server/src/services/coach/__tests__/projects.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 types, mappers, `requireCoach`.
 - Produces:
   - `coachRoutes` (`index.ts`): applies `authMiddleware` then `requireCoach` to `*`, mounts `/people`, `/projects` (later tasks add `/intake`, `/requests`, `/tasks`).
@@ -222,7 +316,11 @@ it("rejects a role outside client/collaborator/both", async () => {
   expect(res.status).toBe(400);
 });
 it("requires historyDays when the window is 'window'", async () => {
-  const res = await post("/api/coach/people", { name: "Maren", role: "client", historyWindow: "window" });
+  const res = await post("/api/coach/people", {
+    name: "Maren",
+    role: "client",
+    historyWindow: "window",
+  });
   expect(res.status).toBe(400);
 });
 it("creates a person who is both client and collaborator", async () => {
@@ -254,16 +352,24 @@ it("409s when a project with the same tag exists", async () => {
 ### Task 3: Bundling rule
 
 **Files:**
+
 - Create: `apps/server/src/services/coach/bundling.ts`
 - Test: `apps/server/src/services/coach/__tests__/bundling.test.ts`
 
 **Interfaces — Produces:**
 
 ```ts
-export interface OpenBundle { id: string; status: BundleStatus; lastMessageAt: string }
+export interface OpenBundle {
+  id: string;
+  status: BundleStatus;
+  lastMessageAt: string;
+}
 /** "append" joins `open`; "new" starts a bundle. Outgoing messages never bundle. */
 export function pickBundle(
-  open: OpenBundle | null, direction: Direction, sentAt: string, quietMs?: number,
+  open: OpenBundle | null,
+  direction: Direction,
+  sentAt: string,
+  quietMs?: number,
 ): "append" | "new" | "none";
 ```
 
@@ -303,11 +409,13 @@ it("starts a new bundle when there is none", () => {
 ### Task 4: Intake endpoints
 
 **Files:**
+
 - Create: `apps/server/src/routes/coach/intake.ts`
 - Modify: `apps/server/src/routes/coach/index.ts` (mount `/intake`)
 - Test: `apps/server/src/routes/coach/__tests__/intake.test.ts`
 
 **Interfaces:**
+
 - Consumes: `pickBundle`, `inngest`, Task 1 types.
 - Produces:
   - `POST /coach/intake/upload-url` `{ mediaType }` → `{ path, signedUrl, token }`. Path is `coach/<userId>/<uuid>.<ext>` in the existing `clip-images` bucket, via `supabase.storage.from("clip-images").createSignedUploadUrl(path)`. Allowed media types: `image/jpeg`, `image/png`, `image/webp`, `image/heic`; anything else 400 `unsupported media type`.
@@ -320,18 +428,31 @@ Behaviour of `/messages`: at most 200 messages per call (400 `too many messages`
 
 ```ts
 it("stores two messages sent a minute apart in one bundle and sends one event", async () => {
-  const res = await post("/api/coach/intake/messages", { personId: "p1", channel: "imessage",
+  const res = await post("/api/coach/intake/messages", {
+    personId: "p1",
+    channel: "imessage",
     messages: [
-      { externalId: "m1", direction: "in", sentAt: "2026-11-14T09:42:00Z",
-        attachments: [{ storagePath: "coach/test-user-id/a.png", mediaType: "image/png" }] },
-      { externalId: "m2", direction: "in", text: "I like the writing on page 1 more than page 2",
-        sentAt: "2026-11-14T09:43:00Z" },
-    ] });
+      {
+        externalId: "m1",
+        direction: "in",
+        sentAt: "2026-11-14T09:42:00Z",
+        attachments: [{ storagePath: "coach/test-user-id/a.png", mediaType: "image/png" }],
+      },
+      {
+        externalId: "m2",
+        direction: "in",
+        text: "I like the writing on page 1 more than page 2",
+        sentAt: "2026-11-14T09:43:00Z",
+      },
+    ],
+  });
   const body = await res.json();
   expect(body).toMatchObject({ stored: 2, duplicates: 0 });
   expect(body.bundleIds).toHaveLength(1);
   expect(inngestSend).toHaveBeenCalledTimes(1);
-  expect(inngestSend).toHaveBeenCalledWith(expect.objectContaining({ name: "coach/bundle.touched" }));
+  expect(inngestSend).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "coach/bundle.touched" }),
+  );
 });
 // Review Focus 1
 it("stores nothing and sends no event when the same messages are uploaded again", async () => {
@@ -341,15 +462,29 @@ it("stores nothing and sends no event when the same messages are uploaded again"
   expect(inngestSend).not.toHaveBeenCalled();
 });
 it("stores an outgoing message without a bundle and sends no event", async () => {
-  const res = await post("/api/coach/intake/messages", { personId: "p1", channel: "imessage",
-    messages: [{ externalId: "m3", direction: "out", text: "On it", sentAt: "2026-11-14T10:00:00Z" }] });
+  const res = await post("/api/coach/intake/messages", {
+    personId: "p1",
+    channel: "imessage",
+    messages: [
+      { externalId: "m3", direction: "out", text: "On it", sentAt: "2026-11-14T10:00:00Z" },
+    ],
+  });
   expect((await res.json()).bundleIds).toEqual([]);
   expect(inngestSend).not.toHaveBeenCalled();
 });
 it("rejects an attachment path outside the caller's folder", async () => {
-  const res = await post("/api/coach/intake/messages", { personId: "p1", channel: "imessage",
-    messages: [{ externalId: "m4", direction: "in", sentAt: "2026-11-14T10:00:00Z",
-      attachments: [{ storagePath: "coach/someone-else/a.png", mediaType: "image/png" }] }] });
+  const res = await post("/api/coach/intake/messages", {
+    personId: "p1",
+    channel: "imessage",
+    messages: [
+      {
+        externalId: "m4",
+        direction: "in",
+        sentAt: "2026-11-14T10:00:00Z",
+        attachments: [{ storagePath: "coach/someone-else/a.png", mediaType: "image/png" }],
+      },
+    ],
+  });
   expect(res.status).toBe(400);
 });
 it("404s for a person that is not the caller's", async () => {
@@ -357,7 +492,9 @@ it("404s for a person that is not the caller's", async () => {
   expect((await post("/api/coach/intake/messages", sameBatch)).status).toBe(404);
 });
 it("refuses an unsupported media type for an upload url", async () => {
-  expect((await post("/api/coach/intake/upload-url", { mediaType: "application/pdf" })).status).toBe(400);
+  expect(
+    (await post("/api/coach/intake/upload-url", { mediaType: "application/pdf" })).status,
+  ).toBe(400);
 });
 ```
 
@@ -371,6 +508,7 @@ it("refuses an unsupported media type for an upload url", async () => {
 ### Task 5: Interpretation
 
 **Files:**
+
 - Create: `apps/server/src/services/coach/interpret.ts`, `apps/server/eval/fixtures/coach/alder-house.json`
 - Test: `apps/server/src/services/coach/__tests__/interpret.test.ts`
 
@@ -379,10 +517,10 @@ it("refuses an unsupported media type for an upload url", async () => {
 ```ts
 export interface InterpretContext {
   person: { id: string; name: string };
-  today: string;                                   // YYYY-MM-DD, the user's date
+  today: string; // YYYY-MM-DD, the user's date
   projects: { id: string; name: string; hints: string }[];
   recentRequests: { id: string; projectId: string | null; understood: string }[];
-  waitingAsks: { id: string; title: string }[];    // ask tasks waiting on this person
+  waitingAsks: { id: string; title: string }[]; // ask tasks waiting on this person
   fixNote: string | null;
 }
 export interface Interpretation {
@@ -396,22 +534,27 @@ export interface Interpretation {
   dueDate: string | null;
   tasks: ProposedTask[];
 }
-export const INTERPRET_MODEL = "claude-sonnet-5-5";
+export const INTERPRET_MODEL = "claude-opus-5-5";
 export function buildInterpretMessages(
-  messages: InboundMessage[], images: { bytes: Buffer; mediaType: string }[], ctx: InterpretContext,
+  messages: InboundMessage[],
+  images: { bytes: Buffer; mediaType: string }[],
+  ctx: InterpretContext,
 ): Anthropic.MessageParam[];
 /** Pure. Never throws: unusable input becomes { kind: "chat", ... } with empty fields. */
 export function parseInterpretation(raw: unknown, ctx: InterpretContext): Interpretation;
 export async function interpretBundle(
-  messages: InboundMessage[], images: { bytes: Buffer; mediaType: string }[], ctx: InterpretContext,
+  messages: InboundMessage[],
+  images: { bytes: Buffer; mediaType: string }[],
+  ctx: InterpretContext,
 ): Promise<Interpretation>;
 ```
 
-`interpretBundle` makes one call with a single forced tool (`tool_choice` naming `record_interpretation`) whose input schema mirrors `Interpretation`, then passes the tool input through `parseInterpretation`. The system prompt states: the four task kinds and that a task has exactly one; one request becomes a short chain; ask at most one question and only when the request is truly ambiguous; the copy rules from Global Constraints; propose `replacesRequestId` only when the new request targets the same thing on the same project; `kind: "reply"` when the bundle answers a waiting ask; `kind: "chat"` for anything that asks for nothing.
+`interpretBundle` makes one call offering a single tool, `record_interpretation`, whose input schema mirrors `Interpretation`, with `tool_choice: { type: "auto" }` and a system instruction to always call it; a response with no tool call or a refusal throws. The tool input goes through `parseInterpretation`. The system prompt states: the four task kinds and that a task has exactly one; one request becomes a short chain; ask at most one question and only when the request is truly ambiguous; the copy rules from Global Constraints; propose `replacesRequestId` only when the new request targets the same thing on the same project; `kind: "reply"` when the bundle answers a waiting ask; `kind: "chat"` for anything that asks for nothing.
 
 `buildInterpretMessages` puts each image as an image block followed by the texts in time order, each prefixed with the sender's name and time. A bundle with no text still produces a user message containing the image blocks and the line `(no text was sent with these)`.
 
 `parseInterpretation` rules:
+
 - `kind` not one of the three → `"chat"`.
 - `projectId` not in `ctx.projects` → null. `replacesRequestId` not in `ctx.recentRequests` → null. `repliesToTaskId` not in `ctx.waitingAsks` → null.
 - `question.options` trimmed, empties dropped, cut to `MAX_QUESTION_OPTIONS`; a question with empty text → null.
@@ -424,47 +567,117 @@ The fixture `alder-house.json` holds: person Maren; one project `Alder House`; o
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-const ctx: InterpretContext = { person: { id: "p1", name: "Maren" }, today: "2026-11-14",
+const ctx: InterpretContext = {
+  person: { id: "p1", name: "Maren" },
+  today: "2026-11-14",
   projects: [{ id: "pr1", name: "Alder House", hints: "" }],
-  recentRequests: [{ id: "r-2022", projectId: "pr1", understood: "Maren asked for the Alder House page 2 text." }],
-  waitingAsks: [{ id: "t-ask", title: "Words or type?" }], fixNote: null };
+  recentRequests: [
+    { id: "r-2022", projectId: "pr1", understood: "Maren asked for the Alder House page 2 text." },
+  ],
+  waitingAsks: [{ id: "t-ask", title: "Words or type?" }],
+  fixNote: null,
+};
 
 it("keeps a well-formed request with its chain", () => {
-  const out = parseInterpretation({ kind: "request", understood: "Maren asked to replace the page 2 text.",
-    projectId: "pr1", question: { text: "Words or type?", options: ["Only words", "Type too", "Ask Maren"] },
-    replacesRequestId: "r-2022", tasks: [
-      { kind: "ask", title: "Words or type?", withPerson: true, after: null, answersQuestion: true, kit: {} },
-      { kind: "do", title: "Replace page 2 copy", withPerson: false, after: 0, answersQuestion: false, kit: {} },
-      { kind: "tell", title: "Tell Maren it's live", withPerson: true, after: 1, answersQuestion: false, kit: {} },
-    ] }, ctx);
+  const out = parseInterpretation(
+    {
+      kind: "request",
+      understood: "Maren asked to replace the page 2 text.",
+      projectId: "pr1",
+      question: { text: "Words or type?", options: ["Only words", "Type too", "Ask Maren"] },
+      replacesRequestId: "r-2022",
+      tasks: [
+        {
+          kind: "ask",
+          title: "Words or type?",
+          withPerson: true,
+          after: null,
+          answersQuestion: true,
+          kit: {},
+        },
+        {
+          kind: "do",
+          title: "Replace page 2 copy",
+          withPerson: false,
+          after: 0,
+          answersQuestion: false,
+          kit: {},
+        },
+        {
+          kind: "tell",
+          title: "Tell Maren it's live",
+          withPerson: true,
+          after: 1,
+          answersQuestion: false,
+          kit: {},
+        },
+      ],
+    },
+    ctx,
+  );
   expect(out.tasks.map((t) => t.kind)).toEqual(["ask", "do", "tell"]);
   expect(out.tasks[2].after).toBe(1);
   expect(out.replacesRequestId).toBe("r-2022");
 });
 // Review Focus 3
 it("drops ids that are not in the context", () => {
-  const out = parseInterpretation({ kind: "request", understood: "x", projectId: "someone-elses",
-    replacesRequestId: "nope", repliesToTaskId: "nope", tasks: [] }, ctx);
+  const out = parseInterpretation(
+    {
+      kind: "request",
+      understood: "x",
+      projectId: "someone-elses",
+      replacesRequestId: "nope",
+      repliesToTaskId: "nope",
+      tasks: [],
+    },
+    ctx,
+  );
   expect(out.projectId).toBeNull();
   expect(out.replacesRequestId).toBeNull();
   expect(out.repliesToTaskId).toBeNull();
 });
 it("caps question options at three and drops empties", () => {
-  const out = parseInterpretation({ kind: "request", understood: "x",
-    question: { text: "Which?", options: ["A", " ", "B", "C", "D"] }, tasks: [] }, ctx);
+  const out = parseInterpretation(
+    {
+      kind: "request",
+      understood: "x",
+      question: { text: "Which?", options: ["A", " ", "B", "C", "D"] },
+      tasks: [],
+    },
+    ctx,
+  );
   expect(out.question?.options).toEqual(["A", "B", "C"]);
 });
 it("nulls an after that points forward or at itself", () => {
-  const out = parseInterpretation({ kind: "request", understood: "x", tasks: [
-    { kind: "do", title: "a", after: 1 }, { kind: "tell", title: "b", after: 1 } ] }, ctx);
+  const out = parseInterpretation(
+    {
+      kind: "request",
+      understood: "x",
+      tasks: [
+        { kind: "do", title: "a", after: 1 },
+        { kind: "tell", title: "b", after: 1 },
+      ],
+    },
+    ctx,
+  );
   expect(out.tasks.map((t) => t.after)).toEqual([null, null]);
 });
 it("drops a due date in the past", () => {
-  expect(parseInterpretation({ kind: "request", understood: "x", dueDate: "2026-11-01", tasks: [] }, ctx).dueDate).toBeNull();
+  expect(
+    parseInterpretation({ kind: "request", understood: "x", dueDate: "2026-11-01", tasks: [] }, ctx)
+      .dueDate,
+  ).toBeNull();
 });
 it("strips tasks and question from ordinary chat", () => {
-  const out = parseInterpretation({ kind: "chat", understood: "", question: { text: "q", options: ["a"] },
-    tasks: [{ kind: "do", title: "a" }] }, ctx);
+  const out = parseInterpretation(
+    {
+      kind: "chat",
+      understood: "",
+      question: { text: "q", options: ["a"] },
+      tasks: [{ kind: "do", title: "a" }],
+    },
+    ctx,
+  );
   expect(out.tasks).toEqual([]);
   expect(out.question).toBeNull();
 });
@@ -475,20 +688,36 @@ it("turns unusable input into chat without throwing", () => {
 // Review Focus 2
 it("builds a message for a bundle that has images and no text", () => {
   const msgs = buildInterpretMessages(
-    [{ id: "m1", personId: "p1", channel: "imessage", direction: "in", text: "",
-       attachments: [{ storagePath: "coach/u/a.png", mediaType: "image/png" }], sentAt: "2026-11-14T09:42:00Z" }],
-    [{ bytes: Buffer.from("x"), mediaType: "image/png" }], ctx);
+    [
+      {
+        id: "m1",
+        personId: "p1",
+        channel: "imessage",
+        direction: "in",
+        text: "",
+        attachments: [{ storagePath: "coach/u/a.png", mediaType: "image/png" }],
+        sentAt: "2026-11-14T09:42:00Z",
+      },
+    ],
+    [{ bytes: Buffer.from("x"), mediaType: "image/png" }],
+    ctx,
+  );
   const blocks = msgs.at(-1)!.content as Anthropic.ContentBlockParam[];
   expect(blocks.some((b) => b.type === "image")).toBe(true);
   expect(JSON.stringify(blocks)).toContain("(no text was sent with these)");
 });
 it("calls the model once with the forced tool and returns the parsed result", async () => {
-  createMock.mockResolvedValue({ content: [{ type: "tool_use", name: "record_interpretation",
-    input: { kind: "chat", understood: "" } }] });
+  createMock.mockResolvedValue({
+    content: [
+      { type: "tool_use", name: "record_interpretation", input: { kind: "chat", understood: "" } },
+    ],
+  });
   const out = await interpretBundle([textMessage("thanks!")], [], ctx);
   expect(out.kind).toBe("chat");
-  expect(createMock.mock.calls[0][0]).toMatchObject({ model: "claude-sonnet-5-5",
-    tool_choice: { type: "tool", name: "record_interpretation" } });
+  expect(createMock.mock.calls[0][0]).toMatchObject({
+    model: "claude-opus-5-5",
+    tool_choice: { type: "auto" },
+  });
 });
 ```
 
@@ -505,11 +734,13 @@ Mock the Anthropic SDK the way `apps/server/src/services/__tests__/chat.test.ts`
 ### Task 6: Process a bundle
 
 **Files:**
+
 - Create: `apps/server/src/functions/processBundle.ts`, `apps/server/src/services/imageClip.ts`
 - Modify: `apps/server/src/routes/clips.ts` (the `if (body.imagePath)` branch calls `createImageClip`), `apps/server/src/app.ts` (add `processBundle` to the `functions` array)
 - Test: `apps/server/src/functions/__tests__/processBundle.test.ts`, `apps/server/src/services/__tests__/imageClip.test.ts`
 
 **Interfaces:**
+
 - Consumes: `interpretBundle`, `InterpretContext`, `downloadImage` (`lib/storage.js`), mappers.
 - Produces:
   - `export async function createImageClip(userId: string, storagePath: string, extraTags: string[]): Promise<Record<string, unknown>>` — the insert-with-vision-and-tags logic currently inline in `routes/clips.ts`, moved unchanged, with `extraTags` merged into the clip's tags. Returns the inserted row. `routes/clips.ts` keeps its response shape.
@@ -519,6 +750,7 @@ Mock the Anthropic SDK the way `apps/server/src/services/__tests__/chat.test.ts`
 Steps inside the function: (1) load the bundle; if its status is `done`, return. Set status `processing`. (2) Load its messages, the person, the user's active projects with their `tag_hints.hints`, the person's 20 most recent requests with status `new` or `confirmed`, and `ask` tasks in state `waiting` with this person. (3) Download each attachment with `downloadImage`; convert nothing here (HEIC handling is the helper's job in plan 5; an image that fails to download is skipped and logged). (4) `interpretBundle`. (5) `storeInterpretation`. (6) Set status `done` and `kind`.
 
 `storeInterpretation` by kind:
+
 - `chat`: writes nothing.
 - `reply`: sets `reply_bundle_id` on the task named by `repliesToTaskId` (if any). Creates clips for the bundle's attachments.
 - `request`: if `newProjectName` is set and `projectId` is null, creates the project (tag from `projectTag`) and links the person. Inserts one `coach_requests` row with `proposed_tasks`, `open_question`, `proposed_replaces_id`, `due_date`; `status` is `new`, or `closed` with `historical: true` and empty `proposed_tasks` when the bundle is historical. Insert uses `upsert` on `bundle_id` so a retry does not create a second request. Creates clips for the attachments, tagged with the project's tag, and writes each `clipId` back into the message's `attachments`.
@@ -531,13 +763,21 @@ Steps inside the function: (1) load the bundle; if its status is `done`, return.
 it("stores a request with its proposed chain for a request bundle", async () => {
   const out = await storeInterpretation(bundle(), messages(), requestInterp(), "u1");
   expect(out.requestId).toBe("r1");
-  expect(inserted("coach_requests")).toMatchObject({ status: "new", proposed_replaces_id: "r-2022",
-    project_id: "pr1", bundle_id: "b1" });
+  expect(inserted("coach_requests")).toMatchObject({
+    status: "new",
+    proposed_replaces_id: "r-2022",
+    project_id: "pr1",
+    bundle_id: "b1",
+  });
   expect(inserted("coach_requests").proposed_tasks).toHaveLength(3);
 });
 it("stores a historical request as closed with no proposed tasks", async () => {
   await storeInterpretation(bundle({ historical: true }), messages(), requestInterp(), "u1");
-  expect(inserted("coach_requests")).toMatchObject({ status: "closed", historical: true, proposed_tasks: [] });
+  expect(inserted("coach_requests")).toMatchObject({
+    status: "closed",
+    historical: true,
+    proposed_tasks: [],
+  });
 });
 it("writes nothing for ordinary chat", async () => {
   const out = await storeInterpretation(bundle(), messages(), chatInterp(), "u1");
@@ -553,11 +793,21 @@ it("links a reply to the waiting ask and does not create a request", async () =>
 it("creates a clip per attachment tagged with the project", async () => {
   await storeInterpretation(bundle(), messagesWithTwoImages(), requestInterp(), "u1");
   expect(createImageClipMock).toHaveBeenCalledTimes(2);
-  expect(createImageClipMock).toHaveBeenCalledWith("u1", expect.stringMatching(/^coach\/u1\//), ["project:alder-house"]);
+  expect(createImageClipMock).toHaveBeenCalledWith("u1", expect.stringMatching(/^coach\/u1\//), [
+    "project:alder-house",
+  ]);
 });
 it("creates the project when the model names a new one", async () => {
-  await storeInterpretation(bundle(), messages(), requestInterp({ projectId: null, newProjectName: "Studio prints" }), "u1");
-  expect(inserted("coach_projects")).toMatchObject({ name: "Studio prints", tag: "project:studio-prints" });
+  await storeInterpretation(
+    bundle(),
+    messages(),
+    requestInterp({ projectId: null, newProjectName: "Studio prints" }),
+    "u1",
+  );
+  expect(inserted("coach_projects")).toMatchObject({
+    name: "Studio prints",
+    tag: "project:studio-prints",
+  });
 });
 // Review Focus 5
 it("marks the bundle failed when interpretation throws, leaving messages untouched", async () => {
@@ -590,6 +840,7 @@ Follow `apps/server/src/functions/__tests__/visionClip.test.ts` for invoking an 
 ### Task 7: Requests API and the task chain
 
 **Files:**
+
 - Create: `apps/server/src/services/coach/chain.ts`, `apps/server/src/services/coach/history.ts`, `apps/server/src/routes/coach/requests.ts`
 - Modify: `apps/server/src/routes/coach/index.ts` (mount `/requests`), `apps/server/src/routes/coach/projects.ts` (add `GET /:id/history`)
 - Test: `apps/server/src/services/coach/__tests__/chain.test.ts`, `.../history.test.ts`, `apps/server/src/routes/coach/__tests__/requests.test.ts`
@@ -598,21 +849,36 @@ Follow `apps/server/src/functions/__tests__/visionClip.test.ts` for invoking an 
 
 ```ts
 // chain.ts
-export interface TaskInsert { kind: TaskKind; title: string; kit: TaskKit; withPerson: boolean;
-  afterIndex: number | null; position: number }
+export interface TaskInsert {
+  kind: TaskKind;
+  title: string;
+  kit: TaskKit;
+  withPerson: boolean;
+  afterIndex: number | null;
+  position: number;
+}
 /** Drops the task that answers the open question when it was answered, re-pointing dependents. */
-export function materializeChain(proposed: ProposedTask[], opts: { answered: boolean }): TaskInsert[];
-export function isBlocked(task: { afterTaskId: string | null },
-  byId: Map<string, { state: TaskState }>): boolean;   // predecessor exists and is open or waiting
-export function stateAfterSent(kind: TaskKind): TaskState | null;  // ask→"waiting", tell→"done", else null
+export function materializeChain(
+  proposed: ProposedTask[],
+  opts: { answered: boolean },
+): TaskInsert[];
+export function isBlocked(
+  task: { afterTaskId: string | null },
+  byId: Map<string, { state: TaskState }>,
+): boolean; // predecessor exists and is open or waiting
+export function stateAfterSent(kind: TaskKind): TaskState | null; // ask→"waiting", tell→"done", else null
 
 // history.ts
-export interface HistoryEntry { request: CoachRequest; replaced: CoachRequest[] }
+export interface HistoryEntry {
+  request: CoachRequest;
+  replaced: CoachRequest[];
+}
 /** Newest first. A replaced request appears only under the request that replaced it, oldest last. */
 export function buildHistory(requests: CoachRequest[]): HistoryEntry[];
 ```
 
 Routes:
+
 - `GET /coach/requests?status=` → `{ requests: CoachRequest[] }`, newest first, `status` optional.
 - `GET /coach/requests/:id` → `{ request, messages: InboundMessage[], replaces: CoachRequest | null }`; each attachment gets a signed `url` via `signImageUrl`. Uses `proposedReplacesId` for `replaces` while the request is `new`, `replacesId` after.
 - `POST /coach/requests/:id/confirm` `{ answer?, projectId?, replaces? }` → `{ request, tasks: CoachTask[] }`. Only from status `new`; any other status returns `200` with the current request and its existing tasks and writes nothing. On confirm: set `status: "confirmed"`, `confirmed_at`, `answer`, `project_id` (body value wins); when `replaces !== false` and `proposed_replaces_id` is set, set `replaces_id` and mark that request `replaced`; insert tasks from `materializeChain(proposed, { answered: !!answer })` with `after_task_id` resolved from `afterIndex`, `with_person_id` = the request's person when `withPerson`, `project_id`, `request_id`, and `due_date` = the request's `due_date` on the first `do` task. The status change uses `.eq("status", "new")` and proceeds only if a row was updated, so two concurrent confirms create one chain.
@@ -623,20 +889,53 @@ Routes:
 
 ```ts
 const proposed: ProposedTask[] = [
-  { kind: "ask", title: "Words or type?", withPerson: true, after: null, answersQuestion: true, kit: {} },
-  { kind: "do", title: "Replace page 2 copy", withPerson: false, after: 0, answersQuestion: false, kit: {} },
-  { kind: "tell", title: "Tell Maren it's live", withPerson: true, after: 1, answersQuestion: false, kit: {} },
+  {
+    kind: "ask",
+    title: "Words or type?",
+    withPerson: true,
+    after: null,
+    answersQuestion: true,
+    kit: {},
+  },
+  {
+    kind: "do",
+    title: "Replace page 2 copy",
+    withPerson: false,
+    after: 0,
+    answersQuestion: false,
+    kit: {},
+  },
+  {
+    kind: "tell",
+    title: "Tell Maren it's live",
+    withPerson: true,
+    after: 1,
+    answersQuestion: false,
+    kit: {},
+  },
 ];
 it("keeps the whole chain when the question is unanswered", () => {
-  expect(materializeChain(proposed, { answered: false }).map((t) => [t.kind, t.afterIndex]))
-    .toEqual([["ask", null], ["do", 0], ["tell", 1]]);
+  expect(
+    materializeChain(proposed, { answered: false }).map((t) => [t.kind, t.afterIndex]),
+  ).toEqual([
+    ["ask", null],
+    ["do", 0],
+    ["tell", 1],
+  ]);
 });
 it("drops the ask and re-points the chain when the question was answered", () => {
-  expect(materializeChain(proposed, { answered: true }).map((t) => [t.kind, t.afterIndex]))
-    .toEqual([["do", null], ["tell", 0]]);
+  expect(materializeChain(proposed, { answered: true }).map((t) => [t.kind, t.afterIndex])).toEqual(
+    [
+      ["do", null],
+      ["tell", 0],
+    ],
+  );
 });
 it("is blocked while the predecessor is open or waiting, not when done or dropped", () => {
-  const byId = new Map([["a", { state: "waiting" as const }], ["b", { state: "done" as const }]]);
+  const byId = new Map([
+    ["a", { state: "waiting" as const }],
+    ["b", { state: "done" as const }],
+  ]);
   expect(isBlocked({ afterTaskId: "a" }, byId)).toBe(true);
   expect(isBlocked({ afterTaskId: "b" }, byId)).toBe(false);
   expect(isBlocked({ afterTaskId: null }, byId)).toBe(false);
@@ -659,8 +958,10 @@ it("nests a replaced request under the one that replaced it, newest first", () =
 });
 it("follows a chain of replacements under the newest", () => {
   const entries = buildHistory([
-    req({ id: "a", status: "replaced" }), req({ id: "b", status: "replaced", replacesId: "a" }),
-    req({ id: "c", status: "confirmed", replacesId: "b" }) ]);
+    req({ id: "a", status: "replaced" }),
+    req({ id: "b", status: "replaced", replacesId: "a" }),
+    req({ id: "c", status: "confirmed", replacesId: "b" }),
+  ]);
   expect(entries).toHaveLength(1);
   expect(entries[0].replaced.map((r) => r.id)).toEqual(["b", "a"]);
 });
@@ -686,7 +987,9 @@ it("a second confirm creates no more tasks", async () => {
 it("fix requires a note and a new request", async () => {
   expect((await post("/api/coach/requests/r1/fix", { note: " " })).status).toBe(400);
   mockRequestStatus("confirmed");
-  expect((await post("/api/coach/requests/r1/fix", { note: "It's the homepage" })).status).toBe(409);
+  expect((await post("/api/coach/requests/r1/fix", { note: "It's the homepage" })).status).toBe(
+    409,
+  );
 });
 ```
 
@@ -701,11 +1004,13 @@ it("fix requires a note and a new request", async () => {
 ### Task 8: Tasks API
 
 **Files:**
+
 - Create: `apps/server/src/routes/coach/tasks.ts`
 - Modify: `apps/server/src/routes/coach/index.ts` (mount `/tasks`)
 - Test: `apps/server/src/routes/coach/__tests__/tasks.test.ts`
 
 **Interfaces:**
+
 - Consumes: `isBlocked`, `stateAfterSent`, `toTask`.
 - Produces:
   - `GET /coach/tasks?state=&projectId=` → `{ tasks: CoachTask[] }`, each with `blocked` computed over all the user's tasks; default excludes `done` and `dropped`; ordered by `due_date` nulls last, then `position`.
@@ -719,22 +1024,35 @@ Validation: `kind` must be a `TaskKind`; `title` non-empty; `dueDate` matches `Y
 
 ```ts
 it("lists open tasks with blocked computed from the predecessor", async () => {
-  mockTasks([taskRow({ id: "a", kind: "ask", state: "waiting" }),
-             taskRow({ id: "b", kind: "do", state: "open", after_task_id: "a" })]);
+  mockTasks([
+    taskRow({ id: "a", kind: "ask", state: "waiting" }),
+    taskRow({ id: "b", kind: "do", state: "open", after_task_id: "a" }),
+  ]);
   const { tasks } = await (await get("/api/coach/tasks")).json();
   expect(tasks.find((t: CoachTask) => t.id === "b").blocked).toBe(true);
   expect(tasks.find((t: CoachTask) => t.id === "a").blocked).toBe(false);
 });
 it("creates an errand with a place and checklist", async () => {
-  const res = await post("/api/coach/tasks", { kind: "get", title: "Framing supplies", place: "Art store",
-    checklist: [{ text: "Mat board", done: false }, { text: "Hanging wire", done: false }] });
+  const res = await post("/api/coach/tasks", {
+    kind: "get",
+    title: "Framing supplies",
+    place: "Art store",
+    checklist: [
+      { text: "Mat board", done: false },
+      { text: "Hanging wire", done: false },
+    ],
+  });
   expect(res.status).toBe(201);
 });
 it("rejects a place on a task that is not an errand", async () => {
-  expect((await post("/api/coach/tasks", { kind: "do", title: "x", place: "Art store" })).status).toBe(400);
+  expect(
+    (await post("/api/coach/tasks", { kind: "do", title: "x", place: "Art store" })).status,
+  ).toBe(400);
 });
 it("rejects a time without a date", async () => {
-  expect((await post("/api/coach/tasks", { kind: "do", title: "x", dueTime: "09:00" })).status).toBe(400);
+  expect(
+    (await post("/api/coach/tasks", { kind: "do", title: "x", dueTime: "09:00" })).status,
+  ).toBe(400);
 });
 it("sent moves an ask to waiting", async () => {
   mockTask(taskRow({ id: "a", kind: "ask", state: "open" }));
@@ -746,8 +1064,10 @@ it("sent refuses a do task", async () => {
   expect((await post("/api/coach/tasks/d/sent", {})).status).toBe(400);
 });
 it("refuses to complete a blocked task", async () => {
-  mockTasks([taskRow({ id: "a", kind: "ask", state: "waiting" }),
-             taskRow({ id: "b", kind: "do", state: "open", after_task_id: "a" })]);
+  mockTasks([
+    taskRow({ id: "a", kind: "ask", state: "waiting" }),
+    taskRow({ id: "b", kind: "do", state: "open", after_task_id: "a" }),
+  ]);
   expect((await patch("/api/coach/tasks/b", { state: "done" })).status).toBe(409);
 });
 it("stamps done_at when a task is completed and clears it when reopened", async () => {
@@ -770,6 +1090,7 @@ it("stamps done_at when a task is completed and clears it when reopened", async 
 ### Task 9: End-to-end proof and docs
 
 **Files:**
+
 - Create: `apps/server/scripts/coach-e2e.ts`, `docs/decisions/<next-number>-coach-server-core.md`
 - Modify: `docs/architecture.md` (a short "Coach" section: tables, routes, the bundle → request → tasks flow)
 
