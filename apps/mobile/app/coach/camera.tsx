@@ -33,36 +33,54 @@ export default function CameraScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [moving, setMoving] = useState(false);
   const started = useRef(false);
+  /** The photo just taken, kept so a failed save can be tried again. */
+  const [photo, setPhoto] = useState<string | null>(null);
+
+  // Upload and file a photo that has been taken. Kept apart from taking it,
+  // so a failure can be retried with the same photo instead of a new one.
+  const save = async (uri: string) => {
+    setStage("saving");
+    try {
+      const { storagePath } = await uploadCoachImage(uri);
+      const saved = await addProgress(storagePath);
+      setEntry(saved.entry);
+      setFiled(saved.project);
+      setStage("done");
+      // When it was not sure, the bot also said so in chat.
+      void refreshCoach();
+    } catch {
+      setStage("failed");
+      return;
+    }
+    // The photo is saved whatever happens here: the project list is only for moving it.
+    getProjects()
+      .then((list) => setProjects(list.projects.filter((p) => p.active)))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
     (async () => {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        setStage("denied");
-        return;
-      }
-      const shot = await ImagePicker.launchCameraAsync({ quality: 1 });
-      if (shot.canceled || !shot.assets?.[0]) {
-        router.back();
-        return;
-      }
-      setStage("saving");
       try {
-        const { storagePath } = await uploadCoachImage(shot.assets[0].uri);
-        const [saved, list] = await Promise.all([addProgress(storagePath), getProjects()]);
-        setEntry(saved.entry);
-        setFiled(saved.project);
-        setProjects(list.projects.filter((p) => p.active));
-        setStage("done");
-        // When it was not sure, the bot also said so in chat.
-        void refreshCoach();
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          setStage("denied");
+          return;
+        }
+        const shot = await ImagePicker.launchCameraAsync({ quality: 1 });
+        if (shot.canceled || !shot.assets?.[0]) {
+          router.back();
+          return;
+        }
+        setPhoto(shot.assets[0].uri);
+        await save(shot.assets[0].uri);
       } catch {
         setStage("failed");
       }
     })();
-  }, [router]);
+    // Runs once: the camera opens when the screen does.
+  }, []);
 
   const move = async (project: Project) => {
     if (!entry || moving) return;
@@ -70,6 +88,8 @@ export default function CameraScreen() {
     try {
       const { moved } = await moveProgress(entry.id, project.id);
       if (moved) setFiled({ id: project.id, name: project.name });
+    } catch {
+      // Left where it was; the list is still there to try again.
     } finally {
       setMoving(false);
     }
@@ -83,7 +103,15 @@ export default function CameraScreen() {
         <View style={{ marginTop: 16 }}>
           {stage === "taking" ? <Body muted>Opening the camera.</Body> : null}
           {stage === "saving" ? <Body muted>Saving.</Body> : null}
-          {stage === "failed" ? <Body muted>Couldn't save the photo. Try again.</Body> : null}
+          {stage === "failed" ? (
+            <>
+              <Body muted>Couldn't save the photo.</Body>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                {photo ? <QuickButton label="Retry" primary onPress={() => save(photo)} /> : null}
+                <QuickButton label="Close" onPress={() => router.back()} />
+              </View>
+            </>
+          ) : null}
           {stage === "denied" ? (
             <Body muted>Turn on camera access for Cliphy in Settings.</Body>
           ) : null}

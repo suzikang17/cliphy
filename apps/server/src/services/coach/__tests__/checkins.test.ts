@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
-import { inWorkingHours, nextCheckIn, type CheckInDay } from "../checkins.js";
+import { countIgnored, inWorkingHours, nextCheckIn, type CheckInDay } from "../checkins.js";
 import { fileProgress } from "../filing.js";
 
 const work = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
@@ -38,7 +38,6 @@ describe("check-in timing", () => {
 
   it("asks for a photo once, in the last half hour", () => {
     const day: CheckInDay = { kinds: ["start", "during"], lastAt: "13:00", ignored: 0 };
-    expect(nextCheckIn(at("15:30"), work, day)).toBe("during");
     expect(nextCheckIn(at("16:29"), work, day)).toBeNull();
     expect(nextCheckIn(at("16:30"), work, day)).toBe("end");
     expect(
@@ -50,9 +49,41 @@ describe("check-in timing", () => {
     ).toBeNull();
   });
 
-  it("does not start a mid-day check-in so late that it runs into the end one", () => {
+  // At most four a day and at least two hours apart, the end one included.
+  it("never sends more than four in a day, counting the photo ask", () => {
+    let day: CheckInDay = { kinds: [], lastAt: null, ignored: 0 };
+    const sent: string[] = [];
+    for (let minutes = 9 * 60; minutes < 17 * 60; minutes += 15) {
+      const time = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      const kind = nextCheckIn(at(time), work, day);
+      if (kind) {
+        sent.push(`${kind}@${time}`);
+        day = { kinds: [...day.kinds, kind], lastAt: time, ignored: 0 };
+      }
+    }
+    expect(sent).toEqual(["start@09:00", "during@11:00", "during@13:00", "end@16:30"]);
+  });
+
+  it("does not ask for a photo less than two hours after the last check-in", () => {
+    const day: CheckInDay = { kinds: ["start"], lastAt: "15:10", ignored: 0 };
+    expect(nextCheckIn(at("16:35"), work, day)).toBeNull();
+  });
+
+  it("does not open the day with a photo ask, or check in at all when the hours are very short", () => {
+    expect(nextCheckIn(at("16:40"), work, none)).toBeNull();
+    const short = { days: [1], start: "09:00", end: "09:30" };
+    expect(nextCheckIn(at("09:05"), short, none)).toBeNull();
+  });
+
+  it("does not ask for a photo when one was already sent today", () => {
+    const day: CheckInDay = { kinds: ["start"], lastAt: "09:05", ignored: 0, photoToday: true };
+    expect(nextCheckIn(at("16:35"), work, day)).toBeNull();
+  });
+
+  it("does not start a mid-day check-in within two hours of the photo ask", () => {
     const day: CheckInDay = { kinds: ["start"], lastAt: "09:05", ignored: 0 };
-    expect(nextCheckIn(at("16:10"), work, day)).toBeNull();
+    expect(nextCheckIn(at("14:30"), work, day)).toBe("during");
+    expect(nextCheckIn(at("14:45"), work, day)).toBeNull();
   });
 
   it("stops at four a day", () => {
@@ -62,6 +93,7 @@ describe("check-in timing", () => {
       ignored: 0,
     };
     expect(nextCheckIn(at("15:30"), work, day)).toBeNull();
+    expect(nextCheckIn(at("16:35"), work, day)).toBeNull();
   });
 
   // Review Focus 3: every check-in ignored.
@@ -78,6 +110,34 @@ describe("check-in timing", () => {
     expect(nextCheckIn(at("17:30"), work, none)).toBeNull();
     expect(nextCheckIn(at("10:00", 0), work, none)).toBeNull();
     expect(nextCheckIn(at("10:00"), null, none)).toBeNull();
+  });
+});
+
+describe("which check-ins went unanswered", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Check-ins");
+  });
+  const c = (createdAt: string, chosen: number | null = null) => ({ createdAt, chosen });
+
+  it("counts the latest check-ins in a row with no tap and no typed reply", () => {
+    expect(countIgnored([c("09:00"), c("11:00")], [], "13:00")).toBe(2);
+    expect(countIgnored([c("09:00", 0), c("11:00")], [], "13:00")).toBe(1);
+    expect(countIgnored([], [], "13:00")).toBe(0);
+  });
+
+  it("counts a typed reply after a check-in as an answer to it", () => {
+    expect(countIgnored([c("09:00"), c("11:00")], ["11:20"], "13:00")).toBe(0);
+  });
+
+  // A reply typed to the morning check-in still counts after a later one is ignored.
+  it("does not forget an earlier typed answer when a later check-in is ignored", () => {
+    expect(countIgnored([c("09:00"), c("11:00")], ["09:10"], "13:00")).toBe(1);
+  });
+
+  it("does not credit a reply to a check-in that came after it", () => {
+    expect(countIgnored([c("09:00"), c("11:00")], ["08:30"], "13:00")).toBe(2);
   });
 });
 

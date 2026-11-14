@@ -181,12 +181,13 @@ const focusButtons = (projects: NamedProject[]): ChatButton[] =>
   }));
 
 /**
- * A check-in during working hours. Keyed on the day (and, mid-day, the time),
- * so two runs in the same window say it once.
+ * A check-in during working hours. Keyed on the day and its place in it
+ * (`ordinal`: which mid-day check-in this is), so two runs in the same window
+ * say it once.
  */
 export function checkIn(
   kind: "start" | "during" | "end",
-  ctx: { date: string; time: string; focus: NamedProject | null; projects: NamedProject[] },
+  ctx: { date: string; ordinal: number; focus: NamedProject | null; projects: NamedProject[] },
 ): BotMessage {
   const base = { link: null, attachments: [], kind: "checkin" as const };
   if (kind === "end") {
@@ -200,22 +201,30 @@ export function checkIn(
       refId: `${ctx.date}:end`,
     };
   }
+  const refId = kind === "start" ? `${ctx.date}:start` : `${ctx.date}:during:${ctx.ordinal}`;
   if (kind === "during" && ctx.focus) {
+    const focus = ctx.focus;
+    // "Yes" keeps the focus; any other project changes it. There is no way to
+    // answer "no" that leaves the old focus quietly in place, because a photo
+    // would then be filed under it without a word.
     return {
       ...base,
-      text: `Still on ${ctx.focus.name}?`,
+      text: `Still on ${focus.name}?`,
       buttons: [
-        { label: "Yes", action: { type: "set_focus", projectId: ctx.focus.id } },
-        { label: "Switch", action: { type: "open", link: { type: "upnext" } } },
+        { label: "Yes", action: { type: "set_focus", projectId: focus.id } },
+        ...focusButtons(ctx.projects.filter((p) => p.id !== focus.id)).slice(
+          0,
+          MAX_CHAT_BUTTONS - 1,
+        ),
       ],
-      refId: `${ctx.date}:during:${ctx.time}`,
+      refId,
     };
   }
   return {
     ...base,
     text: kind === "start" ? "What are you on today?" : "What are you on?",
     buttons: focusButtons(ctx.projects),
-    refId: kind === "start" ? `${ctx.date}:start` : `${ctx.date}:during:${ctx.time}`,
+    refId,
   };
 }
 

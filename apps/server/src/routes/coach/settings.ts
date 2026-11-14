@@ -2,12 +2,14 @@ import { Hono } from "hono";
 import type { CoachHealth } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
+import { setFocus } from "../../services/coach/actions.js";
 import { loadSettings, syncTaskReminders } from "../../services/coach/reminders.js";
 import { sendPush } from "../../services/push.js";
 import { isValidTimezone } from "../../services/coach/time.js";
 
 export const settingsRoutes = new Hono<AppEnv>();
 export const healthRoutes = new Hono<AppEnv>();
+export const focusRoutes = new Hono<AppEnv>();
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -148,4 +150,27 @@ healthRoutes.post("/test-push", async (c) => {
   } catch {
     return c.json({ error: "Could not reach the notification service" }, 502);
   }
+});
+
+// ── POST /focus — what she is working on now, or nothing ─────────────────
+
+focusRoutes.post("/", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req
+    .json<{ projectId?: unknown }>()
+    .catch(() => ({}) as { projectId?: unknown });
+
+  if (body.projectId === null) {
+    await supabase
+      .from("coach_settings")
+      .upsert(
+        { user_id: userId, focus_project_id: null, focus_set_at: null },
+        { onConflict: "user_id" },
+      );
+    return c.json({ focus: null, say: null });
+  }
+  if (typeof body.projectId !== "string") return c.json({ error: "projectId is required" }, 400);
+  const result = await setFocus(userId, body.projectId);
+  if (!result.changed) return c.json({ error: "project not found" }, 400);
+  return c.json({ focus: { projectId: body.projectId }, say: result.say });
 });

@@ -176,7 +176,7 @@ describe("bot messages", () => {
   ];
 
   it("asks what she is on at the start of the day, offering her projects", () => {
-    const m = checkIn("start", { date: "2026-11-16", time: "09:05", focus: null, projects });
+    const m = checkIn("start", { date: "2026-11-16", ordinal: 0, focus: null, projects });
     expect(m.text).toBe("What are you on today?");
     // Never more than three, and a long name is cut to two words.
     expect(m.buttons.map((b) => b.label)).toEqual(["Alder House", "Studio prints", "Portfolio"]);
@@ -184,28 +184,30 @@ describe("bot messages", () => {
     expect(m).toMatchObject({ kind: "checkin", refId: "2026-11-16:start" });
   });
 
-  it("asks whether she is still on the same thing, by name", () => {
-    const m = checkIn("during", {
-      date: "2026-11-16",
-      time: "11:05",
-      focus: projects[0],
-      projects,
-    });
+  it("asks whether she is still on the same thing, by name, with the other projects one tap away", () => {
+    const m = checkIn("during", { date: "2026-11-16", ordinal: 1, focus: projects[0], projects });
     expect(m.text).toBe("Still on Alder House?");
-    expect(m.buttons.map((b) => b.label)).toEqual(["Yes", "Switch"]);
+    // "Yes" keeps the focus; the others change it. Nothing leaves the old focus silently in place.
+    expect(m.buttons.map((b) => b.label)).toEqual(["Yes", "Studio prints", "Portfolio"]);
     expect(m.buttons[0].action).toEqual({ type: "set_focus", projectId: "pr1" });
-    expect(m.buttons[1].action).toEqual({ type: "open", link: { type: "upnext" } });
-    expect(m.refId).toBe("2026-11-16:during:11:05");
+    expect(m.buttons[1].action).toEqual({ type: "set_focus", projectId: "pr2" });
+    expect(m.refId).toBe("2026-11-16:during:1");
+  });
+
+  it("keys a mid-day check-in on its place in the day, so two runs in one window say it once", () => {
+    const a = checkIn("during", { date: "2026-11-16", ordinal: 2, focus: null, projects });
+    const b = checkIn("during", { date: "2026-11-16", ordinal: 2, focus: projects[0], projects });
+    expect(a.refId).toBe(b.refId);
   });
 
   it("asks what she is on mid-day when it does not know", () => {
-    const m = checkIn("during", { date: "2026-11-16", time: "13:10", focus: null, projects });
+    const m = checkIn("during", { date: "2026-11-16", ordinal: 1, focus: null, projects });
     expect(m.text).toBe("What are you on?");
     expect(m.buttons).toHaveLength(3);
   });
 
   it("asks for a photo at the end of the day", () => {
-    const m = checkIn("end", { date: "2026-11-16", time: "16:30", focus: projects[0], projects });
+    const m = checkIn("end", { date: "2026-11-16", ordinal: 3, focus: projects[0], projects });
     expect(m.text).toBe("Photo of where you got to?");
     expect(m.buttons).toEqual([
       { label: "Add photo", action: { type: "open", link: { type: "camera" } } },

@@ -20,13 +20,15 @@ export function workHoursOf(row: Row): WorkHours | null {
 
 /** The user's reminder settings, with defaults when they have never set any. */
 export async function loadSettings(userId: string): Promise<CoachSettings> {
-  const { data } = await supabase
+  // `*`, so this keeps working while later migrations add columns. An error
+  // must not fall back to defaults: that would plan reminders in the wrong
+  // timezone and quiet hours.
+  const { data, error } = await supabase
     .from("coach_settings")
-    .select(
-      "timezone, quiet_start, quiet_end, review_dow, review_time, work_days, work_start, work_end, focus_project_id, focus_set_at",
-    )
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
+  if (error) throw new Error("Could not load coach settings");
   const row = data as Row | null;
   if (!row) return { ...DEFAULT_COACH_SETTINGS };
   return {
@@ -74,9 +76,9 @@ export async function syncTaskReminders(
       .select("id, task_id, kind, fire_at, status")
       .eq("user_id", userId)
       .in("task_id", taskIds),
-    loadSettings(userId),
+    loadSettings(userId).catch(() => null),
   ]);
-  if (tasksRes.error || remindersRes.error) {
+  if (tasksRes.error || remindersRes.error || !settings) {
     log.error("Could not load tasks to plan reminders", undefined, { userId, taskIds });
     return false;
   }

@@ -238,6 +238,25 @@ describe("syncTaskReminders", () => {
     expect(db.ops).toEqual([]);
   });
 
+  // Defaults must never stand in for settings that could not be read: that
+  // would plan reminders in the wrong timezone.
+  it("fails instead of falling back to defaults when settings cannot be read", async () => {
+    db = makeDb(() => ({ data: null, error: { message: "column does not exist" } }));
+    await expect(loadSettings("u1")).rejects.toThrow(/settings/i);
+  });
+
+  it("plans nothing, and says so, when settings cannot be read", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_tasks") {
+        return { data: [{ id: "t1", state: "open", due_date: "2026-11-18", due_time: null }] };
+      }
+      if (op.table === "coach_settings") return { data: null, error: { message: "boom" } };
+      return { data: [] };
+    });
+    expect(await syncTaskReminders("u1", ["t1"], now)).toBe(false);
+    expect(db.writtenTables()).toEqual([]);
+  });
+
   it("loads settings with defaults when the user has none", async () => {
     db = makeDb(() => ({ data: null }));
     expect(await loadSettings("u1")).toEqual({

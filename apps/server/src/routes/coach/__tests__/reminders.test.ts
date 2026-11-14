@@ -161,6 +161,30 @@ describe("coach reminders routes", () => {
     expect(syncMock).not.toHaveBeenCalled();
   });
 
+  it("sets and clears the focus directly", async () => {
+    const inner = world();
+    db = makeDb((op: Op) =>
+      op.table === "coach_projects"
+        ? { data: { id: "pr1", name: "Alder House" } }
+        : inner.respond(op),
+    );
+    const set = await post("/api/coach/focus", { projectId: "pr1" });
+    expect(await set.json()).toEqual({ focus: { projectId: "pr1" }, say: "On Alder House." });
+
+    const cleared = await post("/api/coach/focus", { projectId: null });
+    expect(await cleared.json()).toEqual({ focus: null, say: null });
+    expect(db.written("coach_settings", "upsert").at(-1)).toMatchObject({
+      focus_project_id: null,
+      focus_set_at: null,
+    });
+  });
+
+  it("refuses to focus on a project that is not hers", async () => {
+    const inner = world();
+    db = makeDb((op: Op) => (op.table === "coach_projects" ? { data: null } : inner.respond(op)));
+    expect((await post("/api/coach/focus", { projectId: "someone-elses" })).status).toBe(400);
+  });
+
   it("saves working hours", async () => {
     const res = await patch("/api/coach/settings", {
       work: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" },

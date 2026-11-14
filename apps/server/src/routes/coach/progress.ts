@@ -92,10 +92,16 @@ progressRoutes.post("/", async (c) => {
   if (error || !inserted) return c.json({ error: "Failed to save photo" }, 500);
   const entry = await toProgressEntry(inserted as Row);
 
-  if (tier === "fairly" && project) {
-    await postBotMessage(userId, progressFiled(entry, project, projects));
-  } else if (tier === "unsure") {
-    await postBotMessage(userId, progressAsk(entry, projects));
+  // The photo is saved. Failing to say so in chat must not report it as lost:
+  // a retry would save it twice.
+  try {
+    if (tier === "fairly" && project) {
+      await postBotMessage(userId, progressFiled(entry, project, projects));
+    } else if (tier === "unsure") {
+      await postBotMessage(userId, progressAsk(entry, projects));
+    }
+  } catch (err) {
+    log.warn("Could not post about a progress photo", { err: String(err) });
   }
 
   return c.json(

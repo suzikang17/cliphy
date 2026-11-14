@@ -156,6 +156,41 @@ describe("coach progress photos", () => {
     expect(upd.payload).toEqual({ project_id: "pr2" });
   });
 
+  // Review Focus 5: the Library clip's project tag follows the photo.
+  it("moves the Library clip's project tag with the photo, keeping its other tags", async () => {
+    const inner = world();
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_projects") {
+        return op.single
+          ? { data: { id: "pr2", name: "Portfolio", tag: "project:portfolio" } }
+          : { data: [{ tag: "project:alder-house" }, { tag: "project:portfolio" }] };
+      }
+      if (op.table === "coach_progress" && op.action === "select") {
+        return { data: { id: "e1", project_id: "pr1", clip_id: "c1" } };
+      }
+      if (op.table === "clips" && op.action === "select") {
+        return { data: { id: "c1", tags: ["project:alder-house", "typography"] } };
+      }
+      return inner.respond(op);
+    });
+    await post("/api/coach/progress/e1/project", { projectId: "pr2" });
+    const clip = db.ops.find((o) => o.table === "clips" && o.action === "update")!;
+    expect(clip.payload).toEqual({ tags: ["typography", "project:portfolio"] });
+    expect(clip.filters).toContainEqual(["eq", "user_id", "test-user-id"]);
+  });
+
+  it("still reports the photo as saved when the chat message about it cannot be posted", async () => {
+    const inner = world();
+    db = makeDb((op: Op) =>
+      op.table === "coach_chat_messages"
+        ? { data: null, error: { message: "boom" } }
+        : inner.respond(op),
+    );
+    const res = await post("/api/coach/progress", body);
+    expect(res.status).toBe(201);
+    expect((await res.json()).tier).toBe("unsure");
+  });
+
   it("says nothing moved when the photo or project is not hers", async () => {
     db = makeDb(() => ({ data: null }));
     const res = await post("/api/coach/progress/nope/project", { projectId: "pr2" });
