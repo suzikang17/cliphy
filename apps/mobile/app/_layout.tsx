@@ -1,7 +1,7 @@
 import "../polyfills";
 import "../global.css";
 import { useEffect, useRef, useState } from "react";
-import { Alert, View, useColorScheme } from "react-native";
+import { Alert, AppState, View, useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { colors } from "@cliphy/shared";
@@ -14,10 +14,11 @@ import { uploadAndClipImage } from "../lib/uploadImage";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
-import { getCoachState, refreshCoach, resetCoach } from "../lib/coachStore";
+import { getCoachState, hydrateCoach, refreshCoach, resetCoach, useCoach } from "../lib/coachStore";
 import {
   onNotificationReceived,
   onNotificationTapped,
+  reconcilePresented,
   reportTimezone,
   syncLocalReminders,
 } from "../lib/coachNotifications";
@@ -91,10 +92,29 @@ export default function RootLayout() {
       resetCoach();
       return;
     }
-    refreshCoach().then(() => {
-      if (getCoachState().status !== "on") return;
-      void reportTimezone().then(syncLocalReminders);
+    // Show what was saved last time first, so a launch with no network still
+    // has Chat and the thread; then ask the server.
+    hydrateCoach()
+      .then(() => refreshCoach({ full: true }))
+      .then(() => {
+        if (getCoachState().status !== "on") return;
+        void reportTimezone().then(syncLocalReminders);
+      });
+  }, [session]);
+
+  // Each time the app comes to the front: retry if the server was unreachable,
+  // notice pushes that arrived while it was not running, and bring the local
+  // reminder backups up to date.
+  useEffect(() => {
+    if (!session) return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "active" || getCoachState().status === "off") return;
+      void refreshCoach({ full: true }).then(() => {
+        if (getCoachState().status !== "on") return;
+        void reconcilePresented().then(syncLocalReminders);
+      });
     });
+    return () => sub.remove();
   }, [session]);
 
   // A reminder that arrives while the app is open is reported as delivered.
@@ -129,6 +149,9 @@ export default function RootLayout() {
   // in flight. expo-share-intent keeps `shareIntent` populated until reset, so
   // any re-render in that window would otherwise queue the same video again.
   const processingShareRef = useRef(false);
+  const coachStatus = useCoach().status;
+  const coachAskedRef = useRef(false);
+  const [shareTick, setShareTick] = useState(0);
 
   useEffect(() => {
     const hasText = Boolean(shareIntent?.text);
@@ -137,7 +160,14 @@ export default function RootLayout() {
 
     // With the coach on, images or words that are more than a link might be a
     // request someone sent: ask whether it goes to Chat or to the Library.
-    if (getCoachState().status === "on") {
+    // A share that opens the app arrives before we know whether this account
+    // has the coach. Ask once, then decide.
+    if (coachStatus === "unknown" && !coachAskedRef.current) {
+      coachAskedRef.current = true;
+      void refreshCoach().finally(() => setShareTick((n) => n + 1));
+      return;
+    }
+    if (coachStatus === "on") {
       const share: PendingShare = {
         text: shareIntent?.text ?? "",
         imageUris: (shareIntent?.files ?? [])
@@ -189,7 +219,7 @@ export default function RootLayout() {
       .finally(() => {
         processingShareRef.current = false;
       });
-  }, [shareIntent, session, resetShareIntent]);
+  }, [shareIntent, session, resetShareIntent, coachStatus, shareTick]);
 
   // "Save to Library" from the Send to Chat sheet: what sharing always did.
   const saveShareToLibrary = (share: PendingShare) => {

@@ -1,10 +1,15 @@
 import { useSyncExternalStore } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { CoachChatMessage, UpNext } from "@cliphy/shared";
-import { isCoachOff, LOCAL_PREFIX, mergeMessages, newestTime } from "./coach";
+import { fromStored, isCoachOff, LOCAL_PREFIX, mergeMessages, newestTime, toStored } from "./coach";
 import { chooseButton, getChat, getUpNext, sendChat } from "./coachApi";
 
 // One small store for the coach: whether this account has it, the thread, what
-// the bot is doing, and the Up next strip. Screens read it; one poller feeds it.
+// the bot is doing, and the Up next strip. Screens read it; refreshes feed it.
+// The thread and the on/off answer are kept on the phone, so a launch with no
+// network still shows Chat and what was last loaded.
+
+const STORAGE_KEY = "cliphy:coach:v1";
 
 export interface CoachState {
   /** "unknown" until the first call answers; "off" means no coach UI and no more calls. */
@@ -19,7 +24,7 @@ export interface CoachState {
   offline: boolean;
 }
 
-let state: CoachState = {
+const EMPTY: CoachState = {
   status: "unknown",
   messages: [],
   activity: [],
@@ -27,6 +32,10 @@ let state: CoachState = {
   waiting: 0,
   offline: false,
 };
+
+let state: CoachState = EMPTY;
+/** Bumped on sign-out, so a request that was in flight cannot refill the store. */
+let epoch = 0;
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<CoachState>): void {
@@ -35,6 +44,9 @@ function set(patch: Partial<CoachState>): void {
     state.waiting = state.messages.filter(
       (m) => m.role === "bot" && m.buttons.length > 0 && m.chosen === null && m.kind !== "did",
     ).length;
+  }
+  if ((patch.messages || patch.status) && state.status !== "unknown") {
+    AsyncStorage.setItem(STORAGE_KEY, toStored(state)).catch(() => {});
   }
   for (const l of listeners) l();
 }
@@ -52,15 +64,34 @@ export function useCoach(): CoachState {
 
 export const getCoachState = (): CoachState => state;
 
+/** Load what was saved last time, before the first network call. */
+export async function hydrateCoach(): Promise<void> {
+  if (state.status !== "unknown") return;
+  const mine = epoch;
+  const saved = fromStored(await AsyncStorage.getItem(STORAGE_KEY).catch(() => null));
+  if (saved && mine === epoch && state.status === "unknown") {
+    set({ status: saved.status, messages: saved.messages });
+  }
+}
+
 let refreshing: Promise<void> | null = null;
 
-/** Fetch anything new. Safe to call often; overlapping calls share one request. */
-export function refreshCoach(): Promise<void> {
+/**
+ * Fetch what is new. `full` re-reads the newest page instead of only what is
+ * newer than the last message: that picks up changes to older cards (a button
+ * that was answered elsewhere) and renews attachment links, which expire.
+ * Safe to call often; overlapping calls share one request.
+ */
+export function refreshCoach(opts: { full?: boolean } = {}): Promise<void> {
   if (state.status === "off") return Promise.resolve();
   if (refreshing) return refreshing;
+  const mine = epoch;
   refreshing = (async () => {
     try {
-      const { messages, activity } = await getChat(newestTime(state.messages));
+      const { messages, activity } = await getChat(
+        opts.full ? undefined : newestTime(state.messages),
+      );
+      if (mine !== epoch) return;
       set({
         status: "on",
         offline: false,
@@ -68,6 +99,7 @@ export function refreshCoach(): Promise<void> {
         messages: mergeMessages(state.messages, messages),
       });
     } catch (err) {
+      if (mine !== epoch) return;
       // Not this account's feature: stop asking. Anything else: keep what we have.
       if (isCoachOff(err)) set({ status: "off", messages: [], activity: [], strip: null });
       else set({ offline: true });
@@ -80,8 +112,10 @@ export function refreshCoach(): Promise<void> {
 
 export async function refreshStrip(): Promise<void> {
   if (state.status !== "on") return;
+  const mine = epoch;
   try {
-    set({ strip: (await getUpNext()).strip });
+    const { strip } = await getUpNext();
+    if (mine === epoch) set({ strip });
   } catch {
     // The strip is a convenience; leave the last one showing.
   }
@@ -114,6 +148,10 @@ export async function say(text: string): Promise<boolean> {
 
 /** Tap a button: mark it at once, then run it. A failed tap is given back. */
 export async function tap(messageId: string, index: number): Promise<void> {
+  const current = state.messages.find((m) => m.id === messageId);
+  // Already tapped (or a second button pressed in the same instant): one tap only.
+  if (!current || current.chosen !== null) return;
+
   const mark = (chosen: number | null) =>
     set({ messages: state.messages.map((m) => (m.id === messageId ? { ...m, chosen } : m)) });
   mark(index);
@@ -128,7 +166,10 @@ export async function tap(messageId: string, index: number): Promise<void> {
   }
 }
 
-/** Forget everything (on sign-out). */
+/** Forget everything (on sign-out), including what was saved on the phone. */
 export function resetCoach(): void {
-  set({ status: "unknown", messages: [], activity: [], strip: null, offline: false });
+  epoch++;
+  state = EMPTY;
+  AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+  for (const l of listeners) l();
 }

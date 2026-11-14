@@ -3,6 +3,7 @@ import { Image, ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { CoachRequest, InboundMessage, Person } from "@cliphy/shared";
 import { confirmRequest, fixRequest, getPeople, getRequest } from "../../../lib/coachApi";
+import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import {
   Body,
@@ -27,6 +28,7 @@ export default function RequestScreen() {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [actionFailed, setActionFailed] = useState(false);
   const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
@@ -47,8 +49,10 @@ export default function RequestScreen() {
   }, [load]);
 
   const done = () => {
-    void refreshCoach();
+    void refreshCoach({ full: true });
     void refreshStrip();
+    // Confirming creates dated tasks, and so reminders to back up.
+    void syncLocalReminders();
     router.back();
   };
 
@@ -59,7 +63,7 @@ export default function RequestScreen() {
       await confirmRequest(id, answer ? { answer } : {});
       done();
     } catch {
-      setFailed(true);
+      setActionFailed(true);
       setBusy(false);
     }
   };
@@ -72,7 +76,7 @@ export default function RequestScreen() {
       await fixRequest(id, text);
       done();
     } catch {
-      setFailed(true);
+      setActionFailed(true);
       setBusy(false);
     }
   };
@@ -84,7 +88,8 @@ export default function RequestScreen() {
   return (
     <Page title="Request" sub={person ? `From ${person.name}` : undefined}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
-        {failed ? <Body muted>Couldn't load this. Pull back and try again.</Body> : null}
+        {failed ? <Body muted>Couldn't load this. Go back and try again.</Body> : null}
+        {actionFailed ? <Body muted>That didn't work. Try again.</Body> : null}
 
         {request ? (
           <>

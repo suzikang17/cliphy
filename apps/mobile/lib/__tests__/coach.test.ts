@@ -7,6 +7,10 @@ import {
   isCoachOff,
   smsUrl,
   mirrorPlan,
+  mirrorId,
+  mirrorIdsFor,
+  toStored,
+  fromStored,
   setupSteps,
   dayParts,
   MIRROR_DELAY_MS,
@@ -116,18 +120,19 @@ describe("coach phone logic", () => {
   // Review Focus 3: push and local copy.
   it("schedules a late local copy of each upcoming reminder and cancels copies no longer wanted", () => {
     const now = new Date("2026-11-14T18:00:00Z");
+    const r1 = reminder({ id: "r1" });
     const plan = mirrorPlan(
-      [reminder({ id: "r1" }), reminder({ id: "r2", fireAt: "2026-11-14T17:00:00Z" })],
-      ["coach-r9", "coach-r1", "other-app-thing"],
+      [r1, reminder({ id: "r2", fireAt: "2026-11-14T17:00:00Z" })],
+      ["coach-r9-1", mirrorId(r1), "other-app-thing"],
       now,
     );
     expect(plan.schedule).toEqual([]);
-    expect(plan.cancel).toEqual(["coach-r9"]);
+    expect(plan.cancel).toEqual(["coach-r9-1"]);
 
-    const fresh = mirrorPlan([reminder({ id: "r1" })], [], now);
+    const fresh = mirrorPlan([r1], [], now);
     expect(fresh.schedule).toEqual([
       {
-        identifier: "coach-r1",
+        identifier: mirrorId(r1),
         reminderId: "r1",
         taskId: "t1",
         title: "Homepage photo swap",
@@ -135,6 +140,57 @@ describe("coach phone logic", () => {
         date: new Date(Date.parse("2026-11-18T17:00:00Z") + MIRROR_DELAY_MS),
       },
     ]);
+  });
+
+  it("moves the local copy when a reminder's time changes", () => {
+    const now = new Date("2026-11-14T18:00:00Z");
+    const before = reminder({ id: "r1", fireAt: "2026-11-18T17:00:00Z" });
+    const after = reminder({ id: "r1", fireAt: "2026-11-19T17:00:00Z" });
+    const plan = mirrorPlan([after], [mirrorId(before)], now);
+    expect(plan.cancel).toEqual([mirrorId(before)]);
+    expect(plan.schedule.map((s) => s.identifier)).toEqual([mirrorId(after)]);
+  });
+
+  it("finds every local copy of a reminder, whatever time it was scheduled for", () => {
+    const a = mirrorId(reminder({ id: "r1", fireAt: "2026-11-18T17:00:00Z" }));
+    const b = mirrorId(reminder({ id: "r1", fireAt: "2026-11-19T17:00:00Z" }));
+    const other = mirrorId(reminder({ id: "r10" }));
+    expect(mirrorIdsFor("r1", [a, other, b, "unrelated"])).toEqual([a, b]);
+  });
+
+  it("waits long enough before the local copy that an opened push has cancelled it", () => {
+    expect(MIRROR_DELAY_MS).toBe(15 * 60_000);
+  });
+
+  // Review Focus 5: a cold start with no network.
+  it("saves the thread and whether the coach is on, without unsent messages", () => {
+    const stored = toStored({
+      status: "on",
+      messages: [msg({ id: "a" }), msg({ id: "local-1", role: "user" })],
+    });
+    expect(JSON.parse(stored)).toEqual({ status: "on", messages: [msg({ id: "a" })] });
+  });
+
+  it("keeps only the newest 50 messages", () => {
+    const many = Array.from({ length: 60 }, (_, i) =>
+      msg({ id: `m${i}`, createdAt: `2026-11-14T17:${String(i).padStart(2, "0")}:00Z` }),
+    );
+    const kept = JSON.parse(toStored({ status: "on", messages: many })).messages;
+    expect(kept).toHaveLength(50);
+    expect(kept[0].id).toBe("m10");
+  });
+
+  it("restores what was saved, and nothing from anything it cannot read", () => {
+    const stored = toStored({ status: "on", messages: [msg({ id: "a" })] });
+    expect(fromStored(stored)).toEqual({ status: "on", messages: [msg({ id: "a" })] });
+    expect(fromStored(null)).toBeNull();
+    expect(fromStored("not json")).toBeNull();
+    expect(fromStored(JSON.stringify({ status: "banana", messages: [] }))).toBeNull();
+    expect(fromStored(JSON.stringify({ status: "on", messages: "nope" }))).toBeNull();
+  });
+
+  it("does not restore 'unknown', which is not worth remembering", () => {
+    expect(fromStored(JSON.stringify({ status: "unknown", messages: [] }))).toBeNull();
   });
 
   it("lists the setup steps still to do, in order", () => {

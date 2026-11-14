@@ -5,6 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import type { CoachTask, Person } from "@cliphy/shared";
 import { smsUrl } from "../../../lib/coach";
 import { getPeople, getTasks, markTaskSent, updateTask } from "../../../lib/coachApi";
+import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import {
   ACCENT,
@@ -49,6 +50,8 @@ export default function TaskScreen() {
   const finish = () => {
     void refreshCoach();
     void refreshStrip();
+    // The change may have moved or cancelled reminders.
+    void syncLocalReminders();
     router.back();
   };
 
@@ -79,7 +82,9 @@ export default function TaskScreen() {
     }
     try {
       await Linking.openURL(url);
-      await run(() => markTaskSent(task.id));
+      // Messages opening is not the message being sent: she may cancel. The
+      // task stays open until she says it went.
+      setNote("Sent it? Tap Sent.");
     } catch {
       await Clipboard.setStringAsync(draft);
       setNote("Couldn't open Messages. Copied instead.");
@@ -90,7 +95,9 @@ export default function TaskScreen() {
     if (!task) return;
     const checklist = task.checklist.map((c, i) => (i === index ? { ...c, done: !c.done } : c));
     setTask({ ...task, checklist });
-    void run(() => updateTask(task.id, { checklist }), false);
+    // Not held back by another change in flight, and not reloaded afterwards:
+    // two quick ticks must both stick. Each save carries the whole list.
+    updateTask(task.id, { checklist }).catch(() => setNote("Couldn't save that tick."));
   };
 
   const kit = task?.kit ?? {};
@@ -100,6 +107,7 @@ export default function TaskScreen() {
     <Page title={task ? KIND_LABEL[task.kind] : "Task"} sub={person?.name}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
         {missing ? <Body muted>This one is finished.</Body> : null}
+        {!task && !missing && note ? <Body muted>{note}</Body> : null}
 
         {task ? (
           <>

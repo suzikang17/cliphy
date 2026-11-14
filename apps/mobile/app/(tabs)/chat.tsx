@@ -40,7 +40,9 @@ export default function ChatScreen() {
   // Poll only while this screen is in front.
   useFocusEffect(
     useCallback(() => {
-      void refreshCoach();
+      // A full reload on arriving: older cards may have changed, and attachment
+      // links expire. The timer then only asks for what is newer.
+      void refreshCoach({ full: true });
       void refreshStrip();
       const timer = setInterval(() => void refreshCoach(), POLL_MS);
       const sub = AppState.addEventListener("change", (s) => {
@@ -58,7 +60,7 @@ export default function ChatScreen() {
 
   // An account without the coach never sees this screen.
   useEffect(() => {
-    if (coach.status === "off") router.replace("/");
+    if (coach.status === "off") router.replace("/(tabs)");
   }, [coach.status, router]);
 
   const go = (path: string) => router.push(path as never);
@@ -78,7 +80,8 @@ export default function ChatScreen() {
     setDraft("");
     const ok = await say(text);
     // Not sent (no network): put the words back so nothing typed is lost.
-    if (!ok) setDraft(text);
+    // Anything typed meanwhile is kept after it.
+    if (!ok) setDraft((typed) => (typed ? `${text}\n${typed}` : text));
     setSending(false);
   };
 
@@ -285,7 +288,7 @@ function BotMessage({
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
           {message.buttons.map((b, i) => (
             <QuickButton
-              key={b.label}
+              key={`${i}-${b.label}`}
               label={b.label}
               chosen={message.chosen === i}
               disabled={tapped}

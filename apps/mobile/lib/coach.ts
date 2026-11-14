@@ -7,10 +7,14 @@ import type { CoachChatMessage, CoachHealth, CoachReminder, Person } from "@clip
 export const LOCAL_PREFIX = "local-";
 
 /**
- * How long after its time a reminder's local copy fires. The push normally
- * arrives first and cancels the copy; the copy is the backup for no signal.
+ * How long after its time a reminder's local copy fires.
+ *
+ * The copy is the backup for a phone with no signal. When the push did arrive
+ * the app cancels the copy as soon as it runs, but a locked phone runs no app
+ * code, so the copy must wait long enough that it only shows when the
+ * reminder really has gone unanswered for a while.
  */
-export const MIRROR_DELAY_MS = 2 * 60_000;
+export const MIRROR_DELAY_MS = 15 * 60_000;
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -86,7 +90,16 @@ export interface LocalReminder {
   date: Date;
 }
 
-export const mirrorId = (reminderId: string): string => `coach-${reminderId}`;
+/**
+ * The identifier of a reminder's local copy. It includes the time, so a
+ * reminder whose time changes gets a new copy and the old one is cancelled.
+ */
+export const mirrorId = (r: { id: string; fireAt: string }): string =>
+  `coach-${r.id}-${Date.parse(r.fireAt)}`;
+
+/** Every scheduled local copy of one reminder, whatever time it was scheduled for. */
+export const mirrorIdsFor = (reminderId: string, scheduled: string[]): string[] =>
+  scheduled.filter((id) => id.startsWith(`coach-${reminderId}-`));
 
 /**
  * Which local notifications to add and remove so the phone holds a backup of
@@ -102,7 +115,7 @@ export function mirrorPlan(
   for (const r of reminders) {
     const date = new Date(Date.parse(r.fireAt) + MIRROR_DELAY_MS);
     if (date.getTime() <= now.getTime()) continue;
-    const identifier = mirrorId(r.id);
+    const identifier = mirrorId(r);
     wanted.set(identifier, {
       identifier,
       reminderId: r.id,
@@ -138,4 +151,37 @@ export function setupSteps(health: CoachHealth, people: Person[], tried: boolean
 export function dayParts(date: string): { num: string; dow: string } {
   const [y, m, d] = date.split("-").map(Number);
   return { num: String(d), dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] };
+}
+
+// ── Remembering the thread between launches ──────────────────────────────
+
+const STORED_MESSAGES = 50;
+
+export interface StoredCoach {
+  status: "on" | "off";
+  messages: CoachChatMessage[];
+}
+
+/**
+ * What to keep on the phone so a launch with no network still shows Chat and
+ * the last of the thread. Messages typed but never sent are not kept.
+ */
+export function toStored(state: { status: string; messages: CoachChatMessage[] }): string {
+  return JSON.stringify({
+    status: state.status,
+    messages: state.messages.filter((m) => !m.id.startsWith(LOCAL_PREFIX)).slice(-STORED_MESSAGES),
+  });
+}
+
+/** Read back what `toStored` wrote, or null for anything missing or unreadable. */
+export function fromStored(raw: string | null | undefined): StoredCoach | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { status?: unknown; messages?: unknown };
+    if (parsed.status !== "on" && parsed.status !== "off") return null;
+    if (!Array.isArray(parsed.messages)) return null;
+    return { status: parsed.status, messages: parsed.messages as CoachChatMessage[] };
+  } catch {
+    return null;
+  }
 }

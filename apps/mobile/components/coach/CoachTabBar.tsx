@@ -89,7 +89,15 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
       {tab("index", "Library", "grid-outline")}
       <View style={{ width: 72, alignItems: "center" }}>
         <Pressable
-          onPress={requestCapture}
+          onPress={() => {
+            // The capture sheet belongs to Library: go there first, then open it.
+            if (active !== "index") {
+              navigation.navigate("index");
+              setTimeout(requestCapture, 80);
+            } else {
+              requestCapture();
+            }
+          }}
           accessibilityRole="button"
           accessibilityLabel="Save something new"
           style={{
