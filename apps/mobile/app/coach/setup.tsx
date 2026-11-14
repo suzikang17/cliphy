@@ -29,7 +29,7 @@ import {
 } from "../../components/coach/ui";
 
 const STEP_TITLE: Record<SetupStep, string> = {
-  reminders: "Reminders",
+  reminders: "Notifications",
   person: "First person",
   messages: "Messages",
   try: "Try it",
@@ -286,7 +286,7 @@ export default function SetupScreen() {
 
         <SectionLabel>Connections</SectionLabel>
         <Row
-          title="Reminders"
+          title="Notifications"
           detail={
             health?.lastDeliveredAt
               ? `Last arrived ${new Date(health.lastDeliveredAt).toLocaleString()}`
@@ -294,7 +294,7 @@ export default function SetupScreen() {
                 ? "Timezone not set yet"
                 : "Not tested yet"
           }
-          right={remindersOk ? "Working" : testing ? "Testing" : "Test"}
+          right={remindersOk ? "Enabled" : testing ? "Testing" : "Test"}
           rightColor={remindersOk ? t.ok : t.due}
           onPress={remindersOk ? undefined : testReminders}
         />

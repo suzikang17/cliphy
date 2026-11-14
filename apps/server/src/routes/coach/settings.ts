@@ -143,7 +143,7 @@ healthRoutes.post("/test-push", async (c) => {
   try {
     const { sent } = await sendPush(c.get("userId"), {
       title: "Cliphy",
-      body: "Reminders work.",
+      body: "Notifications enabled.",
       data: { type: "test" },
     });
     return c.json({ sent });

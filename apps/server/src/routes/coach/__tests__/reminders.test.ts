@@ -283,7 +283,7 @@ describe("coach reminders routes", () => {
     expect(await res.json()).toEqual({ sent: 1 });
     expect(sendPushMock).toHaveBeenCalledWith("test-user-id", {
       title: "Cliphy",
-      body: "Reminders work.",
+      body: "Notifications enabled.",
       data: { type: "test" },
     });
   });

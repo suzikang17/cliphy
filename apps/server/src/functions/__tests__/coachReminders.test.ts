@@ -200,7 +200,7 @@ describe("coach fireReminders", () => {
       expect.objectContaining({
         kind: "health",
         refId: "2026-11-14",
-        text: "Reminders are not reaching your phone.",
+        text: "Notifications are not reaching your phone.",
       }),
     );
   });

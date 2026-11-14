@@ -154,7 +154,7 @@ describe("bot messages", () => {
 
   it("says plainly when reminders are not getting through", () => {
     const m = pushNotWorking("2026-11-14");
-    expect(m.text).toBe("Reminders are not reaching your phone.");
+    expect(m.text).toBe("Notifications are not reaching your phone.");
     expect(m.buttons).toEqual([
       { label: "Fix", action: { type: "open", link: { type: "setup" } } },
     ]);

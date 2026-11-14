@@ -132,7 +132,7 @@ export function weeklyReview(count: number, weekKey: string): BotMessage {
 /** `dayKey` is the local date, so this is said at most once a day. */
 export function pushNotWorking(dayKey: string): BotMessage {
   return {
-    text: "Reminders are not reaching your phone.",
+    text: "Notifications are not reaching your phone.",
     buttons: [{ label: "Fix", action: { type: "open", link: { type: "setup" } } }],
     link: { type: "setup" },
     attachments: [],
