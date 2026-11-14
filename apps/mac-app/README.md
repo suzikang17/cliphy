@@ -10,6 +10,9 @@ uploading work.
 2. On the phone: Chat → Setup → Mac messages → enter the code.
 3. Press **Open settings** and switch on Cliphy Helper under Full Disk Access.
 4. Switch on the people whose texts should go to Chat.
+   Someone who is not listed yet can be added from their thread under **From
+   Messages**; choose there how far back to read (new messages only, the last
+   30 days, or everything).
 
 It then stays in the menu bar and starts at login. Closing the window does not
 stop it; Quit is in the menu-bar item.
