@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requireCoach } from "../../middleware/require-coach.js";
+import { intakeRoutes } from "./intake.js";
 import { peopleRoutes } from "./people.js";
 import { projectRoutes } from "./projects.js";
 
@@ -13,3 +14,4 @@ coachRoutes.use("*", requireCoach);
 
 coachRoutes.route("/people", peopleRoutes);
 coachRoutes.route("/projects", projectRoutes);
+coachRoutes.route("/intake", intakeRoutes);
