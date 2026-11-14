@@ -84,7 +84,7 @@ healthRoutes.get("/", async (c) => {
     supabase.from("push_tokens").select("token").eq("user_id", userId),
     supabase
       .from("coach_settings")
-      .select("push_failures, last_delivered_at, timezone")
+      .select("push_failures, last_delivered_at, timezone, helper_seen_at")
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
@@ -93,6 +93,7 @@ healthRoutes.get("/", async (c) => {
     push_failures?: number;
     last_delivered_at?: string;
     timezone?: string | null;
+    helper_seen_at?: string | null;
   } | null;
   const health: CoachHealth = {
     pushTokens,
@@ -100,6 +101,7 @@ healthRoutes.get("/", async (c) => {
     // No device registered, or two reminders in a row the phone never reported receiving.
     pushOk: pushTokens > 0 && (row?.push_failures ?? 0) < 2,
     lastDeliveredAt: row?.last_delivered_at ?? null,
+    helperSeenAt: row?.helper_seen_at ?? null,
   };
   return c.json(health);
 });

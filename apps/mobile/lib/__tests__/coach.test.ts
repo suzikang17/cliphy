@@ -12,6 +12,8 @@ import {
   toStored,
   fromStored,
   setupSteps,
+  agoLabel,
+  helperRunning,
   dayParts,
   MIRROR_DELAY_MS,
 } from "../coach";
@@ -199,6 +201,7 @@ describe("coach phone logic", () => {
       timezoneSet: true,
       pushOk: false,
       lastDeliveredAt: null,
+      helperSeenAt: null,
     };
     expect(setupSteps(health, [], false)).toEqual(["reminders", "person", "messages", "try"]);
     const person = { id: "p", captureThread: false } as Person;
@@ -220,8 +223,26 @@ describe("coach phone logic", () => {
       timezoneSet: true,
       pushOk: true,
       lastDeliveredAt: null,
+      helperSeenAt: null,
     };
     expect(setupSteps(health, [], false)[0]).toBe("reminders");
+  });
+
+  it("says how long ago something was seen, in a couple of words", () => {
+    const now = new Date("2026-11-14T18:00:00Z");
+    expect(agoLabel("2026-11-14T17:59:40Z", now)).toBe("just now");
+    expect(agoLabel("2026-11-14T17:58:00Z", now)).toBe("2 min ago");
+    expect(agoLabel("2026-11-14T15:00:00Z", now)).toBe("3 h ago");
+    expect(agoLabel("2026-11-11T18:00:00Z", now)).toBe("3 days ago");
+    expect(agoLabel("2026-11-13T17:00:00Z", now)).toBe("1 day ago");
+    expect(agoLabel(null, now)).toBeNull();
+  });
+
+  it("treats the Mac as running only if it was seen in the last few minutes", () => {
+    const now = new Date("2026-11-14T18:00:00Z");
+    expect(helperRunning("2026-11-14T17:57:00Z", now)).toBe(true);
+    expect(helperRunning("2026-11-14T17:40:00Z", now)).toBe(false);
+    expect(helperRunning(null, now)).toBe(false);
   });
 
   it("splits a date into the number and short day for a list row", () => {

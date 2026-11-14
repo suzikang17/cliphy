@@ -176,6 +176,8 @@ export interface CoachHealth {
   timezoneSet: boolean;
   pushOk: boolean;
   lastDeliveredAt: string | null;
+  /** When the Mac helper that captures messages last reported in. */
+  helperSeenAt: string | null;
 }
 
 // ── Chat thread (plan 3) ─────────────────────────────────────────────────

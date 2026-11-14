@@ -183,7 +183,17 @@ describe("coach reminders routes", () => {
       timezoneSet: false,
       pushOk: true,
       lastDeliveredAt: "2026-11-14T17:00:05Z",
+      helperSeenAt: null,
     });
+  });
+
+  it("says when the Mac helper was last seen", async () => {
+    db = world({ tokens: [{ token: "a" }], settings: { helper_seen_at: "2026-11-14T17:58:00Z" } });
+    expect((await (await app().request("/api/coach/health")).json()).helperSeenAt).toBe(
+      "2026-11-14T17:58:00Z",
+    );
+    db = world({ tokens: [{ token: "a" }] });
+    expect((await (await app().request("/api/coach/health")).json()).helperSeenAt).toBeNull();
   });
 
   it("says whether the timezone has been set, since nothing is planned until it is", async () => {

@@ -31,6 +31,18 @@ intakeRoutes.post("/upload-url", async (c) => {
   return c.json({ path, signedUrl: data.signedUrl, token: data.token });
 });
 
+// ── POST /heartbeat — the capturer is alive ──────────────────────────────
+
+intakeRoutes.post("/heartbeat", async (c) => {
+  await supabase
+    .from("coach_settings")
+    .upsert(
+      { user_id: c.get("userId"), helper_seen_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    );
+  return c.json({ ok: true });
+});
+
 // ── POST /messages — captured messages, grouped into bundles ─────────────
 
 interface IncomingMessage {

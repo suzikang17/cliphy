@@ -474,4 +474,8 @@ Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route retu
 
 **Chat (plan 3, [ADR 0056](decisions/0056-coach-chat-thread-rows-typed-buttons-and-a-bounded-agent.md)):** one thread per user in `coach_chat_messages` (migration `040_coach_chat.sql`). Jobs post what happened (a request, a reply, a reminder, a task that is now ready, the weekly review, a not-reaching-you warning), each once. `POST /coach/chat/:id/choose` runs a button's action; `POST /coach/chat` stores typed text and `coach-chat-reply` answers it with a tool-calling agent. `GET /coach/upnext` returns everything on the plate, arranged. `coach_rules` holds what the bot has learned (`/coach/rules`), created only with a visible "Learned" message.
 
-**Not built yet:** the phone screens, the Mac helper.
+**Phone (plan 4):** `apps/mobile` gains a Library / plus / Chat bar (`components/coach/CoachTabBar.tsx`), the chat screen, and pushed pages under `app/coach/` (request, task, Up next, project history, setup). Screen decisions live in pure functions in `lib/coach.ts`; `lib/coachStore.ts` holds the thread (saved on the phone for offline launches); `lib/coachNotifications.ts` reports the timezone, reports and acknowledges reminders, and keeps a late local copy of each upcoming one. Typechecked and unit-tested only; not yet run on a device.
+
+**Mac helper (plan 5, [ADR 0057](decisions/0057-mac-helper-reads-messages-with-node-sqlite-and-an-api-key.md)):** `apps/mac-helper` reads `~/Library/Messages/chat.db` read-only for people with Capture on, uploads new messages and image attachments through `/coach/intake/*`, and reports in via `/coach/intake/heartbeat` (migration `041_coach_helper_seen.sql`). See its README for setup. Not yet run on a Mac.
+
+**Not built yet:** working hours, check-ins and progress photos (1b).

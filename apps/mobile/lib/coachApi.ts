@@ -83,6 +83,15 @@ export const markTaskSent = (id: string) =>
 export const getPeople = () => apiFetch<{ people: Person[] }>("/api/coach/people");
 export const addPerson = (body: { name: string; role: PersonRole; handles?: string[] }) =>
   apiFetch<{ person: Person }>("/api/coach/people", json("POST", body));
+export const updatePerson = (
+  id: string,
+  body: Partial<{
+    handles: string[];
+    captureThread: boolean;
+    historyWindow: "new" | "window" | "all";
+    historyDays: number;
+  }>,
+) => apiFetch<{ person: Person }>(`/api/coach/people/${id}`, json("PATCH", body));
 export const getProjects = () => apiFetch<{ projects: Project[] }>("/api/coach/projects");
 export const getProjectHistory = (id: string) =>
   apiFetch<{ entries: HistoryEntry[] }>(`/api/coach/projects/${id}/history`);

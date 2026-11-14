@@ -272,6 +272,17 @@ describe("coach intake", () => {
     expect(body).toMatchObject({ signedUrl: "https://s/u", token: "tok" });
   });
 
+  it("records that the Mac helper is alive", async () => {
+    const res = await post("/api/coach/intake/heartbeat", {});
+    expect(res.status).toBe(200);
+    const op = db.ops.find((o) => o.table === "coach_settings" && o.action === "upsert")!;
+    expect(op.payload).toMatchObject({
+      user_id: "test-user-id",
+      helper_seen_at: expect.any(String),
+    });
+    expect(op.options).toMatchObject({ onConflict: "user_id" });
+  });
+
   it("refuses an unsupported media type for an upload url", async () => {
     const res = await post("/api/coach/intake/upload-url", { mediaType: "application/pdf" });
     expect(res.status).toBe(400);

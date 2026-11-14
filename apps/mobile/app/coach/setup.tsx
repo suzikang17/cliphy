@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import type { CoachHealth, CoachRule, Person, PersonRole } from "@cliphy/shared";
-import { setupSteps, type SetupStep } from "../../lib/coach";
+import { agoLabel, helperRunning, setupSteps, type SetupStep } from "../../lib/coach";
 import {
   addPerson,
   deleteRule,
@@ -10,6 +10,7 @@ import {
   getPeople,
   getRules,
   sendTestPush,
+  updatePerson,
 } from "../../lib/coachApi";
 import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications";
 import { useCoach } from "../../lib/coachStore";
@@ -53,6 +54,7 @@ export default function SetupScreen() {
   const [role, setRole] = useState<PersonRole>("client");
   const [handle, setHandle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openPerson, setOpenPerson] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -129,6 +131,32 @@ export default function SetupScreen() {
     }
   };
 
+  // Whose thread the Mac passes on, and how far back it reads the first time.
+  const capture = async (
+    person: Person,
+    choice: { captureThread: false } | { historyWindow: "new" | "all" } | { historyDays: number },
+  ) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      if ("captureThread" in choice) await updatePerson(person.id, { captureThread: false });
+      else if ("historyDays" in choice) {
+        await updatePerson(person.id, {
+          captureThread: true,
+          historyWindow: "window",
+          historyDays: choice.historyDays,
+        });
+      } else
+        await updatePerson(person.id, { captureThread: true, historyWindow: choice.historyWindow });
+      setOpenPerson(null);
+      await load();
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const forget = async (rule: CoachRule) => {
     setRules((rs) => rs.filter((r) => r.id !== rule.id));
     await deleteRule(rule.id).catch(() => void load());
@@ -138,6 +166,7 @@ export default function SetupScreen() {
   const steps = health ? setupSteps(health, people, tried) : [];
   const remindersOk = health ? !steps.includes("reminders") : false;
   const captured = people.filter((p) => p.captureThread);
+  const macOn = helperRunning(health?.helperSeenAt, new Date());
 
   const input = {
     fontFamily: FONT,
@@ -213,25 +242,73 @@ export default function SetupScreen() {
         />
         <Row
           title="Mac messages"
-          detail={captured.length ? captured.map((p) => p.name).join(", ") : "No threads connected"}
-          right={captured.length ? "Working" : "Later"}
-          rightColor={captured.length ? t.ok : t.muted}
+          detail={
+            captured.length === 0
+              ? "No threads chosen yet"
+              : macOn
+                ? captured.map((p) => p.name).join(", ")
+                : agoLabel(health?.helperSeenAt, new Date())
+                  ? `Mac last seen ${agoLabel(health?.helperSeenAt, new Date())}`
+                  : "The Mac helper has not connected"
+          }
+          right={captured.length === 0 ? "Later" : macOn ? "Working" : "Check"}
+          rightColor={captured.length === 0 ? t.muted : macOn ? t.ok : t.due}
         />
         <Row title="Share sheet" detail="Share to Cliphy, then Send to Chat" />
 
         <SectionLabel>People</SectionLabel>
         {people.map((p) => (
-          <Row
-            key={p.id}
-            title={p.name}
-            detail={
-              p.role === "both"
-                ? "Client and collaborator"
-                : p.role === "client"
-                  ? "Client"
-                  : "Collaborator"
-            }
-          />
+          <View key={p.id}>
+            <Row
+              title={p.name}
+              detail={
+                p.role === "both"
+                  ? "Client and collaborator"
+                  : p.role === "client"
+                    ? "Client"
+                    : "Collaborator"
+              }
+              right={p.captureThread ? "Capturing" : "Capture"}
+              rightColor={p.captureThread ? t.ok : t.muted}
+              onPress={() => setOpenPerson(openPerson === p.id ? null : p.id)}
+            />
+            {openPerson === p.id ? (
+              <View style={{ paddingVertical: 10, gap: 10 }}>
+                {p.handles.length === 0 ? (
+                  <Body muted>Add their phone number to capture their texts.</Body>
+                ) : p.captureThread ? (
+                  <View style={{ flexDirection: "row" }}>
+                    <QuickButton
+                      label="Stop"
+                      disabled={saving}
+                      onPress={() => capture(p, { captureThread: false })}
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <Body muted>How far back should the Mac read?</Body>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <QuickButton
+                        label="New only"
+                        disabled={saving}
+                        onPress={() => capture(p, { historyWindow: "new" })}
+                      />
+                      <QuickButton
+                        label="3 months"
+                        disabled={saving}
+                        onPress={() => capture(p, { historyDays: 90 })}
+                      />
+                      <QuickButton
+                        label="Everything"
+                        disabled={saving}
+                        onPress={() => capture(p, { historyWindow: "all" })}
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : null}
+          </View>
         ))}
         <TextInput
           value={name}
