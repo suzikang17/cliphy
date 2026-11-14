@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { REQUEST_STATUSES, type RequestStatus } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
-import { inngest } from "../../lib/inngest.js";
 import { signImageUrl } from "../../lib/storage.js";
 import { toMessage, toRequest } from "../../lib/coachMappers.js";
 import {
   announceAnswer,
   confirmRequest,
+  fixRequest,
   loadRequest,
   type ConfirmBody,
 } from "../../services/coach/requestActions.js";
@@ -72,32 +72,7 @@ requestRoutes.post("/:id/confirm", async (c) => {
 // ── POST /:id/fix — "Fix it": read the messages again with a correction ──
 
 requestRoutes.post("/:id/fix", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
   const body = await c.req.json<{ note?: unknown }>().catch(() => ({}) as { note?: unknown });
-  const note = typeof body.note === "string" ? body.note.trim() : "";
-  if (!note) return c.json({ error: "note is required" }, 400);
-
-  const row = await loadRequest(id, userId);
-  if (!row) return c.json({ error: "request not found" }, 404);
-  if (row.status !== "new") return c.json({ error: "request is already confirmed" }, 409);
-
-  const bundleId = row.bundle_id as string;
-  await supabase
-    .from("coach_bundles")
-    .update({ fix_note: note, status: "collecting", kind: null })
-    .eq("id", bundleId)
-    .eq("user_id", userId);
-
-  // Start the re-read before discarding the misreading: if it cannot be
-  // started, the request must still be there to try again.
-  try {
-    await inngest.send({ name: "coach/bundle.fix", data: { bundleId, userId } });
-  } catch {
-    return c.json({ error: "Could not start the re-read" }, 500);
-  }
-  // A misreading nobody confirmed is discarded; the messages themselves stay.
-  await supabase.from("coach_requests").delete().eq("id", id).eq("user_id", userId);
-
-  return c.json({ ok: true }, 202);
+  const result = await fixRequest(c.get("userId"), c.req.param("id"), body.note);
+  return c.json(result.body, result.status);
 });

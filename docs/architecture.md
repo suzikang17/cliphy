@@ -472,4 +472,6 @@ Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route retu
 
 **Reminders (plan 2, [ADR 0055](decisions/0055-coach-reminders-minute-cron-with-claim-by-update.md)):** dated tasks get `coach_reminders` rows planned from the user's timezone and quiet hours (`coach_settings`, migration `039_coach_reminders.sql`). `coach-fire-reminders` runs every minute, sends through the Expo push API, and re-sends until the phone reports delivery (`/coach/reminders/:id/delivered`) and the user answers (`/ack`). `coach-weekly-review` sends the back-burner count once a week. `/coach/settings` and `/coach/health` expose timezone, quiet hours and whether notifications are getting through.
 
-**Not built yet:** the chat thread and learned rules, the phone screens, the Mac helper.
+**Chat (plan 3, [ADR 0056](decisions/0056-coach-chat-thread-rows-typed-buttons-and-a-bounded-agent.md)):** one thread per user in `coach_chat_messages` (migration `040_coach_chat.sql`). Jobs post what happened (a request, a reply, a reminder, a task that is now ready, the weekly review, a not-reaching-you warning), each once. `POST /coach/chat/:id/choose` runs a button's action; `POST /coach/chat` stores typed text and `coach-chat-reply` answers it with a tool-calling agent. `GET /coach/upnext` returns everything on the plate, arranged. `coach_rules` holds what the bot has learned (`/coach/rules`), created only with a visible "Learned" message.
+
+**Not built yet:** the phone screens, the Mac helper.

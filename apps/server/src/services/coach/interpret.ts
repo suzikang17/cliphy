@@ -32,6 +32,8 @@ export interface InterpretContext {
   waitingAsks: { id: string; title: string }[];
   /** What the user said was wrong with an earlier reading of this bundle. */
   fixNote: string | null;
+  /** Plain sentences learned from the user's earlier answers. Applied before asking again. */
+  rules?: string[];
 }
 
 export interface Interpretation {
@@ -258,6 +260,13 @@ function contextText(ctx: InterpretContext): string {
       ctx.waitingAsks.map((t) => `- ${t.id}: ${t.title}`),
     )}`,
   ];
+  if (ctx.rules?.length) {
+    parts.push(
+      `What you have learned from this user's earlier answers. Apply these; do not ask about them again:\n${ctx.rules
+        .map((r) => `- ${r}`)
+        .join("\n")}`,
+    );
+  }
   if (ctx.fixNote) {
     parts.push(`An earlier reading of these messages was wrong. The correction: ${ctx.fixNote}`);
   }

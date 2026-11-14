@@ -207,3 +207,36 @@ export async function announceAnswer(userId: string, requestId: string): Promise
     // Learning is a nicety; never fail a confirm over it.
   }
 }
+
+export type FixResult =
+  | { status: 202; body: { ok: true } }
+  | { status: 400 | 404 | 409 | 500; body: { error: string } };
+
+/** "Fix it": discard an unconfirmed misreading and read the messages again with `note`. */
+export async function fixRequest(userId: string, id: string, rawNote: unknown): Promise<FixResult> {
+  const note = typeof rawNote === "string" ? rawNote.trim() : "";
+  if (!note) return { status: 400, body: { error: "note is required" } };
+
+  const row = await loadRequest(id, userId);
+  if (!row) return { status: 404, body: { error: "request not found" } };
+  if (row.status !== "new") return { status: 409, body: { error: "request is already confirmed" } };
+
+  const bundleId = row.bundle_id as string;
+  await supabase
+    .from("coach_bundles")
+    .update({ fix_note: note, status: "collecting", kind: null })
+    .eq("id", bundleId)
+    .eq("user_id", userId);
+
+  // Start the re-read before discarding the misreading: if it cannot be
+  // started, the request must still be there to try again.
+  try {
+    await inngest.send({ name: "coach/bundle.fix", data: { bundleId, userId } });
+  } catch {
+    return { status: 500, body: { error: "Could not start the re-read" } };
+  }
+  // A misreading nobody confirmed is discarded; the messages themselves stay.
+  await supabase.from("coach_requests").delete().eq("id", id).eq("user_id", userId);
+
+  return { status: 202, body: { ok: true } };
+}

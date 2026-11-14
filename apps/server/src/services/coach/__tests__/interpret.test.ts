@@ -313,6 +313,16 @@ describe("coach interpretation", () => {
       expect(JSON.stringify(blocks)).toContain("1 image could not be read");
     });
 
+    it("shows the model what has been learned, so it does not ask again", () => {
+      const text = JSON.stringify(
+        buildInterpretMessages([textMessage("hi")], [], {
+          ...ctx,
+          rules: ['For Maren, "writing" means the words.'],
+        }),
+      );
+      expect(text).toContain("means the words");
+    });
+
     it("includes the correction when the user said the first reading was wrong", () => {
       const text = JSON.stringify(
         buildInterpretMessages([textMessage("hi")], [], { ...ctx, fixNote: "It's the homepage" }),

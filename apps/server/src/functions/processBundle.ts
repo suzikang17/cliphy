@@ -232,6 +232,12 @@ async function loadContext(
 
   const person = personRes.data as { id: string; name: string } | null;
   const { timezone } = await loadSettings(userId);
+  const { data: ruleRows } = await supabase
+    .from("coach_rules")
+    .select("sentence")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .limit(50);
   return {
     messages: (messagesRes.data as Row[]) ?? [],
     ctx: {
@@ -244,6 +250,7 @@ async function loadContext(
       ).map((r) => ({ id: r.id, projectId: r.project_id, understood: r.understood })),
       waitingAsks: (asksRes.data as { id: string; title: string }[]) ?? [],
       fixNote: (bundle.fix_note as string) ?? null,
+      rules: ((ruleRows as { sentence: string }[]) ?? []).map((r) => r.sentence),
     },
   };
 }

@@ -353,6 +353,21 @@ describe("coach processBundle", () => {
       expect(interpretMock.mock.calls[0][2].today).toBe("2026-11-14");
     });
 
+    it("passes the user's active learned rules to the interpreter", async () => {
+      const inner = storeDb();
+      db = makeDb((op: Op) =>
+        op.table === "coach_rules"
+          ? { data: [{ sentence: "Morning means 9:00." }] }
+          : inner.respond(op),
+      );
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(interpretMock.mock.calls[0][2].rules).toEqual(["Morning means 9:00."]);
+      const q = db.ops.find((o) => o.table === "coach_rules")!;
+      expect(q.filters).toContainEqual(["eq", "user_id", "u1"]);
+      expect(q.filters).toContainEqual(["eq", "active", true]);
+    });
+
     it("offers closed and historical requests as candidates to replace, but not replaced ones", async () => {
       interpretMock.mockResolvedValue(chatInterp());
       await run({ bundleId: "b1", userId: "u1" });
