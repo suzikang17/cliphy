@@ -130,3 +130,24 @@ Tests at the end: `pnpm vitest run apps` → 1399 passed; the 3 failing tests in
 - With setup finished the app opens no window. Running `start` again brings the window up through the single-instance handler.
 - Contacts live in `~/Library/Application Support/AddressBook/` as one SQLite file at the top and one per account under `Sources/`; phone numbers are free text, so matching is on the last ten digits.
 - The owner then checked the menu-bar icon and menu, Add from Messages, the capture switch and a text reaching Chat, and reported all of them good. Still unchecked: pairing from source past the code screen, and the Allow Messages screen moving on by itself in the packaged app.
+
+#### History choice on the Mac, and reopening history requests
+
+**What got done**
+
+- **Mac app:** the Add form under From Messages asks how far back to read: new messages only, the last 30 days, or everything (`8fd8bf1`). Before, anyone added from the Mac started at "new only".
+- **Server:** `POST /coach/requests/:id/reopen` turns a request filed as history back into a new one to confirm (`939496b`, `a18fa14`). It reuses the "Fix it" path: the bundle is read again as a live bundle and the same request row is rewritten and announced once. Phone sign-in only; an API key gets 403.
+- **Phone:** "Still needs doing" on a history request's page (`a12e415`). Ships by OTA update.
+- Designs and plan: [history spec](../superpowers/specs/2026-11-14-history-choice-and-reopen-design.md), [plan](../superpowers/plans/2026-11-14-history-choice-and-reopen.md). The [website task runner](../superpowers/specs/2026-11-14-website-task-runner-design.md) is designed and approved, not built.
+
+**Issues**
+
+- **Found by review, fixed:** a reopened old message was read with today's context, so it could be proposed as replacing a newer request or be filed as the reply to an ask being waited on now. A reopen is now read with no other requests and no waiting asks, and never proposes a replacement.
+- **Found by review, fixed:** a re-read that was not a request, or that failed, left a button that did nothing. The bundle now goes back to history so it can be tried again, and the phone says "Still reading" after a minute instead of claiming nothing was found.
+- The plan's deploy check (unauthenticated 401 vs 404) proved nothing, because auth answers before routing. Checked with the helper's key instead: 403 on the new route, 404 on a made-up one.
+
+**What to remember**
+
+- A reopened bundle is recognised by its `fix_note` being the fixed reopen sentence (`services/coach/reopen.ts`).
+- Four server test files fail on this Mac with or without these changes (`sharp` cannot load its library, embeddings, admin users). Not looked into.
+- Not yet checked by the owner: adding with "Last 30 days" and pressing "Still needs doing" on the phone.
