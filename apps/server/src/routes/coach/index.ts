@@ -1,0 +1,15 @@
+import { Hono } from "hono";
+import type { AppEnv } from "../../env.js";
+import { authMiddleware } from "../../middleware/auth.js";
+import { requireCoach } from "../../middleware/require-coach.js";
+import { peopleRoutes } from "./people.js";
+import { projectRoutes } from "./projects.js";
+
+/** Creative coach API. Every route needs auth and the per-account switch. */
+export const coachRoutes = new Hono<AppEnv>();
+
+coachRoutes.use("*", authMiddleware);
+coachRoutes.use("*", requireCoach);
+
+coachRoutes.route("/people", peopleRoutes);
+coachRoutes.route("/projects", projectRoutes);

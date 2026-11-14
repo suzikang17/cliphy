@@ -32,6 +32,7 @@ import { notesRoutes } from "./routes/notes.js";
 import { podcastRoutes } from "./routes/podcasts.js";
 import { tabsRoutes } from "./routes/tabs.js";
 import { trailRoutes } from "./routes/trail.js";
+import { coachRoutes } from "./routes/coach/index.js";
 import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
@@ -118,6 +119,7 @@ app.route("/keys", apiKeyRoutes);
 app.route("/podcasts", podcastRoutes);
 app.route("/tabs", tabsRoutes);
 app.route("/trail", trailRoutes);
+app.route("/coach", coachRoutes);
 
 app.onError(async (err, c) => {
   if (err instanceof HTTPException) {
