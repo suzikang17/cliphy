@@ -14,7 +14,9 @@ in the background; everything you see and do stays on your phone.
 
 Needs Node 22.13 or later, and this repo with `pnpm install` done.
 
-1. **Sign in.** In the phone app, create an API key (Settings → API keys). Then:
+1. **Sign in.** In the phone app, create an API key: Library → Subscriptions →
+   "Add from anywhere (Apple Shortcut)" → generate a key (it is copied to the
+   clipboard). Then:
 
    ```sh
    cd apps/mac-helper
