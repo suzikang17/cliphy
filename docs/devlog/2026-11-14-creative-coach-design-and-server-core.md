@@ -129,4 +129,4 @@ Tests at the end: `pnpm vitest run apps` → 1399 passed; the 3 failing tests in
 - When run from source the app is "Electron" (`com.github.Electron`) to macOS: that is the name in Full Disk Access, and every Electron checkout on the Mac shares it. The Allow Messages screen still says "Cliphy Helper".
 - With setup finished the app opens no window. Running `start` again brings the window up through the single-instance handler.
 - Contacts live in `~/Library/Application Support/AddressBook/` as one SQLite file at the top and one per account under `Sources/`; phone numbers are free text, so matching is on the last ten digits.
-- Still not checked by a person: the menu-bar icon and menu, capture switches (the account had no people yet), Add from Messages, and a text reaching Chat.
+- The owner then checked the menu-bar icon and menu, Add from Messages, the capture switch and a text reaching Chat, and reported all of them good. Still unchecked: pairing from source past the code screen, and the Allow Messages screen moving on by itself in the packaged app.
