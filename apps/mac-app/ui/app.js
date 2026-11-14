@@ -4,7 +4,12 @@ const $ = (id) => document.getElementById(id);
 const ORDER = ["pair", "access", "ready"];
 
 // The thread being given a name, kept here so a redraw does not lose typing.
-let adding = null; // { handle, name }
+let adding = null; // { handle, name, history }
+const HISTORY_CHOICES = [
+  ["new", "New messages only"],
+  ["30days", "Last 30 days"],
+  ["all", "Everything"],
+];
 
 function threadRow(thread) {
   const li = document.createElement("li");
@@ -20,13 +25,24 @@ function threadRow(thread) {
     const save = document.createElement("button");
     save.className = "small-button primary";
     save.textContent = "Add";
-    form.append(input, save);
+    const history = document.createElement("select");
+    history.setAttribute("aria-label", "How far back to read");
+    for (const [value, label] of HISTORY_CHOICES) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      history.append(option);
+    }
+    history.value = adding.history;
+    history.addEventListener("change", () => (adding.history = history.value));
+    form.append(input, save, history);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const name = input.value.trim();
       if (!name) return;
+      const choice = adding.history;
       adding = null;
-      window.helper.addPerson(thread.handle, name);
+      window.helper.addPerson(thread.handle, name, choice);
     });
     li.append(form);
     // Keep the cursor in the box across redraws.
@@ -47,7 +63,7 @@ function threadRow(thread) {
   add.textContent = "Add";
   add.setAttribute("aria-label", `Add ${thread.name ?? thread.handle}`);
   add.addEventListener("click", () => {
-    adding = { handle: thread.handle, name: thread.name ?? "" };
+    adding = { handle: thread.handle, name: thread.name ?? "", history: "new" };
     draw(last);
   });
   li.append(text, add);

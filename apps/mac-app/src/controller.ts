@@ -1,5 +1,5 @@
 import type { RecentThread } from "../../mac-helper/src/messagesDb.js";
-import type { CapturedPerson } from "../../mac-helper/src/plan.js";
+import type { CapturedPerson, HistoryWindow } from "../../mac-helper/src/plan.js";
 import type { Paired } from "../../mac-helper/src/pair.js";
 import type { HelperConfig } from "../../mac-helper/src/store.js";
 import { ApiError, type SyncResult } from "../../mac-helper/src/sync.js";
@@ -7,6 +7,22 @@ import { ApiError, type SyncResult } from "../../mac-helper/src/sync.js";
 // What the app is doing and what to do next, with everything that touches the
 // Mac or the network passed in. The window and the menu-bar item only draw
 // `state`.
+
+/** How far back to read when adding someone: from now, the last 30 days, or the whole thread. */
+export type AddHistory = "new" | "30days" | "all";
+
+export interface NewPerson {
+  name: string;
+  handle: string;
+  historyWindow: HistoryWindow;
+  historyDays: number | null;
+}
+
+const HISTORY: Record<AddHistory, Pick<NewPerson, "historyWindow" | "historyDays">> = {
+  new: { historyWindow: "new", historyDays: null },
+  "30days": { historyWindow: "window", historyDays: 30 },
+  all: { historyWindow: "all", historyDays: null },
+};
 
 /** pair: show a code. access: waiting for Full Disk Access. ready: uploading. */
 export type Step = "pair" | "access" | "ready";
@@ -41,7 +57,7 @@ export interface ControllerDeps {
   /** The name Contacts on this Mac has for a number or address, if any. */
   contactName(handle: string): string | null;
   /** Create the person in the app with this handle and capture switched on. */
-  addPerson(config: HelperConfig, input: { name: string; handle: string }): Promise<void>;
+  addPerson(config: HelperConfig, input: NewPerson): Promise<void>;
   now(): Date;
   onChange(state: AppState): void;
 }
@@ -163,12 +179,13 @@ export class Controller {
     }
   }
 
-  async addPerson(handle: string, rawName: string): Promise<void> {
+  async addPerson(handle: string, rawName: string, history: AddHistory = "new"): Promise<void> {
     const config = this.deps.loadConfig();
     const name = rawName.trim();
     if (!config || !name) return;
     try {
-      await this.deps.addPerson(config, { name, handle });
+      // Anything unrecognised reads from now on, the choice that uploads least.
+      await this.deps.addPerson(config, { name, handle, ...(HISTORY[history] ?? HISTORY.new) });
       this.set({ error: null, ...this.peopleView(await this.deps.people(config)) });
     } catch {
       this.set({ error: "Could not add them. Try again." });

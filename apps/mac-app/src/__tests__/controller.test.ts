@@ -212,6 +212,26 @@ describe("mac app controller", () => {
       expect(c.state.threads.map((t) => t.handle)).toEqual(["sam@example.com"]);
     });
 
+    it("sends how far back to read with the new person", async () => {
+      const added: unknown[] = [];
+      const { c } = setup({ addPerson: async (_c, i) => void added.push(i) }, paired);
+      await c.addPerson("sam@example.com", "Sam");
+      await c.addPerson("sam@example.com", "Sam", "30days");
+      await c.addPerson("sam@example.com", "Sam", "all");
+      expect(added).toEqual([
+        { name: "Sam", handle: "sam@example.com", historyWindow: "new", historyDays: null },
+        { name: "Sam", handle: "sam@example.com", historyWindow: "window", historyDays: 30 },
+        { name: "Sam", handle: "sam@example.com", historyWindow: "all", historyDays: null },
+      ]);
+    });
+
+    it("sends nothing when the name is empty, whatever the history choice", async () => {
+      const added: unknown[] = [];
+      const { c } = setup({ addPerson: async (_c, i) => void added.push(i) }, paired);
+      await c.addPerson("sam@example.com", "  ", "all");
+      expect(added).toEqual([]);
+    });
+
     it("names a thread from Contacts when the number is known there", async () => {
       const { c } = setup(
         {
@@ -258,7 +278,9 @@ describe("mac app controller", () => {
       );
       await c.tick();
       await c.addPerson("sam@example.com", "  Sam ");
-      expect(added).toEqual([{ name: "Sam", handle: "sam@example.com" }]);
+      expect(added).toEqual([
+        { name: "Sam", handle: "sam@example.com", historyWindow: "new", historyDays: null },
+      ]);
       expect(c.state.people.map((p) => p.name)).toEqual(["Maren", "Sam"]);
       expect(c.state.threads).toEqual([]);
     });

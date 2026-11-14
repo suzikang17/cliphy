@@ -281,7 +281,19 @@ button.small-button {
 .add-form {
   display: flex;
   flex: 1;
+  flex-wrap: wrap;
   gap: 6px;
+}
+/* How far back to read: its own line under the name. */
+.add-form select {
+  flex-basis: 100%;
+  padding: 4px 6px;
+  border: 1.5px solid var(--hair);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
 }
 input[type="text"] {
   flex: 1;

@@ -22,7 +22,7 @@ import {
   type HelperConfig,
 } from "../../mac-helper/src/store.js";
 import { ApiError, syncOnce } from "../../mac-helper/src/sync.js";
-import { Controller, type AppState } from "./controller.js";
+import { Controller, type AddHistory, type AppState, type NewPerson } from "./controller.js";
 import { stayInMenuBar } from "./quit.js";
 import { statusLine } from "./status.js";
 
@@ -95,10 +95,7 @@ async function setCapture(config: HelperConfig, personId: string, on: boolean): 
 }
 
 /** Add someone straight from their Messages thread, already switched on. */
-async function addPerson(
-  config: HelperConfig,
-  input: { name: string; handle: string },
-): Promise<void> {
+async function addPerson(config: HelperConfig, input: NewPerson): Promise<void> {
   const res = await fetch(`${config.apiUrl.replace(/\/+$/, "")}/api/coach/people`, {
     method: "POST",
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
@@ -107,7 +104,8 @@ async function addPerson(
       role: "client",
       handles: [input.handle],
       captureThread: true,
-      historyWindow: "new",
+      historyWindow: input.historyWindow,
+      ...(input.historyWindow === "window" ? { historyDays: input.historyDays } : {}),
     }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -212,8 +210,8 @@ ipcMain.handle("relaunch", () => {
 ipcMain.handle("set-capture", (_event, personId: string, on: boolean) =>
   controller.setCapture(String(personId), Boolean(on)),
 );
-ipcMain.handle("add-person", (_event, handle: string, name: string) =>
-  controller.addPerson(String(handle), String(name)),
+ipcMain.handle("add-person", (_event, handle: string, name: string, history?: AddHistory) =>
+  controller.addPerson(String(handle), String(name), history),
 );
 ipcMain.handle("disconnect", () => controller.disconnect());
 
