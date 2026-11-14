@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { CoachRequest, InboundMessage, Person } from "@cliphy/shared";
-import { confirmRequest, fixRequest, getPeople, getRequest } from "../../../lib/coachApi";
+import { reopenOutcome } from "../../../lib/coach";
+import {
+  confirmRequest,
+  fixRequest,
+  getPeople,
+  getRequest,
+  reopenRequest,
+} from "../../../lib/coachApi";
 import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import {
@@ -30,6 +37,15 @@ export default function RequestScreen() {
   const [fixing, setFixing] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
   const [note, setNote] = useState("");
+  // "Still needs doing" on a history request: idle, reading again, or read and nothing found.
+  const [reopening, setReopening] = useState<"idle" | "waiting" | "nothing">("idle");
+  const onScreen = useRef(true);
+  useEffect(
+    () => () => {
+      onScreen.current = false;
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +94,40 @@ export default function RequestScreen() {
     } catch {
       setActionFailed(true);
       setBusy(false);
+    }
+  };
+
+  const reopen = async () => {
+    if (busy || reopening === "waiting") return;
+    setBusy(true);
+    setActionFailed(false);
+    try {
+      await reopenRequest(id);
+    } catch {
+      setActionFailed(true);
+      setBusy(false);
+      return;
+    }
+    setReopening("waiting");
+    const started = Date.now();
+    // The server reads it again in the background; look every few seconds.
+    while (onScreen.current) {
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      const now = await getRequest(id).then(
+        (r) => r.request,
+        () => null,
+      );
+      const outcome = reopenOutcome(now, Date.now() - started);
+      if (outcome === "waiting") continue;
+      if (!onScreen.current) return;
+      if (outcome === "reopened") {
+        await load();
+        void refreshCoach({ full: true });
+        void refreshStrip();
+      }
+      setReopening(outcome === "reopened" ? "idle" : "nothing");
+      setBusy(false);
+      return;
     }
   };
 
@@ -215,9 +265,25 @@ export default function RequestScreen() {
                   <QuickButton label="Fix it" disabled={busy} onPress={() => setFixing(true)} />
                 </View>
               )
+            ) : request.historical && request.status === "closed" ? (
+              reopening === "idle" ? (
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 22 }}>
+                  <QuickButton label="Still needs doing" primary disabled={busy} onPress={reopen} />
+                </View>
+              ) : (
+                <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 22 }}>
+                  {reopening === "waiting"
+                    ? "Reading it again…"
+                    : "Read again, and there was nothing to do in it."}
+                </Text>
+              )
             ) : (
               <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 22 }}>
-                {request.status === "replaced" ? "Replaced by a later request." : "Confirmed."}
+                {request.status === "replaced"
+                  ? "Replaced by a later request."
+                  : request.status === "closed"
+                    ? "Closed."
+                    : "Confirmed."}
               </Text>
             )}
           </>

@@ -17,6 +17,7 @@ import {
   formatPairCode,
   pairCodeComplete,
   dayParts,
+  reopenOutcome,
   MIRROR_DELAY_MS,
 } from "../coach";
 
@@ -267,5 +268,23 @@ describe("formatPairCode", () => {
   it("knows when the code is complete", () => {
     expect(pairCodeComplete("ABCD-EFG")).toBe(false);
     expect(pairCodeComplete("ABCD-EFGH")).toBe(true);
+  });
+});
+
+describe("reopening a history request", () => {
+  const history = { historical: true, status: "closed" as const };
+
+  it("waits while the request is still filed as history", () => {
+    expect(reopenOutcome(history, 3_000)).toBe("waiting");
+    expect(reopenOutcome(null, 3_000)).toBe("waiting");
+  });
+
+  it("knows when it has come back as a new request", () => {
+    expect(reopenOutcome({ historical: false, status: "new" }, 6_000)).toBe("reopened");
+  });
+
+  it("gives up after a minute: read again, and judged not to be a request", () => {
+    expect(reopenOutcome(history, 59_000)).toBe("waiting");
+    expect(reopenOutcome(history, 60_000)).toBe("not-a-request");
   });
 });

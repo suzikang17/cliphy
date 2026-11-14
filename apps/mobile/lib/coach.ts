@@ -215,3 +215,19 @@ export function formatPairCode(raw: string): string {
 }
 
 export const pairCodeComplete = (code: string): boolean => formatPairCode(code).length === 9;
+
+/** How long to wait for a reopened history request to come back as a new one. */
+export const REOPEN_WAIT_MS = 60_000;
+
+/**
+ * After "Still needs doing": has the request come back as a new one? When it
+ * is still history after a minute, it was read again and judged to hold
+ * nothing to do.
+ */
+export function reopenOutcome(
+  now: { historical: boolean; status: string } | null,
+  waitedMs: number,
+): "waiting" | "reopened" | "not-a-request" {
+  if (now && !now.historical && now.status === "new") return "reopened";
+  return waitedMs >= REOPEN_WAIT_MS ? "not-a-request" : "waiting";
+}

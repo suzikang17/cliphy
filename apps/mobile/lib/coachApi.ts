@@ -57,6 +57,9 @@ export const confirmRequest = (id: string, body: { answer?: string; replaces?: b
   );
 export const fixRequest = (id: string, note: string) =>
   apiFetch<{ ok: true }>(`/api/coach/requests/${id}/fix`, json("POST", { note }));
+/** "Still needs doing": a request filed as history is read again as a new one. */
+export const reopenRequest = (id: string) =>
+  apiFetch<{ ok: true }>(`/api/coach/requests/${id}/reopen`, json("POST", {}));
 
 // Tasks
 export const getTasks = () => apiFetch<{ tasks: CoachTask[] }>("/api/coach/tasks");
