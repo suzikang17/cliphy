@@ -61,7 +61,7 @@ export class DuplicateError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   let token = await getAccessToken();
 
   if (!token) {
