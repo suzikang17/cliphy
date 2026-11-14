@@ -140,6 +140,8 @@ export async function onNotificationTapped(
 ): Promise<string | null> {
   const data = dataOf(response.notification);
   if (data.type === "weekly_review") return "/coach/upnext";
+  // A check-in is a question in the thread: open it there.
+  if (data.type === "checkin") return "/chat";
   if (data.type === "test") {
     await reportDelivered("test").catch(() => {});
     return "/coach/setup";
