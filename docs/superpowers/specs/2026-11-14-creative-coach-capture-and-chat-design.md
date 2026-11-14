@@ -117,6 +117,7 @@ These make it a failure even if it works as drawn:
   layer is required.
 - Onboarding and setup must be solid.
 - How far back the helper reads a thread is chosen for each client.
+- A client can also be a collaborator.
 - Look: light neo-brutalist, slightly less clunky than Cliphy today.
 
 Everything below that is not in this list is the designer's call and is marked
@@ -132,7 +133,7 @@ Two ways in.
 reads the Messages history on disk and uploads new messages, with attachments
 at full quality, from the threads she picked. It:
 
-- only reads threads for people marked as clients;
+- only reads threads for people Suzi has added (clients or collaborators);
 - reads one-to-one threads only, blue or green (iMessage or SMS). Group chats
   are out of scope for build 1;
 - uploads both directions (hers and the client's), so the bot has the
@@ -166,6 +167,13 @@ classified) also appear in Library as clips linked to the project, so client
 screenshots sit with Suzi's other saved things. They go through the normal
 image pipeline. Attachments in ordinary chat stay with the stored message and
 do not become clips.
+
+**People.** A person is a client, a collaborator, or both. In build 1 the role
+is a label: capture, requests, `tell` and `ask` tasks and history work the same
+for either. A collaborator's messages can carry requests just as a client's
+do, and a project can involve more than one person. Anything that depends on
+the role (what a client sees, what a collaborator can do inside the system)
+belongs to build 3.
 
 ### 2. Requests and history
 
@@ -322,7 +330,8 @@ Setup runs in Chat, driven by the bot, in four steps. Each ends with a real
 test.
 
 1. **Reminders.** Allow notifications, then a test reminder she must tap.
-2. **First client.** She types a name.
+2. **First person.** She types a name and says whether they are a client, a
+   collaborator or both.
 3. **Messages.** Connect the Mac, or "Later". Pairing is a short code shown on
    the phone and typed on the Mac. The helper walks her to the system setting
    it needs, then confirms it can read the chosen thread by showing the latest
@@ -333,7 +342,7 @@ test.
 
 Steps can be skipped and resumed. A **Setup** page behind the avatar shows each
 connection, when it last worked and what is unfinished: Reminders, Mac
-messages, Share sheet, Working hours (1b), Clients, Learned. It doubles as the
+messages, Share sheet, Working hours (1b), People, Learned. It doubles as the
 health check: if the Mac goes quiet or reminders stop getting through, it shows
 there and the bot says so in Chat.
 
@@ -395,10 +404,10 @@ lightening and should be read for layout and copy only.
 
 A sketch for the builder, not a schema.
 
-- **person**: a client or contact. Name, how to reach them, whether their
-  thread is captured.
-- **project**: belongs to a person (or to Suzi alone). Name, active or not,
-  one-line state.
+- **person**: someone Suzi works with. Role is client, collaborator or both.
+  Name, how to reach them, whether their thread is captured.
+- **project**: involves one or more people (or Suzi alone). Name, active or
+  not, one-line state.
 - **message**: one captured item with its attachments, direction, time,
   channel, and the bundle it was grouped into.
 - **request**: source bundle, understood text, project, open question,
@@ -524,3 +533,5 @@ These were not decided by Suzi. Each is the designer's call.
 21. Projects are tied to the existing `project:` tags, which seed them.
 22. Old requests read from a thread's past arrive as history, with no
     notifications and nothing to confirm.
+23. Client or collaborator is only a label in build 1 and changes no
+    behaviour. A project can involve several people.
