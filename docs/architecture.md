@@ -478,4 +478,6 @@ Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route retu
 
 **Mac helper (plan 5, [ADR 0057](decisions/0057-mac-helper-reads-messages-with-node-sqlite-and-an-api-key.md)):** `apps/mac-helper` reads `~/Library/Messages/chat.db` read-only for people with Capture on, uploads new messages and image attachments through `/coach/intake/*`, and reports in via `/coach/intake/heartbeat` (migration `041_coach_helper_seen.sql`). See its README for setup. Not yet run on a Mac.
 
-**Not built yet:** working hours, check-ins and progress photos (1b).
+**Working hours, check-ins and progress photos (1b, [ADR 0058](decisions/0058-coach-check-ins-as-chat-messages-and-three-tier-filing.md)):** `coach_settings` carries working hours and the current focus (migration `042_coach_working_hours.sql`). `coach-checkins` runs every 15 minutes and posts day-keyed check-ins to the thread. `POST /coach/progress` files a photo by three tiers (`services/coach/filing.ts`) into `coach_progress` and the Library; `POST /coach/progress/:id/project` moves it. On the phone: working hours in Setup, "Progress photo" from the plus (`app/coach/camera.tsx`), photos on the project page.
+
+**Everything above is unit-tested only.** Migrations 038–042 are unapplied, and nothing has run against a database, the Claude API, a phone or a Mac.

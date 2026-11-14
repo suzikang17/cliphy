@@ -6,7 +6,9 @@ import { supabase } from "./supabase";
 const BUCKET = "clip-images";
 
 /** Upload one shared image to the coach's intake folder, as a JPEG the bot can read. */
-async function upload(localUri: string): Promise<{ storagePath: string; mediaType: string }> {
+export async function uploadCoachImage(
+  localUri: string,
+): Promise<{ storagePath: string; mediaType: string }> {
   const jpeg = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 2000 } }], {
     compress: 0.85,
     format: ImageManipulator.SaveFormat.JPEG,
@@ -26,7 +28,7 @@ async function upload(localUri: string): Promise<{ storagePath: string; mediaTyp
  */
 export async function sendShareToChat(personId: string, share: PendingShare): Promise<void> {
   const attachments = [];
-  for (const uri of share.imageUris) attachments.push(await upload(uri));
+  for (const uri of share.imageUris) attachments.push(await uploadCoachImage(uri));
 
   const stamp = Date.now();
   const now = new Date(stamp).toISOString();

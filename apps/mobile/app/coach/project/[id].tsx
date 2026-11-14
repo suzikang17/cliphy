@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Image, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { CoachRequest } from "@cliphy/shared";
+import type { CoachRequest, ProgressEntry } from "@cliphy/shared";
 import { getProjectHistory, getProjects, type HistoryEntry } from "../../../lib/coachApi";
 import { Body, FONT, LINE, Page, useCoachTheme } from "../../../components/coach/ui";
 
@@ -19,12 +19,14 @@ export default function ProjectScreen() {
   const t = useCoachTheme();
   const [name, setName] = useState("Project");
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
+  const [photos, setPhotos] = useState<ProgressEntry[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     Promise.all([getProjectHistory(id), getProjects()])
       .then(([h, p]) => {
         setEntries(h.entries);
+        setPhotos(h.progress ?? []);
         setName(p.projects.find((x) => x.id === id)?.name ?? "Project");
       })
       .catch(() => setFailed(true));
@@ -39,6 +41,31 @@ export default function ProjectScreen() {
           <View style={{ marginTop: 20 }}>
             <Body muted>Couldn't load this.</Body>
           </View>
+        ) : null}
+        {photos.some((p) => p.url) ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
+            {photos
+              .filter((p) => p.url)
+              .map((p) => (
+                <View key={p.id} style={{ marginRight: 8 }}>
+                  <Image
+                    source={{ uri: p.url as string }}
+                    accessibilityLabel={`Progress photo, ${when(p.createdAt)}`}
+                    style={{
+                      width: 110,
+                      height: 146,
+                      borderRadius: 6,
+                      borderWidth: LINE,
+                      borderColor: t.line,
+                      backgroundColor: t.hairline,
+                    }}
+                  />
+                  <Text style={{ fontFamily: FONT, fontSize: 11, color: t.muted, marginTop: 3 }}>
+                    {when(p.createdAt)}
+                  </Text>
+                </View>
+              ))}
+          </ScrollView>
         ) : null}
         {entries?.length === 0 ? (
           <View style={{ marginTop: 20 }}>

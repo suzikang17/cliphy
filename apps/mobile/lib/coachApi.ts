@@ -9,6 +9,7 @@ import type {
   InboundMessage,
   Person,
   PersonRole,
+  ProgressEntry,
   Project,
   TaskKind,
   UpNext,
@@ -94,7 +95,22 @@ export const updatePerson = (
 ) => apiFetch<{ person: Person }>(`/api/coach/people/${id}`, json("PATCH", body));
 export const getProjects = () => apiFetch<{ projects: Project[] }>("/api/coach/projects");
 export const getProjectHistory = (id: string) =>
-  apiFetch<{ entries: HistoryEntry[] }>(`/api/coach/projects/${id}/history`);
+  apiFetch<{ entries: HistoryEntry[]; progress: ProgressEntry[] }>(
+    `/api/coach/projects/${id}/history`,
+  );
+
+// Progress photos
+export const addProgress = (storagePath: string, projectId?: string) =>
+  apiFetch<{
+    entry: ProgressEntry;
+    tier: "sure" | "fairly" | "unsure";
+    project: { id: string; name: string } | null;
+  }>("/api/coach/progress", json("POST", { storagePath, projectId }));
+export const moveProgress = (entryId: string, projectId: string) =>
+  apiFetch<{ moved: boolean; say: string | null }>(
+    `/api/coach/progress/${entryId}/project`,
+    json("POST", { projectId }),
+  );
 
 // Reminders, settings, health
 export const getReminders = () => apiFetch<{ reminders: CoachReminder[] }>("/api/coach/reminders");

@@ -139,6 +139,29 @@ describe("coach progress photos", () => {
     expect(db.written("coach_progress", "insert")[0]).toMatchObject({ clip_id: null });
   });
 
+  it("moves a photo to the project she picks afterwards", async () => {
+    const inner = world();
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_projects" && op.single) {
+        return { data: { id: "pr2", name: "Portfolio", tag: "project:portfolio" } };
+      }
+      if (op.table === "coach_progress" && op.action === "select") {
+        return { data: { id: "e1", project_id: "pr1", clip_id: null } };
+      }
+      return inner.respond(op);
+    });
+    const res = await post("/api/coach/progress/e1/project", { projectId: "pr2" });
+    expect(await res.json()).toEqual({ moved: true, say: "Moved to Portfolio." });
+    const upd = db.ops.find((o) => o.table === "coach_progress" && o.action === "update")!;
+    expect(upd.payload).toEqual({ project_id: "pr2" });
+  });
+
+  it("says nothing moved when the photo or project is not hers", async () => {
+    db = makeDb(() => ({ data: null }));
+    const res = await post("/api/coach/progress/nope/project", { projectId: "pr2" });
+    expect(await res.json()).toEqual({ moved: false, say: null });
+  });
+
   it("shows a project's progress photos alongside its history", async () => {
     const res = await app().request("/api/coach/projects/pr1/history");
     const out = await res.json();

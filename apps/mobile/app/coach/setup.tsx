@@ -6,10 +6,12 @@ import { agoLabel, helperRunning, setupSteps, type SetupStep } from "../../lib/c
 import {
   addPerson,
   deleteRule,
+  getCoachSettings,
   getHealth,
   getPeople,
   getRules,
   sendTestPush,
+  updateCoachSettings,
   updatePerson,
 } from "../../lib/coachApi";
 import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications";
@@ -32,6 +34,8 @@ const STEP_TITLE: Record<SetupStep, string> = {
   messages: "Messages",
   try: "Try it",
 };
+/** Short weekday labels, Sunday first, matching the server's day numbers. */
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ROLES: { role: PersonRole; label: string }[] = [
   { role: "client", label: "Client" },
   { role: "collaborator", label: "Collaborator" },
@@ -55,11 +59,29 @@ export default function SetupScreen() {
   const [handle, setHandle] = useState("");
   const [saving, setSaving] = useState(false);
   const [openPerson, setOpenPerson] = useState<string | null>(null);
+  const [number, setNumber] = useState("");
+  const [workDays, setWorkDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [workStart, setWorkStart] = useState("09:00");
+  const [workEnd, setWorkEnd] = useState("17:00");
+  const [workSet, setWorkSet] = useState(false);
+  const [workNote, setWorkNote] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [h, p, r] = await Promise.all([getHealth(), getPeople(), getRules()]);
+      const [h, p, r, st] = await Promise.all([
+        getHealth(),
+        getPeople(),
+        getRules(),
+        getCoachSettings(),
+      ]);
+      const work = st.settings.work;
+      setWorkSet(Boolean(work));
+      if (work) {
+        setWorkDays(work.days);
+        setWorkStart(work.start);
+        setWorkEnd(work.end);
+      }
       setHealth(h);
       setPeople(p.people);
       setRules(r.rules.filter((x) => x.active));
@@ -156,6 +178,42 @@ export default function SetupScreen() {
       setSaving(false);
     }
   };
+
+  const saveNumber = async (person: Person) => {
+    if (saving || !number.trim()) return;
+    setSaving(true);
+    try {
+      await updatePerson(person.id, { handles: [number.trim()] });
+      setNumber("");
+      await load();
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Working hours: when the bot may check in. None set means no check-ins.
+  const saveWork = async (clear: boolean) => {
+    if (saving) return;
+    setSaving(true);
+    setWorkNote(null);
+    try {
+      await updateCoachSettings({
+        work: clear ? null : { days: workDays, start: workStart.trim(), end: workEnd.trim() },
+      });
+      setWorkSet(!clear);
+      setWorkNote(clear ? "Check-ins are off." : "Saved.");
+    } catch {
+      setWorkNote("Use times like 09:00 and 17:00, with the start before the end.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const toggleDay = (day: number) =>
+    setWorkDays((days) =>
+      days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort((a, b) => a - b),
+    );
 
   const forget = async (rule: CoachRule) => {
     setRules((rs) => rs.filter((r) => r.id !== rule.id));
@@ -275,7 +333,26 @@ export default function SetupScreen() {
             {openPerson === p.id ? (
               <View style={{ paddingVertical: 10, gap: 10 }}>
                 {p.handles.length === 0 ? (
-                  <Body muted>Add their phone number to capture their texts.</Body>
+                  <>
+                    <Body muted>Add their phone number to capture their texts.</Body>
+                    <TextInput
+                      value={number}
+                      onChangeText={setNumber}
+                      placeholder="Phone number"
+                      placeholderTextColor={t.muted}
+                      keyboardType="phone-pad"
+                      accessibilityLabel={`Phone number for ${p.name}`}
+                      style={input}
+                    />
+                    <View style={{ flexDirection: "row" }}>
+                      <QuickButton
+                        label="Save"
+                        primary
+                        disabled={saving || !number.trim()}
+                        onPress={() => saveNumber(p)}
+                      />
+                    </View>
+                  </>
                 ) : p.captureThread ? (
                   <View style={{ flexDirection: "row" }}>
                     <QuickButton
@@ -340,6 +417,61 @@ export default function SetupScreen() {
         <View style={{ flexDirection: "row", marginTop: 10 }}>
           <QuickButton label="Add" primary disabled={!name.trim() || saving} onPress={savePerson} />
         </View>
+
+        <SectionLabel>Working hours</SectionLabel>
+        <View style={{ marginTop: 8 }}>
+          <Body muted>
+            {workSet
+              ? "I check in during these hours."
+              : "Set these and I'll check in while you work."}
+          </Body>
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+          {DAY_LABELS.map((label, day) => (
+            <QuickButton
+              key={label}
+              label={label}
+              chosen={workDays.includes(day)}
+              onPress={() => toggleDay(day)}
+            />
+          ))}
+        </View>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TextInput
+            value={workStart}
+            onChangeText={setWorkStart}
+            placeholder="09:00"
+            placeholderTextColor={t.muted}
+            keyboardType="numbers-and-punctuation"
+            accessibilityLabel="Start of working day"
+            style={{ ...input, flex: 1 }}
+          />
+          <TextInput
+            value={workEnd}
+            onChangeText={setWorkEnd}
+            placeholder="17:00"
+            placeholderTextColor={t.muted}
+            keyboardType="numbers-and-punctuation"
+            accessibilityLabel="End of working day"
+            style={{ ...input, flex: 1 }}
+          />
+        </View>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+          <QuickButton
+            label="Save"
+            primary
+            disabled={saving || workDays.length === 0}
+            onPress={() => saveWork(false)}
+          />
+          {workSet ? (
+            <QuickButton label="Turn off" disabled={saving} onPress={() => saveWork(true)} />
+          ) : null}
+        </View>
+        {workNote ? (
+          <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 8 }}>
+            {workNote}
+          </Text>
+        ) : null}
 
         <SectionLabel>Learned</SectionLabel>
         {rules.length === 0 ? (

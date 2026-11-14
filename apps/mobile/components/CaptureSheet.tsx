@@ -1,5 +1,7 @@
 import { View, Text, Pressable, Modal, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { useCoach } from "../lib/coachStore";
 import { brutalShadow } from "../lib/theme";
 import { uploadAndClipImage } from "../lib/uploadImage";
 import { addClip } from "../lib/api";
@@ -14,6 +16,9 @@ export function CaptureSheet({
   onClose: () => void;
   onCaptured: () => void;
 }) {
+  const router = useRouter();
+  const coachOn = useCoach().status === "on";
+
   async function handle(pick: () => Promise<ImagePicker.ImagePickerResult>) {
     onClose();
     const result = await pick();
@@ -60,6 +65,15 @@ export function CaptureSheet({
           className="bg-white dark:bg-[#282828] border-2 border-black dark:border-[#505050] rounded-t-2xl p-4 gap-3"
           style={brutalShadow()}
         >
+          {coachOn ? (
+            <SheetButton
+              label="Progress photo"
+              onPress={() => {
+                onClose();
+                router.push("/coach/camera" as never);
+              }}
+            />
+          ) : null}
           <SheetButton label="Paste a link" onPress={promptLink} />
           <SheetButton
             label="Choose from library"

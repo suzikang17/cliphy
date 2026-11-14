@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { signImageUrl } from "../../lib/storage.js";
 import { progressAsk, progressFiled } from "../../services/coach/botMessages.js";
+import { fileProgressEntry } from "../../services/coach/actions.js";
 import { postBotMessage } from "../../services/coach/chat.js";
 import { fileProgress, type FilingTier } from "../../services/coach/filing.js";
 import { loadSettings } from "../../services/coach/reminders.js";
@@ -101,4 +102,15 @@ progressRoutes.post("/", async (c) => {
     { entry, tier, project: project ? { id: project.id, name: project.name } : null },
     201,
   );
+});
+
+// ── POST /:id/project — "not that one": move a photo to another project ──
+
+progressRoutes.post("/:id/project", async (c) => {
+  const body = await c.req
+    .json<{ projectId?: unknown }>()
+    .catch(() => ({}) as { projectId?: unknown });
+  if (typeof body.projectId !== "string") return c.json({ error: "projectId is required" }, 400);
+  const result = await fileProgressEntry(c.get("userId"), c.req.param("id"), body.projectId);
+  return c.json({ moved: result.changed, say: result.say });
 });
