@@ -69,6 +69,29 @@ describe("planReminders", () => {
     expect(plan("2026-11-14")).toEqual([["morning_of", now.toISOString()]]);
   });
 
+  it("does not fire again for a task due today that has already been reminded", () => {
+    expect(
+      planReminders({ dueDate: "2026-11-14", dueTime: null }, settings, now, { hasFired: true }),
+    ).toEqual([]);
+  });
+
+  // A 07:00 deadline confirmed at 20:50 the night before: the 20:45 slot has
+  // passed, and the 09:00 morning reminder would come after the deadline.
+  it("fires now when every reminder before the deadline has already passed", () => {
+    const evening = new Date("2026-11-15T04:50:00Z"); // 20:50 on the 14th in LA
+    const planned = planReminders({ dueDate: "2026-11-15", dueTime: "07:00" }, settings, evening);
+    expect(planned.map((r) => [r.kind, r.fireAt.toISOString()])).toEqual([
+      ["at_time", evening.toISOString()],
+      ["morning_of", "2026-11-15T17:00:00.000Z"],
+    ]);
+  });
+
+  it("cannot fire now for a passed slot once quiet hours have started", () => {
+    const night = new Date("2026-11-15T05:30:00Z"); // 21:30 on the 14th in LA
+    const planned = planReminders({ dueDate: "2026-11-15", dueTime: "07:00" }, settings, night);
+    expect(planned.map((r) => r.kind)).toEqual(["morning_of"]);
+  });
+
   it("plans nothing for a task whose date has already gone", () => {
     expect(plan("2026-11-10")).toEqual([]);
   });

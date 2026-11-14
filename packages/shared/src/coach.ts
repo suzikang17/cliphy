@@ -146,7 +146,12 @@ export interface CoachReminder {
 }
 
 export interface CoachSettings {
-  /** IANA name, e.g. "America/Los_Angeles". */
+  /**
+   * False until the user's device has reported a timezone. Nothing is planned
+   * before then, so a reminder can never fire at the wrong hour of the night.
+   */
+  timezoneSet?: boolean;
+  /** IANA name, e.g. "America/Los_Angeles". "UTC" stands in until one is set. */
   timezone: string;
   /** Nothing notifies from quietStart to quietEnd, local time, "HH:MM". */
   quietStart: string;
@@ -157,6 +162,7 @@ export interface CoachSettings {
 }
 
 export const DEFAULT_COACH_SETTINGS: CoachSettings = {
+  timezoneSet: false,
   timezone: "UTC",
   quietStart: "21:00",
   quietEnd: "08:00",
@@ -166,6 +172,8 @@ export const DEFAULT_COACH_SETTINGS: CoachSettings = {
 
 export interface CoachHealth {
   pushTokens: number;
+  /** Reminders are only planned once this is true. */
+  timezoneSet: boolean;
   pushOk: boolean;
   lastDeliveredAt: string | null;
 }

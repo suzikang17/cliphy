@@ -4,6 +4,12 @@ import { makeDb, eqValue, type FakeDb, type Op } from "../../../routes/coach/__t
 
 let db: FakeDb;
 vi.mock("../../../lib/supabase.js", () => ({ supabase: { from: (t: string) => db.from(t) } }));
+const logError = vi.fn();
+vi.mock("../../../lib/logger.js", () => ({
+  logger: {
+    child: () => ({ info: vi.fn(), warn: vi.fn(), error: (...a: unknown[]) => logError(...a) }),
+  },
+}));
 
 const { syncTaskReminders, loadSettings } = await import("../reminders.js");
 
@@ -170,6 +176,56 @@ describe("syncTaskReminders", () => {
     expect(db.writtenTables()).toEqual([]);
   });
 
+  // An acked 09:00 reminder for a task due today must not come back when
+  // something unrelated re-syncs (quiet hours changed, a message was sent).
+  it("does not re-fire a task due today that has already been reminded", async () => {
+    db = reminderDb(
+      [{ id: "t1", state: "open", due_date: "2026-11-14", due_time: null }],
+      [
+        {
+          id: "r2",
+          task_id: "t1",
+          kind: "morning_of",
+          fire_at: "2026-11-14T17:00:00+00:00",
+          status: "acked",
+        },
+      ],
+    );
+    await syncTaskReminders("u1", ["t1"], now);
+    expect(db.writtenTables()).toEqual([]);
+  });
+
+  it("plans nothing until the user's timezone is known, so nothing fires at the wrong hour", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_tasks")
+        return { data: [{ id: "t1", state: "open", due_date: "2026-11-18", due_time: null }] };
+      if (op.table === "coach_settings") return { data: { timezone: null } };
+      return { data: [] };
+    });
+    expect(await syncTaskReminders("u1", ["t1"], now)).toBe(true);
+    expect(db.writtenTables()).toEqual([]);
+  });
+
+  it("reports and logs a failed write instead of pretending the reminders exist", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_tasks")
+        return { data: [{ id: "t1", state: "open", due_date: "2026-11-18", due_time: null }] };
+      if (op.table === "coach_settings") return { data: settingsRow };
+      if (op.table === "coach_reminders" && op.action === "upsert")
+        return { data: null, error: { message: "boom" } };
+      return { data: [] };
+    });
+    expect(await syncTaskReminders("u1", ["t1"], now)).toBe(false);
+    expect(logError).toHaveBeenCalled();
+  });
+
+  it("reports a failed task load", async () => {
+    db = makeDb((op: Op) =>
+      op.table === "coach_tasks" ? { data: null, error: { message: "boom" } } : { data: [] },
+    );
+    expect(await syncTaskReminders("u1", ["t1"], now)).toBe(false);
+  });
+
   it("keeps reminding a task that is waiting on someone", async () => {
     db = reminderDb([{ id: "t1", state: "waiting", due_date: "2026-11-18", due_time: null }]);
     await syncTaskReminders("u1", ["t1"], now);
@@ -185,6 +241,7 @@ describe("syncTaskReminders", () => {
   it("loads settings with defaults when the user has none", async () => {
     db = makeDb(() => ({ data: null }));
     expect(await loadSettings("u1")).toEqual({
+      timezoneSet: false,
       timezone: "UTC",
       quietStart: "21:00",
       quietEnd: "08:00",

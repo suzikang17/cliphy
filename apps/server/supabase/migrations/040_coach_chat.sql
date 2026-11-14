@@ -19,9 +19,10 @@ create table if not exists coach_chat_messages (
   created_at timestamptz not null default now()
 );
 
+-- A plain (not partial) unique index, so an upsert can name it as its conflict
+-- target. Rows with a null ref_id never conflict with each other.
 create unique index if not exists coach_chat_once_idx
-  on coach_chat_messages (user_id, kind, ref_id)
-  where ref_id is not null;
+  on coach_chat_messages (user_id, kind, ref_id);
 create index if not exists coach_chat_thread_idx on coach_chat_messages (user_id, created_at);
 
 -- Plain sentences the bot applies before asking again. Nothing is learned

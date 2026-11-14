@@ -9,6 +9,7 @@ import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { sendPush, type PushMessage } from "../services/push.js";
 import { nextResend } from "../services/coach/reminderPlan.js";
+import { syncTaskReminders } from "../services/coach/reminders.js";
 import { reminderText } from "../services/coach/reminderText.js";
 import { hhmm, inQuietHours, localParts } from "../services/coach/time.js";
 
@@ -76,8 +77,12 @@ async function messageFor(r: Row): Promise<PushMessage | null> {
   return { ...text, data: { type: "reminder", reminderId: r.id, taskId: task.id } };
 }
 
-async function setReminder(id: string, values: Row): Promise<void> {
-  await supabase.from("coach_reminders").update(values).eq("id", id);
+/** Update a reminder, optionally only while it is still in one of `onlyIf` statuses. */
+async function setReminder(id: string, values: Row, onlyIf?: string[]): Promise<void> {
+  const query = supabase.from("coach_reminders").update(values).eq("id", id);
+  if (!onlyIf) await query;
+  else if (onlyIf.length === 1) await query.eq("status", onlyIf[0]);
+  else await query.in("status", onlyIf);
 }
 
 /** Runs every minute and never overlaps itself. */
@@ -120,7 +125,15 @@ export const fireReminders = inngest.createFunction(
           await setReminder(r.id as string, { status: "cancelled" });
           return 0;
         }
-        await sendPush(r.user_id as string, message);
+        try {
+          await sendPush(r.user_id as string, message);
+        } catch (err) {
+          // The push service is down. Put this one back for the next minute and
+          // carry on, so one failure does not leave the rest claimed but unsent.
+          log.warn("Send failed, will retry", { reminderId: r.id, err: String(err) });
+          await setReminder(r.id as string, { status: "scheduled", sent_at: null }, ["sent"]);
+          return 0;
+        }
         return 1;
       });
     }
@@ -183,12 +196,17 @@ export const fireReminders = inngest.createFunction(
           log.warn("Re-send failed", { reminderId: r.id, err: String(err) });
           continue;
         }
-        await setReminder(r.id as string, {
-          status: "sent",
-          sent_at: now.toISOString(),
-          delivered_at: null,
-          resends: ((r.resends as number) ?? 0) + 1,
-        });
+        // Guarded: an answer or a cancel that landed while this was sending wins.
+        await setReminder(
+          r.id as string,
+          {
+            status: "sent",
+            sent_at: now.toISOString(),
+            delivered_at: null,
+            resends: ((r.resends as number) ?? 0) + 1,
+          },
+          ["sent", "delivered"],
+        );
         // Never reported as received: notifications may not be getting through.
         if (r.status === "sent") {
           state.pushFailures += 1;
@@ -253,5 +271,53 @@ export const weeklyReview = inngest.createFunction(
       return count;
     });
     return { sent };
+  },
+);
+
+/**
+ * Safety net for the failure the coach exists to prevent: a dated, live task
+ * with no reminder at all (a write failed, or it was dated before the
+ * timezone was known). Every ten minutes, plan what is missing.
+ */
+export const reconcileReminders = inngest.createFunction(
+  { id: "coach-reconcile-reminders", retries: 1, triggers: [{ cron: "*/10 * * * *" }] },
+  async ({ step }) => {
+    const repaired = await step.run("reconcile", async () => {
+      // Yesterday onward covers every timezone's "today".
+      const since = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+      const { data: taskRows } = await supabase
+        .from("coach_tasks")
+        .select("id, user_id")
+        .in("state", ["open", "waiting"])
+        .gte("due_date", since)
+        .limit(1000);
+      const tasks = (taskRows as { id: string; user_id: string }[]) ?? [];
+      if (tasks.length === 0) return 0;
+
+      const { data: reminderRows } = await supabase
+        .from("coach_reminders")
+        .select("task_id")
+        .in(
+          "task_id",
+          tasks.map((t) => t.id),
+        )
+        .neq("status", "cancelled");
+      const covered = new Set(
+        ((reminderRows as { task_id: string }[]) ?? []).map((r) => r.task_id),
+      );
+
+      const missing = new Map<string, string[]>();
+      for (const t of tasks) {
+        if (covered.has(t.id)) continue;
+        missing.set(t.user_id, [...(missing.get(t.user_id) ?? []), t.id]);
+      }
+      let count = 0;
+      for (const [userId, ids] of missing) {
+        await syncTaskReminders(userId, ids);
+        count += ids.length;
+      }
+      return count;
+    });
+    return { repaired };
   },
 );

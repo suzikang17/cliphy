@@ -4,8 +4,9 @@
 
 create table if not exists coach_settings (
   user_id uuid primary key references users(id) on delete cascade,
-  -- IANA name. Reminder times and "today" are computed in this zone.
-  timezone text not null default 'UTC',
+  -- IANA name. Reminder times and "today" are computed in this zone. Null
+  -- until the user's device reports one; no reminders are planned before then.
+  timezone text,
   -- Nothing notifies between these local times (the window may cross midnight).
   quiet_start time not null default '21:00',
   quiet_end time not null default '08:00',

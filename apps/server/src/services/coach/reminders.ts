@@ -1,7 +1,10 @@
 import { DEFAULT_COACH_SETTINGS, type CoachSettings } from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
+import { logger } from "../../lib/logger.js";
 import { planReminders } from "./reminderPlan.js";
 import { hhmm } from "./time.js";
+
+const log = logger.child({ service: "coach-reminders" });
 
 type Row = Record<string, unknown>;
 
@@ -18,6 +21,7 @@ export async function loadSettings(userId: string): Promise<CoachSettings> {
   const row = data as Row | null;
   if (!row) return { ...DEFAULT_COACH_SETTINGS };
   return {
+    timezoneSet: Boolean(row.timezone),
     timezone: (row.timezone as string) || DEFAULT_COACH_SETTINGS.timezone,
     quietStart: hhmm((row.quiet_start as string) ?? DEFAULT_COACH_SETTINGS.quietStart),
     quietEnd: hhmm((row.quiet_end as string) ?? DEFAULT_COACH_SETTINGS.quietEnd),
@@ -34,15 +38,18 @@ export async function loadSettings(userId: string): Promise<CoachSettings> {
  * cancelled, so a finished or re-dated task never fires an old reminder.
  * A reminder whose time is unchanged is left exactly as it is, so one that
  * has already gone out is not sent again.
+ *
+ * Returns false (and logs) when a read or write failed. Callers carry on —
+ * the task itself is saved — and the reconcile job plans what was missed.
  */
 export async function syncTaskReminders(
   userId: string,
   taskIds: string[],
   now: Date = new Date(),
-): Promise<void> {
-  if (taskIds.length === 0) return;
+): Promise<boolean> {
+  if (taskIds.length === 0) return true;
 
-  const [{ data: taskRows }, { data: reminderRows }, settings] = await Promise.all([
+  const [tasksRes, remindersRes, settings] = await Promise.all([
     supabase
       .from("coach_tasks")
       .select("id, state, due_date, due_time")
@@ -55,13 +62,24 @@ export async function syncTaskReminders(
       .in("task_id", taskIds),
     loadSettings(userId),
   ]);
+  if (tasksRes.error || remindersRes.error) {
+    log.error("Could not load tasks to plan reminders", undefined, { userId, taskIds });
+    return false;
+  }
+  // Without a timezone "09:00" has no meaning; planning in UTC would fire in
+  // the middle of someone's night. Planning happens when the timezone is set.
+  if (!settings.timezoneSet) return true;
 
-  const existing = (reminderRows as Row[]) ?? [];
+  const existing = (remindersRes.data as Row[]) ?? [];
   const upserts: Row[] = [];
   const cancelIds: string[] = [];
 
-  for (const task of (taskRows as Row[]) ?? []) {
+  for (const task of (tasksRes.data as Row[]) ?? []) {
     const active = task.state === "open" || task.state === "waiting";
+    const mine = existing.filter((r) => r.task_id === task.id);
+    const hasFired = mine.some(
+      (r) => r.status !== "cancelled" && Date.parse(r.fire_at as string) <= now.getTime(),
+    );
     const planned = active
       ? planReminders(
           {
@@ -70,9 +88,9 @@ export async function syncTaskReminders(
           },
           settings,
           now,
+          { hasFired },
         )
       : [];
-    const mine = existing.filter((r) => r.task_id === task.id);
 
     for (const p of planned) {
       const current = mine.find((r) => r.kind === p.kind);
@@ -102,14 +120,23 @@ export async function syncTaskReminders(
     }
   }
 
+  let ok = true;
   if (upserts.length > 0) {
-    await supabase.from("coach_reminders").upsert(upserts, { onConflict: "task_id,kind" });
+    const { error } = await supabase
+      .from("coach_reminders")
+      .upsert(upserts, { onConflict: "task_id,kind" });
+    if (error) {
+      log.error("Could not save reminders", undefined, { userId, taskIds });
+      ok = false;
+    }
   }
   for (const id of cancelIds) {
-    await supabase
+    const { error } = await supabase
       .from("coach_reminders")
       .update({ status: "cancelled" })
       .eq("id", id)
       .eq("user_id", userId);
+    if (error) ok = false;
   }
+  return ok;
 }

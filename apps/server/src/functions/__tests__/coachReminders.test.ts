@@ -13,7 +13,14 @@ vi.mock("../../lib/logger.js", () => ({
 const sendPush = vi.fn();
 vi.mock("../../services/push.js", () => ({ sendPush: (...a: unknown[]) => sendPush(...a) }));
 
-const { fireReminders, weeklyReview, FIRE_JOB } = await import("../coachReminders.js");
+const syncReminders = vi.fn();
+vi.mock("../../services/coach/reminders.js", async (orig) => ({
+  ...(await orig<typeof import("../../services/coach/reminders.js")>()),
+  syncTaskReminders: (...a: unknown[]) => syncReminders(...a),
+}));
+
+const { fireReminders, weeklyReview, reconcileReminders, FIRE_JOB } =
+  await import("../coachReminders.js");
 
 // Saturday 14 Nov 2026, 09:00 in Los Angeles.
 const NOW = "2026-11-14T17:00:00.000Z";
@@ -122,6 +129,50 @@ describe("coach fireReminders", () => {
     await fire();
     expect(steps).toEqual(["claim", "send-r1", "send-r2", "resend"]);
     expect(FIRE_JOB).toMatchObject({ concurrency: 1, triggers: [{ cron: "* * * * *" }] });
+  });
+
+  // One failed send must not strand the rest of the batch as "sent".
+  it("puts a reminder back when its push fails, and still sends the others", async () => {
+    db = world({
+      due: [
+        { id: "r1", user_id: "u1", task_id: "t1", kind: "morning_of" },
+        { id: "r2", user_id: "u1", task_id: "t1", kind: "at_time" },
+      ],
+    });
+    sendPush.mockRejectedValueOnce(new Error("Push service returned 503"));
+    const out = await fire();
+    expect(out.sent).toBe(1);
+    expect(sendPush).toHaveBeenCalledTimes(2);
+    const back = reminderUpdates().find(
+      (o) => (o.payload as { status?: string }).status === "scheduled",
+    )!;
+    expect(back.payload).toEqual({ status: "scheduled", sent_at: null });
+    expect(eqValue(back, "id")).toBe("r1");
+    expect(back.filters).toContainEqual(["eq", "status", "sent"]);
+    expect(db.written("coach_settings")).toEqual([]);
+  });
+
+  it("only re-sends a reminder that is still unanswered when the update lands", async () => {
+    db = world({
+      pending: [
+        {
+          id: "r1",
+          user_id: "u1",
+          task_id: "t1",
+          kind: "morning_of",
+          status: "sent",
+          sent_at: "2026-11-14T16:45:00Z",
+          delivered_at: null,
+          resends: 0,
+        },
+      ],
+    });
+    await fire();
+    expect(reminderUpdates().at(-1)?.filters).toContainEqual([
+      "in",
+      "status",
+      ["sent", "delivered"],
+    ]);
   });
 
   it("cancels a reminder whose task was finished, without sending", async () => {
@@ -305,5 +356,51 @@ describe("coach weeklyReview", () => {
     });
     await review();
     expect(sendPush).not.toHaveBeenCalled();
+  });
+});
+
+describe("coach reminder reconcile", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Reminders");
+    syncReminders.mockReset();
+    syncReminders.mockResolvedValue(true);
+  });
+
+  const reconcile = () =>
+    (reconcileReminders as unknown as (a: unknown) => Promise<{ repaired: number }>)({ step });
+
+  it("plans reminders for a dated open task that has none", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_tasks") {
+        return {
+          data: [
+            { id: "t1", user_id: "u1" },
+            { id: "t2", user_id: "u1" },
+            { id: "t3", user_id: "u2" },
+          ],
+        };
+      }
+      // t2 already has a reminder; t1 and t3 do not.
+      if (op.table === "coach_reminders") return { data: [{ task_id: "t2" }] };
+      return undefined;
+    });
+    expect((await reconcile()).repaired).toBe(2);
+    expect(syncReminders).toHaveBeenCalledWith("u1", ["t1"]);
+    expect(syncReminders).toHaveBeenCalledWith("u2", ["t3"]);
+    const q = db.ops.find((o) => o.table === "coach_tasks")!;
+    expect(q.filters).toContainEqual(["in", "state", ["open", "waiting"]]);
+    expect(q.filters.some(([m, c]) => m === "gte" && c === "due_date")).toBe(true);
+  });
+
+  it("does nothing when every dated task has a reminder", async () => {
+    db = makeDb((op: Op) =>
+      op.table === "coach_tasks"
+        ? { data: [{ id: "t1", user_id: "u1" }] }
+        : { data: [{ task_id: "t1" }] },
+    );
+    expect((await reconcile()).repaired).toBe(0);
+    expect(syncReminders).not.toHaveBeenCalled();
   });
 });

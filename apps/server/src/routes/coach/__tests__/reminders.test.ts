@@ -130,6 +130,7 @@ describe("coach reminders routes", () => {
   it("returns default settings when none are stored", async () => {
     const res = await app().request("/api/coach/settings");
     expect((await res.json()).settings).toEqual({
+      timezoneSet: false,
       timezone: "UTC",
       quietStart: "21:00",
       quietEnd: "08:00",
@@ -177,9 +178,18 @@ describe("coach reminders routes", () => {
     });
     expect(await (await app().request("/api/coach/health")).json()).toEqual({
       pushTokens: 1,
+      timezoneSet: false,
       pushOk: true,
       lastDeliveredAt: "2026-11-14T17:00:05Z",
     });
+  });
+
+  it("says whether the timezone has been set, since nothing is planned until it is", async () => {
+    db = world({
+      tokens: [{ token: "a" }],
+      settings: { push_failures: 0, timezone: "America/Los_Angeles" },
+    });
+    expect((await (await app().request("/api/coach/health")).json()).timezoneSet).toBe(true);
   });
 
   // Review Focus 3: the token is dead, or reminders are not being received.

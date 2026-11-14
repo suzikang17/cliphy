@@ -40,6 +40,8 @@ export function planReminders(
   task: { dueDate: string | null; dueTime: string | null },
   settings: CoachSettings,
   now: Date,
+  /** `hasFired`: a reminder for this task has already gone out, so do not announce it again. */
+  opts: { hasFired?: boolean } = {},
 ): PlannedReminder[] {
   const { dueDate } = task;
   if (!dueDate) return [];
@@ -78,13 +80,25 @@ export function planReminders(
   }
 
   const upcoming = spaced.filter((r) => r.fireAt.getTime() > now.getTime());
+  const local = localParts(now, tz);
+
+  // A timed deadline whose every earlier reminder has already passed (a 07:00
+  // task created at 20:50 the night before) would first be announced after
+  // the deadline. Announce it now, if now is allowed.
+  if (task.dueTime && !opts.hasFired && !quiet(local.time)) {
+    const deadline = zonedToUtc(dueDate, task.dueTime, tz).getTime();
+    const beforeDeadline = upcoming.some((r) => r.fireAt.getTime() <= deadline);
+    if (deadline > now.getTime() && !beforeDeadline) {
+      return [{ kind: "at_time", fireAt: now }, ...upcoming.filter((r) => r.kind !== "at_time")];
+    }
+  }
   if (upcoming.length > 0) return upcoming;
 
   // Everything has passed. A task still due today (or later) must not go
-  // unannounced: remind as soon as it is allowed.
-  const local = localParts(now, tz);
+  // unannounced: remind as soon as it is allowed. But only once: a task that
+  // has already been reminded is not announced again by an unrelated re-plan.
   const last = spaced.at(-1);
-  if (!last || dueDate < local.date) return [];
+  if (!last || dueDate < local.date || opts.hasFired) return [];
   if (!quiet(local.time)) return [{ kind: last.kind, fireAt: now }];
 
   // In quiet hours: wait until they end, unless the date will have gone by then.
