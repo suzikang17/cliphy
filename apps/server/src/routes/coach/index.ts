@@ -5,6 +5,7 @@ import { requireCoach } from "../../middleware/require-coach.js";
 import { intakeRoutes } from "./intake.js";
 import { peopleRoutes } from "./people.js";
 import { projectRoutes } from "./projects.js";
+import { requestRoutes } from "./requests.js";
 
 /** Creative coach API. Every route needs auth and the per-account switch. */
 export const coachRoutes = new Hono<AppEnv>();
@@ -15,3 +16,4 @@ coachRoutes.use("*", requireCoach);
 coachRoutes.route("/people", peopleRoutes);
 coachRoutes.route("/projects", projectRoutes);
 coachRoutes.route("/intake", intakeRoutes);
+coachRoutes.route("/requests", requestRoutes);

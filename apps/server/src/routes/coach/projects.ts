@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
-import { toProject } from "../../lib/coachMappers.js";
+import { toProject, toRequest } from "../../lib/coachMappers.js";
+import { buildHistory } from "../../services/coach/history.js";
 import { projectTag, seedProjectsFromTags } from "../../services/coach/projects.js";
 
 export const projectRoutes = new Hono<AppEnv>();
@@ -118,4 +119,27 @@ projectRoutes.patch("/:id", async (c) => {
     personIds = (await peopleByProject([id])).get(id) ?? [];
   }
   return c.json({ project: toProject(data as Row, personIds) });
+});
+
+// ── GET /:id/history — the trail of the work ─────────────────────────────
+
+projectRoutes.get("/:id/history", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data: project } = await supabase
+    .from("coach_projects")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!project) return c.json({ error: "project not found" }, 404);
+
+  // Requests still awaiting "Looks right" are not history yet.
+  const { data } = await supabase
+    .from("coach_requests")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("project_id", id)
+    .neq("status", "new");
+  return c.json({ entries: buildHistory(((data as Row[]) ?? []).map(toRequest)) });
 });

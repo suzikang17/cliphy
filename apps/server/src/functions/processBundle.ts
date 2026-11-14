@@ -227,82 +227,98 @@ async function loadContext(
   };
 }
 
-/**
- * Turn a bundle of captured messages into a request, a linked reply, or nothing.
- * Debounced per bundle so a burst of messages is read once, after the sender goes quiet.
- */
+/** Turn a bundle of captured messages into a request, a linked reply, or nothing. */
+type BundleEvent = { data: unknown };
+type BundleStep = { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> };
+
+async function runBundle({ event, step }: { event: BundleEvent; step: BundleStep }) {
+  const { bundleId, userId } = event.data as { bundleId: string; userId: string };
+
+  const bundle = await step.run("claim-bundle", async () => {
+    const { data } = await supabase
+      .from("coach_bundles")
+      .select("*")
+      .eq("id", bundleId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const row = data as Row | null;
+    if (!row || row.status === "done") return null;
+    await supabase
+      .from("coach_bundles")
+      .update({ status: "processing" })
+      .eq("id", bundleId)
+      .eq("user_id", userId);
+    return row;
+  });
+  if (!bundle) return { skipped: true };
+
+  // Load, download and interpret in one step: image bytes do not survive
+  // being passed between steps.
+  const { interp, messages } = await step.run("interpret", async () => {
+    const { ctx, messages } = await loadContext(bundle, userId);
+    const parsed: InboundMessage[] = messages.map(toMessage);
+
+    const images: { bytes: Buffer; mediaType: string }[] = [];
+    for (const m of parsed) {
+      for (const a of m.attachments) {
+        try {
+          images.push(await downloadImage(a.storagePath));
+        } catch (err) {
+          log.warn("Could not download attachment", { path: a.storagePath, err: String(err) });
+        }
+      }
+    }
+    return { interp: await interpretBundle(parsed, images, ctx), messages };
+  });
+
+  const { requestId } = await step.run("store", () =>
+    storeInterpretation(
+      {
+        id: bundleId,
+        person_id: bundle.person_id as string,
+        historical: bundle.historical === true,
+      },
+      messages,
+      interp,
+      userId,
+    ),
+  );
+
+  await step.run("finish", async () => {
+    await supabase
+      .from("coach_bundles")
+      .update({ status: "done", kind: interp.kind, fix_note: null })
+      .eq("id", bundleId)
+      .eq("user_id", userId);
+  });
+
+  return { kind: interp.kind, requestId };
+}
+
+const onFailure = async ({ event }: { event: { data: { event: { data: unknown } } } }) => {
+  const { bundleId, userId } = event.data.event.data as { bundleId: string; userId: string };
+  await markBundleFailed(bundleId, userId);
+};
+
+/** New messages: wait until the sender has been quiet, then read the bundle once. */
 export const processBundle = inngest.createFunction(
   {
     id: "coach-process-bundle",
     retries: 2,
     debounce: { key: "event.data.bundleId", period: "3m" },
     triggers: [{ event: "coach/bundle.touched" }],
-    onFailure: async ({ event }) => {
-      const { bundleId, userId } = event.data.event.data as { bundleId: string; userId: string };
-      await markBundleFailed(bundleId, userId);
-    },
+    onFailure,
   },
-  async ({ event, step }) => {
-    const { bundleId, userId } = event.data as { bundleId: string; userId: string };
+  runBundle as never,
+);
 
-    const bundle = await step.run("claim-bundle", async () => {
-      const { data } = await supabase
-        .from("coach_bundles")
-        .select("*")
-        .eq("id", bundleId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      const row = data as Row | null;
-      if (!row || row.status === "done") return null;
-      await supabase
-        .from("coach_bundles")
-        .update({ status: "processing" })
-        .eq("id", bundleId)
-        .eq("user_id", userId);
-      return row;
-    });
-    if (!bundle) return { skipped: true };
-
-    // Load, download and interpret in one step: image bytes do not survive
-    // being passed between steps.
-    const { interp, messages } = await step.run("interpret", async () => {
-      const { ctx, messages } = await loadContext(bundle, userId);
-      const parsed: InboundMessage[] = messages.map(toMessage);
-
-      const images: { bytes: Buffer; mediaType: string }[] = [];
-      for (const m of parsed) {
-        for (const a of m.attachments) {
-          try {
-            images.push(await downloadImage(a.storagePath));
-          } catch (err) {
-            log.warn("Could not download attachment", { path: a.storagePath, err: String(err) });
-          }
-        }
-      }
-      return { interp: await interpretBundle(parsed, images, ctx), messages };
-    });
-
-    const { requestId } = await step.run("store", () =>
-      storeInterpretation(
-        {
-          id: bundleId,
-          person_id: bundle.person_id as string,
-          historical: bundle.historical === true,
-        },
-        messages,
-        interp,
-        userId,
-      ),
-    );
-
-    await step.run("finish", async () => {
-      await supabase
-        .from("coach_bundles")
-        .update({ status: "done", kind: interp.kind, fix_note: null })
-        .eq("id", bundleId)
-        .eq("user_id", userId);
-    });
-
-    return { kind: interp.kind, requestId };
+/** "Fix it": read the same bundle again straight away, with the user's correction. */
+export const reprocessBundle = inngest.createFunction(
+  {
+    id: "coach-reprocess-bundle",
+    retries: 2,
+    triggers: [{ event: "coach/bundle.fix" }],
+    onFailure,
   },
+  runBundle as never,
 );
