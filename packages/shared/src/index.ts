@@ -18,3 +18,4 @@ export * from "./components/SelectionActionBar";
 export * from "./tags";
 export * from "./keywords";
 export * from "./pageUrl";
+export * from "./coach";
