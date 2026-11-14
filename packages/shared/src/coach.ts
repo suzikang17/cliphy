@@ -169,3 +169,96 @@ export interface CoachHealth {
   pushOk: boolean;
   lastDeliveredAt: string | null;
 }
+
+// ── Chat thread (plan 3) ─────────────────────────────────────────────────
+
+/** What tapping a button does. Executed on the server, once. */
+export type ChatAction =
+  | { type: "answer_request"; requestId: string; answer: string }
+  | { type: "confirm_request"; requestId: string }
+  | { type: "fix_request"; requestId: string }
+  | { type: "task_state"; taskId: string; state: "done" | "dropped" | "open" }
+  | { type: "task_sent"; taskId: string }
+  | { type: "snooze"; taskId: string; days: number }
+  | { type: "close_ask"; taskId: string }
+  | { type: "undo_rule"; ruleId: string }
+  | { type: "open"; link: ChatLink }
+  | { type: "dismiss" };
+
+export interface ChatButton {
+  label: string;
+  action: ChatAction;
+}
+
+export interface ChatLink {
+  type: "request" | "task" | "project" | "upnext" | "setup";
+  id?: string;
+}
+
+/** Why the bot spoke. With `refId`, also what stops it saying the same thing twice. */
+export type ChatKind =
+  | "request"
+  | "reply"
+  | "reminder"
+  | "unblocked"
+  | "review"
+  | "health"
+  | "rule"
+  | "did"
+  | "answer"
+  | "user";
+
+export interface CoachChatMessage {
+  id: string;
+  role: "bot" | "user";
+  text: string;
+  attachments: Attachment[];
+  buttons: ChatButton[];
+  link: ChatLink | null;
+  /** Index of the button the user tapped, once they have. */
+  chosen: number | null;
+  kind: ChatKind;
+  createdAt: string;
+}
+
+export interface CoachRule {
+  id: string;
+  sentence: string;
+  personId: string | null;
+  projectId: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export const MAX_CHAT_BUTTONS = 3;
+
+// ── Up next (plan 3) ─────────────────────────────────────────────────────
+
+export interface UpNextTask {
+  id: string;
+  kind: TaskKind;
+  title: string;
+  /** One short detail: who asked and for when, or the time. */
+  detail: string;
+  dueDate: string | null;
+  blocked: boolean;
+}
+
+export interface UpNext {
+  /** The strip at the top of Chat. */
+  strip: { thisWeek: number; next: string | null };
+  overdue: UpNextTask[];
+  thisWeek: { date: string; tasks: UpNextTask[] }[];
+  later: UpNextTask[];
+  /** The ball is with someone else. */
+  waiting: UpNextTask[];
+  errands: { place: string; tasks: UpNextTask[] }[];
+  backBurner: { count: number; titles: string[] };
+  byProject: {
+    projectId: string;
+    name: string;
+    state: string;
+    next: string | null;
+    open: number;
+  }[];
+}
