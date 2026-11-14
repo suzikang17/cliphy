@@ -5,8 +5,12 @@ import type { Interpretation } from "../../services/coach/interpret.js";
 
 let db: FakeDb;
 vi.mock("../../lib/supabase.js", () => ({ supabase: { from: (t: string) => db.from(t) } }));
+const inngestSend = vi.fn();
 vi.mock("../../lib/inngest.js", () => ({
-  inngest: { createFunction: (_c: unknown, fn: unknown) => fn, send: vi.fn() },
+  inngest: {
+    createFunction: (_c: unknown, fn: unknown) => fn,
+    send: (...a: unknown[]) => inngestSend(...a),
+  },
 }));
 vi.mock("../../lib/logger.js", () => ({
   logger: { child: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) },
@@ -24,8 +28,14 @@ vi.mock("../../services/imageClip.js", () => ({
   createImageClip: (...a: unknown[]) => createImageClipMock(...a),
 }));
 
-const { processBundle, storeInterpretation, markBundleFailed } =
-  await import("../processBundle.js");
+const {
+  processBundle,
+  storeInterpretation,
+  markBundleFailed,
+  sweepBundles,
+  BUNDLE_JOB,
+  RETRY_JOB,
+} = await import("../processBundle.js");
 
 const bundle = (over: Record<string, unknown> = {}) => ({
   id: "b1",
@@ -141,9 +151,10 @@ function storeDb(bundleRow = bundle(), messageRows: unknown[] = messages()) {
   });
 }
 
-const run = (data: unknown) =>
+const run = (data: unknown, attempt = 0) =>
   (processBundle as unknown as (a: unknown) => Promise<unknown>)({
     event: { data },
+    attempt,
     step: { run: async (_n: string, fn: () => Promise<unknown>) => fn() },
   });
 
@@ -283,13 +294,34 @@ describe("coach processBundle", () => {
       expect(op?.filters).toContainEqual(["in", "status", ["new", "confirmed", "closed"]]);
     });
 
-    it("downloads each attachment and skips one that cannot be fetched", async () => {
+    it("retries when an attachment cannot be fetched, not reading the bundle without it", async () => {
+      db = storeDb(bundle(), messagesWithTwoImages());
+      downloadImage.mockRejectedValueOnce(new Error("storage hiccup"));
+      interpretMock.mockResolvedValue(chatInterp());
+      await expect(run({ bundleId: "b1", userId: "u1" }, 0)).rejects.toThrow("storage hiccup");
+      expect(interpretMock).not.toHaveBeenCalled();
+    });
+
+    it("reads the bundle without a missing attachment only on the last attempt", async () => {
       db = storeDb(bundle(), messagesWithTwoImages());
       downloadImage.mockRejectedValueOnce(new Error("gone"));
       interpretMock.mockResolvedValue(chatInterp());
-      await run({ bundleId: "b1", userId: "u1" });
+      await run({ bundleId: "b1", userId: "u1" }, 2);
       expect(downloadImage).toHaveBeenCalledTimes(2);
       expect(interpretMock.mock.calls[0][1]).toHaveLength(1);
+    });
+
+    it("tells the model the attachment's real type, not one guessed from the file name", async () => {
+      db = storeDb(bundle(), [
+        {
+          ...messagesWithTwoImages()[0],
+          attachments: [{ storagePath: "coach/u1/a.heic", mediaType: "image/heic" }],
+        },
+      ]);
+      downloadImage.mockResolvedValue({ bytes: Buffer.from("x"), mediaType: "image/jpeg" });
+      interpretMock.mockResolvedValue(chatInterp());
+      await run({ bundleId: "b1", userId: "u1" });
+      expect(interpretMock.mock.calls[0][1][0].mediaType).toBe("image/heic");
     });
 
     it("skips a bundle that is already done", async () => {
@@ -314,12 +346,89 @@ describe("coach processBundle", () => {
       expect(db.writtenTables()).toEqual(["coach_bundles"]);
     });
 
-    it("marks the bundle failed once retries are exhausted, leaving messages untouched", async () => {
+    it("marks the bundle failed once retries are exhausted, counting the attempt", async () => {
+      db = storeDb(bundle({ attempts: 1 }));
       await markBundleFailed("b1", "u1");
       const op = db.ops.find((o) => o.table === "coach_bundles" && o.action === "update");
-      expect(op?.payload).toEqual({ status: "failed" });
+      expect(op?.payload).toEqual({ status: "failed", attempts: 2 });
       expect(eqValue(op!, "id")).toBe("b1");
       expect(db.writtenTables()).toEqual(["coach_bundles"]);
     });
+  });
+});
+
+describe("coach bundle job configuration", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Process bundle");
+  });
+
+  it("waits for quiet but never longer than 15 minutes, one bundle at a time per user", () => {
+    expect(BUNDLE_JOB).toMatchObject({
+      retries: 2,
+      debounce: { key: "event.data.bundleId", period: "3m", timeout: "15m" },
+      concurrency: [{ key: "event.data.userId", limit: 1 }],
+      triggers: [{ event: "coach/bundle.touched" }],
+    });
+    expect(BUNDLE_JOB.onFailure).toEqual(expect.any(Function));
+  });
+
+  it("re-reads straight away for a fix or a sweep, still one at a time per user", () => {
+    expect(RETRY_JOB).toMatchObject({
+      retries: 2,
+      concurrency: [{ key: "event.data.userId", limit: 1 }],
+      triggers: [{ event: "coach/bundle.fix" }, { event: "coach/bundle.retry" }],
+    });
+    expect((RETRY_JOB as { debounce?: unknown }).debounce).toBeUndefined();
+  });
+});
+
+describe("coach bundle sweep", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Process bundle");
+    inngestSend.mockReset();
+  });
+
+  const sweep = () =>
+    (sweepBundles as unknown as (a: unknown) => Promise<{ resent: number }>)({
+      step: { run: async (_n: string, fn: () => Promise<unknown>) => fn() },
+    });
+
+  it("re-announces bundles that were never read and failed ones that still have attempts left", async () => {
+    db = makeDb((op: Op) => {
+      if (op.table !== "coach_bundles") return undefined;
+      return eqValue(op, "status") === "collecting"
+        ? { data: [{ id: "b-stuck", user_id: "u1" }] }
+        : { data: [{ id: "b-failed", user_id: "u2" }] };
+    });
+    const out = await sweep();
+    expect(out.resent).toBe(2);
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "coach/bundle.retry",
+      data: { bundleId: "b-stuck", userId: "u1" },
+    });
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "coach/bundle.retry",
+      data: { bundleId: "b-failed", userId: "u2" },
+    });
+  });
+
+  it("only picks up bundles quiet for a while, and gives up on a bundle after 3 failures", async () => {
+    db = makeDb(() => ({ data: [] }));
+    await sweep();
+    const [stuck, failed] = db.ops;
+    expect(stuck.filters).toContainEqual(["eq", "status", "collecting"]);
+    expect(stuck.filters.some(([m, c]) => m === "lt" && c === "last_message_at")).toBe(true);
+    expect(failed.filters).toContainEqual(["eq", "status", "failed"]);
+    expect(failed.filters).toContainEqual(["lt", "attempts", 3]);
+  });
+
+  it("does nothing when there is nothing to sweep", async () => {
+    db = makeDb(() => ({ data: [] }));
+    expect((await sweep()).resent).toBe(0);
+    expect(inngestSend).not.toHaveBeenCalled();
   });
 });

@@ -35,6 +35,21 @@ describe("coach mappers", () => {
     });
   });
 
+  it("returns a due time as HH:MM, the form the API accepts back", () => {
+    const t = toTask(
+      {
+        id: "t1",
+        kind: "do",
+        state: "open",
+        title: "x",
+        due_date: "2026-11-18",
+        due_time: "09:00:00",
+      },
+      false,
+    );
+    expect(t.dueTime).toBe("09:00");
+  });
+
   it("defaults a request's proposedTasks and openQuestion", () => {
     const r = toRequest({
       id: "r1",

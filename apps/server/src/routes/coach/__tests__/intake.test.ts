@@ -23,18 +23,29 @@ const app = () => new Hono().route("/api/coach", coachRoutes);
 const post = (path: string, body: unknown) => app().request(path, json("POST", body));
 
 /** A database with one person, no bundles yet, and `existing` message ids already stored. */
-function intakeDb(opts: { existing?: string[]; person?: boolean; bundle?: unknown } = {}) {
+function intakeDb(
+  opts: {
+    existing?: string[];
+    person?: boolean;
+    bundle?: unknown;
+    collecting?: { id: string }[];
+  } = {},
+) {
   let n = 0;
   return makeDb((op: Op) => {
     if (op.table === "coach_people") return { data: opts.person === false ? null : { id: "p1" } };
-    if (op.table === "coach_bundles" && op.action === "select")
-      return { data: opts.bundle ?? null };
+    if (op.table === "coach_bundles" && op.action === "select") {
+      // The lookup of still-collecting bundles for re-sent messages is a list.
+      return op.single ? { data: opts.bundle ?? null } : { data: opts.collecting ?? [] };
+    }
     if (op.table === "coach_bundles" && op.action === "insert") {
       const p = op.payload as { last_message_at: string };
       return { data: { id: `b${++n}`, status: "collecting", last_message_at: p.last_message_at } };
     }
     if (op.table === "coach_messages" && op.action === "select") {
-      return { data: (opts.existing ?? []).map((external_id) => ({ external_id })) };
+      return {
+        data: (opts.existing ?? []).map((external_id) => ({ external_id, bundle_id: "b9" })),
+      };
     }
     if (op.table === "coach_messages" && op.action === "upsert") return { data: [{ id: "m" }] };
     return undefined;
@@ -102,6 +113,71 @@ describe("coach intake", () => {
   });
 
   // Review Focus 1: the helper retries an upload after a timeout.
+  // The first upload stored the messages but died before announcing the bundle.
+  it("announces a still-unread bundle again when its messages are re-uploaded", async () => {
+    db = intakeDb({ existing: ["m1", "m2"], collecting: [{ id: "b9" }] });
+    const res = await post("/api/coach/intake/messages", batch);
+    expect(await res.json()).toEqual({ stored: 0, duplicates: 2, bundleIds: [] });
+    expect(db.writtenTables()).toEqual([]);
+    expect(inngestSend).toHaveBeenCalledTimes(1);
+    expect(inngestSend).toHaveBeenCalledWith({
+      name: "coach/bundle.touched",
+      data: { bundleId: "b9", userId: "test-user-id" },
+    });
+  });
+
+  it("starts a new bundle for a live message even right after a historical one", async () => {
+    db = intakeDb({
+      bundle: {
+        id: "b-old",
+        status: "collecting",
+        last_message_at: "2026-11-14T09:41:30Z",
+        historical: true,
+      },
+    });
+    const res = await post("/api/coach/intake/messages", {
+      ...batch,
+      messages: [batch.messages[1]],
+    });
+    expect((await res.json()).bundleIds).toEqual(["b1"]);
+    expect(db.written("coach_bundles", "insert")[0]).toMatchObject({ historical: false });
+  });
+
+  it("rejects an attachment path that climbs out of the caller's folder", async () => {
+    const res = await post("/api/coach/intake/messages", {
+      personId: "p1",
+      channel: "imessage",
+      messages: [
+        {
+          externalId: "m5",
+          direction: "in",
+          sentAt: "2026-11-14T10:00:00Z",
+          attachments: [
+            { storagePath: "coach/test-user-id/../someone-else/a.png", mediaType: "image/png" },
+          ],
+        },
+      ],
+    });
+    expect(res.status).toBe(400);
+    expect(db.writtenTables()).toEqual([]);
+  });
+
+  it("rejects an attachment that is not an image type we accept", async () => {
+    const res = await post("/api/coach/intake/messages", {
+      personId: "p1",
+      channel: "imessage",
+      messages: [
+        {
+          externalId: "m6",
+          direction: "in",
+          sentAt: "2026-11-14T10:00:00Z",
+          attachments: [{ storagePath: "coach/test-user-id/a.pdf", mediaType: "application/pdf" }],
+        },
+      ],
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("stores nothing and sends no event when the same messages are uploaded again", async () => {
     db = intakeDb({ existing: ["m1", "m2"] });
     const res = await post("/api/coach/intake/messages", batch);

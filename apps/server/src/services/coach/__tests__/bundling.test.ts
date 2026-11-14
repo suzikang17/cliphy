@@ -35,6 +35,12 @@ describe("pickBundle", () => {
   it("starts a new bundle when there is none", () => {
     expect(pickBundle(null, "in", "2026-11-14T09:42:30Z")).toBe("new");
   });
+  it("never appends a live message to a bundle read from the thread's past", () => {
+    const past = { ...open, historical: true };
+    expect(pickBundle(past, "in", "2026-11-14T09:42:30Z", undefined, false)).toBe("new");
+    expect(pickBundle(past, "in", "2026-11-14T09:42:30Z", undefined, true)).toBe("append");
+    expect(pickBundle(open, "in", "2026-11-14T09:42:30Z", undefined, true)).toBe("new");
+  });
   it("honours a custom quiet window", () => {
     expect(pickBundle(open, "in", "2026-11-14T09:42:30Z", 10_000)).toBe("new");
   });

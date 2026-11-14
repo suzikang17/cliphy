@@ -31,7 +31,7 @@ export function makeDb(respond: Responder = () => undefined) {
       const chain: Record<string, unknown> = {};
       const passthrough = ["select", "order", "limit", "range"];
       for (const m of passthrough) chain[m] = () => chain;
-      for (const m of ["eq", "neq", "in", "is", "like", "gte", "lte", "not"]) {
+      for (const m of ["eq", "neq", "in", "is", "like", "gte", "lte", "lt", "gt", "not"]) {
         chain[m] = (col: string, val: unknown) => {
           op.filters.push([m, col, val]);
           return chain;

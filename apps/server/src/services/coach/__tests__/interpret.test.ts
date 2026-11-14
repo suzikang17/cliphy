@@ -294,6 +294,25 @@ describe("coach interpretation", () => {
       expect(JSON.stringify(blocks)).toContain("1 image could not be read");
     });
 
+    it("sends at most 8 images and says how many were left out", () => {
+      const images = Array.from({ length: 11 }, () => ({
+        bytes: Buffer.from("x"),
+        mediaType: "image/png",
+      }));
+      const blocks = buildInterpretMessages([textMessage("photos")], images, ctx).at(-1)!
+        .content as Anthropic.ContentBlockParam[];
+      expect(blocks.filter((b) => b.type === "image")).toHaveLength(8);
+      expect(JSON.stringify(blocks)).toContain("3 images could not be read");
+    });
+
+    it("leaves out an image too large to send", () => {
+      const big = { bytes: Buffer.alloc(3_600_000), mediaType: "image/jpeg" };
+      const blocks = buildInterpretMessages([textMessage("photo")], [big], ctx).at(-1)!
+        .content as Anthropic.ContentBlockParam[];
+      expect(blocks.some((b) => b.type === "image")).toBe(false);
+      expect(JSON.stringify(blocks)).toContain("1 image could not be read");
+    });
+
     it("includes the correction when the user said the first reading was wrong", () => {
       const text = JSON.stringify(
         buildInterpretMessages([textMessage("hi")], [], { ...ctx, fixNote: "It's the homepage" }),

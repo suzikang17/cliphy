@@ -83,7 +83,8 @@ export function toTask(row: Row, blocked: boolean): CoachTask {
     afterTaskId: str(row.after_task_id),
     blocked,
     dueDate: str(row.due_date),
-    dueTime: str(row.due_time),
+    // Postgres returns a `time` as HH:MM:SS; the API speaks HH:MM both ways.
+    dueTime: str(row.due_time)?.slice(0, 5) ?? null,
     place: str(row.place),
     checklist: (row.checklist as ChecklistItem[]) ?? [],
     replyBundleId: str(row.reply_bundle_id),

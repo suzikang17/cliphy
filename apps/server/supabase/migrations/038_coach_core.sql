@@ -51,6 +51,8 @@ create table if not exists coach_bundles (
   -- Read from a thread's past: becomes history, never a new request.
   historical boolean not null default false,
   fix_note text,
+  -- Times the read job has given up on this bundle; the sweep stops retrying at 3.
+  attempts int not null default 0,
   created_at timestamptz not null default now()
 );
 

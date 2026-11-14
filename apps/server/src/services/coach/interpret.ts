@@ -15,6 +15,9 @@ const anthropic = new Anthropic({ timeout: 120_000 });
 
 export const INTERPRET_MODEL = "claude-opus-5-5";
 const TOOL_NAME = "record_interpretation";
+/** How many images one reading may carry, and how large each may be (raw bytes). */
+const MAX_IMAGES = 8;
+const MAX_IMAGE_BYTES = 3_500_000;
 /** Image formats the model can read. Anything else is described, not sent. */
 const READABLE_IMAGES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 type ReadableImage = (typeof READABLE_IMAGES)[number];
@@ -268,12 +271,21 @@ export function buildInterpretMessages(
 ): Anthropic.MessageParam[] {
   const content: Anthropic.ContentBlockParam[] = [{ type: "text", text: contextText(ctx) }];
 
+  // Captures are kept at full quality, but a reading has a size budget: images
+  // in a format the model cannot read, too large, or past the count limit are
+  // left out and counted so the model knows something is missing.
   let unreadable = 0;
+  let sent = 0;
   for (const image of images) {
-    if (!READABLE_IMAGES.includes(image.mediaType as ReadableImage)) {
+    if (
+      !READABLE_IMAGES.includes(image.mediaType as ReadableImage) ||
+      image.bytes.length > MAX_IMAGE_BYTES ||
+      sent >= MAX_IMAGES
+    ) {
       unreadable++;
       continue;
     }
+    sent++;
     content.push({
       type: "image",
       source: {

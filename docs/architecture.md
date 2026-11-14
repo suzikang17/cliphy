@@ -464,6 +464,7 @@ Behind a per-account switch (`users.coach_enabled`); every `/coach/*` route retu
 3. Inngest `coach-process-bundle` (debounced 3 minutes per bundle) asks Claude what the bundle is: a **request**, a **reply** to a waiting ask, or **chat** (stores nothing). Bundles read from a thread's past become closed, historical requests.
 4. A request holds what was understood, at most one open question, the request it would replace, and a proposed chain of tasks. `POST /coach/requests/:id/confirm` creates the tasks; `/fix` re-reads the bundle with a correction.
 5. Tasks have one kind (`do`, `tell`, `ask`, `get`) and may wait on another task. `blocked` is computed on read.
+6. Nothing captured may sit unread: `coach-sweep-bundles` runs every 10 minutes and re-reads bundles that were stored but never read, and failed bundles until they have failed 3 times. A re-upload of already-stored messages also re-announces their bundle.
 
 **Tables** (migration `038_coach_core.sql`): `coach_people`, `coach_projects`, `coach_project_people`, `coach_bundles`, `coach_messages`, `coach_requests`, `coach_tasks`.
 

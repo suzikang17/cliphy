@@ -37,7 +37,7 @@ import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 import { visionClip } from "./functions/visionClip.js";
-import { processBundle, reprocessBundle } from "./functions/processBundle.js";
+import { processBundle, reprocessBundle, sweepBundles } from "./functions/processBundle.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -99,6 +99,7 @@ app.on(
       purgeTrailCron,
       processBundle,
       reprocessBundle,
+      sweepBundles,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",

@@ -58,10 +58,16 @@ function parseMessages(raw: unknown, userId: string): string | IncomingMessage[]
       string,
       unknown
     >[]) {
-      if (typeof a?.storagePath !== "string" || !a.storagePath.startsWith(`coach/${userId}/`)) {
+      if (
+        typeof a?.storagePath !== "string" ||
+        !a.storagePath.startsWith(`coach/${userId}/`) ||
+        a.storagePath.split("/").includes("..")
+      ) {
         return "invalid attachment path";
       }
-      if (typeof a.mediaType !== "string") return "attachment mediaType is required";
+      if (typeof a.mediaType !== "string" || !(a.mediaType in EXTENSIONS)) {
+        return "unsupported attachment type";
+      }
       attachments.push({ storagePath: a.storagePath, mediaType: a.mediaType });
     }
 
@@ -104,23 +110,41 @@ intakeRoutes.post("/messages", async (c) => {
   // Re-uploads are expected (the capturer retries), so drop what is already stored.
   const { data: existingRows } = await supabase
     .from("coach_messages")
-    .select("external_id")
+    .select("external_id, bundle_id")
     .eq("user_id", userId)
     .eq("channel", channel)
     .in(
       "external_id",
       messages.map((m) => m.externalId),
     );
-  const existing = new Set(
-    ((existingRows as { external_id: string }[]) ?? []).map((r) => r.external_id),
-  );
+  const alreadyStored = (existingRows as { external_id: string; bundle_id: string | null }[]) ?? [];
+  const existing = new Set(alreadyStored.map((r) => r.external_id));
   const fresh = messages.filter((m) => !existing.has(m.externalId));
   let duplicates = messages.length - fresh.length;
+
+  // A retry usually means the first upload died part-way. If it stored the
+  // messages but never announced their bundle, nothing would ever read it, so
+  // announce any of those bundles that is still waiting. The job is debounced
+  // and skips finished bundles, so announcing twice is harmless.
+  const seenBundleIds = [
+    ...new Set(alreadyStored.map((r) => r.bundle_id).filter(Boolean)),
+  ] as string[];
+  if (seenBundleIds.length > 0) {
+    const { data: waiting } = await supabase
+      .from("coach_bundles")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "collecting")
+      .in("id", seenBundleIds);
+    for (const b of (waiting as { id: string }[]) ?? []) {
+      await inngest.send({ name: "coach/bundle.touched", data: { bundleId: b.id, userId } });
+    }
+  }
   if (fresh.length === 0) return c.json({ stored: 0, duplicates, bundleIds: [] });
 
   const { data: latest } = await supabase
     .from("coach_bundles")
-    .select("id, status, last_message_at")
+    .select("id, status, last_message_at, historical")
     .eq("user_id", userId)
     .eq("person_id", body.personId)
     .order("created_at", { ascending: false })
@@ -131,15 +155,17 @@ intakeRoutes.post("/messages", async (c) => {
         id: (latest as { id: string }).id,
         status: (latest as { status: OpenBundle["status"] }).status,
         lastMessageAt: (latest as { last_message_at: string }).last_message_at,
+        historical: (latest as { historical?: boolean }).historical === true,
       }
     : null;
 
+  const historical = body.historical === true;
   let stored = 0;
   const touched: string[] = [];
   const moved = new Map<string, string>(); // bundle id → its new last message time
 
   for (const m of fresh) {
-    const decision = pickBundle(current, m.direction, m.sentAt);
+    const decision = pickBundle(current, m.direction, m.sentAt, undefined, historical);
     let bundleId: string | null = null;
 
     if (decision === "new") {
@@ -149,7 +175,7 @@ intakeRoutes.post("/messages", async (c) => {
           user_id: userId,
           person_id: body.personId,
           last_message_at: m.sentAt,
-          historical: body.historical === true,
+          historical,
         })
         .select("id, status, last_message_at")
         .single();
@@ -158,6 +184,7 @@ intakeRoutes.post("/messages", async (c) => {
         id: (created as { id: string }).id,
         status: "collecting",
         lastMessageAt: m.sentAt,
+        historical,
       };
       bundleId = current.id;
     } else if (decision === "append" && current) {

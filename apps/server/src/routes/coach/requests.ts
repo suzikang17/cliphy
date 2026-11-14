@@ -1,5 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
-import { REQUEST_STATUSES, type CoachTask, type RequestStatus } from "@cliphy/shared";
+import {
+  REQUEST_STATUSES,
+  type CoachRequest,
+  type CoachTask,
+  type RequestStatus,
+} from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { inngest } from "../../lib/inngest.js";
@@ -83,6 +89,47 @@ requestRoutes.get("/:id", async (c) => {
 
 // ── POST /:id/confirm — "Looks right": the request becomes its tasks ─────
 
+/** A confirm that flipped the status but never got its tasks is repairable after this long. */
+const REPAIR_AFTER_MS = 60_000;
+
+/**
+ * Create a confirmed request's task chain in one statement, so it exists
+ * entirely or not at all. Ids are made here so tasks can point at each other.
+ */
+async function createChain(
+  request: CoachRequest,
+  userId: string,
+): Promise<{ rows: Row[] } | { error: true }> {
+  const chain = materializeChain(request.proposedTasks, { answered: request.answer !== null });
+  if (chain.length === 0) return { rows: [] };
+
+  const ids = chain.map(() => randomUUID());
+  const firstDo = chain.findIndex((t) => t.kind === "do");
+  // The deadline belongs on the work; with no `do` task it goes on the first step.
+  const dated = firstDo === -1 ? 0 : firstDo;
+
+  const { data, error } = await supabase
+    .from("coach_tasks")
+    .insert(
+      chain.map((task, i) => ({
+        id: ids[i],
+        user_id: userId,
+        request_id: request.id,
+        project_id: request.projectId,
+        kind: task.kind,
+        title: task.title,
+        kit: task.kit,
+        with_person_id: task.withPerson ? request.personId : null,
+        after_task_id: task.afterIndex !== null ? ids[task.afterIndex] : null,
+        due_date: i === dated ? request.dueDate : null,
+        position: task.position,
+      })),
+    )
+    .select("*");
+  if (error || !data) return { error: true };
+  return { rows: data as Row[] };
+}
+
 requestRoutes.post("/:id/confirm", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
@@ -93,10 +140,22 @@ requestRoutes.post("/:id/confirm", async (c) => {
   const row = await loadRequest(id, userId);
   if (!row) return c.json({ error: "request not found" }, 404);
 
-  const unchanged = async (current: Row) =>
-    c.json({ request: toRequest(current), tasks: await tasksOfRequest(id, userId) });
   // Already confirmed (a second tap): report what exists, change nothing.
-  if (row.status !== "new") return unchanged(row);
+  if (row.status !== "new") {
+    const current = toRequest(row);
+    let tasks = await tasksOfRequest(id, userId);
+    // Unless an earlier confirm died between flipping the status and creating
+    // the tasks: then this is the only way the chain can ever be built.
+    const stale =
+      current.confirmedAt !== null &&
+      Date.now() - Date.parse(current.confirmedAt) > REPAIR_AFTER_MS;
+    if (current.status === "confirmed" && tasks.length === 0 && stale) {
+      const repaired = await createChain(current, userId);
+      if ("error" in repaired) return c.json({ error: "Failed to create tasks" }, 500);
+      tasks = withBlocked(repaired.rows);
+    }
+    return c.json({ request: current, tasks });
+  }
 
   let projectId = (row.project_id as string) ?? null;
   if (typeof body.projectId === "string") {
@@ -129,44 +188,40 @@ requestRoutes.post("/:id/confirm", async (c) => {
     .eq("status", "new")
     .select("*")
     .maybeSingle();
-  if (!confirmed) return unchanged((await loadRequest(id, userId)) ?? row);
+  if (!confirmed) {
+    const current = (await loadRequest(id, userId)) ?? row;
+    return c.json({ request: toRequest(current), tasks: await tasksOfRequest(id, userId) });
+  }
   const request = toRequest(confirmed as Row);
 
+  const created = await createChain(request, userId);
+  if ("error" in created) {
+    // Put it back so "Looks right" can be tapped again; nothing else has changed yet.
+    await supabase
+      .from("coach_requests")
+      .update({ status: "new", confirmed_at: null, answer: null, replaces_id: null })
+      .eq("id", id)
+      .eq("user_id", userId);
+    return c.json({ error: "Failed to create tasks" }, 500);
+  }
+
   if (replacesId) {
-    // The earlier request stays, marked; nothing is deleted.
+    // The earlier request stays, marked; nothing is deleted. Work still open
+    // for it is superseded, so it leaves the plate (dropped, not removed).
     await supabase
       .from("coach_requests")
       .update({ status: "replaced" })
       .eq("id", replacesId)
       .eq("user_id", userId);
-  }
-
-  const chain = materializeChain(request.proposedTasks, { answered: answer !== null });
-  const firstDo = chain.findIndex((t) => t.kind === "do");
-  const created: Row[] = [];
-  for (const [i, task] of chain.entries()) {
-    const { data: inserted, error } = await supabase
+    await supabase
       .from("coach_tasks")
-      .insert({
-        user_id: userId,
-        request_id: id,
-        project_id: projectId,
-        kind: task.kind,
-        title: task.title,
-        kit: task.kit,
-        with_person_id: task.withPerson ? request.personId : null,
-        after_task_id:
-          task.afterIndex !== null ? ((created[task.afterIndex]?.id as string) ?? null) : null,
-        due_date: i === firstDo ? request.dueDate : null,
-        position: task.position,
-      })
-      .select("*")
-      .single();
-    if (error || !inserted) return c.json({ error: "Failed to create tasks" }, 500);
-    created.push(inserted as Row);
+      .update({ state: "dropped" })
+      .eq("request_id", replacesId)
+      .eq("user_id", userId)
+      .in("state", ["open", "waiting"]);
   }
 
-  return c.json({ request, tasks: withBlocked(created) });
+  return c.json({ request, tasks: withBlocked(created.rows) });
 });
 
 // ── POST /:id/fix — "Fix it": read the messages again with a correction ──
@@ -183,14 +238,21 @@ requestRoutes.post("/:id/fix", async (c) => {
   if (row.status !== "new") return c.json({ error: "request is already confirmed" }, 409);
 
   const bundleId = row.bundle_id as string;
-  // A misreading nobody confirmed is discarded; the messages themselves stay.
-  await supabase.from("coach_requests").delete().eq("id", id).eq("user_id", userId);
   await supabase
     .from("coach_bundles")
     .update({ fix_note: note, status: "collecting", kind: null })
     .eq("id", bundleId)
     .eq("user_id", userId);
-  await inngest.send({ name: "coach/bundle.fix", data: { bundleId, userId } });
+
+  // Start the re-read before discarding the misreading: if it cannot be
+  // started, the request must still be there to try again.
+  try {
+    await inngest.send({ name: "coach/bundle.fix", data: { bundleId, userId } });
+  } catch {
+    return c.json({ error: "Could not start the re-read" }, 500);
+  }
+  // A misreading nobody confirmed is discarded; the messages themselves stay.
+  await supabase.from("coach_requests").delete().eq("id", id).eq("user_id", userId);
 
   return c.json({ ok: true }, 202);
 });

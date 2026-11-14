@@ -66,8 +66,8 @@ const requestRow = (over: Record<string, unknown> = {}) => ({
 function requestDb(
   row: Record<string, unknown> | null = requestRow(),
   existingTasks: unknown[] = [],
+  opts: { insertFails?: boolean } = {},
 ) {
-  let n = 0;
   return makeDb((op: Op) => {
     if (op.table === "coach_requests" && op.action === "select") {
       if (!op.single) return { data: row ? [row] : [] };
@@ -86,7 +86,10 @@ function requestDb(
       return { data: null };
     }
     if (op.table === "coach_tasks" && op.action === "insert") {
-      return { data: { id: `t${++n}`, state: "open", created_at: "x", ...(op.payload as object) } };
+      if (opts.insertFails) return { data: null, error: { message: "boom" } };
+      return {
+        data: (op.payload as object[]).map((p) => ({ state: "open", created_at: "x", ...p })),
+      };
     }
     if (op.table === "coach_tasks") return { data: existingTasks };
     if (op.table === "coach_projects") return { data: { id: "pr2" } };
@@ -142,7 +145,9 @@ describe("coach requests", () => {
 
   it("links the chain, the person and the project, and puts the due date on the work", async () => {
     await post("/api/coach/requests/r1/confirm", { answer: "Only the words" });
-    const [doTask, tellTask] = db.written("coach_tasks", "insert") as Record<string, unknown>[];
+    // One statement for the whole chain, so it is created entirely or not at all.
+    expect(db.written("coach_tasks", "insert")).toHaveLength(1);
+    const [doTask, tellTask] = db.written("coach_tasks", "insert")[0] as Record<string, unknown>[];
     expect(doTask).toMatchObject({
       user_id: "test-user-id",
       request_id: "r1",
@@ -152,9 +157,10 @@ describe("coach requests", () => {
       with_person_id: null,
       due_date: "2026-11-18",
     });
+    expect(doTask.id).toEqual(expect.stringMatching(/^[0-9a-f-]{36}$/));
     expect(tellTask).toMatchObject({
       kind: "tell",
-      after_task_id: "t1",
+      after_task_id: doTask.id,
       with_person_id: "p1",
       due_date: null,
     });
@@ -164,6 +170,42 @@ describe("coach requests", () => {
     const res = await post("/api/coach/requests/r1/confirm", {});
     const kinds = (await res.json()).tasks.map((t: CoachTask) => t.kind);
     expect(kinds).toEqual(["ask", "do", "tell"]);
+  });
+
+  it("drops the open tasks of the request it replaces", async () => {
+    await post("/api/coach/requests/r1/confirm", { answer: "Only the words" });
+    const op = db.ops.find((o) => o.table === "coach_tasks" && o.action === "update");
+    expect(op?.payload).toEqual({ state: "dropped" });
+    expect(eqValue(op!, "request_id")).toBe("r-2022");
+    expect(eqValue(op!, "user_id")).toBe("test-user-id");
+    expect(op?.filters).toContainEqual(["in", "state", ["open", "waiting"]]);
+  });
+
+  it("puts the request back to new when its tasks cannot be created", async () => {
+    db = requestDb(requestRow(), [], { insertFails: true });
+    const res = await post("/api/coach/requests/r1/confirm", { answer: "Only the words" });
+    expect(res.status).toBe(500);
+    const last = statusUpdates().at(-1)!;
+    expect(last.payload).toMatchObject({ status: "new", confirmed_at: null });
+    // The request it would have replaced is left alone.
+    expect(
+      statusUpdates().some((o) => (o.payload as { status: string }).status === "replaced"),
+    ).toBe(false);
+  });
+
+  it("builds the chain for a request left confirmed with no tasks", async () => {
+    db = requestDb(requestRow({ status: "confirmed", confirmed_at: "2026-11-01T09:00:00Z" }), []);
+    const res = await post("/api/coach/requests/r1/confirm", {});
+    const body = await res.json();
+    expect(body.tasks.map((t: CoachTask) => t.kind)).toEqual(["ask", "do", "tell"]);
+    expect(db.written("coach_tasks", "insert")).toHaveLength(1);
+  });
+
+  it("leaves a just-confirmed request with no tasks alone, in case its confirm is still running", async () => {
+    db = requestDb(requestRow({ status: "confirmed", confirmed_at: new Date().toISOString() }), []);
+    const res = await post("/api/coach/requests/r1/confirm", {});
+    expect((await res.json()).tasks).toEqual([]);
+    expect(db.writtenTables()).toEqual([]);
   });
 
   it("does not replace when replaces is false", async () => {
@@ -225,6 +267,13 @@ describe("coach requests", () => {
     expect((await post("/api/coach/requests/r1/fix", { note: "It's the homepage" })).status).toBe(
       409,
     );
+  });
+
+  it("keeps the request when the re-read cannot be started", async () => {
+    inngestSend.mockRejectedValue(new Error("inngest down"));
+    const res = await post("/api/coach/requests/r1/fix", { note: "It's the homepage" });
+    expect(res.status).toBe(500);
+    expect(db.ops.some((o) => o.table === "coach_requests" && o.action === "delete")).toBe(false);
   });
 
   it("fix removes the misread request and asks for the bundle to be read again with the note", async () => {

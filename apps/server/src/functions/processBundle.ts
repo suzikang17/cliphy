@@ -152,11 +152,26 @@ export async function storeInterpretation(
   return { requestId: (data as { id: string }).id };
 }
 
-/** Called when retries are exhausted. Messages stay stored; the bundle can be reprocessed. */
+/** The sweep stops re-reading a bundle once the job has given up on it this many times. */
+export const MAX_BUNDLE_ATTEMPTS = 3;
+/** A bundle still unread this long after its last message was never announced, or its job died. */
+const STUCK_AFTER_MS = 10 * 60_000;
+
+/**
+ * Called when the job's retries are exhausted. Messages stay stored; the sweep
+ * re-reads the bundle until it has failed MAX_BUNDLE_ATTEMPTS times.
+ */
 export async function markBundleFailed(bundleId: string, userId: string): Promise<void> {
+  const { data } = await supabase
+    .from("coach_bundles")
+    .select("attempts")
+    .eq("id", bundleId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const attempts = ((data as { attempts?: number } | null)?.attempts ?? 0) + 1;
   await supabase
     .from("coach_bundles")
-    .update({ status: "failed" })
+    .update({ status: "failed", attempts })
     .eq("id", bundleId)
     .eq("user_id", userId);
 }
@@ -231,7 +246,17 @@ async function loadContext(
 type BundleEvent = { data: unknown };
 type BundleStep = { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> };
 
-async function runBundle({ event, step }: { event: BundleEvent; step: BundleStep }) {
+const RETRIES = 2;
+
+async function runBundle({
+  event,
+  step,
+  attempt = 0,
+}: {
+  event: BundleEvent;
+  step: BundleStep;
+  attempt?: number;
+}) {
   const { bundleId, userId } = event.data as { bundleId: string; userId: string };
 
   const bundle = await step.run("claim-bundle", async () => {
@@ -262,8 +287,14 @@ async function runBundle({ event, step }: { event: BundleEvent; step: BundleStep
     for (const m of parsed) {
       for (const a of m.attachments) {
         try {
-          images.push(await downloadImage(a.storagePath));
+          const { bytes } = await downloadImage(a.storagePath);
+          // The type recorded at capture, not one guessed from the file name:
+          // a HEIC photo must not reach the model labelled as a JPEG.
+          images.push({ bytes, mediaType: a.mediaType });
         } catch (err) {
+          // A screenshot may be the whole request, so a storage hiccup is
+          // retried. Only the last attempt reads the bundle without it.
+          if (attempt < RETRIES) throw err;
           log.warn("Could not download attachment", { path: a.storagePath, err: String(err) });
         }
       }
@@ -300,25 +331,68 @@ const onFailure = async ({ event }: { event: { data: { event: { data: unknown } 
   await markBundleFailed(bundleId, userId);
 };
 
-/** New messages: wait until the sender has been quiet, then read the bundle once. */
-export const processBundle = inngest.createFunction(
-  {
-    id: "coach-process-bundle",
-    retries: 2,
-    debounce: { key: "event.data.bundleId", period: "3m" },
-    triggers: [{ event: "coach/bundle.touched" }],
-    onFailure,
-  },
-  runBundle as never,
-);
+// One bundle at a time per user: a later bundle must see the request an
+// earlier one produced (to propose replacing it), and a backfill of many
+// bundles must not burst into rate limits.
+const PER_USER = [{ key: "event.data.userId", limit: 1 }];
 
-/** "Fix it": read the same bundle again straight away, with the user's correction. */
-export const reprocessBundle = inngest.createFunction(
-  {
-    id: "coach-reprocess-bundle",
-    retries: 2,
-    triggers: [{ event: "coach/bundle.fix" }],
-    onFailure,
+/** New messages: wait until the sender has been quiet, then read the bundle once. */
+export const BUNDLE_JOB = {
+  id: "coach-process-bundle",
+  retries: RETRIES,
+  // `timeout` bounds the wait, so a thread that never pauses is still read.
+  debounce: { key: "event.data.bundleId", period: "3m", timeout: "15m" },
+  concurrency: PER_USER,
+  triggers: [{ event: "coach/bundle.touched" }],
+  onFailure,
+} as const;
+
+/** "Fix it" and the sweep: read a bundle straight away. */
+export const RETRY_JOB = {
+  id: "coach-reprocess-bundle",
+  retries: RETRIES,
+  concurrency: PER_USER,
+  triggers: [{ event: "coach/bundle.fix" }, { event: "coach/bundle.retry" }],
+  onFailure,
+} as const;
+
+export const processBundle = inngest.createFunction(BUNDLE_JOB as never, runBundle as never);
+export const reprocessBundle = inngest.createFunction(RETRY_JOB as never, runBundle as never);
+
+/**
+ * Safety net: nothing captured may sit unread. Re-announces bundles that were
+ * stored but never read (the upload died before announcing them, or the job
+ * died mid-run) and failed bundles that still have attempts left.
+ */
+export const sweepBundles = inngest.createFunction(
+  { id: "coach-sweep-bundles", triggers: [{ cron: "*/10 * * * *" }] },
+  async ({ step }) => {
+    const stale = await step.run("find-stale", async () => {
+      const cutoff = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
+      const [stuck, failed] = await Promise.all([
+        supabase
+          .from("coach_bundles")
+          .select("id, user_id")
+          .eq("status", "collecting")
+          .lt("last_message_at", cutoff)
+          .limit(100),
+        supabase
+          .from("coach_bundles")
+          .select("id, user_id")
+          .eq("status", "failed")
+          .lt("attempts", MAX_BUNDLE_ATTEMPTS)
+          .limit(100),
+      ]);
+      type Stale = { id: string; user_id: string };
+      return [...((stuck.data as Stale[]) ?? []), ...((failed.data as Stale[]) ?? [])];
+    });
+
+    for (const b of stale) {
+      await inngest.send({
+        name: "coach/bundle.retry",
+        data: { bundleId: b.id, userId: b.user_id },
+      });
+    }
+    return { resent: stale.length };
   },
-  runBundle as never,
 );

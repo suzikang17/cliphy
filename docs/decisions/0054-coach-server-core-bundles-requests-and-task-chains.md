@@ -27,7 +27,9 @@ The coach has to turn a burst of captured messages (two screenshots, a loose sen
 
 ## Tradeoffs
 
-- A new request appears about 3 minutes after the last message. "Fix it" bypasses the wait through a second function, `coach-reprocess-bundle`.
+- Announcing a bundle and storing its messages are two separate writes, so an upload can die between them. A 10-minute sweep (`coach-sweep-bundles`) and re-announcing on re-upload cover that, at the cost of a request appearing up to about 10 minutes late in that case.
+- Bundles are read one at a time per user (`concurrency` keyed on `userId`), so a whole-thread backfill is slow but never bursts into rate limits, and a later bundle can see the request an earlier one produced.
+- A new request appears about 3 minutes after the last message (15 at most for a thread that never pauses). "Fix it" bypasses the wait through a second function, `coach-reprocess-bundle`.
 - Schema guarantees come from our parser, not the API. Revisit when the SDK is upgraded (BACKLOG): move to `strict: true` or `output_config.format` and add refusal fallbacks.
 - `claude-opus-5-5` costs twice Sonnet 5.5 per token. It is one constant (`INTERPRET_MODEL`) and worth re-checking against the Alder House fixture on Sonnet.
 - `blocked` is computed from the predecessor's state on read, so the task list loads all of a user's tasks. Fine at this scale.
