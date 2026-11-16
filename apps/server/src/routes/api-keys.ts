@@ -45,11 +45,15 @@ apiKeyRoutes.get("/", async (c) => {
 apiKeyRoutes.post("/", async (c) => {
   const userId = c.get("userId");
 
-  let body: { name?: string } = {};
+  let body: { name?: string; scope?: unknown } = {};
   try {
     body = await c.req.json();
   } catch {
     // empty body is fine
+  }
+
+  if (body.scope !== undefined && body.scope !== "runner") {
+    return c.json({ error: "scope must be runner" }, 400);
   }
 
   const { count } = await supabase
@@ -72,6 +76,8 @@ apiKeyRoutes.post("/", async (c) => {
       key_hash: keyHash,
       key_prefix: keyPrefix,
       name: body.name?.trim() || "Shortcut",
+      // Only written when asked for, so an unlimited key needs no new column.
+      ...(body.scope === "runner" ? { scope: "runner" } : {}),
     })
     .select("id, name, key_prefix, last_used_at, created_at")
     .single();

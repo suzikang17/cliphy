@@ -125,6 +125,40 @@ describe("POST /keys", () => {
     expect(body.apiKey.keyPrefix).toBe("cliphy_sk_abcd");
   });
 
+  async function create(body: unknown) {
+    const insert = mockChain({
+      data: { id: "key-1", name: "Runner", key_prefix: "cliphy_sk_abcd", created_at: "x" },
+      error: null,
+    });
+    supabaseMock = mockChain({ data: null, error: null });
+    (supabaseMock.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(mockChain({ data: null, error: null, count: 0 }))
+      .mockReturnValueOnce(insert);
+    const res = await buildApp().request("/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { res, insert: insert.insert as ReturnType<typeof vi.fn> };
+  }
+
+  it("makes a key limited to the runner when asked", async () => {
+    const { res, insert } = await create({ name: "Runner", scope: "runner" });
+    expect(res.status).toBe(201);
+    expect(insert.mock.calls[0][0]).toMatchObject({ name: "Runner", scope: "runner" });
+  });
+
+  it("makes an unlimited key when no scope is given", async () => {
+    const { insert } = await create({ name: "Shortcut" });
+    expect(insert.mock.calls[0][0]).not.toHaveProperty("scope");
+  });
+
+  it("refuses a scope it does not know", async () => {
+    const { res, insert } = await create({ name: "X", scope: "admin" });
+    expect(res.status).toBe(400);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it("enforces the per-user key cap", async () => {
     supabaseMock = mockChain({ data: null, error: null, count: 5 });
 
