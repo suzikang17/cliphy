@@ -16,6 +16,9 @@ export const RUN_STALE_MS = 15 * 60_000;
 /** A run nobody has picked up after this long: the runner is probably off. */
 export const RUN_UNCLAIMED_MS = 30 * 60_000;
 
+/** How far back the sweep looks for ended runs Chat may not have heard about. */
+const RETELL_MS = 60 * 60_000;
+
 export const RUN_SWEEP_JOB = {
   id: "coach-runs-sweep",
   retries: 1,
@@ -71,6 +74,21 @@ export async function sweepRuns(now: Date): Promise<{ failed: number; quiet: num
       quiet += 1;
     } catch (err) {
       log.warn("Could not say the runner is quiet", { runId: row.id, err: String(err) });
+    }
+  }
+
+  // A run that ended without Chat hearing of it (the message could not be
+  // saved at that moment) is told now. The thread keeps one message per run.
+  const { data: ended } = await supabase
+    .from("coach_runs")
+    .select("*")
+    .in("status", ["done", "failed", "cancelled"])
+    .gt("finished_at", before(RETELL_MS));
+  for (const row of (ended as Row[]) ?? []) {
+    try {
+      await announceFinished(row.user_id as string, toRun(row));
+    } catch (err) {
+      log.warn("Could not tell Chat about a finished run", { runId: row.id, err: String(err) });
     }
   }
   return { failed, quiet };

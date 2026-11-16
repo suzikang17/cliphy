@@ -27,9 +27,14 @@ export interface RunDeps {
   repo: {
     /** A fresh copy of the repo's default branch for Claude to work in, on a new branch. */
     prepare(repo: string, branch: string): Promise<{ workDir: string }>;
+    /** Put the client's pictures in the work folder; returns the files that arrived. */
+    attach(repo: string, urls: string[]): Promise<string[]>;
     /** Bring Claude's changes back; says whether there are any. */
     collect(repo: string): Promise<{ changed: boolean }>;
-    /** Commit, push the branch and open the pull request. */
+    /**
+     * Commit, push the branch and open the pull request. An error with
+     * `pushed: true` means the branch is up although the pull request is not.
+     */
     publish(repo: string, branch: string, title: string, body: string): Promise<{ prUrl: string }>;
     discard(repo: string): Promise<void>;
   };
@@ -42,6 +47,7 @@ export interface RunDeps {
 
 export type RunResult = "idle" | "done" | "failed" | "cancelled";
 
+const FINISH_TRIES = 3;
 const PR_NOTE = "Made by the Cliphy runner for a request the owner confirmed.";
 const WIDTHS = ["phone", "desktop"] as const;
 
@@ -53,17 +59,39 @@ export async function runOnce(deps: RunDeps): Promise<RunResult> {
   const { run, brief } = claimed;
   deps.log(`Run ${run.id}: ${brief.task.title}`);
 
-  const fail = async (error: string, extra: Partial<RunOutcome> = {}): Promise<RunResult> => {
+  /** What exists on GitHub so far. A failure reports it, so the work is not lost. */
+  const made: Pick<RunOutcome, "branch" | "prUrl"> = {};
+
+  /** Report the outcome. The server takes a repeat calmly, so a blip is tried again. */
+  const finish = async (outcome: RunOutcome): Promise<void> => {
+    let last: unknown;
+    for (let attempt = 0; attempt < FINISH_TRIES; attempt += 1) {
+      try {
+        return await deps.api.finish(run.id, outcome);
+      } catch (err) {
+        last = err;
+        deps.log(`Could not report the result (try ${attempt + 1}): ${String(err)}`);
+      }
+    }
+    throw last;
+  };
+  const fail = async (error: string): Promise<RunResult> => {
     deps.log(`Run ${run.id} failed: ${error}`);
-    await deps.api.finish(run.id, { status: "failed", error, ...extra });
+    await finish({ status: "failed", error, ...made });
     return "failed";
   };
-  /** True when the owner stopped the run. A check-in that cannot be made is not a stop. */
-  const stopped = async (note: string): Promise<boolean> =>
-    (await deps.api.checkIn(run.id, note)).cancelled;
+  /** True when the owner stopped the run. A check-in that cannot be made is not a Stop. */
+  const stopped = async (note: string): Promise<boolean> => {
+    try {
+      return (await deps.api.checkIn(run.id, note)).cancelled;
+    } catch (err) {
+      deps.log(`Check-in failed: ${String(err)}`);
+      return false;
+    }
+  };
 
   try {
-    return await work(deps, run.id, brief, fail, stopped);
+    return await work(deps, run.id, brief, { fail, finish, stopped, made });
   } catch (err) {
     deps.log(`Run ${run.id} broke: ${String(err)}`);
     return await fail("Something went wrong on the runner.").catch(() => "failed" as const);
@@ -72,12 +100,18 @@ export async function runOnce(deps: RunDeps): Promise<RunResult> {
   }
 }
 
+interface Reporting {
+  fail(error: string): Promise<RunResult>;
+  finish(outcome: RunOutcome): Promise<void>;
+  stopped(note: string): Promise<boolean>;
+  made: Pick<RunOutcome, "branch" | "prUrl">;
+}
+
 async function work(
   deps: RunDeps,
   runId: string,
   brief: RunBrief,
-  fail: (error: string, extra?: Partial<RunOutcome>) => Promise<RunResult>,
-  stopped: (note: string) => Promise<boolean>,
+  { fail, finish, stopped, made }: Reporting,
 ): Promise<RunResult> {
   const branch = branchName(runId, brief.task.title);
 
@@ -89,9 +123,17 @@ async function work(
     return fail("Could not get the website's code.");
   }
 
+  // The client's pictures, as files Claude can look at. It has no way to fetch an address.
+  const images = await deps.repo
+    .attach(
+      brief.repo,
+      brief.messages.flatMap((m) => m.imageUrls),
+    )
+    .catch(() => [] as string[]);
+
   const result = await deps.claude(
     workDir,
-    buildPrompt(brief),
+    buildPrompt(brief, images),
     CLAUDE_LIMIT_MS,
     async () => !(await stopped("working on it")),
   );
@@ -114,8 +156,11 @@ async function work(
     // The summary and a fixed line. Never the client's messages.
     const body = `${answer.summary}\n\n${PR_NOTE}`;
     ({ prUrl } = await deps.repo.publish(brief.repo, branch, brief.task.title, body));
+    made.branch = branch;
+    made.prUrl = prUrl;
   } catch (err) {
     deps.log(`Publish failed: ${String(err)}`);
+    if ((err as { pushed?: boolean }).pushed) made.branch = branch;
     return fail("Could not open the pull request.");
   }
 
@@ -145,7 +190,7 @@ async function work(
     }
   }
 
-  await deps.api.finish(runId, {
+  await finish({
     status: "done",
     summary: answer.summary,
     branch,

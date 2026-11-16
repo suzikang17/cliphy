@@ -185,4 +185,29 @@ describe("starting work on the site from Chat", () => {
       expect.objectContaining({ kind: "run_finished", ref_id: "run1", text: "Stopped." }),
     ]);
   });
+
+  it("a button cannot be tapped with an API key: only the signed-in phone starts work", async () => {
+    db = world({ button: startButton.action });
+    passAuth.authMiddleware.mockImplementationOnce(async (c, next) => {
+      c.set("userId", "test-user-id");
+      c.set("authMethod", "api_key");
+      await next();
+    });
+    const res = await tap();
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Sign in on the phone to do this" });
+    expect(db.ops).toEqual([]);
+  });
+
+  it("still queues the run when the started message could not be saved", async () => {
+    db = world({ button: startButton.action });
+    db.respond = ((inner) => (op: Op) =>
+      op.table === "coach_chat_messages" && op.action === "upsert"
+        ? { data: null, error: { message: "down" } }
+        : inner(op))(db.respond);
+    const body = await (await tap()).json();
+    expect(db.written("coach_runs", "insert")).toHaveLength(1);
+    expect(body.did).toBeNull(); // Not "That didn't work": the run is going.
+    expect(body.message.chosen).toBe(0);
+  });
 });

@@ -80,7 +80,22 @@ async function check(): Promise<boolean> {
       `${config.workUser} cannot read this user's config`,
       `chmod 700 ${homedir()}`,
     );
-    add(await ran("sudo", [...sudo, "rsync", "--version"]), "rsync installed", "Install rsync.");
+    add(await ran("rsync", ["--version"]), "rsync installed", "Install rsync.");
+    add(
+      await ran("sudo", [...sudo, "setsid", "--wait", "timeout", "-k", "1", "5", "true"]),
+      "setsid and timeout work for the work user",
+      "Install util-linux and coreutils.",
+    );
+    add(
+      !(await ran("sudo", [...sudo, "ls", config.reposRoot])),
+      `${config.workUser} cannot read the runner's clones`,
+      `chmod 700 ${config.reposRoot}`,
+    );
+    add(
+      !(await ran("sudo", [...sudo, "-i", "printenv", "ANTHROPIC_API_KEY"])),
+      `${config.workUser} has no ANTHROPIC_API_KEY set (it would override the Claude login)`,
+      `Remove it from ${config.workUser}'s shell profile.`,
+    );
     try {
       const { chromium } = await import("playwright");
       const browser = await chromium.launch();

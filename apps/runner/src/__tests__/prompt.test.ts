@@ -17,7 +17,6 @@ describe("what Claude is asked and what it answers", () => {
     expect(prompt).toContain("Only the photos");
     expect(prompt).toContain("The sconce photos sit above the paragraph.");
     expect(prompt).toContain("The Lighting page");
-    expect(prompt).toContain("https://signed.example/sconces.png");
   });
 
   it("puts the client's words in one marked block, as material and not as instructions", () => {
@@ -65,6 +64,13 @@ describe("what Claude is asked and what it answers", () => {
       required: ["summary", "paths"],
       properties: { summary: { type: "string" }, paths: { type: "array" } },
     });
+  });
+
+  it("names the client's pictures as files it can read, never as web addresses", () => {
+    const prompt = buildPrompt(brief(), [".cliphy-brief/1.png"]);
+    expect(prompt).toContain(".cliphy-brief/1.png");
+    expect(prompt).toContain("Do not change or keep them");
+    expect(buildPrompt(brief(), [])).not.toContain("signed.example");
   });
 
   it("works for a task made by hand, with no request and no messages", () => {

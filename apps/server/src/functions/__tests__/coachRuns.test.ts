@@ -41,6 +41,13 @@ function world(rows: Record<string, unknown>[]) {
       const hit = rows.find((r) => r.id === eqValue(op, "id") && r.status === status);
       return { data: hit ? { ...hit, ...(op.payload as object) } : null };
     }
+    if (status === undefined) {
+      // The re-telling: ended runs, newest first, finished after a cut-off.
+      const after = op.filters.find(([m, c]) => m === "gt" && c === "finished_at")?.[2] as string;
+      return {
+        data: rows.filter((r) => r.finished_at && (r.finished_at as string) > after),
+      };
+    }
     const seenBefore = lt(op, "seen_at") as string | undefined;
     const madeBefore = lt(op, "created_at") as string | undefined;
     return {
@@ -123,6 +130,19 @@ describe("runs nobody is looking after", () => {
     db = world([row({ status: "queued", created_at: ago(29 * 60_000) })]);
     expect(await sweepRuns(NOW)).toEqual({ failed: 0, quiet: 0 });
     expect(postBot).not.toHaveBeenCalled();
+  });
+
+  it("tells Chat again about runs that ended in the last hour, in case the telling was lost", async () => {
+    db = world([
+      row({ status: "done", finished_at: ago(10 * 60_000), summary: "Moved it." }),
+      row({ id: "old", status: "done", finished_at: ago(3 * 60 * 60_000) }),
+    ]);
+    await sweepRuns(NOW);
+    expect(postBot).toHaveBeenCalledTimes(1);
+    expect(postBot).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ kind: "run_finished", refId: "run1" }),
+    );
   });
 
   it("runs as a job", async () => {

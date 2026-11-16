@@ -57,6 +57,11 @@ chatRoutes.post("/", async (c) => {
 // ── POST /:id/choose — tap a button ──────────────────────────────────────
 
 chatRoutes.post("/:id/choose", async (c) => {
+  // A tap is the owner's, on the phone. A button can confirm a request or start
+  // work on a website, and no API key may do either.
+  if (c.get("authMethod") === "api_key") {
+    return c.json({ error: "Sign in on the phone to do this" }, 403);
+  }
   const userId = c.get("userId");
   const id = c.req.param("id");
   const body = await c.req.json<{ index?: unknown }>().catch(() => ({}) as { index?: unknown });

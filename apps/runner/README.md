@@ -39,14 +39,23 @@ run, check in, finish and upload a picture, and nothing else.
 The runner's own user holds the GitHub login and the Cliphy key, and is the
 only one that runs `git` or `gh`. Claude Code and every install or build
 command run as `workUser`, in a copy of the code that has no `.git`. The
-runner copies plain files back into its own clone and commits with hooks off.
-So a client's text, a tricked Claude or a hostile build script cannot reach
-either credential, and nothing they write is run by the runner's user.
+runner copies file contents back into its own clone (no owners, no special
+permission bits, no devices) and commits with hooks off. Neither user can read
+the other's folders. So a client's text, a tricked Claude or a hostile build
+script cannot reach either credential, and nothing they write is run by the
+runner's user.
 
-Claude Code is started with file tools limited to its own folder, a shell
-limited to the project's package manager, and no web tools. The prompt goes in
-on standard input, not on the command line. See `claudeArgs` in
-`src/machine.ts`.
+Claude Code is started with file tools limited to its own folder, no web
+tools, no settings files, and a shell limited to the project's package manager
+and `node`. That last part is not a wall: a package script or `node` can run
+any code as the work user, with the network. What holds is the separation of
+users, not the tool list. The prompt goes in on standard input, not on the
+command line. See `claudeArgs` in `src/machine.ts`.
+
+Between runs the runner stops every process of the work user and clears its
+crontab, Claude settings and package-manager config, so one client's run
+leaves nothing for the next. Claude runs under `timeout`, as the work user,
+because the runner cannot signal another user's process itself.
 
 ## Layout
 

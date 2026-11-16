@@ -35,16 +35,22 @@ Success: `sudo -u cliphy-runner sudo -n -u cliphy-work true` prints nothing.
 
 ```sh
 sudo mkdir -p /srv/cliphy/repos /srv/cliphy/work
-sudo chown cliphy-runner: /srv/cliphy/repos && sudo chmod 755 /srv/cliphy/repos
+sudo chown cliphy-runner: /srv/cliphy/repos && sudo chmod 700 /srv/cliphy/repos
 sudo chown cliphy-work:   /srv/cliphy/work  && sudo chmod 755 /srv/cliphy/work
 ```
 
-The runner's clones live in `repos` (the work user can read them, not write).
-Claude's copies live in `work` (the runner can read them, not write).
+The runner's clones live in `repos`, closed to everyone else: the work user
+must not be able to read one client's code while working on another's, or run
+anything that lands there. Claude's copies live in `work`; the runner reads
+them once, to copy the changed files back.
+
+Success: `sudo -u cliphy-work ls /srv/cliphy/repos` says "Permission denied".
 
 ## 4. Programs
 
-For both users: Node 22 and pnpm. Also `rsync` and `git` system-wide.
+For both users: Node 22 and pnpm. System-wide: `git`, `rsync`, `tar`, `curl`,
+and `setsid`, `timeout` and `pkill` (in `util-linux`, `coreutils` and `procps`,
+already there on Debian and Ubuntu).
 
 - As `cliphy-runner`: the GitHub CLI (`gh`), and this repo:
   ```sh
@@ -65,6 +71,11 @@ claude        # then /login, with the owner's subscription
 
 `cliphy-work` must not have `ANTHROPIC_API_KEY` set anywhere: it overrides the
 subscription login.
+
+Use `cliphy-work` for nothing else. Before every run the runner stops all of
+that user's processes, empties its crontab and deletes its Claude settings and
+package-manager config, so that one client's run cannot leave something behind
+for the next.
 
 Success: `echo "say hi" | claude -p` answers.
 

@@ -389,12 +389,30 @@ describe("runs: the website task runner's calls", () => {
       expect(write.action).toBe("upsert");
     });
 
-    it("says nothing when the finish changed nothing", async () => {
-      db = makeDb((op) =>
-        op.action === "select" ? { data: runRow({ status: "cancelled" }) } : undefined,
-      );
-      await finish();
-      expect(chat()).toEqual([]);
+    it("says it again when the finish is repeated, in case the first telling was lost", async () => {
+      db = makeDb((op) => {
+        if (op.table === "coach_runs" && op.action === "select") {
+          return { data: runRow({ status: "failed", error: "I could not find a page 2." }) };
+        }
+        if (op.table === "coach_tasks") return { data: taskRow() };
+        if (op.table === "coach_chat_messages") return { data: [] }; // Already in the thread.
+        return undefined;
+      });
+      const res = await finish();
+      expect(res.status).toBe(200);
+      // The same key as the first time, so the thread still holds it once.
+      expect(chat()).toEqual([expect.objectContaining({ kind: "run_finished", ref_id: "run1" })]);
+    });
+
+    it("still answers the runner when Chat could not be told", async () => {
+      db = makeDb((op) => {
+        if (op.table === "coach_runs" && op.action === "update") {
+          return { data: runRow({ status: "failed" }) };
+        }
+        if (op.table === "coach_chat_messages") return { data: null, error: { message: "down" } };
+        return undefined;
+      });
+      expect((await finish()).status).toBe(200);
     });
   });
 

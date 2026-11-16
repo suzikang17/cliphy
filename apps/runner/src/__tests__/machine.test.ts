@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
-import { claudeArgs, createRepo, type Exec, type RunnerConfig } from "../machine.js";
+import { claudeArgs, claudeCommand, createRepo, type Exec, type RunnerConfig } from "../machine.js";
 import { RESULT_SCHEMA } from "../prompt.js";
 
 const config: RunnerConfig = {
@@ -20,8 +20,9 @@ type Reply = { code?: number; stdout?: string; stderr?: string };
 /** Records every command; `answer` decides what a command prints. */
 function recorder(answer: (line: string) => Reply | undefined = () => undefined) {
   const lines: string[] = [];
-  const exec: Exec = async (cmd, args) => {
-    const line = [cmd, ...args].join(" ");
+  const exec: Exec = async (cmd, args, opts) => {
+    const pipe = opts?.pipeTo ? ` | ${[opts.pipeTo[0], ...opts.pipeTo[1]].join(" ")}` : "";
+    const line = [cmd, ...args].join(" ") + pipe;
     lines.push(line);
     return { code: 0, stdout: "", stderr: "", ...(answer(line) ?? {}) };
   };
@@ -84,8 +85,18 @@ describe("the runner on a real machine", () => {
       }
     });
 
+    it("is run by the work user, in its own session, under a clock that kills it", () => {
+      const [cmd, argv] = claudeCommand(config, 20 * 60_000);
+      expect(cmd).toBe("sudo");
+      expect(argv.slice(0, 4)).toEqual(["-n", "-u", "cliphy-work", "-H"]);
+      expect(argv.slice(4, 10)).toEqual(["setsid", "--wait", "timeout", "-k", "10", "1200"]);
+      expect(argv.slice(10)).toEqual(["claude", ...claudeArgs()]);
+    });
+
     it("ignores settings a client's repo might carry, and takes the prompt on standard input", () => {
-      expect(after(args, "--setting-sources")).toBe("user");
+      // No settings files at all: not the repo's, and not ones an earlier run could have left
+      // in the work user's home.
+      expect(after(args, "--setting-sources")).toBe("");
       // After -p, flags and their values in pairs: no place for anything from a client.
       expect(args[0]).toBe("-p");
       expect(args.length % 2).toBe(1);
@@ -110,13 +121,48 @@ describe("the runner on a real machine", () => {
       expect(lines).toContain(`gh repo clone ${REPO} ${CLONE}`);
     });
 
-    it("gives Claude a copy with no git history, made and owned by the work user", async () => {
+    it("gives Claude a copy with no git history, unpacked by the work user from a pipe", async () => {
       const { exec, lines } = recorder(defaults);
       await createRepo(config, exec).prepare(REPO, BRANCH);
-      const copy = lines.find((l) => l.includes("rsync"))!;
-      expect(copy.startsWith(AS_WORK.join(" "))).toBe(true);
-      expect(copy).toContain("--exclude .git");
-      expect(copy.endsWith(`${CLONE}/ ${WORK}/`)).toBe(true);
+      const copy = lines.find((l) => l.includes(" | "))!;
+      const [from, to] = copy.split(" | ");
+      // The runner reads its own clone; the work user never reads the runner's folders.
+      expect(from).toBe(`tar -C ${CLONE} --exclude=./.git -cf - .`);
+      expect(to).toBe(`${AS_WORK.join(" ")} tar -x -C ${WORK}`);
+      expect(lines.some((l) => l.startsWith(AS_WORK.join(" ")) && l.includes(CLONE))).toBe(false);
+    });
+
+    it("clears away whatever an earlier run left running or lying in the work user's home", async () => {
+      const { exec, lines } = recorder(defaults);
+      await createRepo(config, exec).prepare(REPO, BRANCH);
+      const kill = lines.indexOf(`${AS_WORK.join(" ")} pkill -KILL -u cliphy-work`);
+      const copy = lines.findIndex((l) => l.includes(" | "));
+      expect(kill).toBeGreaterThan(-1);
+      expect(kill).toBeLessThan(copy);
+      const wipe = lines.find(
+        (l) => l.includes(" rm -rf ") && l.includes(".claude/settings.json"),
+      )!;
+      for (const left of [".claude/settings.json", ".claude/CLAUDE.md", ".npmrc", ".yarnrc.yml"]) {
+        expect(wipe, left).toContain(`/home/cliphy-work/${left}`);
+      }
+    });
+
+    it("puts the client's pictures in the work folder, fetched by the work user", async () => {
+      const { exec, lines } = recorder((l) => (l.includes("b.jpg") ? { code: 22 } : undefined));
+      const files = await createRepo(config, exec).attach(REPO, [
+        "https://signed.example/a.png?token=1",
+        "https://signed.example/b.jpg?token=2",
+        "http://insecure.example/c.png",
+        "-o/etc/passwd",
+      ]);
+      expect(files).toEqual([".cliphy-brief/1.png"]); // One failed, two were not https addresses.
+      const fetches = lines.filter((l) => l.includes(" curl "));
+      expect(fetches).toHaveLength(2);
+      for (const f of fetches) {
+        expect(f.startsWith(AS_WORK.join(" "))).toBe(true);
+        expect(f).toContain(`${WORK}/.cliphy-brief/`);
+        expect(f).toContain("--proto =https");
+      }
     });
 
     it("refuses a repo or branch that is not the shape it expects, before running anything", async () => {
@@ -138,17 +184,43 @@ describe("the runner on a real machine", () => {
   });
 
   describe("bringing the changes back", () => {
-    it("copies files only: never git data, dependencies, or links that point outside", async () => {
+    it("copies files only: never git data, dependencies, the brief, or links that point outside", async () => {
       const { exec, lines } = recorder((line) =>
         line.includes("status --porcelain") ? { stdout: " M index.html\n" } : undefined,
       );
       expect(await createRepo(config, exec).collect(REPO)).toEqual({ changed: true });
       const copy = lines.find((l) => l.includes("rsync"))!;
       expect(copy.startsWith("rsync ")).toBe(true); // As the runner, not the work user.
-      for (const flag of ["--delete", "--exclude .git", "--exclude node_modules", "--safe-links"]) {
+      for (const flag of [
+        "--delete",
+        "--exclude .git",
+        "--exclude node_modules",
+        "--exclude .cliphy-brief",
+        "--safe-links",
+      ]) {
         expect(copy, flag).toContain(flag);
       }
       expect(copy.endsWith(`${WORK}/ ${CLONE}/`)).toBe(true);
+    });
+
+    it("never copies a file's owner, special permission bits or devices", async () => {
+      const { exec, lines } = recorder();
+      await createRepo(config, exec).collect(REPO);
+      const argv = lines.find((l) => l.startsWith("rsync "))!.split(" ");
+      // -a would carry setuid bits and device files into a folder the runner owns.
+      expect(argv).not.toContain("-a");
+      expect(argv.some((a) => /^-[a-z]*[apDgo]/.test(a) && !a.startsWith("--"))).toBe(false);
+      expect(argv).toContain("-rlt");
+      expect(argv).toContain("--executability");
+      expect(argv).toContain("--chmod=ug-s,o-w");
+    });
+
+    it("stops everything the work user still has running before it reads the files", async () => {
+      const { exec, lines } = recorder();
+      await createRepo(config, exec).collect(REPO);
+      const kill = lines.indexOf(`${AS_WORK.join(" ")} pkill -KILL -u cliphy-work`);
+      expect(kill).toBeGreaterThan(-1);
+      expect(kill).toBeLessThan(lines.findIndex((l) => l.startsWith("rsync ")));
     });
 
     it("says nothing changed when git sees no difference", async () => {
@@ -199,9 +271,14 @@ describe("the runner on a real machine", () => {
       expect(lines).toEqual([]);
     });
 
-    it("fails when GitHub does not answer with a pull request address", async () => {
+    it("fails when GitHub does not answer with a pull request address, saying the branch is up", async () => {
       const { done } = publish((l) => (l.startsWith("gh pr") ? { stdout: "ok" } : undefined));
-      await expect(done).rejects.toThrow();
+      await expect(done).rejects.toMatchObject({ pushed: true });
+    });
+
+    it("fails without a branch when the push itself failed", async () => {
+      const { done } = publish((l) => (l.includes(" push ") ? { code: 1 } : undefined));
+      await expect(done).rejects.not.toHaveProperty("pushed", true);
     });
   });
 
@@ -222,8 +299,11 @@ describe("the runner on a real machine", () => {
       const asWork = line.startsWith(AS_WORK.join(" "));
       if (/(^| )(git|gh) /.test(line)) expect(asWork, line).toBe(false);
       // Only the copy back reads the work folder as the runner; nothing there is run.
-      if (line.includes(WORK) && !asWork) expect(line.startsWith("rsync "), line).toBe(true);
+      if (line.includes(WORK) && !asWork && !line.includes(" | ")) {
+        expect(line.startsWith("rsync "), line).toBe(true);
+      }
     }
-    expect(lines.at(-1)).toBe(`${AS_WORK.join(" ")} rm -rf ${WORK}`);
+    expect(lines).toContain(`${AS_WORK.join(" ")} rm -rf ${WORK}`);
+    expect(lines.at(-1)).toBe(`${AS_WORK.join(" ")} pkill -KILL -u cliphy-work`);
   });
 });

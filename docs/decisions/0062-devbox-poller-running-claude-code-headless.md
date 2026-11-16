@@ -14,9 +14,9 @@ A client asks for a website change by text. The owner wants one tap in Chat to s
 
 How the client's text is kept in its box:
 
-- A run exists only because the owner tapped. Start is refused for API keys.
-- Two users on the devbox. The runner's user holds the GitHub login and the Cliphy key and is the only one that runs `git` or `gh`. Claude Code and build commands run as a second user, in a copy of the code with no `.git`. The runner copies plain files back and commits with hooks off, so nothing the second user writes is run or read as configuration by the first.
-- Claude Code is started with `--permission-mode dontAsk`, file tools limited to its own folder, a shell limited to the project's package manager, no web tools, and `--setting-sources user` so a client repo cannot bring its own permissions. The prompt goes in on standard input. Checked against the real CLI: `curl`, `git push` and reads or writes outside the folder are refused.
+- A run exists only because the owner tapped. Starting one, and tapping any Chat button, is refused for API keys.
+- Two users on the devbox. The runner's user holds the GitHub login and the Cliphy key and is the only one that runs `git` or `gh`. Claude Code and build commands run as a second user, in a copy of the code with no `.git`. The runner copies file contents back (no owners, no setuid bits, no devices) and commits with hooks off, so nothing the second user writes is run or read as configuration by the first. Neither user can read the other's folders. Before each run every process of the second user is stopped and its crontab, Claude settings and package-manager config are cleared.
+- Claude Code is started with `--permission-mode dontAsk`, file tools limited to its own folder, a shell limited to the project's package manager, no web tools, and no settings files at all (`--setting-sources ""`), so neither a client repo nor an earlier run can bring its own permissions. The prompt goes in on standard input. Checked against the real CLI: `curl`, `git push` and reads or writes outside the folder are refused.
 - The runner's API key has a scope (`api_keys.scope = 'runner'`): the three calls and the picture upload, nothing else.
 - Only branches named `cliphy/…` are pushed.
 
@@ -32,6 +32,8 @@ How the client's text is kept in its box:
 - Shares her subscription's usage allowance with her interactive sessions. Acceptable for her own use only; other users need the hosted version.
 - The second user is logged in to Claude with her subscription. A hostile build script could read that login, and it has the network. This is close to her building the repo by hand and is accepted for a single user.
 - GitHub cannot limit a token to a branch pattern, so the "only `cliphy/…`" rule lives in the runner. Default branches of client repos should have branch protection.
-- No turn cap: the installed CLI has no such flag. A 20-minute wall clock is the only limit.
+- No turn cap: the installed CLI has no such flag. A 20-minute clock (`timeout`, run as the second user because the runner cannot signal another user's process) is the only limit.
+- The shell allowlist (`pnpm`, `npm`, `node`, …) is not a wall: a package script can run any code as the second user. The separation of users is what holds; the tool list only keeps an honest Claude on the task.
+- A final review found that the first version's copy-back kept setuid bits, which would have handed the second user the first user's identity. Fixed before any real run; see the devlog for 2026-11-16.
 - Each repo needs one-time setup on the devbox ([`docs/runner-setup.md`](../runner-setup.md)).
 - Where the preview address comes from (GitHub's deployments list) is unproven until the first real run.

@@ -22,6 +22,13 @@ interface World {
   /** The check-in (1 = first) from which the server says the run was stopped. */
   cancelledFrom?: number;
   fail?: Partial<Record<"prepare" | "collect" | "publish" | "shoot" | "upload", boolean>>;
+  /** The pull request could not be opened, but the branch was pushed. */
+  pushedOnly?: boolean;
+  /** Check-ins (1 = first) that fail because the API could not be reached. */
+  checkInDown?: number[];
+  /** How many times finish fails before it gets through. */
+  finishDown?: number;
+  images?: string[];
 }
 
 function fake(w: World = {}) {
@@ -30,6 +37,8 @@ function fake(w: World = {}) {
   const published: { title: string; body: string; branch: string }[] = [];
   const shots: string[] = [];
   let checkIns = 0;
+  let finishTries = 0;
+  const prompts: string[] = [];
   const boom = (what: keyof NonNullable<World["fail"]>) => {
     if (w.fail?.[what]) throw new Error(`${what} broke`);
   };
@@ -42,9 +51,12 @@ function fake(w: World = {}) {
       checkIn: async (_id, note) => {
         checkIns += 1;
         calls.push(`checkIn:${note}`);
+        if (w.checkInDown?.includes(checkIns)) throw new Error("502");
         return { cancelled: w.cancelledFrom !== undefined && checkIns >= w.cancelledFrom };
       },
       finish: async (_id, outcome) => {
+        finishTries += 1;
+        if (finishTries <= (w.finishDown ?? 0)) throw new Error("502");
         calls.push("finish");
         finished.push(outcome);
       },
@@ -59,6 +71,10 @@ function fake(w: World = {}) {
         boom("prepare");
         return { workDir: "/work/example__alder-house" };
       },
+      attach: async (_repo, urls) => {
+        calls.push(`attach:${urls.length}`);
+        return w.images ?? urls.map((_u, i) => `.cliphy-brief/${i + 1}.png`);
+      },
       collect: async () => {
         calls.push("collect");
         boom("collect");
@@ -67,6 +83,7 @@ function fake(w: World = {}) {
       publish: async (_repo, branch, title, body) => {
         calls.push("publish");
         boom("publish");
+        if (w.pushedOnly) throw Object.assign(new Error("gh pr create failed"), { pushed: true });
         published.push({ branch, title, body });
         return { prUrl: PR };
       },
@@ -74,7 +91,8 @@ function fake(w: World = {}) {
         calls.push("discard");
       },
     },
-    claude: async (_dir, _prompt, limitMs, alive) => {
+    claude: async (_dir, prompt, limitMs, alive) => {
+      prompts.push(prompt);
       calls.push(`claude:${limitMs}`);
       if (!(await alive())) return { ok: false, reason: "stopped", detail: "" };
       return w.claude ?? { ok: true, stdout: stdout() };
@@ -91,7 +109,7 @@ function fake(w: World = {}) {
     },
     log: () => {},
   };
-  return { deps, calls, finished, published, shots };
+  return { deps, calls, finished, published, shots, prompts };
 }
 
 describe("one run, start to finish", () => {
@@ -113,6 +131,7 @@ describe("one run, start to finish", () => {
     expect(f.calls).toEqual([
       "claim",
       `prepare:${BRANCH}`,
+      "attach:1",
       `claude:${CLAUDE_LIMIT_MS}`,
       "checkIn:working on it",
       "collect",
@@ -270,5 +289,59 @@ describe("one run, start to finish", () => {
       await runOnce(f.deps);
       expect(f.calls.at(-1), JSON.stringify(w)).toBe("discard");
     }
+  });
+
+  describe("when the API cannot be reached for a moment", () => {
+    it("carries on: a check-in that fails is not a Stop", async () => {
+      for (const down of [[1], [2], [3], [4]]) {
+        const f = fake({ checkInDown: down });
+        expect(await runOnce(f.deps), `check-in ${down}`).toBe("done");
+        expect(f.finished[0]).toMatchObject({ status: "done", prUrl: PR });
+      }
+    });
+
+    it("tries again to report the result, and reports it once", async () => {
+      const f = fake({ finishDown: 2 });
+      expect(await runOnce(f.deps)).toBe("done");
+      expect(f.finished).toHaveLength(1);
+      expect(f.finished[0]).toMatchObject({ status: "done", prUrl: PR });
+    });
+  });
+
+  it("keeps the branch in the failure when it was pushed but the pull request was not opened", async () => {
+    const f = fake({ pushedOnly: true });
+    expect(await runOnce(f.deps)).toBe("failed");
+    expect(f.finished).toEqual([
+      { status: "failed", error: "Could not open the pull request.", branch: BRANCH },
+    ]);
+  });
+
+  it("keeps the pull request in the failure when something breaks after it was opened", async () => {
+    const f = fake();
+    f.deps.preview = async () => {
+      throw new Error("gh broke");
+    };
+    expect(await runOnce(f.deps)).toBe("failed");
+    expect(f.finished).toEqual([
+      {
+        status: "failed",
+        error: "Something went wrong on the runner.",
+        branch: BRANCH,
+        prUrl: PR,
+      },
+    ]);
+  });
+
+  it("shows Claude the pictures the client sent, as files in its folder", async () => {
+    const f = fake();
+    await runOnce(f.deps);
+    expect(f.prompts[0]).toContain(".cliphy-brief/1.png");
+    expect(f.prompts[0]).not.toContain("https://signed.example/sconces.png");
+  });
+
+  it("works without the pictures when they could not be fetched", async () => {
+    const f = fake({ images: [] });
+    expect(await runOnce(f.deps)).toBe("done");
+    expect(f.prompts[0]).not.toContain(".cliphy-brief");
   });
 });

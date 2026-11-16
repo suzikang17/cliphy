@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { REPO_PATTERN } from "./contract.js";
 import { RESULT_SCHEMA } from "./prompt.js";
@@ -12,7 +12,9 @@ import type { Alive, ClaudeResult, RunDeps } from "./run.js";
 // command run as the work user, in a copy of the code that has no `.git`.
 // The runner then copies plain files back into its own clone and commits
 // with hooks off, so nothing the work user can write is ever run, or read as
-// configuration, by the runner's user.
+// configuration, by the runner's user. Neither user can read the other's
+// folders except for that one copy back, which carries file contents only:
+// no owners, no special permission bits, no devices.
 
 export interface RunnerConfig {
   apiUrl: string;
@@ -21,8 +23,10 @@ export interface RunnerConfig {
   workUser: string;
   /** Where the work user's copies live. Owned by the work user, readable by the runner. */
   workRoot: string;
-  /** The runner's own clones. Owned by the runner, readable (not writable) by the work user. */
+  /** The runner's own clones. Owned by the runner and closed to everyone else. */
   reposRoot: string;
+  /** The work user's home, cleared of leftovers between runs. Default `/home/<workUser>`. */
+  workHome?: string;
 }
 
 export interface ExecResult {
@@ -33,7 +37,12 @@ export interface ExecResult {
 export type Exec = (
   cmd: string,
   args: string[],
-  opts?: { cwd?: string; timeoutMs?: number },
+  opts?: {
+    cwd?: string;
+    timeoutMs?: number;
+    /** Feed this program's output straight into another program's input. */
+    pipeTo?: [string, string[]];
+  },
 ) => Promise<ExecResult>;
 
 const BRANCH_PATTERN = /^cliphy\/[a-z0-9-]+$/;
@@ -47,20 +56,42 @@ const HERE = ["Read(./**)", "Edit(./**)", "Write(./**)"];
 export const realExec: Exec = (cmd, args, opts = {}) =>
   new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const next = opts.pipeTo
+      ? spawn(opts.pipeTo[0], opts.pipeTo[1], { stdio: ["pipe", "pipe", "pipe"] })
+      : null;
     let stdout = "";
     let stderr = "";
-    const timer = opts.timeoutMs ? setTimeout(() => child.kill("SIGTERM"), opts.timeoutMs) : null;
-    child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
-    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    const done = (code: number) => {
+    const codes: number[] = [];
+    const timer = opts.timeoutMs
+      ? setTimeout(() => {
+          child.kill("SIGTERM");
+          next?.kill("SIGTERM");
+        }, opts.timeoutMs)
+      : null;
+    const ended = (code: number) => {
+      codes.push(code);
+      if (codes.length < (next ? 2 : 1)) return;
       if (timer) clearTimeout(timer);
-      resolve({ code, stdout, stderr });
+      // A pipe worked only if both ends did.
+      resolve({ code: codes.find((c) => c !== 0) ?? 0, stdout, stderr });
     };
-    child.on("error", (err) => {
-      stderr += String(err);
-      done(127);
-    });
-    child.on("close", (code) => done(code ?? 1));
+    const watch = (proc: ChildProcess) => {
+      proc.stderr?.on("data", (d: Buffer) => (stderr += d.toString()));
+      proc.on("error", (err) => {
+        stderr += String(err);
+        ended(127);
+      });
+      proc.on("close", (code) => ended(code ?? 1));
+    };
+    watch(child);
+    if (next) {
+      watch(next);
+      next.stdin.on("error", () => {});
+      child.stdout.pipe(next.stdin);
+      next.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+    } else {
+      child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+    }
   });
 
 /**
@@ -91,9 +122,10 @@ export function claudeArgs(): string[] {
       "Bash(curl *)",
       "Bash(wget *)",
     ].join(","),
-    // The user's own settings only: a client's repo cannot bring its own permissions or hooks.
+    // No settings files at all: a client's repo cannot bring its own permissions or hooks,
+    // and neither can anything an earlier run left in the work user's home.
     "--setting-sources",
-    "user",
+    "",
   ];
 }
 
@@ -101,6 +133,46 @@ const asWork = (config: RunnerConfig, cmd: string, args: string[]): [string, str
   "sudo",
   ["-n", "-u", config.workUser, "-H", cmd, ...args],
 ];
+
+/**
+ * Claude Code as the work user, in a session of its own, under a clock. The
+ * runner cannot signal another user's process, so the time limit is enforced
+ * by `timeout` running as the work user itself (exit code 124 when it fires).
+ */
+export function claudeCommand(config: RunnerConfig, limitMs: number): [string, string[]] {
+  const seconds = String(Math.ceil(limitMs / 1000));
+  return asWork(config, "setsid", [
+    "--wait",
+    "timeout",
+    "-k",
+    "10",
+    seconds,
+    "claude",
+    ...claudeArgs(),
+  ]);
+}
+
+/** Things in the work user's home that would steer a later run, for any client. */
+const LEFTOVERS = [
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+  ".claude/CLAUDE.md",
+  ".npmrc",
+  ".yarnrc.yml",
+  ".config/pnpm/rc",
+];
+const BRIEF_DIR = ".cliphy-brief";
+const MAX_IMAGES = 6;
+
+/** A failure to publish. `pushed` says the branch is on GitHub even so. */
+export class PublishError extends Error {
+  constructor(
+    message: string,
+    readonly pushed: boolean,
+  ) {
+    super(message);
+  }
+}
 
 export function createRepo(config: RunnerConfig, exec: Exec): RunDeps["repo"] {
   const check = (repo: string, branch?: string) => {
@@ -123,6 +195,15 @@ export function createRepo(config: RunnerConfig, exec: Exec): RunDeps["repo"] {
   };
   const git = (clone: string, ...args: string[]) =>
     must("git", [...SAFE_GIT, "-C", clone, ...args]);
+  const home = config.workHome ?? path.join("/home", config.workUser);
+  /**
+   * Stop everything the work user is running. Nothing of one run may outlive
+   * it: not a build script's background process, not a Claude that ignored its
+   * clock. (pkill exits 1 when there was nothing to stop.)
+   */
+  const stopWork = async () => {
+    await exec(...asWork(config, "pkill", ["-KILL", "-u", config.workUser]));
+  };
 
   return {
     async prepare(repo, branch) {
@@ -135,35 +216,75 @@ export function createRepo(config: RunnerConfig, exec: Exec): RunDeps["repo"] {
       await git(clone, "checkout", "-f", "-B", branch, head);
       await git(clone, "clean", "-fdx");
 
-      // Claude's copy: plain files, no history, made and owned by the work user.
-      await must(...asWork(config, "rm", ["-rf", work]));
-      await must(...asWork(config, "mkdir", ["-p", work]));
+      // Nothing from an earlier run, for this client or another, carries over.
+      await stopWork();
+      await exec(...asWork(config, "crontab", ["-r"]));
       await must(
-        ...asWork(config, "rsync", [
-          "-a",
-          "--delete",
-          "--exclude",
-          ".git",
-          `${clone}/`,
-          `${work}/`,
-        ]),
+        ...asWork(config, "rm", ["-rf", work, ...LEFTOVERS.map((f) => path.join(home, f))]),
       );
+      await must(...asWork(config, "mkdir", ["-p", work]));
+      // Claude's copy: plain files, no history. The runner reads its own clone and
+      // the work user unpacks, so neither needs to see into the other's folders.
+      const copied = await exec("tar", ["-C", clone, "--exclude=./.git", "-cf", "-", "."], {
+        timeoutMs: 5 * 60_000,
+        pipeTo: asWork(config, "tar", ["-x", "-C", work]),
+      });
+      if (copied.code !== 0)
+        throw new Error(`copy to the work folder failed: ${copied.stderr.slice(0, 300)}`);
       return { workDir: work };
+    },
+
+    async attach(repo, urls) {
+      const { work } = check(repo);
+      const dir = path.join(work, BRIEF_DIR);
+      const files: string[] = [];
+      const wanted = urls.filter((u) => /^https:\/\/[^\s]+$/.test(u)).slice(0, MAX_IMAGES);
+      if (wanted.length === 0) return files;
+      await must(...asWork(config, "mkdir", ["-p", dir]));
+      for (const [i, url] of wanted.entries()) {
+        const ext = /\.(png|jpe?g|webp|gif)(\?|$)/i.exec(url)?.[1]?.toLowerCase() ?? "jpg";
+        const name = `${i + 1}.${ext}`;
+        // Fetched by the work user: the address is a short-lived one for this picture only.
+        const got = await exec(
+          ...asWork(config, "curl", [
+            "-fsS",
+            "--proto",
+            "=https",
+            "--max-time",
+            "30",
+            "--max-filesize",
+            "20000000",
+            "-o",
+            path.join(dir, name),
+            "--",
+            url,
+          ]),
+          { timeoutMs: 45_000 },
+        );
+        if (got.code === 0) files.push(`${BRIEF_DIR}/${name}`);
+      }
+      return files;
     },
 
     async collect(repo) {
       const { clone, work } = check(repo);
-      // Files only. No git data, no dependencies, and no link that points out of the folder.
+      // Nothing may still be changing the folder while it is read.
+      await stopWork();
+      // File contents only. Not `-a`: that would carry owners, setuid bits and
+      // device files into a folder the runner owns. No git data, no
+      // dependencies, no link that points out of the folder.
       await must("rsync", [
-        "-a",
+        "-rlt",
+        "--executability",
+        "--chmod=ug-s,o-w",
         "--delete",
-        "--no-owner",
-        "--no-group",
         "--safe-links",
         "--exclude",
         ".git",
         "--exclude",
         "node_modules",
+        "--exclude",
+        BRIEF_DIR,
         `${work}/`,
         `${clone}/`,
       ]);
@@ -195,7 +316,8 @@ export function createRepo(config: RunnerConfig, exec: Exec): RunDeps["repo"] {
       }
       const prUrl = result.stdout.trim().split("\n").pop() ?? "";
       if (result.code !== 0 || !/^https:\/\/github\.com\/\S+\/pull\/\d+$/.test(prUrl)) {
-        throw new Error(`gh pr create failed: ${result.stderr.slice(0, 300)}`);
+        // The branch is up even though the pull request is not: the work is not lost.
+        throw new PublishError(`gh pr create failed: ${result.stderr.slice(0, 300)}`, true);
       }
       return { prUrl };
     },
@@ -203,12 +325,15 @@ export function createRepo(config: RunnerConfig, exec: Exec): RunDeps["repo"] {
     async discard(repo) {
       const { work } = check(repo);
       await must(...asWork(config, "rm", ["-rf", work]));
+      await stopWork();
     },
   };
 }
 
 /** How often a waiting step asks whether the run was stopped (which is also its check-in). */
 const ALIVE_EVERY_MS = 60_000;
+/** `timeout` exits with this when the clock ran out. */
+const TIMED_OUT = 124;
 
 /** Start Claude Code as the work user in `workDir`, with the prompt on standard input. */
 export function runClaude(
@@ -219,39 +344,47 @@ export function runClaude(
   alive: Alive,
 ): Promise<ClaudeResult> {
   return new Promise((resolve) => {
-    const [cmd, args] = asWork(config, "claude", claudeArgs());
+    const [cmd, args] = claudeCommand(config, limitMs);
     const child = spawn(cmd, args, { cwd: workDir, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    let ended: ClaudeResult | null = null;
-    const end = (result: ClaudeResult) => {
+    let ended = false;
+    /** The runner cannot signal the work user's processes itself; the work user's own pkill can. */
+    const stopWork = () =>
+      void realExec(...asWork(config, "pkill", ["-KILL", "-u", config.workUser]));
+    const end = (result: ClaudeResult, kill: boolean) => {
       if (ended) return;
-      ended = result;
-      clearTimeout(limit);
+      ended = true;
+      clearTimeout(backstop);
       clearInterval(pulse);
-      child.kill("SIGTERM");
+      if (kill) stopWork();
       resolve(result);
     };
-    const limit = setTimeout(() => end({ ok: false, reason: "timeout", detail: "" }), limitMs);
+    // `timeout` is the clock. This is only for the case where it never reports back.
+    const backstop = setTimeout(
+      () => end({ ok: false, reason: "timeout", detail: "" }, true),
+      limitMs + 30_000,
+    );
     const pulse = setInterval(() => {
       // A check-in that could not be made is not a Stop: keep working.
       alive().then(
         (ok) => {
-          if (!ok) end({ ok: false, reason: "stopped", detail: "" });
+          if (!ok) end({ ok: false, reason: "stopped", detail: "" }, true);
         },
         () => {},
       );
     }, ALIVE_EVERY_MS);
     child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
     child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    child.on("error", (err) => end({ ok: false, reason: "error", detail: String(err) }));
-    child.on("close", (code) =>
-      end(
-        code === 0
-          ? { ok: true, stdout }
-          : { ok: false, reason: "error", detail: `exit ${code}: ${stderr.slice(-500)}` },
-      ),
-    );
+    child.on("error", (err) => end({ ok: false, reason: "error", detail: String(err) }, true));
+    child.on("close", (code) => {
+      if (code === 0) return end({ ok: true, stdout }, false);
+      if (code === TIMED_OUT || code === 137) {
+        return end({ ok: false, reason: "timeout", detail: "" }, true);
+      }
+      end({ ok: false, reason: "error", detail: `exit ${code}: ${stderr.slice(-500)}` }, true);
+    });
+    child.stdin.on("error", () => {});
     child.stdin.end(prompt);
   });
 }

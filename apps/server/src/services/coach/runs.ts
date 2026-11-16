@@ -68,7 +68,10 @@ export async function reposByProject(userId: string): Promise<Map<string, string
   return repos;
 }
 
-/** Tell Chat how a run ended. Keyed on the run, so it is said once however often this is called. */
+/**
+ * Tell Chat how a run ended. Keyed on the run, so it is said once however
+ * often this is called. Throws if it could not be said.
+ */
 export async function announceFinished(userId: string, run: CoachRun): Promise<void> {
   const { data } = await supabase
     .from("coach_tasks")
@@ -112,7 +115,8 @@ export async function startRun(userId: string, taskId: string): Promise<StartRes
     .single();
   if (data) {
     const run = toRun(data as Row);
-    await postBotMessage(userId, runStarted(run, task));
+    // The run is queued whether or not Chat could be told; the task's page shows it too.
+    await postBotMessage(userId, runStarted(run, task)).catch(() => null);
     return { status: 201, run };
   }
 
@@ -143,13 +147,16 @@ export async function cancelRun(
     .in("status", ACTIVE)
     .select("*")
     .maybeSingle();
-  if (data) {
-    const run = toRun(data as Row);
-    await announceFinished(userId, run);
-    return { run, changed: true };
+  const row = (data as Row | null) ?? (await runById(userId, runId));
+  if (!row) return null;
+  const run = toRun(row);
+  // Said again on a repeat: if the first telling was lost, this is the retry,
+  // and if it was not, the thread already holds it and nothing is added. A
+  // failure here must not undo the answer; the sweep tells Chat later.
+  if (run.status !== "queued" && run.status !== "working") {
+    await announceFinished(userId, run).catch(() => null);
   }
-  const existing = await runById(userId, runId);
-  return existing ? { run: toRun(existing), changed: false } : null;
+  return { run, changed: Boolean(data) };
 }
 
 async function briefFor(userId: string, run: Row): Promise<RunBrief | null> {
@@ -293,13 +300,16 @@ export async function finishRun(
     .in("status", ACTIVE)
     .select("*")
     .maybeSingle();
-  if (data) {
-    const run = toRun(data as Row);
-    await announceFinished(userId, run);
-    return { run, changed: true };
+  const row = (data as Row | null) ?? (await runById(userId, runId));
+  if (!row) return null;
+  const run = toRun(row);
+  // Said again on a repeat: if the first telling was lost, this is the retry,
+  // and if it was not, the thread already holds it and nothing is added. A
+  // failure here must not undo the answer; the sweep tells Chat later.
+  if (run.status !== "queued" && run.status !== "working") {
+    await announceFinished(userId, run).catch(() => null);
   }
-  const existing = await runById(userId, runId);
-  return existing ? { run: toRun(existing), changed: false } : null;
+  return { run, changed: Boolean(data) };
 }
 
 /** The newest run for a task, with addresses for its pictures. */

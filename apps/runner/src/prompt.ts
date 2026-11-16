@@ -22,9 +22,10 @@ const contained = (text: string): string => text.replace(/<\s*\/?\s*client_messa
 /**
  * The prompt for one website change. The client's own words are given as
  * quoted material: they say what change is wanted and nothing else they say
- * is to be acted on.
+ * is to be acted on. `imageFiles` are the client's pictures as files in the
+ * work folder: Claude has no web tools, so an address would be no use to it.
  */
-export function buildPrompt(brief: RunBrief): string {
+export function buildPrompt(brief: RunBrief, imageFiles: string[] = []): string {
   const { task } = brief;
   const lines: string[] = [
     "You are making one change to a website. This folder is the website's code.",
@@ -49,10 +50,14 @@ export function buildPrompt(brief: RunBrief): string {
       lines.push(`${m.direction === "in" ? "Client" : "Owner"}: ${contained(m.text)}`);
     }
     lines.push("</client_messages>");
-    const images = brief.messages.flatMap((m) => m.imageUrls);
-    if (images.length > 0) {
-      lines.push("", "Pictures the client sent with those messages:", ...images);
-    }
+  }
+  if (imageFiles.length > 0) {
+    lines.push(
+      "",
+      "Pictures the client sent with those messages are in these files. Look at them with Read.",
+      "Do not change or keep them: that folder is thrown away afterwards.",
+      ...imageFiles,
+    );
   }
 
   lines.push(
