@@ -36,6 +36,7 @@ import { coachRoutes } from "./routes/coach/index.js";
 import { pairRoutes } from "./routes/pair.js";
 import { chatReply, learnJob } from "./functions/coachChat.js";
 import { checkIns } from "./functions/coachCheckins.js";
+import { sweepRunsJob } from "./functions/coachRuns.js";
 import { fireReminders, reconcileReminders, weeklyReview } from "./functions/coachReminders.js";
 import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
@@ -110,6 +111,7 @@ app.on(
       chatReply,
       learnJob,
       checkIns,
+      sweepRunsJob,
     ],
     serveOrigin: process.env.INNGEST_SERVE_HOST || "https://api.cliphy.app",
     servePath: "/api/inngest",
