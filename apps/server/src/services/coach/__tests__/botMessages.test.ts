@@ -11,7 +11,13 @@ import {
   checkIn,
   progressFiled,
   progressAsk,
+  didAction,
+  startOnSite,
+  runStarted,
+  runFinished,
+  runnerQuiet,
 } from "../botMessages.js";
+import type { CoachRun } from "@cliphy/shared";
 
 const request = {
   id: "r1",
@@ -234,5 +240,123 @@ describe("bot messages", () => {
     expect(m.buttons).toHaveLength(3);
     expect(m.buttons[2].action).toEqual({ type: "file_progress", entryId: "e1", projectId: "pr3" });
     expect(m).toMatchObject({ kind: "progress", refId: "e1" });
+  });
+
+  describe("the website task runner", () => {
+    const task = { id: "t1", title: "Move the sconces up on page 2" };
+    const run = (over: Partial<CoachRun> = {}): CoachRun => ({
+      id: "run1",
+      taskId: "t1",
+      status: "done",
+      note: null,
+      summary: "Moved the sconce photos above the paragraph on the Lighting page.",
+      branch: "cliphy/run1-move-the-sconces-up",
+      prUrl: "https://github.com/example/alder-house/pull/3",
+      previewUrl: "https://run1.alder-house.pages.dev",
+      pictures: [
+        { label: "before", width: "desktop", storagePath: "coach/u/bd.png" },
+        { label: "before", width: "phone", storagePath: "coach/u/bp.png" },
+        { label: "after", width: "desktop", storagePath: "coach/u/ad.png" },
+        { label: "after", width: "phone", storagePath: "coach/u/ap.png" },
+      ],
+      error: null,
+      createdAt: "2026-11-15T09:00:00Z",
+      claimedAt: null,
+      finishedAt: null,
+      ...over,
+    });
+
+    it("offers to start a task on the site", () => {
+      expect(startOnSite("t1")).toEqual({
+        label: "Start on the site",
+        action: { type: "start_run", taskId: "t1" },
+      });
+    });
+
+    it("can put buttons on a plain line about what it did", () => {
+      expect(didAction("Saved. 2 tasks added", [startOnSite("t1")]).buttons).toEqual([
+        startOnSite("t1"),
+      ]);
+      expect(didAction("Saved").buttons).toEqual([]);
+    });
+
+    it("offers both ways to start work that is ready and can be done on the site", () => {
+      const m = taskUnblocked({ id: "t1", kind: "do", title: task.title }, { runnable: true });
+      expect(m.buttons).toEqual([
+        { label: "Start", action: { type: "open", link: { type: "task", id: "t1" } } },
+        startOnSite("t1"),
+      ]);
+    });
+
+    it("says a run started, once per run, with a way to stop it", () => {
+      expect(runStarted({ id: "run1" }, task)).toEqual({
+        text: 'Started on the site: "Move the sconces up on page 2"',
+        buttons: [{ label: "Stop", action: { type: "stop_run", runId: "run1" } }],
+        link: { type: "task", id: "t1" },
+        attachments: [],
+        kind: "run_started",
+        refId: "run1",
+      });
+    });
+
+    it("shows a finished run: what changed, after and before on a phone, and the links", () => {
+      expect(runFinished(run(), task)).toEqual({
+        text:
+          "Done: Moved the sconce photos above the paragraph on the Lighting page.\n" +
+          "Preview: https://run1.alder-house.pages.dev\n" +
+          "Pull request: https://github.com/example/alder-house/pull/3",
+        buttons: [],
+        link: { type: "task", id: "t1" },
+        attachments: [
+          { storagePath: "coach/u/ap.png", mediaType: "image/png" },
+          { storagePath: "coach/u/bp.png", mediaType: "image/png" },
+        ],
+        kind: "run_finished",
+        refId: "run1",
+      });
+    });
+
+    it("says so when there was no preview, and shows no pictures it does not have", () => {
+      const m = runFinished(run({ previewUrl: null, pictures: [] }), task);
+      expect(m.text).toBe(
+        "Done: Moved the sconce photos above the paragraph on the Lighting page.\n" +
+          "No preview was found.\n" +
+          "Pull request: https://github.com/example/alder-house/pull/3",
+      );
+      expect(m.attachments).toEqual([]);
+    });
+
+    it("says what went wrong in plain words, with the work if any was kept", () => {
+      const failed = { status: "failed" as const, summary: null, previewUrl: null, pictures: [] };
+      expect(
+        runFinished(
+          run({ ...failed, error: "I could not find a page 2.", prUrl: null, branch: null }),
+          task,
+        ).text,
+      ).toBe("That didn't work: I could not find a page 2.");
+      expect(
+        runFinished(run({ ...failed, error: "Could not open the pull request." }), task).text,
+      ).toBe(
+        "That didn't work: Could not open the pull request.\n" +
+          "Pull request: https://github.com/example/alder-house/pull/3",
+      );
+      expect(
+        runFinished(run({ ...failed, error: "The preview broke.", prUrl: null }), task).text,
+      ).toBe("That didn't work: The preview broke.\nBranch: cliphy/run1-move-the-sconces-up");
+    });
+
+    it("says a stopped run stopped", () => {
+      const m = runFinished(run({ status: "cancelled" }), task);
+      expect(m).toMatchObject({ text: "Stopped.", attachments: [], kind: "run_finished" });
+    });
+
+    it("says once when nothing has picked a run up", () => {
+      expect(runnerQuiet({ id: "run1" })).toMatchObject({
+        text: "The runner doesn't seem to be on.",
+        kind: "runner_quiet",
+        refId: "run1",
+        buttons: [],
+      });
+    });
   });
 });

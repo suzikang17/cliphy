@@ -10,6 +10,8 @@ import {
 } from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
 import { signImageUrl } from "../../lib/storage.js";
+import { runFinished, runStarted } from "./botMessages.js";
+import { postBotMessage } from "./chat.js";
 import { loadTasks } from "./taskStore.js";
 
 // A run is one attempt at a website change for a task, made by a runner that
@@ -55,6 +57,29 @@ async function projectOf(userId: string, projectId: string | null): Promise<Row 
   return (data as Row) ?? null;
 }
 
+/** The website repo of each of the user's projects that has one. */
+export async function reposByProject(userId: string): Promise<Map<string, string>> {
+  const { data } = await supabase.from("coach_projects").select("id, repo").eq("user_id", userId);
+  const repos = new Map<string, string>();
+  for (const row of Array.isArray(data) ? (data as Row[]) : []) {
+    const repo = str(row.repo);
+    if (repo) repos.set(row.id as string, repo);
+  }
+  return repos;
+}
+
+/** Tell Chat how a run ended. Keyed on the run, so it is said once however often this is called. */
+export async function announceFinished(userId: string, run: CoachRun): Promise<void> {
+  const { data } = await supabase
+    .from("coach_tasks")
+    .select("id, title")
+    .eq("id", run.taskId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const task = data as { id: string; title: string } | null;
+  await postBotMessage(userId, runFinished(run, task ?? { id: run.taskId, title: "" }));
+}
+
 async function runById(userId: string, runId: string): Promise<Row | null> {
   const { data } = await supabase
     .from("coach_runs")
@@ -85,7 +110,11 @@ export async function startRun(userId: string, taskId: string): Promise<StartRes
     .insert({ user_id: userId, task_id: taskId })
     .select("*")
     .single();
-  if (data) return { status: 201, run: toRun(data as Row) };
+  if (data) {
+    const run = toRun(data as Row);
+    await postBotMessage(userId, runStarted(run, task));
+    return { status: 201, run };
+  }
 
   // The index allows one waiting or working run per task: a second tap gets that one.
   if ((error as { code?: string } | null)?.code === "23505") {
@@ -114,7 +143,11 @@ export async function cancelRun(
     .in("status", ACTIVE)
     .select("*")
     .maybeSingle();
-  if (data) return { run: toRun(data as Row), changed: true };
+  if (data) {
+    const run = toRun(data as Row);
+    await announceFinished(userId, run);
+    return { run, changed: true };
+  }
   const existing = await runById(userId, runId);
   return existing ? { run: toRun(existing), changed: false } : null;
 }
@@ -260,7 +293,11 @@ export async function finishRun(
     .in("status", ACTIVE)
     .select("*")
     .maybeSingle();
-  if (data) return { run: toRun(data as Row), changed: true };
+  if (data) {
+    const run = toRun(data as Row);
+    await announceFinished(userId, run);
+    return { run, changed: true };
+  }
   const existing = await runById(userId, runId);
   return existing ? { run: toRun(existing), changed: false } : null;
 }

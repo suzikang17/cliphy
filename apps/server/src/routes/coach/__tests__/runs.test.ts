@@ -357,6 +357,47 @@ describe("runs: the website task runner's calls", () => {
     });
   });
 
+  describe("telling Chat about the result", () => {
+    beforeEach(() => {
+      who = "api_key";
+    });
+    const finish = () =>
+      post("/api/coach/runs/run1/finish", {
+        status: "failed",
+        error: "I could not find a page 2.",
+      });
+    const chat = () => db.written("coach_chat_messages") as Record<string, unknown>[];
+
+    it("says it once, tied to the run", async () => {
+      db = makeDb((op) => {
+        if (op.table === "coach_runs" && op.action === "update") {
+          return { data: runRow({ status: "failed", error: "I could not find a page 2." }) };
+        }
+        if (op.table === "coach_tasks") return { data: taskRow() };
+        if (op.table === "coach_chat_messages") return { data: [{ id: "m" }] };
+        return undefined;
+      });
+      await finish();
+      expect(chat()).toEqual([
+        expect.objectContaining({
+          kind: "run_finished",
+          ref_id: "run1",
+          text: "That didn't work: I could not find a page 2.",
+        }),
+      ]);
+      const write = db.ops.find((o) => o.table === "coach_chat_messages")!;
+      expect(write.action).toBe("upsert");
+    });
+
+    it("says nothing when the finish changed nothing", async () => {
+      db = makeDb((op) =>
+        op.action === "select" ? { data: runRow({ status: "cancelled" }) } : undefined,
+      );
+      await finish();
+      expect(chat()).toEqual([]);
+    });
+  });
+
   describe("stopping one from the phone", () => {
     it("cancels a run that is still going", async () => {
       db = makeDb((op) =>

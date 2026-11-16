@@ -4,6 +4,7 @@ import {
   type ChatButton,
   type ChatKind,
   type ChatLink,
+  type CoachRun,
   type OpenQuestion,
   type TaskKind,
 } from "@cliphy/shared";
@@ -103,10 +104,13 @@ export function reminderDue(
   };
 }
 
-export function taskUnblocked(task: { id: string; kind: TaskKind; title: string }): BotMessage {
+export function taskUnblocked(
+  task: { id: string; kind: TaskKind; title: string },
+  opts: { runnable?: boolean } = {},
+): BotMessage {
   return {
     text: `${task.title.trim().replace(/[.!?]$/, "")} is ready.`,
-    buttons: [doButton(task)],
+    buttons: opts.runnable ? [doButton(task), startOnSite(task.id)] : [doButton(task)],
     link: taskLink(task.id),
     attachments: [],
     kind: "unblocked",
@@ -153,10 +157,10 @@ export function ruleLearned(rule: { id: string; sentence: string }): BotMessage 
 }
 
 /** A plain line saying what the bot just did on the user's behalf. */
-export function didAction(text: string): BotMessage {
+export function didAction(text: string, buttons: ChatButton[] = []): BotMessage {
   return {
     text: sentence(text),
-    buttons: [],
+    buttons,
     link: null,
     attachments: [],
     kind: "did",
@@ -262,5 +266,79 @@ export function progressAsk(entry: { id: string }, projects: NamedProject[]): Bo
     attachments: [],
     kind: "progress",
     refId: entry.id,
+  };
+}
+
+// ── The website task runner ──────────────────────────────────────────────
+
+export const START_ON_SITE = "Start on the site";
+
+/** The one tap that starts a website change. Nothing else ever starts one. */
+export function startOnSite(taskId: string): ChatButton {
+  return { label: START_ON_SITE, action: { type: "start_run", taskId } };
+}
+
+interface RunTask {
+  id: string;
+  title: string;
+}
+
+export function runStarted(run: { id: string }, task: RunTask): BotMessage {
+  return {
+    text: `Started on the site: "${task.title.trim()}"`,
+    buttons: [{ label: "Stop", action: { type: "stop_run", runId: run.id } }],
+    link: taskLink(task.id),
+    attachments: [],
+    kind: "run_started",
+    refId: run.id,
+  };
+}
+
+/**
+ * How a run ended: done, failed or stopped. Links are written out in the text
+ * (the phone makes them tappable). The pictures are the page after and before
+ * at a phone's width, so the two sit side by side as a comparison.
+ */
+export function runFinished(run: CoachRun, task: RunTask): BotMessage {
+  const base = {
+    buttons: [],
+    link: taskLink(task.id),
+    kind: "run_finished" as const,
+    refId: run.id,
+  };
+  if (run.status === "cancelled") return { ...base, text: "Stopped.", attachments: [] };
+
+  const lines: string[] = [];
+  if (run.status === "done") {
+    lines.push(`Done: ${run.summary ?? "the change is made."}`);
+    lines.push(run.previewUrl ? `Preview: ${run.previewUrl}` : "No preview was found.");
+    if (run.prUrl) lines.push(`Pull request: ${run.prUrl}`);
+  } else {
+    lines.push(`That didn't work: ${run.error ?? "something went wrong."}`);
+    // Whatever was made is not lost.
+    if (run.prUrl) lines.push(`Pull request: ${run.prUrl}`);
+    else if (run.branch) lines.push(`Branch: ${run.branch}`);
+  }
+
+  const phone = (label: "after" | "before") =>
+    run.pictures.find((p) => p.label === label && p.width === "phone");
+  const attachments =
+    run.status === "done"
+      ? [phone("after"), phone("before")]
+          .filter((p) => p !== undefined)
+          .map((p) => ({ storagePath: p.storagePath, mediaType: "image/png" }))
+      : [];
+  return { ...base, text: lines.join("\n"), attachments };
+}
+
+/** A run nobody has picked up. Said once per run. */
+export function runnerQuiet(run: { id: string }): BotMessage {
+  return {
+    text: "The runner doesn't seem to be on.",
+    buttons: [],
+    link: null,
+    attachments: [],
+    kind: "runner_quiet",
+    refId: run.id,
   };
 }

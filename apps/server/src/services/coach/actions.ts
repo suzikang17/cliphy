@@ -1,10 +1,17 @@
-import type { ChatAction, CoachTask, TaskState } from "@cliphy/shared";
+import {
+  isRunnable,
+  type ChatAction,
+  type ChatButton,
+  type CoachTask,
+  type TaskState,
+} from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
 import { stateAfterSent } from "./chain.js";
-import { taskUnblocked } from "./botMessages.js";
+import { startOnSite, taskUnblocked } from "./botMessages.js";
 import { postBotMessage } from "./chat.js";
 import { loadSettings, syncTaskReminders } from "./reminders.js";
 import { announceAnswer, confirmRequest } from "./requestActions.js";
+import { cancelRun, reposByProject, startRun } from "./runs.js";
 import { loadTasks } from "./taskStore.js";
 import { addDays, localParts } from "./time.js";
 
@@ -20,6 +27,8 @@ export interface ActionResult {
    * asked a follow-up. The button becomes tappable again.
    */
   release?: boolean;
+  /** What the user can do next, offered on the line that reports what happened. */
+  buttons?: ChatButton[];
 }
 
 const NOTHING: ActionResult = { changed: false, say: null };
@@ -37,10 +46,14 @@ export async function announceUnblocked(
   taskId: string,
   tasks: CoachTask[],
 ): Promise<void> {
-  for (const t of tasks) {
-    if (t.afterTaskId === taskId && t.state === "open") {
-      await postBotMessage(userId, taskUnblocked(t));
-    }
+  const ready = tasks.filter((t) => t.afterTaskId === taskId && t.state === "open");
+  // Only work can be started on the site, and only in a project with a repo.
+  const repos = ready.some((t) => t.kind === "do") ? await reposByProject(userId) : new Map();
+  for (const t of ready) {
+    const project = t.projectId ? { repo: repos.get(t.projectId) ?? null } : null;
+    // It was waiting on `taskId` alone, so it is no longer blocked.
+    const runnable = isRunnable({ ...t, blocked: false }, project);
+    await postBotMessage(userId, taskUnblocked(t, { runnable }));
   }
 }
 
@@ -154,11 +167,33 @@ async function confirm(
   const result = await confirmRequest(userId, requestId, answer ? { answer } : {});
   if (result.status !== 200) return FAILED;
   if (answer) await announceAnswer(userId, requestId);
-  const n = result.body.tasks.length;
+  const tasks = result.body.tasks;
+  const n = tasks.length;
+  // Work that can start on the site right now gets its button here. Work still
+  // waiting on a question gets it when it becomes ready.
+  const repos = tasks.some((t) => t.kind === "do") ? await reposByProject(userId) : new Map();
+  const first = tasks.find((t) =>
+    isRunnable(t, t.projectId ? { repo: repos.get(t.projectId) ?? null } : null),
+  );
   return {
     changed: true,
     say: n === 0 ? "Saved." : `Saved. ${n} ${n === 1 ? "task" : "tasks"} added.`,
+    buttons: first ? [startOnSite(first.id)] : [],
   };
+}
+
+/** The tap that starts a website change. The started message is said by the run itself. */
+async function startOnTheSite(userId: string, taskId: string): Promise<ActionResult> {
+  const result = await startRun(userId, taskId);
+  if (result.status === 201) return { changed: true, say: null };
+  if (result.status === 200) return NOTHING; // One is already going.
+  if (result.status === 500) return FAILED;
+  return { changed: false, say: "That task can't be started on the site.", release: true };
+}
+
+async function stopRun(userId: string, runId: string): Promise<ActionResult> {
+  const result = await cancelRun(userId, runId);
+  return result?.changed ? { changed: true, say: null } : NOTHING;
 }
 
 /** "I'm on this": what she is working on now. The strongest clue for filing a photo. */
@@ -270,7 +305,9 @@ export async function executeAction(userId: string, action: ChatAction): Promise
     case "file_progress":
       return fileProgressEntry(userId, action.entryId, action.projectId);
     case "start_run":
+      return startOnTheSite(userId, action.taskId);
     case "stop_run":
+      return stopRun(userId, action.runId);
     case "open":
     case "dismiss":
       return NOTHING;
