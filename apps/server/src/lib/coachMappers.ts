@@ -35,6 +35,8 @@ export function toProject(row: Row, personIds: string[]): Project {
     active: row.active !== false,
     stateLine: (row.state_line as string) ?? "",
     personIds,
+    repo: (row.repo as string) ?? null,
+    siteUrl: (row.site_url as string) ?? null,
   };
 }
 

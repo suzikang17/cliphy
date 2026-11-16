@@ -269,6 +269,8 @@ export async function executeAction(userId: string, action: ChatAction): Promise
       return setFocus(userId, action.projectId);
     case "file_progress":
       return fileProgressEntry(userId, action.entryId, action.projectId);
+    case "start_run":
+    case "stop_run":
     case "open":
     case "dismiss":
       return NOTHING;

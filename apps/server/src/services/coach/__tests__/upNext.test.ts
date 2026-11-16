@@ -42,6 +42,8 @@ const projects: Project[] = [
     active: true,
     stateLine: "Copy refresh",
     personIds: ["p1"],
+    repo: null,
+    siteUrl: null,
   },
   {
     id: "pr2",
@@ -50,6 +52,8 @@ const projects: Project[] = [
     active: true,
     stateLine: "",
     personIds: [],
+    repo: null,
+    siteUrl: null,
   },
   {
     id: "pr3",
@@ -58,6 +62,8 @@ const projects: Project[] = [
     active: false,
     stateLine: "",
     personIds: [],
+    repo: null,
+    siteUrl: null,
   },
 ];
 const today = "2026-11-14"; // a Saturday

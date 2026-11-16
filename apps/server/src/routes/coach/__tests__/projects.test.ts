@@ -64,6 +64,29 @@ describe("coach projects", () => {
     expect((await post("/api/coach/projects", { name: "!!!" })).status).toBe(400);
   });
 
+  it("gives a project's website repo and live site, or null for each", async () => {
+    db = makeDb((op) =>
+      op.table === "coach_projects"
+        ? {
+            data: [
+              {
+                ...projectRow,
+                repo: "example/alder-house",
+                site_url: "https://alderhouse.example",
+              },
+              { ...projectRow, id: "pr2" },
+            ],
+          }
+        : undefined,
+    );
+    const { projects } = await (await app().request("/api/coach/projects")).json();
+    expect(projects[0]).toMatchObject({
+      repo: "example/alder-house",
+      siteUrl: "https://alderhouse.example",
+    });
+    expect(projects[1]).toMatchObject({ repo: null, siteUrl: null });
+  });
+
   it("lists projects with the people on each", async () => {
     db = makeDb((op) => {
       if (op.table === "coach_projects") return { data: [projectRow] };

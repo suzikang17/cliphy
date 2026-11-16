@@ -44,6 +44,10 @@ export interface Project {
   active: boolean;
   stateLine: string;
   personIds: string[];
+  /** The website's GitHub repo, `owner/name`. With it, work can be started on the site. */
+  repo: string | null;
+  /** The live site, for the "before" picture. */
+  siteUrl: string | null;
 }
 
 export interface Attachment {
@@ -215,6 +219,9 @@ export type ChatAction =
   | { type: "set_focus"; projectId: string }
   /** Put a progress photo in a project (or move it to another). */
   | { type: "file_progress"; entryId: string; projectId: string }
+  /** Start the website change for this task on the runner. */
+  | { type: "start_run"; taskId: string }
+  | { type: "stop_run"; runId: string }
   | { type: "open"; link: ChatLink }
   | { type: "dismiss" };
 
@@ -241,6 +248,9 @@ export type ChatKind =
   | "answer"
   | "checkin"
   | "progress"
+  | "run_started"
+  | "run_finished"
+  | "runner_quiet"
   | "user";
 
 export interface CoachChatMessage {
@@ -296,4 +306,67 @@ export interface UpNext {
     next: string | null;
     open: number;
   }[];
+}
+
+// ── Runs (website task runner) ───────────────────────────────────────────
+
+export type RunStatus = "queued" | "working" | "done" | "failed" | "cancelled";
+
+export interface RunPicture {
+  label: "before" | "after";
+  width: "phone" | "desktop";
+  storagePath: string;
+  url?: string;
+}
+
+/** One attempt at a website change for a task, made by the runner. */
+export interface CoachRun {
+  id: string;
+  taskId: string;
+  status: RunStatus;
+  /** What the runner last said it was doing. */
+  note: string | null;
+  summary: string | null;
+  branch: string | null;
+  prUrl: string | null;
+  previewUrl: string | null;
+  pictures: RunPicture[];
+  error: string | null;
+  createdAt: string;
+  claimedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** Everything a runner is told about the work. It can read nothing else. */
+export interface RunBrief {
+  runId: string;
+  repo: string;
+  siteUrl: string | null;
+  /** The request as the coach understood it, and the answer to its question if there was one. */
+  understood: string;
+  answer: string | null;
+  task: { title: string; kit: TaskKit };
+  /** The request's original messages, oldest first, with short-lived image addresses. */
+  messages: { direction: Direction; text: string; sentAt: string; imageUrls: string[] }[];
+}
+
+/** What a runner reports when it is finished. */
+export interface RunOutcome {
+  status: "done" | "failed";
+  summary?: string;
+  branch?: string;
+  prUrl?: string;
+  previewUrl?: string;
+  pictures?: Omit<RunPicture, "url">[];
+  error?: string;
+}
+
+export const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+/** Work that can be started on the site: open, not waiting on anything, in a project with a repo. */
+export function isRunnable(
+  task: Pick<CoachTask, "kind" | "state" | "blocked">,
+  project: Pick<Project, "repo"> | null,
+): boolean {
+  return task.kind === "do" && task.state === "open" && !task.blocked && Boolean(project?.repo);
 }
