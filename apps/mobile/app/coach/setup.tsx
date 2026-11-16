@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import type { CoachHealth, CoachRule, Person, PersonRole } from "@cliphy/shared";
 import {
   agoLabel,
@@ -13,6 +14,7 @@ import {
 import {
   addPerson,
   claimPairCode,
+  createRunnerKey,
   deleteRule,
   getCoachSettings,
   getHealth,
@@ -77,6 +79,24 @@ export default function SetupScreen() {
   const [pairCode, setPairCode] = useState("");
   const [pairing, setPairing] = useState(false);
   const [pairNote, setPairNote] = useState<string | null>(null);
+  // The website task runner's key: made here, shown once.
+  const [runnerOpen, setRunnerOpen] = useState(false);
+  const [runnerKey, setRunnerKey] = useState<string | null>(null);
+  const [runnerNote, setRunnerNote] = useState<string | null>(null);
+  const [makingKey, setMakingKey] = useState(false);
+
+  const makeRunnerKey = async () => {
+    if (makingKey) return;
+    setMakingKey(true);
+    setRunnerNote(null);
+    try {
+      setRunnerKey((await createRunnerKey()).key);
+    } catch (err) {
+      setRunnerNote(err instanceof Error && err.message ? err.message : "Could not make a key");
+    } finally {
+      setMakingKey(false);
+    }
+  };
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -375,6 +395,49 @@ export default function SetupScreen() {
           </View>
         ) : null}
         <Row title="Share sheet" detail="Share to Cliphy, then Send to Chat" />
+        <Row
+          title="Runner key"
+          detail="For the machine that makes website changes"
+          right={runnerOpen ? "Close" : "Open"}
+          onPress={() => setRunnerOpen((open) => !open)}
+        />
+        {runnerOpen ? (
+          <View style={{ marginBottom: 8 }}>
+            {runnerKey ? (
+              <>
+                <Text selectable style={{ ...input, fontSize: 13 }}>
+                  {runnerKey}
+                </Text>
+                <Body muted>Shown once. Put it in the runner's config.</Body>
+              </>
+            ) : (
+              <Body>
+                A key that can only pick up and report on website changes. It cannot read your
+                messages.
+              </Body>
+            )}
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+              {runnerKey ? (
+                <QuickButton
+                  label="Copy"
+                  primary
+                  onPress={() => {
+                    void Clipboard.setStringAsync(runnerKey);
+                    setRunnerNote("Copied.");
+                  }}
+                />
+              ) : (
+                <QuickButton
+                  label={makingKey ? "Making" : "Make key"}
+                  primary
+                  disabled={makingKey}
+                  onPress={makeRunnerKey}
+                />
+              )}
+            </View>
+            {runnerNote ? <Body muted>{runnerNote}</Body> : null}
+          </View>
+        ) : null}
 
         <SectionLabel>People</SectionLabel>
         {people.map((p) => (

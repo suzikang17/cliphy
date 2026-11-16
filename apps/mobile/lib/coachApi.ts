@@ -4,6 +4,7 @@ import type {
   CoachReminder,
   CoachRequest,
   CoachRule,
+  CoachRun,
   CoachSettings,
   CoachTask,
   InboundMessage,
@@ -97,6 +98,8 @@ export const updatePerson = (
   }>,
 ) => apiFetch<{ person: Person }>(`/api/coach/people/${id}`, json("PATCH", body));
 export const getProjects = () => apiFetch<{ projects: Project[] }>("/api/coach/projects");
+export const updateProject = (id: string, body: { repo?: string; siteUrl?: string }) =>
+  apiFetch<{ project: Project }>(`/api/coach/projects/${id}`, json("PATCH", body));
 export const getProjectHistory = (id: string) =>
   apiFetch<{ entries: HistoryEntry[]; progress: ProgressEntry[] }>(
     `/api/coach/projects/${id}/history`,
@@ -158,3 +161,15 @@ export const sendToChat = (body: {
     "/api/coach/intake/messages",
     json("POST", { ...body, channel: "share" }),
   );
+
+// The website task runner
+/** The newest run for a task, or null when it has never been run. */
+export const getRun = (taskId: string) =>
+  apiFetch<{ run: CoachRun | null }>(`/api/coach/runs?taskId=${encodeURIComponent(taskId)}`);
+export const startRun = (taskId: string) =>
+  apiFetch<{ run: CoachRun }>("/api/coach/runs", json("POST", { taskId }));
+export const cancelRun = (runId: string) =>
+  apiFetch<{ run: CoachRun }>(`/api/coach/runs/${runId}/cancel`, json("POST"));
+/** A key that can only do the runner's calls. The key itself is shown once. */
+export const createRunnerKey = () =>
+  apiFetch<{ key: string }>("/api/keys", json("POST", { name: "Runner", scope: "runner" }));

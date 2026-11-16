@@ -2,9 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import type { CoachTask, Person } from "@cliphy/shared";
-import { smsUrl } from "../../../lib/coach";
-import { getPeople, getTasks, markTaskSent, updateTask } from "../../../lib/coachApi";
+import { isRunnable, type CoachRun, type CoachTask, type Person } from "@cliphy/shared";
+import { runLine, smsUrl } from "../../../lib/coach";
+import {
+  cancelRun,
+  getPeople,
+  getProjects,
+  getRun,
+  getTasks,
+  markTaskSent,
+  startRun,
+  updateTask,
+} from "../../../lib/coachApi";
 import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import {
@@ -18,6 +27,9 @@ import {
   useCoachTheme,
 } from "../../../components/coach/ui";
 
+/** How often a run that is waiting or working is read again. */
+const RUN_POLL_MS = 5000;
+
 const KIND_LABEL = { do: "To do", tell: "To tell", ask: "To ask", get: "To get" } as const;
 
 /** A task with its kit: everything needed to do it, and the one button that does. */
@@ -30,6 +42,9 @@ export default function TaskScreen() {
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Work in a project with a website repo can be started on the site.
+  const [onSite, setOnSite] = useState(false);
+  const [siteRun, setSiteRun] = useState<CoachRun | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +53,17 @@ export default function TaskScreen() {
       setTask(found);
       setMissing(!found);
       setPerson(people.find((p) => p.id === found?.withPersonId) ?? null);
+      if (found?.kind === "do" && found.projectId) {
+        // Extra to the task itself: if either read fails, the screen still works without it.
+        try {
+          const [{ projects }, { run: latest }] = await Promise.all([getProjects(), getRun(id)]);
+          const project = projects.find((p) => p.id === found.projectId) ?? null;
+          setOnSite(isRunnable(found, project));
+          setSiteRun(latest);
+        } catch {
+          setOnSite(false);
+        }
+      }
     } catch {
       setNote("Couldn't load this.");
     }
@@ -46,6 +72,34 @@ export default function TaskScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const running = siteRun?.status === "queued" || siteRun?.status === "working";
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => {
+      getRun(id)
+        .then(({ run: latest }) => setSiteRun(latest))
+        .catch(() => {});
+    }, RUN_POLL_MS);
+    return () => clearInterval(timer);
+  }, [running, id]);
+
+  /** Start the website change, or stop the one that is going. Stays on the screen. */
+  const startOrStop = async () => {
+    if (busy || !task) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { run: next } =
+        running && siteRun ? await cancelRun(siteRun.id) : await startRun(task.id);
+      setSiteRun(next);
+      void refreshCoach();
+    } catch (err) {
+      setNote(err instanceof Error && err.message ? err.message : "That didn't work. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const finish = () => {
     void refreshCoach();
@@ -251,6 +305,26 @@ export default function TaskScreen() {
                     </Text>
                   </Pressable>
                 ))}
+              </>
+            ) : null}
+
+            {onSite || siteRun ? (
+              <>
+                <SectionLabel>On the site</SectionLabel>
+                {runLine(siteRun) ? (
+                  <View style={{ marginTop: 8 }}>
+                    <Body>{runLine(siteRun)}</Body>
+                  </View>
+                ) : null}
+                {onSite || running ? (
+                  <View style={{ flexDirection: "row", marginTop: 10 }}>
+                    <QuickButton
+                      label={running ? "Stop" : "Start on the site"}
+                      disabled={busy}
+                      onPress={startOrStop}
+                    />
+                  </View>
+                ) : null}
               </>
             ) : null}
 

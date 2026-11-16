@@ -18,8 +18,11 @@ import {
   pairCodeComplete,
   dayParts,
   reopenOutcome,
+  textParts,
+  runLine,
   MIRROR_DELAY_MS,
 } from "../coach";
+import type { CoachRun } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
   id: "m",
@@ -286,5 +289,66 @@ describe("reopening a history request", () => {
   it("stops watching after a minute without claiming to know the outcome", () => {
     expect(reopenOutcome(history, 59_000)).toBe("waiting");
     expect(reopenOutcome(history, 60_000)).toBe("still-reading");
+  });
+});
+
+describe("the website task runner on the phone", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Runner");
+  });
+
+  it("finds the links in a message so they can be tapped", () => {
+    expect(
+      textParts(
+        "Done: moved it.\nPreview: https://a.example/x\nPull request: https://github.com/example/alder-house/pull/3",
+      ),
+    ).toEqual([
+      { text: "Done: moved it.\nPreview: " },
+      { text: "https://a.example/x", url: "https://a.example/x" },
+      { text: "\nPull request: " },
+      {
+        text: "https://github.com/example/alder-house/pull/3",
+        url: "https://github.com/example/alder-house/pull/3",
+      },
+    ]);
+  });
+
+  it("does not take the full stop or bracket after a link as part of it", () => {
+    expect(textParts("See https://a.example/x.")).toEqual([
+      { text: "See " },
+      { text: "https://a.example/x", url: "https://a.example/x" },
+      { text: "." },
+    ]);
+    expect(textParts("(https://a.example/x)")[1]).toEqual({
+      text: "https://a.example/x",
+      url: "https://a.example/x",
+    });
+  });
+
+  it("leaves text without a link as it is, and only links https", () => {
+    expect(textParts("Saved. 2 tasks added.")).toEqual([{ text: "Saved. 2 tasks added." }]);
+    expect(textParts("http://a.example javascript:alert(1)")).toEqual([
+      { text: "http://a.example javascript:alert(1)" },
+    ]);
+    expect(textParts("")).toEqual([]);
+  });
+
+  it("says in one line where a run has got to", () => {
+    const run = (over: Partial<CoachRun>) =>
+      ({ status: "queued", note: null, error: null, ...over }) as CoachRun;
+    expect(runLine(null)).toBeNull();
+    expect(runLine(run({}))).toBe("Waiting for the runner.");
+    expect(runLine(run({ status: "working", note: "waiting for the preview" }))).toBe(
+      "Working: waiting for the preview",
+    );
+    expect(runLine(run({ status: "working" }))).toBe("Working on it.");
+    expect(runLine(run({ status: "done" }))).toBe("Done. See Chat for the result.");
+    expect(runLine(run({ status: "failed", error: "I could not find a page 2." }))).toBe(
+      "That didn't work: I could not find a page 2.",
+    );
+    expect(runLine(run({ status: "failed" }))).toBe("That didn't work.");
+    expect(runLine(run({ status: "cancelled" }))).toBe("Stopped.");
   });
 });

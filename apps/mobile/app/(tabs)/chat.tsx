@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   Text,
@@ -14,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import type { CoachChatMessage } from "@cliphy/shared";
+import { textParts } from "../../lib/coach";
 import { linkPath } from "../../lib/coachNav";
 import { refreshCoach, refreshStrip, say, tap, useCoach } from "../../lib/coachStore";
 import {
@@ -262,24 +264,45 @@ function BotMessage({
 
   return (
     <BotCard>
-      <Body>{message.text}</Body>
+      <Body>
+        {textParts(message.text).map((part, i) =>
+          part.url ? (
+            <Text
+              key={i}
+              accessibilityRole="link"
+              onPress={() => void Linking.openURL(part.url!)}
+              style={{ color: ACCENT, fontWeight: "700" }}
+            >
+              {part.text}
+            </Text>
+          ) : (
+            part.text
+          ),
+        )}
+      </Body>
 
       {images.length > 0 ? (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
           {images.map((a) => (
-            <Image
+            // Tap to see it full size: a before or after picture is too small to judge here.
+            <Pressable
               key={a.storagePath}
-              source={{ uri: a.url }}
-              accessibilityLabel="Attachment"
-              style={{
-                width: 72,
-                height: 92,
-                borderRadius: 6,
-                borderWidth: LINE,
-                borderColor: t.line,
-                backgroundColor: t.hairline,
-              }}
-            />
+              onPress={() => void Linking.openURL(a.url!)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel="Attachment. Opens full size."
+            >
+              <Image
+                source={{ uri: a.url }}
+                style={{
+                  width: 72,
+                  height: 92,
+                  borderRadius: 6,
+                  borderWidth: LINE,
+                  borderColor: t.line,
+                  backgroundColor: t.hairline,
+                }}
+              />
+            </Pressable>
           ))}
         </View>
       ) : null}

@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
+import { Image, ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { CoachRequest, ProgressEntry } from "@cliphy/shared";
-import { getProjectHistory, getProjects, type HistoryEntry } from "../../../lib/coachApi";
-import { Body, FONT, LINE, Page, useCoachTheme } from "../../../components/coach/ui";
+import {
+  getProjectHistory,
+  getProjects,
+  updateProject,
+  type HistoryEntry,
+} from "../../../lib/coachApi";
+import { Body, FONT, LINE, Page, SectionLabel, useCoachTheme } from "../../../components/coach/ui";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -21,16 +26,59 @@ export default function ProjectScreen() {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [photos, setPhotos] = useState<ProgressEntry[]>([]);
   const [failed, setFailed] = useState(false);
+  // The website's repo and live site. With a repo, work can be started on the site.
+  const [repo, setRepo] = useState("");
+  const [site, setSite] = useState("");
+  const [saved, setSaved] = useState({ repo: "", site: "" });
+  const [siteNote, setSiteNote] = useState<{ repo?: string; site?: string }>({});
 
   useEffect(() => {
     Promise.all([getProjectHistory(id), getProjects()])
       .then(([h, p]) => {
         setEntries(h.entries);
         setPhotos(h.progress ?? []);
-        setName(p.projects.find((x) => x.id === id)?.name ?? "Project");
+        const project = p.projects.find((x) => x.id === id);
+        setName(project?.name ?? "Project");
+        const stored = { repo: project?.repo ?? "", site: project?.siteUrl ?? "" };
+        setRepo(stored.repo);
+        setSite(stored.site);
+        setSaved(stored);
       })
       .catch(() => setFailed(true));
   }, [id]);
+
+  /** Save one field when it is left, if it changed. The server's own words explain a refusal. */
+  const save = async (field: "repo" | "site") => {
+    const value = (field === "repo" ? repo : site).trim();
+    if (value === saved[field]) return;
+    try {
+      const { project } = await updateProject(
+        id,
+        field === "repo" ? { repo: value } : { siteUrl: value },
+      );
+      const stored = field === "repo" ? (project.repo ?? "") : (project.siteUrl ?? "");
+      setSaved((s) => ({ ...s, [field]: stored }));
+      if (field === "repo") setRepo(stored);
+      else setSite(stored);
+      setSiteNote((n) => ({ ...n, [field]: "Saved." }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setSiteNote((n) => ({ ...n, [field]: message || "Couldn't save that." }));
+    }
+  };
+
+  const input = {
+    fontFamily: FONT,
+    fontSize: 15,
+    color: t.text,
+    borderWidth: LINE,
+    borderColor: t.line,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 8,
+  } as const;
+  const noteStyle = { fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 4 } as const;
 
   const open = (r: CoachRequest) => router.push(`/coach/request/${r.id}` as never);
 
@@ -66,6 +114,39 @@ export default function ProjectScreen() {
                 </View>
               ))}
           </ScrollView>
+        ) : null}
+        {!failed ? (
+          <>
+            <SectionLabel>Website</SectionLabel>
+            <TextInput
+              value={repo}
+              onChangeText={setRepo}
+              onBlur={() => void save("repo")}
+              placeholder="owner/name"
+              placeholderTextColor={t.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Website repo"
+              style={input}
+            />
+            <Text style={noteStyle}>
+              {siteNote.repo ?? "Website repo on GitHub. With it, work can be started on the site."}
+            </Text>
+            <TextInput
+              value={site}
+              onChangeText={setSite}
+              onBlur={() => void save("site")}
+              placeholder="https://"
+              placeholderTextColor={t.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              accessibilityLabel="Live site"
+              style={input}
+            />
+            <Text style={noteStyle}>{siteNote.site ?? "Live site, for the before picture."}</Text>
+            <SectionLabel>History</SectionLabel>
+          </>
         ) : null}
         {entries?.length === 0 ? (
           <View style={{ marginTop: 20 }}>

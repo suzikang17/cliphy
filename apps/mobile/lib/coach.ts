@@ -1,4 +1,10 @@
-import type { CoachChatMessage, CoachHealth, CoachReminder, Person } from "@cliphy/shared";
+import type {
+  CoachChatMessage,
+  CoachHealth,
+  CoachReminder,
+  CoachRun,
+  Person,
+} from "@cliphy/shared";
 
 // Everything the coach screens decide, kept out of the screens so it can be
 // tested without a device.
@@ -230,4 +236,41 @@ export function reopenOutcome(
 ): "waiting" | "reopened" | "still-reading" {
   if (now && !now.historical && now.status === "new") return "reopened";
   return waitedMs >= REOPEN_WAIT_MS ? "still-reading" : "waiting";
+}
+
+// ── The website task runner ──────────────────────────────────────────────
+
+/**
+ * A message's text split into plain parts and https links, so the links can be
+ * tapped. Punctuation that ends the sentence around a link is not part of it.
+ */
+export function textParts(text: string): { text: string; url?: string }[] {
+  const parts: { text: string; url?: string }[] = [];
+  let at = 0;
+  for (const match of text.matchAll(/https:\/\/[^\s<>"]+/g)) {
+    const url = match[0].replace(/[.,;:!?)\]]+$/, "");
+    const start = match.index;
+    if (start > at) parts.push({ text: text.slice(at, start) });
+    parts.push({ text: url, url });
+    at = start + url.length;
+  }
+  if (at < text.length) parts.push({ text: text.slice(at) });
+  return parts;
+}
+
+/** Where a run has got to, in one line. Null when the task has never been run. */
+export function runLine(run: CoachRun | null): string | null {
+  if (!run) return null;
+  switch (run.status) {
+    case "queued":
+      return "Waiting for the runner.";
+    case "working":
+      return run.note ? `Working: ${run.note}` : "Working on it.";
+    case "done":
+      return "Done. See Chat for the result.";
+    case "failed":
+      return run.error ? `That didn't work: ${run.error}` : "That didn't work.";
+    case "cancelled":
+      return "Stopped.";
+  }
 }
