@@ -1,0 +1,20 @@
+{
+  "name": "cliphy-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Claims website changes from the Cliphy coach, makes them with Claude Code and opens a pull request.",
+  "scripts": {
+    "start": "tsx src/main.ts run",
+    "once": "tsx src/main.ts once",
+    "check": "tsx src/main.ts check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "~5.9.2"
+  }
+}
