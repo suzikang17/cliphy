@@ -87,6 +87,42 @@ describe("coach projects", () => {
     expect(projects[1]).toMatchObject({ repo: null, siteUrl: null });
   });
 
+  describe("the website repo and live site", () => {
+    const patch = (body: unknown) => app().request("/api/coach/projects/pr1", json("PATCH", body));
+    const saved = () =>
+      makeDb((op) => (op.table === "coach_projects" ? { data: projectRow } : undefined));
+
+    it("stores a repo written as owner/name", async () => {
+      db = saved();
+      expect((await patch({ repo: "example/alder-house" })).status).toBe(200);
+      expect(db.written("coach_projects")[0]).toEqual({ repo: "example/alder-house" });
+    });
+
+    it("refuses anything else as a repo", async () => {
+      const res = await patch({ repo: "not a repo" });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "repo must look like owner/name" });
+    });
+
+    it("refuses a live site that is not an https address", async () => {
+      const res = await patch({ siteUrl: "alderhouse.example" });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "site address must start with https://" });
+    });
+
+    it("clears either when given nothing", async () => {
+      db = saved();
+      await patch({ repo: "", siteUrl: " " });
+      expect(db.written("coach_projects")[0]).toEqual({ repo: null, site_url: null });
+    });
+
+    it("stores a live site", async () => {
+      db = saved();
+      await patch({ siteUrl: "https://alderhouse.example/" });
+      expect(db.written("coach_projects")[0]).toEqual({ site_url: "https://alderhouse.example" });
+    });
+  });
+
   it("lists projects with the people on each", async () => {
     db = makeDb((op) => {
       if (op.table === "coach_projects") return { data: [projectRow] };

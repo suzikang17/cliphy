@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { REPO_PATTERN } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { toProject, toRequest } from "../../lib/coachMappers.js";
@@ -89,6 +90,8 @@ projectRoutes.patch("/:id", async (c) => {
     active?: unknown;
     stateLine?: unknown;
     personIds?: unknown;
+    repo?: unknown;
+    siteUrl?: unknown;
   }>();
 
   const values: Row = {};
@@ -99,6 +102,21 @@ projectRoutes.patch("/:id", async (c) => {
   }
   if (body.active !== undefined) values.active = Boolean(body.active);
   if (body.stateLine !== undefined) values.state_line = String(body.stateLine).trim();
+  // With a repo, the project's work can be started on the site. Empty clears it.
+  if (body.repo !== undefined) {
+    const repo = typeof body.repo === "string" ? body.repo.trim() : "";
+    if (repo && !REPO_PATTERN.test(repo)) {
+      return c.json({ error: "repo must look like owner/name" }, 400);
+    }
+    values.repo = repo || null;
+  }
+  if (body.siteUrl !== undefined) {
+    const site = typeof body.siteUrl === "string" ? body.siteUrl.trim().replace(/\/+$/, "") : "";
+    if (site && !/^https:\/\/[^\s/]+\S*$/.test(site)) {
+      return c.json({ error: "site address must start with https://" }, 400);
+    }
+    values.site_url = site || null;
+  }
 
   const query = Object.keys(values).length
     ? supabase.from("coach_projects").update(values).eq("id", id).eq("user_id", userId)
