@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("helper", {
   showApp: () => ipcRenderer.invoke("show-app"),
   relaunch: () => ipcRenderer.invoke("relaunch"),
   setCapture: (personId: string, on: boolean) => ipcRenderer.invoke("set-capture", personId, on),
+  setHistory: (personId: string, history: string) =>
+    ipcRenderer.invoke("set-history", personId, history),
   addPerson: (handle: string, name: string, history: string) =>
     ipcRenderer.invoke("add-person", handle, name, history),
   disconnect: () => ipcRenderer.invoke("disconnect"),

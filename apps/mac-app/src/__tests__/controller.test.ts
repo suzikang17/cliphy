@@ -37,6 +37,7 @@ function setup(over: Partial<ControllerDeps> = {}, config: HelperConfig | null =
       return { uploaded: 2, skippedAttachments: 0, people: 1, offline: false };
     },
     setCapture: async () => {},
+    setHistory: async () => {},
     recentThreads: () => [],
     contactName: () => null,
     addPerson: async () => {},
@@ -97,7 +98,9 @@ describe("mac app controller", () => {
     expect(box.synced).toBe(1);
     expect(c.state.lastSyncAt).toBe("2026-11-14T18:00:00.000Z");
     expect(c.state.lastUploaded).toBe(2);
-    expect(c.state.people).toEqual([{ id: "p1", name: "Maren", capture: true, hasHandle: true }]);
+    expect(c.state.people).toEqual([
+      { id: "p1", name: "Maren", capture: true, hasHandle: true, history: "new" },
+    ]);
     expect(c.state.account).toBe("maren@example.com");
   });
 
@@ -181,6 +184,65 @@ describe("mac app controller", () => {
     await c.setCapture("p1", true);
     expect(c.state.people[0].capture).toBe(false);
     expect(c.state.error).toBeTruthy();
+  });
+
+  it("shows how far back each person is read", async () => {
+    const { c } = setup(
+      {
+        people: async () => [
+          person({ id: "a" }),
+          person({ id: "b", historyWindow: "window", historyDays: 30 }),
+          person({ id: "c", historyWindow: "window", historyDays: 90 }),
+          person({ id: "d", historyWindow: "all" }),
+          person({ id: "e", historyWindow: "window", historyDays: 7 }),
+        ],
+      },
+      paired,
+    );
+    await c.tick();
+    expect(c.state.people.map((p) => p.history)).toEqual([
+      "new",
+      "30days",
+      "90days",
+      "all",
+      "other",
+    ]);
+  });
+
+  it("changes how far back a person is read", async () => {
+    const calls: unknown[] = [];
+    const { c } = setup(
+      {
+        setHistory: async (_cfg, id, choice) => {
+          calls.push([id, choice]);
+        },
+      },
+      paired,
+    );
+    await c.tick();
+    await c.setHistory("p1", "all");
+    expect(calls).toEqual([["p1", { historyWindow: "all", historyDays: null }]]);
+    expect(c.state.people[0].history).toBe("all");
+    expect(c.state.error).toBeNull();
+  });
+
+  it("puts the choice back when the change is refused, and ignores a choice it does not know", async () => {
+    const calls: unknown[] = [];
+    const { c } = setup(
+      {
+        setHistory: async (_cfg, id) => {
+          calls.push(id);
+          throw new Error("nope");
+        },
+      },
+      paired,
+    );
+    await c.tick();
+    await c.setHistory("p1", "all");
+    expect(c.state.people[0].history).toBe("new");
+    expect(c.state.error).toBeTruthy();
+    await c.setHistory("p1", "forever" as never);
+    expect(calls).toEqual(["p1"]);
   });
 
   it("forgets the key when asked to disconnect", async () => {

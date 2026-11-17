@@ -104,6 +104,23 @@ async function setCapture(config: HelperConfig, personId: string, on: boolean): 
   if (!res.ok) throw new ApiError(`PATCH person → ${res.status}`, res.status);
 }
 
+async function setHistory(
+  config: HelperConfig,
+  personId: string,
+  choice: { historyWindow: string; historyDays: number | null },
+): Promise<void> {
+  const res = await fetch(`${config.apiUrl.replace(/\/+$/, "")}/api/coach/people/${personId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      historyWindow: choice.historyWindow,
+      ...(choice.historyWindow === "window" ? { historyDays: choice.historyDays } : {}),
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new ApiError(`PATCH person → ${res.status}`, res.status);
+}
+
 /** Add someone straight from their Messages thread, already switched on. */
 async function addPerson(config: HelperConfig, input: NewPerson): Promise<void> {
   const res = await fetch(`${config.apiUrl.replace(/\/+$/, "")}/api/coach/people`, {
@@ -149,6 +166,7 @@ const controller = new Controller({
   people: (config) => createApi(config).people(),
   sync,
   setCapture,
+  setHistory,
   recentThreads: listRecentThreads,
   contactName: (handle) => contacts?.nameFor(handle) ?? null,
   addPerson,
@@ -252,6 +270,9 @@ ipcMain.handle("relaunch", () => {
 ipcMain.handle("set-capture", (_event, personId: string, on: boolean) =>
   controller.setCapture(String(personId), Boolean(on)),
 );
+ipcMain.handle("set-history", (_event, personId: string, history: AddHistory) =>
+  controller.setHistory(String(personId), history),
+);
 ipcMain.handle("add-person", (_event, handle: string, name: string, history?: AddHistory) =>
   controller.addPerson(String(handle), String(name), history),
 );
@@ -289,9 +310,9 @@ async function smoke(outDir: string): Promise<void> {
         lastSyncAt: new Date(Date.now() - 120_000).toISOString(),
         lastUploaded: 3,
         people: [
-          { id: "1", name: "Maren", capture: true, hasHandle: true },
-          { id: "2", name: "Alder House team", capture: false, hasHandle: true },
-          { id: "3", name: "Printer", capture: false, hasHandle: false },
+          { id: "1", name: "Maren", capture: true, hasHandle: true, history: "all" },
+          { id: "2", name: "Alder House team", capture: false, hasHandle: true, history: "new" },
+          { id: "3", name: "Printer", capture: false, hasHandle: false, history: "new" },
         ],
         threads: [
           {

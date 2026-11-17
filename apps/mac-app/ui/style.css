@@ -311,3 +311,15 @@ input[type="text"]:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* How far back to read, beside a person's switch. */
+.people select.history {
+  margin-right: 10px;
+  padding: 4px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}

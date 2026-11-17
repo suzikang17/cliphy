@@ -8,6 +8,7 @@ let adding = null; // { handle, name, history }
 const HISTORY_CHOICES = [
   ["new", "New messages only"],
   ["30days", "Last 30 days"],
+  ["90days", "Last 3 months"],
   ["all", "Everything"],
 ];
 
@@ -111,6 +112,26 @@ function draw(state) {
       toggle.setAttribute("aria-label", `Capture ${person.name}`);
       toggle.disabled = !person.hasHandle;
       toggle.addEventListener("click", () => window.helper.setCapture(person.id, !person.capture));
+      // How far back to read, for someone switched on. Changing it reads again.
+      if (person.capture && person.hasHandle) {
+        const history = document.createElement("select");
+        history.className = "history";
+        history.setAttribute("aria-label", `How far back to read ${person.name}`);
+        const choices =
+          person.history === "other" ? [["other", "Custom"], ...HISTORY_CHOICES] : HISTORY_CHOICES;
+        for (const [value, label] of choices) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          history.append(option);
+        }
+        history.value = person.history;
+        history.addEventListener("change", () => {
+          if (history.value !== "other") window.helper.setHistory(person.id, history.value);
+        });
+        li.append(name, history, toggle);
+        return li;
+      }
       li.append(name, toggle);
       return li;
     }),

@@ -8,8 +8,8 @@ import { ApiError, type SyncResult } from "../../mac-helper/src/sync.js";
 // Mac or the network passed in. The window and the menu-bar item only draw
 // `state`.
 
-/** How far back to read when adding someone: from now, the last 30 days, or the whole thread. */
-export type AddHistory = "new" | "30days" | "all";
+/** How far back to read someone's thread: from now, the last 30 or 90 days, or all of it. */
+export type AddHistory = "new" | "30days" | "90days" | "all";
 
 export interface NewPerson {
   name: string;
@@ -21,8 +21,21 @@ export interface NewPerson {
 const HISTORY: Record<AddHistory, Pick<NewPerson, "historyWindow" | "historyDays">> = {
   new: { historyWindow: "new", historyDays: null },
   "30days": { historyWindow: "window", historyDays: 30 },
+  "90days": { historyWindow: "window", historyDays: 90 },
   all: { historyWindow: "all", historyDays: null },
 };
+
+/** Which of the offered choices a person's setting is. */
+function historyOf(
+  person: Pick<CapturedPerson, "historyWindow" | "historyDays">,
+): AddHistory | "other" {
+  const found = (Object.keys(HISTORY) as AddHistory[]).find(
+    (key) =>
+      HISTORY[key].historyWindow === person.historyWindow &&
+      (person.historyWindow !== "window" || HISTORY[key].historyDays === person.historyDays),
+  );
+  return found ?? "other";
+}
 
 /** pair: show a code. access: waiting for Full Disk Access. ready: uploading. */
 export type Step = "pair" | "access" | "ready";
@@ -34,7 +47,14 @@ export interface AppState {
   account: string | null;
   error: string | null;
   offline: boolean;
-  people: { id: string; name: string; capture: boolean; hasHandle: boolean }[];
+  people: {
+    id: string;
+    name: string;
+    capture: boolean;
+    hasHandle: boolean;
+    /** How far back they are read. "other" is a window set elsewhere that is not on the list. */
+    history: AddHistory | "other";
+  }[];
   /** Recent Messages threads that are nobody's yet, to add with one press. */
   threads: RecentThread[];
   lastSyncAt: string | null;
@@ -53,6 +73,12 @@ export interface ControllerDeps {
   people(config: HelperConfig): Promise<CapturedPerson[]>;
   sync(config: HelperConfig): Promise<SyncResult>;
   setCapture(config: HelperConfig, personId: string, on: boolean): Promise<void>;
+  /** Change how far back a person is read. The next upload reads to the new choice. */
+  setHistory(
+    config: HelperConfig,
+    personId: string,
+    choice: Pick<NewPerson, "historyWindow" | "historyDays">,
+  ): Promise<void>;
   recentThreads(): RecentThread[];
   /** The name Contacts on this Mac has for a number or address, if any. */
   contactName(handle: string): string | null;
@@ -160,6 +186,7 @@ export class Controller {
         name: p.name,
         capture: p.captureThread,
         hasHandle: p.handles.length > 0,
+        history: historyOf(p),
       })),
       threads: recent
         .filter((t) => !taken.has(t.handle.toLowerCase()))
@@ -219,6 +246,25 @@ export class Controller {
       this.set({ error: null });
     } catch {
       flip(!on);
+      this.set({ error: "Could not change that. Try again." });
+    }
+  }
+
+  async setHistory(personId: string, history: AddHistory): Promise<void> {
+    const config = this.deps.loadConfig();
+    const choice = HISTORY[history];
+    const before = this.state.people.find((p) => p.id === personId)?.history;
+    if (!config || !choice || before === undefined) return;
+    const show = (value: AddHistory | "other") =>
+      this.set({
+        people: this.state.people.map((p) => (p.id === personId ? { ...p, history: value } : p)),
+      });
+    show(history);
+    try {
+      await this.deps.setHistory(config, personId, choice);
+      this.set({ error: null });
+    } catch {
+      show(before);
       this.set({ error: "Could not change that. Try again." });
     }
   }
