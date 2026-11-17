@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { requestCapture } from "../../lib/captureBus";
 import { useCoach } from "../../lib/coachStore";
-import { ACCENT, FONT, LINE, hardShadow, useCoachTheme } from "./ui";
+import { FONT, LINE, hardShadow, useCoachTheme } from "./ui";
 
 /**
  * Library on the left, a round plus in the middle, Projects and Chat on the right.
@@ -34,7 +34,7 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
         style={{ flex: 1, alignItems: "center", paddingVertical: 4 }}
       >
         <View>
-          <Ionicons name={icon} size={24} color={on ? ACCENT : t.muted} />
+          <Ionicons name={icon} size={24} color={on ? t.accent : t.muted} />
           {badge > 0 ? (
             <View
               style={{
@@ -47,7 +47,7 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
                 borderRadius: 9,
                 borderWidth: LINE,
                 borderColor: t.line,
-                backgroundColor: ACCENT,
+                backgroundColor: t.fill,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -110,7 +110,7 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
             borderRadius: 26,
             borderWidth: LINE,
             borderColor: t.line,
-            backgroundColor: ACCENT,
+            backgroundColor: t.fill,
             alignItems: "center",
             justifyContent: "center",
             ...hardShadow(t.line),

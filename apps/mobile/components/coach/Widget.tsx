@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
-import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
+import { FONT, LINE, useCoachTheme } from "./ui";
 
 /** A row of widgets that wraps: side by side on a wide screen, stacked on a phone. */
 export function WidgetGrid({ children, gap = 12 }: { children: ReactNode; gap?: number }) {
@@ -32,7 +32,7 @@ export function Tile({ value, label, strong }: { value: string; label: string; s
           fontSize: 22,
           lineHeight: 26,
           fontWeight: "700",
-          color: strong ? ACCENT : t.text,
+          color: strong ? t.accent : t.text,
         }}
       >
         {value}

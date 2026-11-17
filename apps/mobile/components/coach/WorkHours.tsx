@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { shiftHours, timeLabel, workLine } from "../../lib/coach";
-import { ACCENT, FONT, LINE, QuickButton, useCoachTheme } from "./ui";
+import { FONT, LINE, QuickButton, useCoachTheme } from "./ui";
 
 export interface WorkHoursValue {
   on: boolean;
@@ -118,7 +118,7 @@ export function WorkHours({
             borderRadius: 13,
             borderWidth: LINE,
             borderColor: t.line,
-            backgroundColor: value.on ? ACCENT : "transparent",
+            backgroundColor: value.on ? t.fill : "transparent",
             padding: 2,
             alignItems: value.on ? "flex-end" : "flex-start",
           }}
@@ -165,7 +165,7 @@ export function WorkHours({
                     borderRadius: 18,
                     borderWidth: LINE,
                     borderColor: t.line,
-                    backgroundColor: on ? ACCENT : "transparent",
+                    backgroundColor: on ? t.fill : "transparent",
                     alignItems: "center",
                     justifyContent: "center",
                   }}

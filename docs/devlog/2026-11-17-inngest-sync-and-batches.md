@@ -107,3 +107,12 @@ phase: Growth
 
 - **Task from messages:** the thread's selection bar has "Task". It opens a title box pre-filled from the earliest thing they wrote (`taskTitleFrom`: first real line, greeting skipped, cut at a word), offers the person's projects when there is more than one, makes the task and pulls the selected messages into it, then opens it.
 - **Error text:** the owner called "That didn't go through" and its kind AI slop: a failure shows the system's own message, or the one word "Error". `errorText` in `lib/coach.ts`; every coach screen's catch now uses it (about forty strings removed), and the Mac controller does the same. Saved as a standing rule in memory.
+
+## Later: Projects board, merge and archive, dark mode
+
+- **Why three projects:** reading a client's whole thread let the interpreter start a project for each stretch of old texts that fit no existing one (`newProjectName` in `processBundle`). Two of the three hold a few old requests and no tasks. Nothing let the owner tidy that up.
+- **Projects board:** the flat list (which she called "not very helpful") is now cards grouped under each client: name, state, to do / waiting on them, the next three tasks with due words, and Open / Merge into… / Archive on each card. Archived projects sit behind a link with Restore. `projectBoard` in `lib/coach.ts`; `projectRows` is no longer used by a screen.
+- **Merge:** `POST /coach/projects/:id/merge {into}` moves requests, tasks, batches, progress and rules, adds the project's people to the other, and switches the project off. Nothing is deleted.
+- **Dark mode:** the shared dark tokens could not be read in the coach's outlined style. Measured on the old background: accent 2.5:1, outlines 2.1:1, dividers 1.2:1. The coach now has its own dark colours (`DARK` in `components/coach/ui.tsx`): text 16.6, muted 8.9, accent 9.0, outlines 5.7. `ACCENT` as a bare constant is gone from the screens; they use `t.accent` (text, icons) and `t.fill` (filled backgrounds under white).
+- Still open: the bot creating projects without asking. The owner has not said whether she wants that changed.
+- TDD lapse: `projectBoard` and its tests were written in one step, so the tests were not seen failing first.

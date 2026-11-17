@@ -82,6 +82,65 @@ projectRoutes.post("/", async (c) => {
   return c.json({ project: toProject(row, personIds) }, 201);
 });
 
+// ── POST /:id/merge — fold one project into another ──────────────────────
+// Everything the project holds moves to `into`; the project itself is kept
+// and switched off, so nothing is deleted and the move can be traced.
+
+const HOLDS_PROJECT = [
+  "coach_requests",
+  "coach_tasks",
+  "coach_batches",
+  "coach_progress",
+  "coach_rules",
+] as const;
+
+projectRoutes.post("/:id/merge", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = await c.req.json<{ into?: unknown }>().catch(() => ({}) as { into?: unknown });
+  const into = typeof body.into === "string" ? body.into : "";
+  if (!into) return c.json({ error: "into is required" }, 400);
+  if (into === id) return c.json({ error: "a project cannot be merged into itself" }, 400);
+
+  const { data: both } = await supabase
+    .from("coach_projects")
+    .select("id")
+    .eq("user_id", userId)
+    .in("id", [id, into]);
+  if (((both as Row[]) ?? []).length !== 2) return c.json({ error: "project not found" }, 404);
+
+  for (const table of HOLDS_PROJECT) {
+    const { error } = await supabase
+      .from(table)
+      .update({ project_id: into })
+      .eq("user_id", userId)
+      .eq("project_id", id);
+    if (error) return c.json({ error: `Failed to move ${table}` }, 500);
+  }
+
+  const { data: people } = await supabase
+    .from("coach_project_people")
+    .select("person_id")
+    .eq("project_id", id);
+  const personIds = ((people as { person_id: string }[]) ?? []).map((p) => p.person_id);
+  if (personIds.length > 0) {
+    await supabase.from("coach_project_people").upsert(
+      personIds.map((person_id) => ({ project_id: into, person_id })),
+      { onConflict: "project_id,person_id", ignoreDuplicates: true },
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("coach_projects")
+    .update({ active: false })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .maybeSingle();
+  if (error || !data) return c.json({ error: "Failed to retire the project" }, 500);
+  return c.json({ project: toProject(data as Row, personIds) });
+});
+
 projectRoutes.patch("/:id", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");

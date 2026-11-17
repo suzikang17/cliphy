@@ -1,7 +1,7 @@
 import { Image, Pressable, Text, View } from "react-native";
 import type { InboundMessage } from "@cliphy/shared";
 import { messageParts, shortDay } from "../../lib/coach";
-import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
+import { FONT, LINE, useCoachTheme } from "./ui";
 
 /** A square tick box. `crossed` is the "not done" state. */
 export function Tick({ checked, crossed }: { checked: boolean; crossed?: boolean }) {
@@ -14,7 +14,7 @@ export function Tick({ checked, crossed }: { checked: boolean; crossed?: boolean
         borderRadius: 5,
         borderWidth: LINE,
         borderColor: t.line,
-        backgroundColor: checked ? ACCENT : "transparent",
+        backgroundColor: checked ? t.fill : "transparent",
         alignItems: "center",
         justifyContent: "center",
       }}

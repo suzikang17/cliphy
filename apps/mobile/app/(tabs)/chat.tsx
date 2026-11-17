@@ -19,15 +19,7 @@ import { textParts } from "../../lib/coach";
 import { linkPath } from "../../lib/coachNav";
 import { DESKTOP } from "../../lib/desktop";
 import { refreshCoach, refreshStrip, say, tap, useCoach } from "../../lib/coachStore";
-import {
-  ACCENT,
-  BotCard,
-  Body,
-  FONT,
-  LINE,
-  QuickButton,
-  useCoachTheme,
-} from "../../components/coach/ui";
+import { BotCard, Body, FONT, LINE, QuickButton, useCoachTheme } from "../../components/coach/ui";
 
 const POLL_MS = 4000;
 
@@ -117,7 +109,7 @@ export default function ChatScreen() {
           accessibilityLabel="Settings"
           hitSlop={10}
         >
-          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: ACCENT }}>
+          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.accent }}>
             Settings
           </Text>
         </Pressable>
@@ -283,7 +275,7 @@ function BotMessage({
               key={i}
               accessibilityRole="link"
               onPress={() => void Linking.openURL(part.url!)}
-              style={{ color: ACCENT, fontWeight: "700" }}
+              style={{ color: t.accent, fontWeight: "700" }}
             >
               {part.text}
             </Text>
@@ -340,7 +332,7 @@ function BotMessage({
           hitSlop={8}
           style={{ marginTop: 10, alignSelf: "flex-start" }}
         >
-          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: ACCENT }}>
+          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.accent }}>
             Open ›
           </Text>
         </Pressable>
@@ -384,7 +376,7 @@ function Status({ activity, offline }: { activity: string[]; offline: boolean })
     >
       {busy ? (
         <Animated.View
-          style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: ACCENT, opacity: pulse }}
+          style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: t.fill, opacity: pulse }}
         />
       ) : null}
       <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted }}>

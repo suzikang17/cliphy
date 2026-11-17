@@ -109,8 +109,13 @@ export const updatePerson = (
 export const getProjects = () => apiFetch<{ projects: Project[] }>("/api/coach/projects");
 export const createProject = (name: string) =>
   apiFetch<{ project: Project }>("/api/coach/projects", json("POST", { name }));
-export const updateProject = (id: string, body: { repo?: string; siteUrl?: string }) =>
-  apiFetch<{ project: Project }>(`/api/coach/projects/${id}`, json("PATCH", body));
+/** Move everything in one project into another; the first is kept, switched off. */
+export const mergeProject = (id: string, into: string) =>
+  apiFetch<{ project: Project }>(`/api/coach/projects/${id}/merge`, json("POST", { into }));
+export const updateProject = (
+  id: string,
+  body: { repo?: string; siteUrl?: string; active?: boolean; name?: string },
+) => apiFetch<{ project: Project }>(`/api/coach/projects/${id}`, json("PATCH", body));
 export const getProjectHistory = (id: string) =>
   apiFetch<{ entries: HistoryEntry[]; progress: ProgressEntry[] }>(
     `/api/coach/projects/${id}/history`,

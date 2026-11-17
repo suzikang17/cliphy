@@ -13,19 +13,43 @@ export const FONT = "DMSans";
 /** Filled buttons and active states: dark enough for white text. */
 export const ACCENT = neon[700];
 
+/**
+ * Dark mode has its own colours rather than the shared tokens: those put the
+ * accent at 2.5:1 on the background, outlines at 2.1:1 and dividers at 1.2:1,
+ * which could not be read. Each value here was measured against `bg`:
+ * text 16.6, muted 8.9, accent 9.0, outline 5.7, divider 1.6, white on fill 6.9.
+ */
+const DARK = {
+  bg: "#151517",
+  card: "#242429",
+  text: "#f4f4f6",
+  muted: "#b4b4be",
+  hairline: "#3a3a42",
+  line: "#8f8f9b",
+  accent: neon[200],
+  fill: neon[700],
+  due: "#fbbf24",
+  ok: "#4ade80",
+};
+
 export function useCoachTheme() {
   const dark = useColorScheme() === "dark";
-  const c = dark ? colors.dark : colors.light;
+  if (dark) return { dark, ...DARK };
+  const c = colors.light;
   return {
     dark,
     bg: c.surface,
-    card: dark ? c.surfaceSecondary : c.accentSurface,
+    card: c.accentSurface,
     text: c.text,
     muted: c.textMuted,
     hairline: c.borderSoft,
-    line: dark ? c.borderHard : "#000000",
-    due: dark ? "#fbbf24" : "#92400e",
-    ok: dark ? "#4ade80" : "#166534",
+    line: "#000000",
+    /** The accent as text or an icon. */
+    accent: ACCENT,
+    /** The accent as a filled background, under white. */
+    fill: ACCENT,
+    due: "#92400e",
+    ok: "#166534",
   };
 }
 
@@ -211,7 +235,7 @@ export function QuickButton({
         borderRadius: 999,
         borderWidth: LINE,
         borderColor: t.line,
-        backgroundColor: filled ? ACCENT : "transparent",
+        backgroundColor: filled ? t.fill : "transparent",
         opacity: disabled && !chosen ? 0.4 : 1,
         ...(primary ? hardShadow(t.line, 1.5) : {}),
       }}

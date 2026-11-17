@@ -26,7 +26,6 @@ import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import { MessageRow } from "../../../components/coach/MessageRow";
 import {
-  ACCENT,
   Body,
   FONT,
   LINE,
@@ -313,7 +312,7 @@ export default function TaskScreen() {
                         borderRadius: 4,
                         borderWidth: LINE,
                         borderColor: t.line,
-                        backgroundColor: c.done ? ACCENT : "transparent",
+                        backgroundColor: c.done ? t.fill : "transparent",
                       }}
                     />
                     <Text

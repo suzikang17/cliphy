@@ -5,7 +5,6 @@ import type { UpNext, UpNextTask } from "@cliphy/shared";
 import { dayParts, errorText } from "../../lib/coach";
 import { getUpNext } from "../../lib/coachApi";
 import {
-  ACCENT,
   Body,
   FONT,
   Page,
@@ -47,7 +46,7 @@ export default function UpNextScreen() {
             fontSize: 18,
             fontWeight: "700",
             lineHeight: 20,
-            color: date === today ? ACCENT : t.text,
+            color: date === today ? t.accent : t.text,
           }}
         >
           {num}

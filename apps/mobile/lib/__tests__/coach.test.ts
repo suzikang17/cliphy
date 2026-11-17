@@ -44,6 +44,7 @@ import {
   messageParts,
   taskTitleFrom,
   errorText,
+  projectBoard,
 } from "../coach";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
@@ -856,5 +857,104 @@ describe("errorText", () => {
     expect(errorText(new Error(""))).toBe("Error");
     expect(errorText("nope")).toBe("Error");
     expect(errorText(undefined)).toBe("Error");
+  });
+});
+
+describe("projectBoard", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  const project = (over: Partial<Project>): Project => ({
+    id: "p1",
+    name: "Alder House",
+    tag: "project:alder-house",
+    active: true,
+    stateLine: "",
+    personIds: ["c1"],
+    repo: null,
+    siteUrl: null,
+    ...over,
+  });
+  const task = (over: Partial<CoachTask>): CoachTask =>
+    ({
+      id: "t1",
+      projectId: "p1",
+      state: "open",
+      blocked: false,
+      title: "Swap the hero photo",
+      dueDate: null,
+      createdAt: "2026-11-10T10:00:00Z",
+      ...over,
+    }) as CoachTask;
+  const people = [
+    { id: "c1", name: "Maren" },
+    { id: "c2", name: "Birch Studio" },
+  ];
+
+  it("groups projects under their client, each with its numbers and next tasks", () => {
+    const board = projectBoard(
+      [project({}), project({ id: "p2", name: "Birch site", personIds: ["c2"] })],
+      [
+        task({ id: "t1", dueDate: "2026-11-20" }),
+        task({ id: "t2", title: "Move the sconces up", dueDate: "2026-11-18" }),
+        task({ id: "t3", title: "Tell Maren", blocked: true }),
+        task({ id: "t4", title: "Ask for the price list", state: "waiting" }),
+      ],
+      people,
+    );
+    expect(board.map((g) => g.client)).toEqual(["Maren", "Birch Studio"]);
+    expect(board[0].projects).toEqual([
+      {
+        id: "p1",
+        name: "Alder House",
+        state: null,
+        active: true,
+        todo: 2,
+        waiting: 1,
+        // Soonest first; what cannot be started yet is not "next".
+        next: [
+          { id: "t2", title: "Move the sconces up", dueDate: "2026-11-18" },
+          { id: "t1", title: "Swap the hero photo", dueDate: "2026-11-20" },
+        ],
+      },
+    ]);
+    expect(board[1].projects[0]).toMatchObject({ todo: 0, waiting: 0, next: [] });
+  });
+
+  it("puts clients with work first, busiest project first, and shows three next tasks at most", () => {
+    const board = projectBoard(
+      [
+        project({ id: "quiet", name: "Quiet", personIds: ["c2"] }),
+        project({ id: "idle", name: "Idle" }),
+        project({ id: "busy", name: "Busy" }),
+      ],
+      ["a", "b", "c", "d"].map((id) => task({ id, projectId: "busy", title: id })),
+      people,
+    );
+    expect(board.map((g) => g.client)).toEqual(["Maren", "Birch Studio"]);
+    expect(board[0].projects.map((p) => p.name)).toEqual(["Busy", "Idle"]);
+    expect(board[0].projects[0].next).toHaveLength(3);
+    expect(board[0].projects[0].todo).toBe(4);
+  });
+
+  it("keeps projects with no client together, and leaves retired ones out", () => {
+    const board = projectBoard(
+      [
+        project({ id: "p2", name: "House things", personIds: [] }),
+        project({ id: "old", name: "Old", active: false }),
+      ],
+      [],
+      people,
+    );
+    expect(board).toEqual([
+      {
+        clientId: null,
+        client: null,
+        projects: [expect.objectContaining({ id: "p2", name: "House things" })],
+      },
+    ]);
   });
 });

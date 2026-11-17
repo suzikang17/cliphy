@@ -22,7 +22,6 @@ import {
 } from "../../../lib/coachApi";
 import { MessageRow } from "../../../components/coach/MessageRow";
 import {
-  ACCENT,
   Body,
   FONT,
   LINE,
@@ -285,7 +284,7 @@ export default function ThreadScreen() {
                         fontWeight: "700",
                         marginTop: 13,
                         marginLeft: 8,
-                        color: mark === "Done" ? t.muted : ACCENT,
+                        color: mark === "Done" ? t.muted : t.accent,
                       }}
                     >
                       {mark}

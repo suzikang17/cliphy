@@ -135,3 +135,69 @@ describe("coach projects", () => {
     expect((await res.json()).projects[0].personIds).toEqual(["p1"]);
   });
 });
+
+describe("POST /projects/:id/merge", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Projects");
+  });
+
+  const mergeDb = (found: string[]) =>
+    makeDb((op) => {
+      if (op.table === "coach_projects" && op.action === "select") {
+        return { data: found.map((id) => ({ id })) };
+      }
+      if (op.table === "coach_project_people" && op.action === "select") {
+        return { data: [{ person_id: "p1" }, { person_id: "p2" }] };
+      }
+      if (op.table === "coach_projects" && op.action === "update") {
+        return { data: { ...projectRow, id: "a", active: false } };
+      }
+      return undefined;
+    });
+  const filter = (op: { filters: [string, string, unknown][] }, col: string) =>
+    op.filters.find(([m, c]) => m === "eq" && c === col)?.[2];
+
+  it("moves everything a project holds into another, then retires it", async () => {
+    db = mergeDb(["a", "b"]);
+    const res = await post("/api/coach/projects/a/merge", { into: "b" });
+    expect(res.status).toBe(200);
+
+    const moves = db.ops.filter((o) => o.action === "update" && o.table !== "coach_projects");
+    expect(moves.map((o) => o.table).sort()).toEqual([
+      "coach_batches",
+      "coach_progress",
+      "coach_requests",
+      "coach_rules",
+      "coach_tasks",
+    ]);
+    for (const move of moves) {
+      expect(move.payload).toEqual({ project_id: "b" });
+      expect(filter(move, "project_id")).toBe("a");
+      expect(filter(move, "user_id")).toBe("test-user-id");
+    }
+    // Its people join the other project, without doubling anyone already there.
+    const people = db.ops.find((o) => o.table === "coach_project_people" && o.action === "upsert")!;
+    expect(people.payload).toEqual([
+      { project_id: "b", person_id: "p1" },
+      { project_id: "b", person_id: "p2" },
+    ]);
+    expect(people.options).toMatchObject({ ignoreDuplicates: true });
+    // Kept, switched off: nothing is deleted.
+    const retire = db.ops.find((o) => o.table === "coach_projects" && o.action === "update")!;
+    expect(retire.payload).toEqual({ active: false });
+    expect(filter(retire, "id")).toBe("a");
+    expect(db.ops.some((o) => o.action === "delete")).toBe(false);
+  });
+
+  it("refuses to merge a project into itself, into nothing, or across accounts", async () => {
+    db = mergeDb(["a", "b"]);
+    expect((await post("/api/coach/projects/a/merge", { into: "a" })).status).toBe(400);
+    expect((await post("/api/coach/projects/a/merge", {})).status).toBe(400);
+    // Only one of the two is this user's.
+    db = mergeDb(["a"]);
+    expect((await post("/api/coach/projects/a/merge", { into: "b" })).status).toBe(404);
+    expect(db.ops.some((o) => o.action !== "select")).toBe(false);
+  });
+});

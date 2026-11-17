@@ -593,3 +593,84 @@ export function taskTitleFrom(messages: InboundMessage[]): string {
 export function errorText(err: unknown): string {
   return err instanceof Error && err.message ? err.message : "Error";
 }
+
+// ── The Projects board ───────────────────────────────────────────────────
+
+export interface ProjectCard {
+  id: string;
+  name: string;
+  state: string | null;
+  active: boolean;
+  /** Tasks that can be done now. */
+  todo: number;
+  /** Tasks where the ball is with the client. */
+  waiting: number;
+  /** Up to three tasks to do next, soonest first. */
+  next: { id: string; title: string; dueDate: string | null }[];
+}
+
+export interface ClientGroup {
+  clientId: string | null;
+  client: string | null;
+  projects: ProjectCard[];
+}
+
+const NEXT_SHOWN = 3;
+
+/**
+ * Active projects grouped under their client, clients with work first and
+ * the busiest project first within each. Retired projects are left out.
+ */
+export function projectBoard(
+  projects: Project[],
+  tasks: CoachTask[],
+  people: Pick<Person, "id" | "name">[],
+): ClientGroup[] {
+  const groups = new Map<string, ClientGroup>();
+  for (const project of projects.filter((p) => p.active)) {
+    const mine = tasks.filter((t) => t.projectId === project.id);
+    const ready = mine
+      .filter((t) => t.state === "open" && !t.blocked)
+      .sort((a, b) => {
+        if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+        if (a.dueDate) return -1;
+        if (b.dueDate) return 1;
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+    const client = people.find((person) => project.personIds.includes(person.id)) ?? null;
+    const key = client?.id ?? "";
+    const group = groups.get(key) ?? {
+      clientId: client?.id ?? null,
+      client: client?.name ?? null,
+      projects: [],
+    };
+    group.projects.push({
+      id: project.id,
+      name: project.name,
+      state: project.stateLine || null,
+      active: project.active,
+      todo: ready.length,
+      waiting: mine.filter((t) => t.state === "waiting").length,
+      next: ready
+        .slice(0, NEXT_SHOWN)
+        .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate })),
+    });
+    groups.set(key, group);
+  }
+
+  const work = (card: ProjectCard) => card.todo + card.waiting;
+  const total = (group: ClientGroup) => group.projects.reduce((sum, card) => sum + work(card), 0);
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      projects: [...group.projects].sort(
+        (a, b) => work(b) - work(a) || a.name.localeCompare(b.name),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        total(b) - total(a) ||
+        Number(a.client === null) - Number(b.client === null) ||
+        (a.client ?? "").localeCompare(b.client ?? ""),
+    );
+}

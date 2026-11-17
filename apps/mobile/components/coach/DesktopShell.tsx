@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { desktopSection, type DesktopSection } from "../../lib/coach";
 import { useCoach } from "../../lib/coachStore";
 import { MAC_WINDOW, openMacSetup } from "../../lib/desktop";
-import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
+import { FONT, LINE, useCoachTheme } from "./ui";
 
 /** In the Mac window: room at the top for the window's own buttons, and for dragging it. */
 const TITLE_STRIP = MAC_WINDOW ? 34 : 12;
@@ -66,7 +66,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
                 accessibilityState={{ selected: on }}
                 style={{ flex: 1, alignItems: "center" }}
               >
-                <Ionicons name={item.icon} size={22} color={on ? ACCENT : t.muted} />
+                <Ionicons name={item.icon} size={22} color={on ? t.accent : t.muted} />
                 <Text
                   style={{
                     fontFamily: FONT,
@@ -137,7 +137,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
                   backgroundColor: on ? t.card : "transparent",
                 }}
               >
-                <Ionicons name={item.icon} size={18} color={on ? ACCENT : t.muted} />
+                <Ionicons name={item.icon} size={18} color={on ? t.accent : t.muted} />
                 <Text
                   style={{
                     flex: 1,
@@ -151,7 +151,7 @@ export function DesktopShell({ children }: { children: ReactNode }) {
                 </Text>
                 {badge > 0 ? (
                   <Text
-                    style={{ fontFamily: FONT, fontSize: 12, fontWeight: "700", color: ACCENT }}
+                    style={{ fontFamily: FONT, fontSize: 12, fontWeight: "700", color: t.accent }}
                   >
                     {badge}
                   </Text>

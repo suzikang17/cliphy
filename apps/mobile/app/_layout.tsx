@@ -25,6 +25,7 @@ import {
 import { couldBeRequest, setPendingShare, type PendingShare } from "../lib/shareStore";
 import { SendToChatSheet } from "../components/coach/SendToChatSheet";
 import { DesktopShell } from "../components/coach/DesktopShell";
+import { useCoachTheme } from "../components/coach/ui";
 import { DESKTOP, MAC_WINDOW } from "../lib/desktop";
 import { desktopEntry } from "../lib/coach";
 
@@ -270,7 +271,13 @@ export default function RootLayout() {
   };
 
   const colorScheme = useColorScheme();
-  const bg = colorScheme === "dark" ? colors.dark.surface : colors.light.surface;
+  const coachBg = useCoachTheme().bg;
+  // The web build is all coach screens, which have their own dark background.
+  const bg = DESKTOP
+    ? coachBg
+    : colorScheme === "dark"
+      ? colors.dark.surface
+      : colors.light.surface;
 
   if (!fontsLoaded || !initialized) return null;
 
