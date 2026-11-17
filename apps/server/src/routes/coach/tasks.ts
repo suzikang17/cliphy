@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { TASK_STATES, type TaskKind, type TaskState } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
-import { toTask } from "../../lib/coachMappers.js";
+import { toMessage, toTask } from "../../lib/coachMappers.js";
+import { signAttachments } from "../../services/coach/batches.js";
 import { announceUnblocked } from "../../services/coach/actions.js";
 import { stateAfterSent } from "../../services/coach/chain.js";
 import { createTask, taskColumns, type TaskBody } from "../../services/coach/taskInput.js";
@@ -118,4 +119,84 @@ taskRoutes.post("/:id/sent", async (c) => {
   await syncTaskReminders(userId, [id]);
   if (next === "done") await announceUnblocked(userId, id, (await loadTasks(userId)).tasks);
   return c.json({ task: toTask(data as Row, false) });
+});
+
+// ── Messages pulled into a task: what the client said about it ───────────
+
+async function ownsTask(id: string, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("coach_tasks")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+taskRoutes.get("/:id/messages", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  if (!(await ownsTask(id, userId))) return c.json({ error: "task not found" }, 404);
+
+  const { data: links } = await supabase
+    .from("coach_task_messages")
+    .select("message_id")
+    .eq("task_id", id)
+    .eq("user_id", userId);
+  const ids = ((links as { message_id: string }[]) ?? []).map((l) => l.message_id);
+  if (ids.length === 0) return c.json({ messages: [] });
+
+  const { data } = await supabase
+    .from("coach_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .in("id", ids)
+    .order("sent_at", { ascending: true });
+  const messages = ((data as Row[]) ?? []).map(toMessage);
+  await signAttachments(messages);
+  return c.json({ messages });
+});
+
+taskRoutes.post("/:id/messages", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = await c.req
+    .json<{ messageIds?: unknown }>()
+    .catch(() => ({}) as { messageIds?: unknown });
+  const raw = body.messageIds;
+  if (!Array.isArray(raw) || raw.length === 0 || !raw.every((x) => typeof x === "string")) {
+    return c.json({ error: "messageIds must be a list of ids" }, 400);
+  }
+  const ids = [...new Set(raw as string[])];
+  if (!(await ownsTask(id, userId))) return c.json({ error: "task not found" }, 404);
+
+  const { data } = await supabase
+    .from("coach_messages")
+    .select("id")
+    .eq("user_id", userId)
+    .in("id", ids);
+  const found = new Set(((data as { id: string }[]) ?? []).map((m) => m.id));
+  if (ids.some((m) => !found.has(m))) return c.json({ error: "message not found" }, 404);
+
+  const { error } = await supabase.from("coach_task_messages").upsert(
+    ids.map((message_id) => ({ task_id: id, message_id, user_id: userId })),
+    { onConflict: "task_id,message_id", ignoreDuplicates: true },
+  );
+  if (error) return c.json({ error: "Failed to add messages" }, 500);
+  return c.json({ ok: true });
+});
+
+taskRoutes.delete("/:id/messages/:messageId", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  if (!(await ownsTask(id, userId))) return c.json({ error: "task not found" }, 404);
+
+  const { error } = await supabase
+    .from("coach_task_messages")
+    .delete()
+    .eq("task_id", id)
+    .eq("message_id", c.req.param("messageId"))
+    .eq("user_id", userId);
+  if (error) return c.json({ error: "Failed to remove the message" }, 500);
+  return c.json({ ok: true });
 });

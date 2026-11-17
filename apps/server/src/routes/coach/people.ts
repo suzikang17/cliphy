@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { HISTORY_WINDOWS, PERSON_ROLES, type HistoryWindow, type PersonRole } from "@cliphy/shared";
 import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
-import { toPerson } from "../../lib/coachMappers.js";
+import { toMessage, toPerson } from "../../lib/coachMappers.js";
+import { signAttachments } from "../../services/coach/batches.js";
 
 export const peopleRoutes = new Hono<AppEnv>();
 
@@ -116,4 +117,32 @@ peopleRoutes.patch("/:id", async (c) => {
   if (error) return c.json({ error: "Failed to update person" }, 500);
   if (!data) return c.json({ error: "person not found" }, 404);
   return c.json({ person: toPerson(data as Record<string, unknown>) });
+});
+
+// ── GET /:id/messages — a person's recent messages, to pull into a task ──
+
+/** How many recent messages are offered. */
+const RECENT_MESSAGES = 100;
+
+peopleRoutes.get("/:id/messages", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const { data: person } = await supabase
+    .from("coach_people")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!person) return c.json({ error: "person not found" }, 404);
+
+  const { data } = await supabase
+    .from("coach_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("person_id", id)
+    .order("sent_at", { ascending: false })
+    .limit(RECENT_MESSAGES);
+  const messages = ((data as Record<string, unknown>[]) ?? []).map(toMessage);
+  await signAttachments(messages);
+  return c.json({ messages });
 });

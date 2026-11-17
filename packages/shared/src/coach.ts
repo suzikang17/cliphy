@@ -370,3 +370,45 @@ export function isRunnable(
 ): boolean {
   return task.kind === "do" && task.state === "open" && !task.blocked && Boolean(project?.repo);
 }
+
+// ── Batches: finished work, checked, then summarized for the client ──────
+
+export type BatchStatus = "checking" | "ready" | "sent";
+export type BatchItemState = "unchecked" | "done" | "not_done";
+
+export const BATCH_ITEM_STATES: readonly BatchItemState[] = ["unchecked", "done", "not_done"];
+
+export interface BatchItem {
+  id: string;
+  requestId: string | null;
+  messageId: string | null;
+  taskId: string | null;
+  /** What was asked, as it read when the batch was made. */
+  label: string;
+  state: BatchItemState;
+  note: string | null;
+  /** What the client sent, for checking against. Only on the batch's own page. */
+  messages?: InboundMessage[];
+}
+
+export interface CoachBatch {
+  id: string;
+  personId: string;
+  projectId: string | null;
+  status: BatchStatus;
+  summary: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  /** How many items there are and how many are still unchecked. */
+  itemCount: number;
+  uncheckedCount: number;
+}
+
+/** What can go into a new batch for a client. */
+export interface BatchCandidates {
+  requests: CoachRequest[];
+  /** Messages from the client that never became a request. */
+  messages: InboundMessage[];
+  /** Tasks added by hand on the project, so with no request behind them. */
+  tasks: CoachTask[];
+}

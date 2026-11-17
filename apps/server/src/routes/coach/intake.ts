@@ -1,3 +1,4 @@
+import { noteOutgoing } from "../../services/coach/batches.js";
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { CHANNELS, type Channel, type Direction } from "@cliphy/shared";
@@ -241,6 +242,16 @@ intakeRoutes.post("/messages", async (c) => {
       .eq("id", bundleId)
       .eq("user_id", userId);
   }
+  // A summary the owner sent herself closes the batch it reports.
+  const sentTexts = fresh.filter((m) => m.direction === "out" && m.text.trim()).map((m) => m.text);
+  if (sentTexts.length > 0 && !historical) {
+    try {
+      await noteOutgoing(userId, body.personId, sentTexts);
+    } catch {
+      // The messages are stored; the batch can still be marked sent by hand.
+    }
+  }
+
   for (const bundleId of touched) {
     // `historical` lets the job read history cheaply and after live bundles.
     await inngest.send({ name: "coach/bundle.touched", data: { bundleId, userId, historical } });

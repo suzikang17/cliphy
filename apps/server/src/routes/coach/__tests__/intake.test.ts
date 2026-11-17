@@ -217,6 +217,30 @@ describe("coach intake", () => {
     expect(inngestSend).not.toHaveBeenCalled();
   });
 
+  it("marks a waiting batch sent when its summary goes out to the client", async () => {
+    const summary = "Changes are live on Alder House:\n- Sconces now sit above the text on page 2";
+    const base = intakeDb();
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_batches" && op.action === "select") {
+        return { data: [{ id: "ba1", summary }] };
+      }
+      return base.respond(op);
+    });
+    await post("/api/coach/intake/messages", {
+      personId: "p1",
+      channel: "imessage",
+      messages: [
+        { externalId: "m3", direction: "out", text: summary, sentAt: "2026-11-17T10:00:00Z" },
+      ],
+    });
+    expect(db.written("coach_batches", "update")[0]).toMatchObject({ status: "sent" });
+  });
+
+  it("does not look for a batch when only the client wrote", async () => {
+    await post("/api/coach/intake/messages", batch);
+    expect(db.ops.some((o) => o.table === "coach_batches")).toBe(false);
+  });
+
   it("marks a new bundle historical when the batch is from a thread's past", async () => {
     await post("/api/coach/intake/messages", { ...batch, historical: true });
     expect(db.written("coach_bundles", "insert")[0]).toMatchObject({ historical: true });
