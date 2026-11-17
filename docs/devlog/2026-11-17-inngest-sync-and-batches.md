@@ -60,3 +60,15 @@ phase: Growth
 - Tests written first: 16 for the tools (in-memory client), 6 for the endpoint, one of them the SDK's real HTTP client driven straight into the app; 2 for the single-task route; 2 for the command line.
 - The second Mac CI run (`28174b4`) shows Chat and a project page drawn correctly inside the real app on macOS, on made-up data. Headings are not bold there (they are in Chromium on Linux): to look at.
 - Not checked: the endpoint with a real key against production (keys can only be made from the phone), and Claude Code itself connecting.
+
+## Later: the coach on cliphy.app
+
+- The existing web app (`apps/web`) had no coach screens. The Vercel build now also exports `apps/mobile` for the web and serves it at `/chat`, `/projects` and `/coach/*` on the same site, sharing the web app's sign-in (ADR 0066). "Coach" in the site nav, "Library" in the coach's nav.
+- Checked locally by assembling the site the way the build script does and driving it in headless Chromium: signed out `/chat` → `/login`; with a session, Chat and a project page load; both links work; no page errors.
+
+**Issues**
+
+- `experiments.baseUrl` in `app.json` changes the native fingerprint (`6e52…` → `f85b…`). Reverted; the coach is served at its own addresses instead of under a prefix.
+- After building the cliphy.app copy, the Mac build came out asking for a sign-in: Metro's cache ignores `EXPO_PUBLIC_*` changes. Both builds now pass `--clear`.
+- **Correction:** migration 045 is applied in production and has been since it was pushed. The Vercel build runs `migrate:deploy`, which applies every pending file. The resume pointer and the 2026-11-16 devlog said it was not; asking before applying 046 by hand was also unnecessary for the same reason. Pushing a migration file is itself the production change.
+- `pkill -f <name>` inside a longer command line matches and kills the shell running it. Use `pgrep` with a bracketed pattern, then `kill`.

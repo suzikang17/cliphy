@@ -23,10 +23,16 @@ await build({ ...shared, entryPoints: ["src/preview.ts"], outfile: "dist/preview
 if (!process.argv.includes("--no-web")) {
   const out = path.resolve(import.meta.dirname, "web");
   rmSync(out, { recursive: true, force: true });
-  const result = spawnSync("npx", ["expo", "export", "--platform", "web", "--output-dir", out], {
-    cwd: path.resolve(import.meta.dirname, "../mobile"),
-    stdio: "inherit",
-    env: { ...process.env, EXPO_PUBLIC_API_URL: "", CI: "1" },
-  });
+  const result = spawnSync(
+    "npx", // --clear: the bundler's cache does not notice EXPO_PUBLIC_TARGET changing, and
+    // would hand back the copy built for cliphy.app, which asks for a sign-in.
+    ["expo", "export", "--platform", "web", "--clear", "--output-dir", out],
+    {
+      cwd: path.resolve(import.meta.dirname, "../mobile"),
+      stdio: "inherit",
+      // "mac": no sign-in, the Mac app answers /api/ (apps/mobile/lib/desktop.ts).
+      env: { ...process.env, EXPO_PUBLIC_API_URL: "", EXPO_PUBLIC_TARGET: "mac", CI: "1" },
+    },
+  );
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

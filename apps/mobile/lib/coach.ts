@@ -368,3 +368,16 @@ export function mcpCommand(key: string, apiUrl: string): string {
   const url = `${apiUrl.replace(/\/+$/, "")}/api/mcp`;
   return `claude mcp add --transport http --scope user cliphy ${url} --header "Authorization: Bearer ${key}"`;
 }
+
+/**
+ * What the web build does when a screen opens: send the visitor to sign in,
+ * start them at Chat, or leave them on the screen they asked for.
+ */
+export function desktopEntry(opts: {
+  signedIn: boolean;
+  /** True at an address with no coach screen behind it: the root, sign-in, the Library. */
+  starting: boolean;
+}): "sign-in" | "chat" | "stay" {
+  if (!opts.signedIn) return "sign-in";
+  return opts.starting ? "chat" : "stay";
+}

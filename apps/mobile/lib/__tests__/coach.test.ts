@@ -23,7 +23,14 @@ import {
   MIRROR_DELAY_MS,
 } from "../coach";
 import type { CoachBatch, CoachRun } from "@cliphy/shared";
-import { batchLine, desktopSection, mcpCommand, messageLine, projectRows } from "../coach";
+import {
+  batchLine,
+  desktopEntry,
+  desktopSection,
+  mcpCommand,
+  messageLine,
+  projectRows,
+} from "../coach";
 import type { Project } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
@@ -536,5 +543,23 @@ describe("mcpCommand", () => {
     expect(mcpCommand("k", "https://api.cliphy.app/")).toContain(
       " https://api.cliphy.app/api/mcp ",
     );
+  });
+});
+
+describe("desktopEntry", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Web");
+  });
+
+  it("sends a visitor who is not signed in to the website's sign-in", () => {
+    expect(desktopEntry({ signedIn: false, starting: true })).toBe("sign-in");
+    expect(desktopEntry({ signedIn: false, starting: false })).toBe("sign-in");
+  });
+
+  it("starts at Chat, and leaves a screen that was asked for by address alone", () => {
+    expect(desktopEntry({ signedIn: true, starting: true })).toBe("chat");
+    expect(desktopEntry({ signedIn: true, starting: false })).toBe("stay");
   });
 });

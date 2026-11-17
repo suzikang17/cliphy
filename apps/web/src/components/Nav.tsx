@@ -1,9 +1,11 @@
 import { Link } from "react-router";
 import type { ReactNode } from "react";
 import { useAuth } from "../lib/auth-context";
+import { useHasCoach } from "../lib/coach";
 
 export function Nav({ right }: { right?: ReactNode }) {
   const { user, signOut } = useAuth();
+  const hasCoach = useHasCoach(Boolean(user));
 
   return (
     <nav className="flex items-center justify-between py-4 mb-6 border-b-2 border-(--color-border-soft)">
@@ -22,6 +24,15 @@ export function Nav({ right }: { right?: ReactNode }) {
               >
                 Dashboard
               </Link>
+              {hasCoach ? (
+                // A plain link: the coach's screens are a separate app at this address.
+                <a
+                  href="/chat"
+                  className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"
+                >
+                  Coach
+                </a>
+              ) : null}
               <Link
                 to="/subscriptions"
                 className="text-sm font-semibold text-(--color-text-secondary) hover:text-neon-600 no-underline transition-colors"

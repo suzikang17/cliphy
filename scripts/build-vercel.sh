@@ -10,6 +10,24 @@ pnpm --filter server migrate:deploy
 # ── 1. Build the web app (static SPA) ──
 pnpm --filter web build
 
+# ── 1b. Build the coach's screens (the phone app, built for the web) ──
+# Served beside the web app at /chat, /projects and /coach/*, signed in by the
+# web app's own sign-in (same site, same stored session). See ADR 0066.
+# A failure here must not stop the API from deploying: the site then ships
+# without those pages, and the log says so.
+COACH_WEB=.vercel/coach-web
+rm -rf "$COACH_WEB"
+if (cd apps/mobile && \
+    EXPO_PUBLIC_API_URL="" \
+    EXPO_PUBLIC_SUPABASE_URL="${VITE_SUPABASE_URL:-}" \
+    EXPO_PUBLIC_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY:-}" \
+    CI=1 npx expo export --platform web --clear --output-dir "../../$COACH_WEB"); then
+  echo "Coach screens built."
+else
+  echo "WARNING: the coach's web screens did not build; deploying without them."
+  rm -rf "$COACH_WEB"
+fi
+
 # ── 2. Bundle the API server into a Vercel Function ──
 pnpm exec esbuild apps/server/src/vercel.ts \
   --bundle \
@@ -38,6 +56,15 @@ cp "$HTMX_PATH" .vercel/output/functions/api/index.func/htmx.min.js
 # Web app SPA output → static root
 mkdir -p .vercel/output/static
 cp -r apps/web/dist/* .vercel/output/static/
+
+# Coach screens: their files sit beside the web app's (no names in common),
+# and their page is served for the coach's addresses by the routes below.
+if [ -f "$COACH_WEB/index.html" ]; then
+  cp -r "$COACH_WEB/_expo" .vercel/output/static/_expo
+  mkdir -p .vercel/output/static/assets
+  cp -r "$COACH_WEB/assets/." .vercel/output/static/assets/
+  cp "$COACH_WEB/index.html" .vercel/output/static/coach-app.html
+fi
 
 # Server static pages (terms, privacy, logo)
 mkdir -p .vercel/output/static/terms .vercel/output/static/privacy
@@ -73,6 +100,8 @@ cat > .vercel/output/config.json << 'EOF'
     { "src": "/api/(.*)", "dest": "/api" },
     { "src": "/admin/(.*)", "dest": "/api" },
     { "handle": "filesystem" },
+    { "src": "/(chat|projects)", "dest": "/coach-app.html" },
+    { "src": "/coach/(.*)", "dest": "/coach-app.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

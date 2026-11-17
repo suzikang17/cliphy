@@ -1,23 +1,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
-import { DESKTOP } from "./desktop";
+import { MAC_WINDOW } from "./desktop";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-if (!DESKTOP && (!supabaseUrl || !supabaseAnonKey)) {
+if (!MAC_WINDOW && (!supabaseUrl || !supabaseAnonKey)) {
   console.warn("Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY — check .env");
 }
 
 // The Mac window never signs in (see lib/desktop.ts), but the client refuses
 // to be made without an address, so it gets one that goes nowhere.
 export const supabase = createClient(
-  supabaseUrl || (DESKTOP ? "http://localhost" : ""),
-  supabaseAnonKey || (DESKTOP ? "desktop" : ""),
+  supabaseUrl || (MAC_WINDOW ? "http://localhost" : ""),
+  supabaseAnonKey || (MAC_WINDOW ? "desktop" : ""),
   {
     auth: {
       storage: AsyncStorage,
-      autoRefreshToken: !DESKTOP,
+      autoRefreshToken: !MAC_WINDOW,
       persistSession: true,
       detectSessionInUrl: false,
       flowType: "pkce",

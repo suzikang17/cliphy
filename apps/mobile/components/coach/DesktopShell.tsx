@@ -4,11 +4,11 @@ import { usePathname, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { desktopSection, type DesktopSection } from "../../lib/coach";
 import { useCoach } from "../../lib/coachStore";
-import { openMacSetup } from "../../lib/desktop";
+import { MAC_WINDOW, openMacSetup } from "../../lib/desktop";
 import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
 
-/** Room at the top for the window's own buttons, and for dragging it. */
-const TITLE_STRIP = 34;
+/** In the Mac window: room at the top for the window's own buttons, and for dragging it. */
+const TITLE_STRIP = MAC_WINDOW ? 34 : 12;
 /** Screens were drawn for a phone; past this they stop widening. */
 const CONTENT_WIDTH = 760;
 
@@ -23,7 +23,7 @@ const ITEMS: {
   { section: "upnext", label: "Up next", path: "/coach/upnext", icon: "list-outline" },
 ];
 
-/** The Mac window: a side nav that stays put, with the current screen beside it. */
+/** The web build, in the Mac window or a browser: a side nav that stays put, with the current screen beside it. */
 export function DesktopShell({ children }: { children: ReactNode }) {
   const t = useCoachTheme();
   const router = useRouter();
@@ -105,8 +105,10 @@ export function DesktopShell({ children }: { children: ReactNode }) {
           })}
 
           <View style={{ flex: 1 }} />
+          {/* On the Mac: who is captured from Messages. On cliphy.app: the
+              website's own pages, where saved videos live. */}
           <Pressable
-            onPress={() => openMacSetup()}
+            onPress={() => (MAC_WINDOW ? openMacSetup() : window.location.assign("/dashboard"))}
             accessibilityRole="button"
             style={{
               flexDirection: "row",
@@ -116,9 +118,13 @@ export function DesktopShell({ children }: { children: ReactNode }) {
               paddingVertical: 9,
             }}
           >
-            <Ionicons name="phone-portrait-outline" size={18} color={t.muted} />
+            <Ionicons
+              name={MAC_WINDOW ? "phone-portrait-outline" : "grid-outline"}
+              size={18}
+              color={t.muted}
+            />
             <Text style={{ fontFamily: FONT, fontSize: 14, fontWeight: "500", color: t.muted }}>
-              Messages
+              {MAC_WINDOW ? "Messages" : "Library"}
             </Text>
           </Pressable>
         </View>

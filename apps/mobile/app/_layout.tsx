@@ -25,7 +25,8 @@ import {
 import { couldBeRequest, setPendingShare, type PendingShare } from "../lib/shareStore";
 import { SendToChatSheet } from "../components/coach/SendToChatSheet";
 import { DesktopShell } from "../components/coach/DesktopShell";
-import { DESKTOP } from "../lib/desktop";
+import { DESKTOP, MAC_WINDOW } from "../lib/desktop";
+import { desktopEntry } from "../lib/coach";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -34,7 +35,7 @@ export default function RootLayout() {
   const segments = useSegments();
 
   // The Mac window is never signed in here: the Mac app holds the key.
-  const signedIn = DESKTOP || Boolean(session);
+  const signedIn = MAC_WINDOW || Boolean(session);
 
   const [fontsLoaded] = useFonts({
     /* eslint-disable @typescript-eslint/no-require-imports */
@@ -77,9 +78,12 @@ export default function RootLayout() {
     const onReset = (segments as string[])[1] === "reset";
 
     if (DESKTOP) {
-      // No sign-in and no Library on the Mac yet: everything starts at Chat.
       const onLibrary = (segments as string[]).length === 1 && segments[0] === "(tabs)";
-      if (inAuth || atRoot || onLibrary) router.replace("/(tabs)/chat");
+      const entry = desktopEntry({ signedIn, starting: inAuth || atRoot || onLibrary });
+      // On cliphy.app the website beside these screens does the signing in,
+      // and holds the Library.
+      if (entry === "sign-in") window.location.assign("/login");
+      else if (entry === "chat") router.replace("/(tabs)/chat");
       return;
     }
 
@@ -88,7 +92,7 @@ export default function RootLayout() {
     } else if (session && (inAuth || atRoot) && !onReset) {
       router.replace("/(tabs)");
     }
-  }, [session, initialized, fontsLoaded, segments, router]);
+  }, [session, signedIn, initialized, fontsLoaded, segments, router]);
 
   // Register for push notifications when signed in
   useEffect(() => {
@@ -168,6 +172,11 @@ export default function RootLayout() {
   const processingShareRef = useRef(false);
   const coachStatus = useCoach().status;
   const coachAskedRef = useRef(false);
+
+  // On cliphy.app, an account without the coach has nothing to see here.
+  useEffect(() => {
+    if (DESKTOP && !MAC_WINDOW && coachStatus === "off") window.location.assign("/dashboard");
+  }, [coachStatus]);
   const [shareTick, setShareTick] = useState(0);
 
   useEffect(() => {
