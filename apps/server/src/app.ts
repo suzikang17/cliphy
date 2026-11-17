@@ -16,6 +16,7 @@ import {
   processSubscriptionPoll,
 } from "./functions/poll-subscriptions.js";
 import { mcpRoutes } from "./routes/mcp.js";
+import { originAllowed } from "./lib/origin.js";
 import { authRoutes } from "./routes/auth.js";
 import { authGoogleRoutes } from "./routes/auth-google.js";
 import { subscriptionRoutes } from "./routes/subscriptions.js";
@@ -65,10 +66,7 @@ app.use("*", async (c, next) => {
 });
 app.use("*", async (c, next) => {
   if (isAdminRoute(c.req.path)) return next();
-  const origin = c.req.header("Origin");
-  const isExtension =
-    origin?.startsWith("chrome-extension://") || origin?.startsWith("moz-extension://");
-  if (origin && !isExtension && ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
+  if (!originAllowed(c.req.header("Origin"), c.req.header("Host"), ALLOWED_ORIGINS)) {
     return c.json({ error: "Forbidden" }, 403);
   }
   return next();

@@ -233,6 +233,7 @@ const ROUTES: [RegExp, unknown][] = [
   [/^\/api\/coach\/batches\/candidates$/, { requests: [request], messages: [], tasks: [] }],
   [/^\/api\/coach\/tasks$/, { tasks }],
   [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts, hasMore: false }],
+  [/^\/api\/coach\/rules$/, { rules: [] }],
   [/^\/api\/coach\/settings$/, { settings: { timezone: "America/New_York", timezoneSet: true } }],
   [
     /^\/api\/coach\/health$/,

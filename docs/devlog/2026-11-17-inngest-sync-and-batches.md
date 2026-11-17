@@ -79,3 +79,15 @@ phase: Growth
 - **Thread** (`/coach/thread/:personId`, list at `/coach/threads`, "Texts" in the nav): everything one person sent and was sent, oldest first, a page of 100 at a time. Tap to select; "Tick off" marks messages dealt with (`coach_messages.handled_at`, migration 047, pushed with the owner's go-ahead), "Batch" starts a batch from them. Each message shows what became of it: Done, In a batch, Request. `GET /people/:id/messages` now pages (`limit`, `before`, `hasMore`) and carries those marks; `POST /people/:id/messages/handled`.
 - **Reading further back:** the owner's one client was on "new only" with 3 messages stored, and Setup offered no way to change that while capture was on. Setup now shows the choice for a captured person, and the Mac helper reads again when the choice changes (`HelperState.history`). Needs the Mac app restarted from current `main`.
 - Checked in headless Chromium on made-up data: the board at wide and phone widths, the thread (select two, tick off → POST seen, Open filter). Not seen with real data.
+
+## Later: every save from cliphy.app was refused (403)
+
+- The owner tapped "Everything" in Setup on cliphy.app and got "Couldn't reach the server"; the network tab showed 403.
+- **Cause:** `app.ts` refuses any request whose `Origin` is not in `ALLOWED_ORIGINS`, and production's list does not include `https://cliphy.app`. A browser sends `Origin` on every write, even to the page's own site, and on no same-site read. So the coach's screens on cliphy.app could show everything and save nothing. My local check of the site used a stand-in server without this rule, and my production check was signed out, so neither could catch it.
+- **Fix:** `lib/origin.ts` `originAllowed`: an Origin whose host is the Host the request came to is the site itself and is let through (7 tests, written first). Other sites are still refused.
+- The existing web app's own writes (same site, same rule) were presumably refused too; not investigated.
+
+**What to remember**
+
+- Reads working and writes failing on the same site means an Origin rule, not auth.
+- A local stand-in for the API hides every rule the real one has. Check one signed-in write against production, or ask the owner to, before calling a web surface done.
