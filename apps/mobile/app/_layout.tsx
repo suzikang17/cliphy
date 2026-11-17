@@ -24,12 +24,17 @@ import {
 } from "../lib/coachNotifications";
 import { couldBeRequest, setPendingShare, type PendingShare } from "../lib/shareStore";
 import { SendToChatSheet } from "../components/coach/SendToChatSheet";
+import { DesktopShell } from "../components/coach/DesktopShell";
+import { DESKTOP } from "../lib/desktop";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+
+  // The Mac window is never signed in here: the Mac app holds the key.
+  const signedIn = DESKTOP || Boolean(session);
 
   const [fontsLoaded] = useFonts({
     /* eslint-disable @typescript-eslint/no-require-imports */
@@ -71,6 +76,13 @@ export default function RootLayout() {
     // reset.tsx navigates to (tabs) itself once the password is updated.
     const onReset = (segments as string[])[1] === "reset";
 
+    if (DESKTOP) {
+      // No sign-in and no Library on the Mac yet: everything starts at Chat.
+      const onLibrary = (segments as string[]).length === 1 && segments[0] === "(tabs)";
+      if (inAuth || atRoot || onLibrary) router.replace("/(tabs)/chat");
+      return;
+    }
+
     if (!session && !inAuth) {
       router.replace("/(auth)/login");
     } else if (session && (inAuth || atRoot) && !onReset) {
@@ -80,7 +92,7 @@ export default function RootLayout() {
 
   // Register for push notifications when signed in
   useEffect(() => {
-    if (!session) return;
+    if (!session || DESKTOP) return;
     registerForPushNotifications().catch(console.error);
   }, [session]);
 
@@ -88,7 +100,7 @@ export default function RootLayout() {
   // timezone (it plans no reminders without one) and back up upcoming
   // reminders on the phone. Accounts without it make this one call and no more.
   useEffect(() => {
-    if (!session) {
+    if (!signedIn) {
       resetCoach();
       return;
     }
@@ -98,27 +110,31 @@ export default function RootLayout() {
       .then(() => refreshCoach({ full: true }))
       .then(() => {
         if (getCoachState().status !== "on") return;
+        // Reminders are the phone's job: the Mac neither keeps copies of them
+        // nor says what timezone they are planned in.
+        if (DESKTOP) return;
         void reportTimezone().then(syncLocalReminders);
       });
-  }, [session]);
+  }, [signedIn]);
 
   // Each time the app comes to the front: retry if the server was unreachable,
   // notice pushes that arrived while it was not running, and bring the local
   // reminder backups up to date.
   useEffect(() => {
-    if (!session) return;
+    if (!signedIn) return;
     const sub = AppState.addEventListener("change", (next) => {
       if (next !== "active" || getCoachState().status === "off") return;
       void refreshCoach({ full: true }).then(() => {
-        if (getCoachState().status !== "on") return;
+        if (getCoachState().status !== "on" || DESKTOP) return;
         void reconcilePresented().then(syncLocalReminders);
       });
     });
     return () => sub.remove();
-  }, [session]);
+  }, [signedIn]);
 
   // A reminder that arrives while the app is open is reported as delivered.
   useEffect(() => {
+    if (DESKTOP) return;
     const subscription = Notifications.addNotificationReceivedListener((notification) => {
       void onNotificationReceived(notification).then(() => refreshCoach());
     });
@@ -127,6 +143,7 @@ export default function RootLayout() {
 
   // Handle notification tap — navigate to summary
   useEffect(() => {
+    if (DESKTOP) return;
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const summaryId = response.notification.request.content.data?.summaryId;
       if (summaryId) {
@@ -248,6 +265,16 @@ export default function RootLayout() {
 
   if (!fontsLoaded || !initialized) return null;
 
+  const stack = (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        contentStyle: { backgroundColor: bg },
+      }}
+    />
+  );
+
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1, backgroundColor: bg }}>
@@ -255,13 +282,7 @@ export default function RootLayout() {
             native iOS edge-swipe-back gesture. headerShown stays off — each
             group/screen owns its chrome. The auth gate uses router.replace, so
             (tabs) sits at the stack root with nothing to swipe back to. */}
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: true,
-            contentStyle: { backgroundColor: bg },
-          }}
-        />
+        {DESKTOP ? <DesktopShell>{stack}</DesktopShell> : stack}
         <SendToChatSheet onLibrary={saveShareToLibrary} />
       </View>
     </SafeAreaProvider>

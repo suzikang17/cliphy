@@ -127,6 +127,7 @@ function draw(state) {
 $("open-settings").addEventListener("click", () => window.helper.openSettings());
 $("show-app").addEventListener("click", () => window.helper.showApp());
 $("relaunch").addEventListener("click", () => window.helper.relaunch());
+$("open-coach").addEventListener("click", () => window.helper.openCoach());
 $("disconnect").addEventListener("click", () => {
   if (confirm("Disconnect this Mac? Messages stop being passed to Cliphy.")) {
     window.helper.disconnect();

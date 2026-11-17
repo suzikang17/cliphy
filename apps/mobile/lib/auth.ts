@@ -1,5 +1,6 @@
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import { DESKTOP } from "./desktop";
 import { supabase } from "./supabase";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -68,6 +69,8 @@ export async function signOut() {
 }
 
 export async function getAccessToken(): Promise<string | null> {
+  // The Mac app swaps this for its own key before the call leaves the Mac.
+  if (DESKTOP) return "desktop";
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }

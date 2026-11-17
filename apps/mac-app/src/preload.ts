@@ -13,4 +13,7 @@ contextBridge.exposeInMainWorld("helper", {
   addPerson: (handle: string, name: string, history: string) =>
     ipcRenderer.invoke("add-person", handle, name, history),
   disconnect: () => ipcRenderer.invoke("disconnect"),
+  /** Switch the window between the Mac's own screen and the full app. */
+  openSetup: () => ipcRenderer.invoke("open-setup"),
+  openCoach: () => ipcRenderer.invoke("open-coach"),
 });

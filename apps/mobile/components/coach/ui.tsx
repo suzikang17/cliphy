@@ -76,7 +76,9 @@ export function Page({
           </Text>
         ) : (
           <Pressable
-            onPress={() => router.back()}
+            // Opened straight at this address (the Mac window after a reload),
+            // there is nothing to go back to.
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/chat"))}
             accessibilityRole="button"
             accessibilityLabel="Back"
             hitSlop={12}

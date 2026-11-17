@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, shell, Tray } from "electron";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createApi } from "../../mac-helper/src/api.js";
@@ -22,6 +22,8 @@ import {
   type HelperConfig,
 } from "../../mac-helper/src/store.js";
 import { ApiError, syncOnce } from "../../mac-helper/src/sync.js";
+import { createAppServer } from "./appServer.js";
+import { fakeApi } from "./fakeApi.js";
 import { Controller, type AddHistory, type AppState, type NewPerson } from "./controller.js";
 import { stayInMenuBar } from "./quit.js";
 import { statusLine } from "./status.js";
@@ -33,6 +35,14 @@ const DIR = process.env.CLIPHY_HELPER_DIR ?? DEFAULT_DIR;
 const API_URL = process.env.CLIPHY_API_URL ?? "https://api.cliphy.app";
 const SMOKE_OUT = process.env.CLIPHY_SMOKE_OUT;
 const FULL_DISK_ACCESS = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
+
+/** Where the window finds the full app: files and /api/ calls, both answered here. */
+const APP_URL = "app://cliphy/";
+// Must be said before the app is ready: a standard, secure address gets
+// storage and ordinary page behaviour.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -161,7 +171,7 @@ function drawTray(state: AppState): void {
       { label: status, enabled: false },
       ...(state.account ? [{ label: state.account, enabled: false }] : []),
       { type: "separator" },
-      { label: "Open Cliphy Helper", click: showWindow },
+      { label: "Open Cliphy", click: showWindow },
       {
         label: "Start at login",
         type: "checkbox",
@@ -174,6 +184,19 @@ function drawTray(state: AppState): void {
   );
 }
 
+/** Setup is finished once the Mac is connected and may read Messages. */
+const setupDone = (): boolean => Boolean(loadConfig(DIR)) && canReadMessages();
+
+/** The Mac's own screen: connect, allow Messages, choose people. */
+function showSetup(): void {
+  void win?.loadFile(path.join(__dirname, "..", "ui", "index.html"));
+}
+
+/** The full app: Chat, Projects, Up next. */
+function showCoach(): void {
+  void win?.loadURL(APP_URL);
+}
+
 function showWindow(): void {
   if (win) {
     win.show();
@@ -181,17 +204,36 @@ function showWindow(): void {
     return;
   }
   win = new BrowserWindow({
-    width: 380,
-    height: 560,
-    resizable: false,
-    fullscreenable: false,
-    title: "Cliphy Helper",
+    width: 1100,
+    height: 760,
+    minWidth: 720,
+    minHeight: 520,
+    title: "Cliphy",
     titleBarStyle: "hiddenInset",
     backgroundColor: "#FBF7EF",
     show: !SMOKE_OUT,
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true },
   });
-  void win.loadFile(path.join(__dirname, "..", "ui", "index.html"));
+  // Links to other sites open in the browser, never in this window.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^(https?|sms|mailto):/.test(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith(APP_URL) || url.startsWith("file:")) return;
+    event.preventDefault();
+    if (/^(https?|sms|mailto):/.test(url)) void shell.openExternal(url);
+  });
+  // The full app leaves a blank strip along its top (DesktopShell); this makes
+  // that strip drag the window, as the title bar it replaces would.
+  win.webContents.on("did-finish-load", () => {
+    if (!win?.webContents.getURL().startsWith(APP_URL)) return;
+    void win.webContents.insertCSS(
+      "body::before{content:'';position:fixed;top:0;left:0;right:0;height:30px;-webkit-app-region:drag;z-index:9999}",
+    );
+  });
+  if (setupDone() && !SMOKE_OUT) showCoach();
+  else showSetup();
   // Closing the window leaves the helper running in the menu bar.
   menuBar.keepOpen(win);
 }
@@ -214,6 +256,8 @@ ipcMain.handle("add-person", (_event, handle: string, name: string, history?: Ad
   controller.addPerson(String(handle), String(name), history),
 );
 ipcMain.handle("disconnect", () => controller.disconnect());
+ipcMain.handle("open-setup", showSetup);
+ipcMain.handle("open-coach", showCoach);
 
 /**
  * For CI: draw each screen with made-up state, save a picture of it, and
@@ -276,7 +320,19 @@ async function smoke(outDir: string): Promise<void> {
       const image = await win!.webContents.capturePage();
       writeFileSync(path.join(outDir, `${name}.png`), image.toPNG());
     }
-    report.screens = screens.map(([name]) => name);
+    // The full app, on made-up data.
+    const appScreens: [string, string][] = [
+      ["5-app-chat", "chat"],
+      ["6-app-projects", "projects"],
+      ["7-app-project", "coach/project/project-1"],
+    ];
+    for (const [name, route] of appScreens) {
+      await win!.loadURL(`${APP_URL}${route}`);
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      const image = await win!.webContents.capturePage();
+      writeFileSync(path.join(outDir, `${name}.png`), image.toPNG());
+    }
+    report.screens = [...screens, ...appScreens].map(([name]) => name);
   } catch (err) {
     report.windowError = String(err);
   }
@@ -292,6 +348,15 @@ if (!app.requestSingleInstanceLock()) {
     // Stay in the menu bar.
   });
   void app.whenReady().then(async () => {
+    const serve = createAppServer({
+      webDir: path.join(__dirname, "..", "web"),
+      apiUrl: API_URL,
+      // Read each time: connecting or disconnecting takes effect at once.
+      apiKey: () => loadConfig(DIR)?.apiKey ?? null,
+      fetch: SMOKE_OUT ? fakeApi : (request) => fetch(request),
+    });
+    protocol.handle("app", (request) => serve(request));
+
     if (SMOKE_OUT) return smoke(SMOKE_OUT);
 
     const icon = nativeImage.createFromPath(

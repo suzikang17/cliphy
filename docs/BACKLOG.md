@@ -56,3 +56,6 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Upgrade `@anthropic-ai/sdk` from 0.39 to 1.x (strict tools, structured outputs, effort, refusal fallbacks); coach interpretation currently validates model output by hand because the installed SDK predates them.
 - [ ] Coach chat: a tapped answer saved the request and made its tasks but no "Saved. N tasks added." message was stored (2026-11-17, 50 s after a deploy). Needs the Vercel log for `POST /coach/chat/:id/choose`; likely a cold start cut off before the message was written.
 - [ ] Coach: add a task by hand from Up next or Chat's plus, not only from a project page.
+- [ ] Mac window: Library, camera/photo attach and reminders have no desktop form yet; "Setup" in Chat still shows the phone's setup.
+- [ ] Mac window: screen changes need a Mac app rebuild. Consider loading a hosted web build, or auto-update, once it is used daily.
+- [ ] MCP server for the coach (list projects/tasks/requests, add a task, mark done, read a batch) so Claude Code, Claude and ChatGPT can work from it; auth with the existing `cliphy_sk_` keys.

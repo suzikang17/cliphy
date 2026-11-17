@@ -346,3 +346,19 @@ export function projectRows(
     })
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
+
+export type DesktopSection = "chat" | "projects" | "upnext";
+
+/** Which item of the Mac window's side nav the current screen belongs to. */
+export function desktopSection(pathname: string): DesktopSection | null {
+  if (pathname === "/chat") return "chat";
+  if (pathname === "/coach/upnext") return "upnext";
+  if (
+    pathname === "/projects" ||
+    pathname.startsWith("/coach/project/") ||
+    pathname.startsWith("/coach/batch/")
+  ) {
+    return "projects";
+  }
+  return null;
+}

@@ -17,6 +17,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import type { CoachChatMessage } from "@cliphy/shared";
 import { textParts } from "../../lib/coach";
 import { linkPath } from "../../lib/coachNav";
+import { DESKTOP } from "../../lib/desktop";
 import { refreshCoach, refreshStrip, say, tap, useCoach } from "../../lib/coachStore";
 import {
   ACCENT,
@@ -200,6 +201,17 @@ export default function ChatScreen() {
             placeholder="Message"
             placeholderTextColor={t.muted}
             multiline
+            // With a keyboard, Return sends and Shift+Return starts a new line.
+            onKeyPress={
+              DESKTOP
+                ? (e) => {
+                    const key = e.nativeEvent as { key: string; shiftKey?: boolean };
+                    if (key.key !== "Enter" || key.shiftKey) return;
+                    e.preventDefault();
+                    void send();
+                  }
+                : undefined
+            }
             accessibilityLabel="Message"
             style={{
               flex: 1,

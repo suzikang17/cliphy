@@ -1,7 +1,8 @@
 name: Mac app
 
 # Builds Cliphy Helper (apps/mac-app) on a Mac, runs it once in a mode that
-# draws every screen with made-up data and saves pictures of them, then packs
+# draws every screen with made-up data and saves pictures of them (setup, and
+# the full app: Chat and Projects), then packs
 # the disk image. Unsigned for now: see docs/decisions/0061.
 on:
   workflow_dispatch:
@@ -10,6 +11,9 @@ on:
     paths:
       - "apps/mac-app/**"
       - "apps/mac-helper/**"
+      # The window shows the phone app built for the web.
+      - "apps/mobile/**"
+      - "packages/shared/**"
       - ".github/workflows/mac-app.yml"
 
 jobs:
@@ -68,6 +72,7 @@ jobs:
           cat "$CLIPHY_SMOKE_OUT/smoke.json"
           ls -la "$CLIPHY_SMOKE_OUT"
           test -f "$CLIPHY_SMOKE_OUT/3-ready.png"
+          test -f "$CLIPHY_SMOKE_OUT/6-app-projects.png"
           grep -q '"sqlite"' "$CLIPHY_SMOKE_OUT/smoke.json"
 
       - uses: actions/upload-artifact@v4

@@ -1,8 +1,23 @@
 # Cliphy Helper (Mac app)
 
-A menu-bar app that passes the Messages threads you choose to the Cliphy coach.
+A menu-bar app that passes the Messages threads you choose to the Cliphy coach,
+and a window with the full app: Chat, Projects and Up next.
 It wraps the code in `apps/mac-helper`; see that folder for how reading and
 uploading work.
+
+## The full app in the window
+
+Once setup is finished the window opens on Chat, with a side nav. Those screens
+are the phone app (`apps/mobile`) built for the web into `web/` by `build.mjs`.
+The Mac app serves them at `app://cliphy/` and answers their `/api/` calls
+itself, adding the Mac's own key (`src/appServer.ts`), so the window has no
+sign-in. **Messages** at the foot of the nav goes back to the setup screen;
+**Open Cliphy** there returns. See `docs/decisions/0064`.
+
+```sh
+pnpm --filter cliphy-helper-app preview   # the full app in a browser, on made-up data (any machine)
+node build.mjs --no-web                   # rebuild the Mac's own code only
+```
 
 ## Using it
 

@@ -23,7 +23,7 @@ import {
   MIRROR_DELAY_MS,
 } from "../coach";
 import type { CoachBatch, CoachRun } from "@cliphy/shared";
-import { batchLine, messageLine, projectRows } from "../coach";
+import { batchLine, desktopSection, messageLine, projectRows } from "../coach";
 import type { Project } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
@@ -490,5 +490,31 @@ describe("projectRows", () => {
       "Cedar Shop",
       "Birch Studio",
     ]);
+  });
+});
+
+describe("desktopSection", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Mac window");
+  });
+
+  it("lights the nav item the current screen belongs to", () => {
+    expect(desktopSection("/chat")).toBe("chat");
+    expect(desktopSection("/projects")).toBe("projects");
+    expect(desktopSection("/coach/upnext")).toBe("upnext");
+  });
+
+  it("keeps Projects lit inside a project and its batches", () => {
+    expect(desktopSection("/coach/project/abc")).toBe("projects");
+    expect(desktopSection("/coach/batch/new")).toBe("projects");
+    expect(desktopSection("/coach/batch/abc")).toBe("projects");
+  });
+
+  it("lights nothing on a screen that belongs to no section", () => {
+    expect(desktopSection("/coach/task/abc")).toBeNull();
+    expect(desktopSection("/coach/request/abc")).toBeNull();
+    expect(desktopSection("/")).toBeNull();
   });
 });

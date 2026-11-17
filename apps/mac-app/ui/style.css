@@ -19,7 +19,8 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  padding: 44px 22px 16px;
+  /* The window is wide now; this screen stays a narrow column in the middle. */
+  padding: 44px max(22px, calc(50% - 210px)) 16px;
   background: var(--bg);
   color: var(--ink);
   font:

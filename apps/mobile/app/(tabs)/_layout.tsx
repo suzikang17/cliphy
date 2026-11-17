@@ -1,13 +1,15 @@
 import { Tabs } from "expo-router";
 import { getTheme } from "../../lib/theme";
 import { CoachTabBar } from "../../components/coach/CoachTabBar";
+import { DESKTOP } from "../../lib/desktop";
 
 export default function TabLayout() {
   const theme = getTheme();
 
   return (
     <Tabs
-      tabBar={(props) => <CoachTabBar {...props} />}
+      // On the Mac the side nav stands in for the tab bar (see DesktopShell).
+      tabBar={(props) => (DESKTOP ? null : <CoachTabBar {...props} />)}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.surface } }}
     >
       <Tabs.Screen name="index" options={{ title: "Library" }} />

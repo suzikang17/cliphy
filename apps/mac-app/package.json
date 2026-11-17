@@ -10,7 +10,8 @@
     "build": "node build.mjs",
     "start": "node build.mjs && node -e \"require('electron/install.js')\" && node start.mjs",
     "dist": "node build.mjs && electron-builder --mac --publish never",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "preview": "node build.mjs && node dist/preview.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -25,6 +26,7 @@
     "files": [
       "dist/**",
       "ui/**",
+      "web/**",
       "assets/**",
       "package.json"
     ],

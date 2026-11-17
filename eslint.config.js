@@ -30,6 +30,7 @@ export default tseslint.config(
       ".vercel/",
       "docs/devdash/",
       "apps/mobile/ios/",
+      "apps/mac-app/web/",
     ],
   },
   {

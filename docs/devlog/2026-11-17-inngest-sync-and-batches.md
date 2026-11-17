@@ -35,3 +35,21 @@ phase: Growth
 - Added a Projects tab on the phone (`dd6f526`): every project with its client, next step and open task count; add a project by name. Before this, a project could only be reached through Up next → By project, which lists only projects that have tasks, so the new batch and "Add a task" controls were effectively hidden.
 - `Page` takes `root` for a tab screen (title, no back arrow). The tab bar is now two equal halves around the plus: Library | + | Projects, Chat.
 - Not seen on a device yet. `projectRows` is unit tested (3 tests, written first).
+
+## Later: Chat and Projects in the Mac window
+
+- The Mac window now shows the full app: the phone app built for the web, with a side nav (Chat, Projects, Up next, Messages). ADR 0064.
+- `apps/mac-app/src/appServer.ts` serves the build at `app://cliphy/` and passes `/api/` calls on with the Mac's key (9 tests, written first). `fakeApi.ts` + `preview` show the app in a browser on made-up data; the CI smoke run now also takes pictures of Chat and Projects.
+- Phone code: `lib/desktop.ts`, `DesktopShell`, Return sends in Chat on the Mac, `Page`'s back arrow goes to Chat when there is no history.
+- Checked here in headless Chromium against the preview: Chat, Projects, a project page, Up next, deep link, back, Return-to-send (POST seen). Not yet run inside Electron on a Mac; the CI pictures are the first proof of that.
+
+**Issues**
+
+- No text in the first headless screenshots: this devbox has no system fonts or fontconfig, so every web font failed to load. Fixed for the check with a scratch `FONTCONFIG_FILE`; not an app bug.
+- `expo export -p ios` fails here at `hermesc` (x86 binary on an arm64 box) and leaves an empty garbage-named file in `apps/mobile`. `--no-bytecode` bundles fine. Pre-existing, unrelated to the change.
+- The Mac would have reported its own timezone on launch and could have moved the phone's reminders; desktop mode now skips it.
+
+**What to remember**
+
+- `runtimeVersion` is `fingerprint`: check `npx @expo/fingerprint fingerprint:generate` before and after touching `apps/mobile/package.json`. Adding `react-dom` / `react-native-web` left it unchanged.
+- gstack `/browse` is not installed on the devbox; Playwright's Chromium is, but needs libraries and fonts unpacked into a scratch folder (`apt-get download` + `dpkg-deb -x`, `LD_LIBRARY_PATH`, `FONTCONFIG_FILE`).
