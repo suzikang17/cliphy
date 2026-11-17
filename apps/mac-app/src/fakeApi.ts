@@ -5,6 +5,8 @@ import type {
   CoachBatch,
   CoachChatMessage,
   CoachRequest,
+  CoachTask,
+  InboundMessage,
   Person,
   Project,
   UpNext,
@@ -155,6 +157,59 @@ const batch: CoachBatch = {
   uncheckedCount: 2,
 };
 
+const fullTask = (id: string, title: string, over: Partial<CoachTask> = {}): CoachTask => ({
+  id,
+  requestId: "request-1",
+  projectId: "project-1",
+  kind: "do",
+  state: "open",
+  title,
+  kit: {},
+  withPersonId: null,
+  afterTaskId: null,
+  blocked: false,
+  dueDate: null,
+  dueTime: null,
+  place: null,
+  checklist: [],
+  replyBundleId: null,
+  createdAt: day(-1),
+  doneAt: null,
+  ...over,
+});
+
+const tasks: CoachTask[] = [
+  fullTask("task-1", "Swap the hero photo", { dueDate: date(1) }),
+  fullTask("task-3", "Move the sconces up on the lighting page", { dueDate: date(-1) }),
+  fullTask("task-2", "Tell Maren the lighting page is live", {
+    kind: "tell",
+    blocked: true,
+    afterTaskId: "task-3",
+  }),
+  fullTask("task-4", "Ask Maren for the new price list", { kind: "ask", state: "waiting" }),
+];
+
+const text = (
+  id: string,
+  direction: "in" | "out",
+  words: string,
+  offset: number,
+): InboundMessage => ({
+  id,
+  personId: "person-1",
+  channel: "imessage",
+  direction,
+  text: words,
+  attachments: [],
+  sentAt: day(offset),
+});
+
+const texts: InboundMessage[] = [
+  text("message-3", "in", "Also can the hero photo be the one from the porch shoot", -0.4),
+  text("message-2", "out", "Yes, I'll move them above the text today", -0.9),
+  text("message-1", "in", "Can we move the sconces up a little on the lighting page", -1),
+];
+
 const ROUTES: [RegExp, unknown][] = [
   [/^\/api\/coach\/chat$/, { messages: chat, activity: [] }],
   [/^\/api\/coach\/upnext$/, upnext],
@@ -165,6 +220,9 @@ const ROUTES: [RegExp, unknown][] = [
     { entries: [{ request, replaced: [] }], progress: [] },
   ],
   [/^\/api\/coach\/batches$/, { batches: [batch] }],
+  [/^\/api\/coach\/batches\/candidates$/, { requests: [request], messages: [], tasks: [] }],
+  [/^\/api\/coach\/tasks$/, { tasks }],
+  [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts }],
   [/^\/api\/coach\/settings$/, { settings: { timezone: "America/New_York", timezoneSet: true } }],
   [
     /^\/api\/coach\/health$/,

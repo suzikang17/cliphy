@@ -67,7 +67,11 @@ export const reopenRequest = (id: string) =>
   apiFetch<{ ok: true }>(`/api/coach/requests/${id}/reopen`, json("POST", {}));
 
 // Tasks
-export const getTasks = () => apiFetch<{ tasks: CoachTask[] }>("/api/coach/tasks");
+/** Work still to do (open and waiting), for everything or for one project. */
+export const getTasks = (projectId?: string) =>
+  apiFetch<{ tasks: CoachTask[] }>(
+    `/api/coach/tasks${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+  );
 export const createTask = (body: {
   kind: TaskKind;
   title: string;

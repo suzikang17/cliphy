@@ -4,6 +4,7 @@ import type {
   CoachHealth,
   CoachReminder,
   CoachRun,
+  CoachTask,
   InboundMessage,
   Person,
   Project,
@@ -380,4 +381,43 @@ export function desktopEntry(opts: {
 }): "sign-in" | "chat" | "stay" {
   if (!opts.signedIn) return "sign-in";
   return opts.starting ? "chat" : "stay";
+}
+
+export interface ProjectTile {
+  key: "todo" | "waiting" | "ready" | "heard";
+  value: string;
+  label: string;
+}
+
+/** The small numbers at the top of a project: where it stands at a glance. */
+export function projectTiles(opts: {
+  tasks: Pick<CoachTask, "state" | "blocked">[];
+  /** Finished things not yet reported to the client in a batch. */
+  ready: number;
+  /** When the client last wrote. */
+  lastHeardAt: string | null;
+  now: Date;
+}): ProjectTile[] {
+  const todo = opts.tasks.filter((t) => t.state === "open" && !t.blocked).length;
+  const waiting = opts.tasks.filter((t) => t.state === "waiting").length;
+  return [
+    { key: "todo", value: String(todo), label: "To do" },
+    { key: "waiting", value: String(waiting), label: "Waiting on them" },
+    { key: "ready", value: String(opts.ready), label: "Ready to report" },
+    { key: "heard", value: agoLabel(opts.lastHeardAt, opts.now) ?? "–", label: "Last heard" },
+  ];
+}
+
+/** When a task is due, as one word or a short date. `today` is YYYY-MM-DD, local. */
+export function taskDue(
+  dueDate: string | null,
+  today: string,
+): { text: string; late: boolean } | null {
+  if (!dueDate) return null;
+  if (dueDate < today) return { text: "Late", late: true };
+  if (dueDate === today) return { text: "Today", late: false };
+  const next = new Date(`${today}T12:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  if (dueDate === next.toISOString().slice(0, 10)) return { text: "Tomorrow", late: false };
+  return { text: shortDay(`${dueDate}T12:00:00`), late: false };
 }

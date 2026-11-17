@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { desktopSection, type DesktopSection } from "../../lib/coach";
@@ -11,6 +11,8 @@ import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
 const TITLE_STRIP = MAC_WINDOW ? 34 : 12;
 /** Screens were drawn for a phone; past this they stop widening. */
 const CONTENT_WIDTH = 760;
+/** Below this width the nav moves to the bottom. */
+const NARROW = 720;
 
 const ITEMS: {
   section: DesktopSection;
@@ -29,6 +31,53 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const coach = useCoach();
   const active = desktopSection(usePathname());
+  // A narrow window (a phone's browser) has no room for a side nav: the same
+  // items go along the bottom instead.
+  const narrow = useWindowDimensions().width < NARROW;
+
+  if (narrow) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <View style={{ flex: 1 }}>{children}</View>
+        <View
+          accessibilityRole="tablist"
+          style={{
+            flexDirection: "row",
+            borderTopWidth: LINE,
+            borderTopColor: t.line,
+            paddingVertical: 8,
+          }}
+        >
+          {ITEMS.map((item) => {
+            const on = active === item.section;
+            return (
+              <Pressable
+                key={item.section}
+                onPress={() => router.navigate(item.path as never)}
+                accessibilityRole="tab"
+                accessibilityLabel={item.label}
+                accessibilityState={{ selected: on }}
+                style={{ flex: 1, alignItems: "center" }}
+              >
+                <Ionicons name={item.icon} size={22} color={on ? ACCENT : t.muted} />
+                <Text
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: 11,
+                    marginTop: 3,
+                    fontWeight: on ? "700" : "500",
+                    color: on ? t.text : t.muted,
+                  }}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>

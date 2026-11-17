@@ -30,7 +30,10 @@ import {
   mcpCommand,
   messageLine,
   projectRows,
+  projectTiles,
+  taskDue,
 } from "../coach";
+import type { CoachTask } from "@cliphy/shared";
 import type { Project } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
@@ -561,5 +564,52 @@ describe("desktopEntry", () => {
   it("starts at Chat, and leaves a screen that was asked for by address alone", () => {
     expect(desktopEntry({ signedIn: true, starting: true })).toBe("chat");
     expect(desktopEntry({ signedIn: true, starting: false })).toBe("stay");
+  });
+});
+
+describe("projectTiles", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  const now = new Date("2026-11-17T18:00:00Z");
+  const t = (state: string, blocked = false) => ({ state, blocked }) as CoachTask;
+
+  it("counts what is to do, what waits on the client and what is ready to report", () => {
+    const tiles = projectTiles({
+      tasks: [t("open"), t("open"), t("open", true), t("waiting"), t("done")],
+      ready: 4,
+      lastHeardAt: "2026-11-15T18:00:00Z",
+      now,
+    });
+    expect(tiles).toEqual([
+      { key: "todo", value: "2", label: "To do" },
+      { key: "waiting", value: "1", label: "Waiting on them" },
+      { key: "ready", value: "4", label: "Ready to report" },
+      { key: "heard", value: "2 days ago", label: "Last heard" },
+    ]);
+  });
+
+  it("shows a dash when the client has never written", () => {
+    const tiles = projectTiles({ tasks: [], ready: 0, lastHeardAt: null, now });
+    expect(tiles.map((x) => x.value)).toEqual(["0", "0", "0", "–"]);
+  });
+});
+
+describe("taskDue", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  it("says when a task is due in a word or a short date", () => {
+    expect(taskDue("2026-11-17", "2026-11-17")).toEqual({ text: "Today", late: false });
+    expect(taskDue("2026-11-18", "2026-11-17")).toEqual({ text: "Tomorrow", late: false });
+    expect(taskDue("2026-11-15", "2026-11-17")).toEqual({ text: "Late", late: true });
+    expect(taskDue("2026-11-24", "2026-11-17")).toEqual({ text: "24 Nov", late: false });
+    expect(taskDue(null, "2026-11-17")).toBeNull();
   });
 });
