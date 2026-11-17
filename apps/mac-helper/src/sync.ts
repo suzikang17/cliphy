@@ -43,6 +43,8 @@ export interface HelperState {
   backfill: Record<string, { sinceIso: string | null; maxAtStart: number }>;
   /** The handles each person's state was built for. If they change, the person starts over. */
   handles: Record<string, string>;
+  /** How far back each person was last read ("all", "window:90", "new"). If it changes, they are read again. */
+  history: Record<string, string>;
   /** When the last complete cycle finished. Tells missed messages from re-synced old ones. */
   lastSyncAt: string | null;
   /** Attachments already uploaded for a batch the server has not yet accepted. */
@@ -56,6 +58,7 @@ export const emptyState = (): HelperState => ({
   connected: {},
   backfill: {},
   handles: {},
+  history: {},
   lastSyncAt: null,
   uploaded: {},
   attachmentTries: {},
@@ -103,6 +106,7 @@ function forget(state: HelperState, personId: string): void {
   delete state.connected[personId];
   delete state.backfill[personId];
   delete state.handles[personId];
+  delete state.history[personId];
 }
 
 /**
@@ -136,6 +140,7 @@ export async function syncOnce(deps: SyncDeps): Promise<SyncResult> {
     ...Object.keys(state.connected),
     ...Object.keys(state.backfill),
     ...Object.keys(state.handles),
+    ...Object.keys(state.history),
   ])) {
     if (!captured.has(id)) forget(state, id);
   }
@@ -177,6 +182,23 @@ async function syncPerson(
   const now = deps.now().getTime();
   // Fixed for the whole cycle: what counts as "old" must not shift as it runs.
   const staleBefore = state.lastSyncAt ? Date.parse(state.lastSyncAt) - STALE_MS : null;
+
+  // The owner changed how far back to read for someone already captured:
+  // read again to the new choice. The server keeps one copy of each message,
+  // so reading over the same ground is harmless. A helper from before this
+  // record was kept has none; "new" is assumed, which only ever reads more.
+  const choice = `${person.historyWindow}${person.historyWindow === "window" ? `:${person.historyDays}` : ""}`;
+  if (state.connected[id] && !state.backfill[id] && (state.history[id] ?? "new") !== choice) {
+    const plan = firstSync(person, deps.now());
+    if (plan.mode === "backfill") {
+      state.backfill[id] = { sinceIso: plan.sinceIso, maxAtStart: deps.messages.maxRowId() };
+      state.cursors[id] = 0;
+    }
+  }
+  if (state.history[id] !== choice) {
+    state.history[id] = choice;
+    deps.save();
+  }
 
   // First time: follow the person's history choice.
   if (!state.connected[id] && !state.backfill[id]) {

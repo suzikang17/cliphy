@@ -188,6 +188,19 @@ export const createRunnerKey = () =>
 // Messages pulled into a task
 export const getPersonMessages = (personId: string) =>
   apiFetch<{ messages: InboundMessage[] }>(`/api/coach/people/${personId}/messages`);
+/** A page of a person's whole thread, newest first, each message marked with what became of it. */
+export const getThread = (personId: string, before?: string) =>
+  apiFetch<{ messages: InboundMessage[]; hasMore: boolean }>(
+    `/api/coach/people/${personId}/messages?limit=100${
+      before ? `&before=${encodeURIComponent(before)}` : ""
+    }`,
+  );
+/** Tick messages off as dealt with, or untick them. */
+export const setMessagesHandled = (personId: string, messageIds: string[], handled: boolean) =>
+  apiFetch<{ updated: number }>(
+    `/api/coach/people/${personId}/messages/handled`,
+    json("POST", { messageIds, handled }),
+  );
 export const getTaskMessages = (taskId: string) =>
   apiFetch<{ messages: InboundMessage[] }>(`/api/coach/tasks/${taskId}/messages`);
 export const addTaskMessages = (taskId: string, messageIds: string[]) =>

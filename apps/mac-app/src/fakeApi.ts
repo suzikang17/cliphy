@@ -205,9 +205,19 @@ const text = (
 });
 
 const texts: InboundMessage[] = [
-  text("message-3", "in", "Also can the hero photo be the one from the porch shoot", -0.4),
-  text("message-2", "out", "Yes, I'll move them above the text today", -0.9),
-  text("message-1", "in", "Can we move the sconces up a little on the lighting page", -1),
+  text("message-6", "in", "And the footer still says 2025", -0.2),
+  text("message-5", "in", "Also can the hero photo be the one from the porch shoot", -0.4),
+  text("message-4", "out", "Sconces are moved. Have a look when you can", -0.6),
+  { ...text("message-3", "in", "Thank you!", -0.9), handledAt: day(-0.5) },
+  text("message-2", "out", "Yes, I'll move them above the text today", -0.95),
+  {
+    ...text("message-1", "in", "Can we move the sconces up a little on the lighting page", -1),
+    requestId: "request-1",
+  },
+  {
+    ...text("message-0", "in", "Could the phone number be bigger on mobile", -3),
+    batchId: "batch-1",
+  },
 ];
 
 const ROUTES: [RegExp, unknown][] = [
@@ -222,7 +232,7 @@ const ROUTES: [RegExp, unknown][] = [
   [/^\/api\/coach\/batches$/, { batches: [batch] }],
   [/^\/api\/coach\/batches\/candidates$/, { requests: [request], messages: [], tasks: [] }],
   [/^\/api\/coach\/tasks$/, { tasks }],
-  [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts }],
+  [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts, hasMore: false }],
   [/^\/api\/coach\/settings$/, { settings: { timezone: "America/New_York", timezoneSet: true } }],
   [
     /^\/api\/coach\/health$/,

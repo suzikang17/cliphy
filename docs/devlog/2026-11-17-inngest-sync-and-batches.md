@@ -72,3 +72,10 @@ phase: Growth
 - After building the cliphy.app copy, the Mac build came out asking for a sign-in: Metro's cache ignores `EXPO_PUBLIC_*` changes. Both builds now pass `--clear`.
 - **Correction:** migration 045 is applied in production and has been since it was pushed. The Vercel build runs `migrate:deploy`, which applies every pending file. The resume pointer and the 2026-11-16 devlog said it was not; asking before applying 046 by hand was also unnecessary for the same reason. Pushing a migration file is itself the production change.
 - `pkill -f <name>` inside a longer command line matches and kills the shell running it. Use `pgrep` with a bracketed pattern, then `kill`.
+
+## Later: project widgets, a person's thread, reading further back
+
+- **Project page** (`814b071`): rebuilt as a board after the owner called the form-like page "a terrible UX". Four number tiles (to do, waiting on them, ready to report, last heard), then widgets: To do (with add), Batches, the client's latest texts, Site (collapsed until edited), Pictures, Asked. `components/coach/Widget.tsx`. On a narrow web window the nav moves to the bottom.
+- **Thread** (`/coach/thread/:personId`, list at `/coach/threads`, "Texts" in the nav): everything one person sent and was sent, oldest first, a page of 100 at a time. Tap to select; "Tick off" marks messages dealt with (`coach_messages.handled_at`, migration 047, pushed with the owner's go-ahead), "Batch" starts a batch from them. Each message shows what became of it: Done, In a batch, Request. `GET /people/:id/messages` now pages (`limit`, `before`, `hasMore`) and carries those marks; `POST /people/:id/messages/handled`.
+- **Reading further back:** the owner's one client was on "new only" with 3 messages stored, and Setup offered no way to change that while capture was on. Setup now shows the choice for a captured person, and the Mac helper reads again when the choice changes (`HelperState.history`). Needs the Mac app restarted from current `main`.
+- Checked in headless Chromium on made-up data: the board at wide and phone widths, the thread (select two, tick off → POST seen, Open filter). Not seen with real data.

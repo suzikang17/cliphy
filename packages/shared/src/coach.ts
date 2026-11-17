@@ -65,6 +65,13 @@ export interface InboundMessage {
   text: string;
   attachments: Attachment[];
   sentAt: string;
+  // What has become of it. Present when read as part of a person's thread.
+  /** When the owner checked it off by hand. */
+  handledAt?: string | null;
+  /** The request it was read into. */
+  requestId?: string | null;
+  /** The batch it sits in. */
+  batchId?: string | null;
 }
 
 export interface OpenQuestion {

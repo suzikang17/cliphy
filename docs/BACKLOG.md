@@ -61,3 +61,5 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] MCP: a key that can only call `/api/mcp` (needs the `scope` column from migration 045, then a new allowed value).
 - [ ] MCP: OAuth so Claude on the web and ChatGPT can connect (today: Claude Code with a header).
 - [ ] MCP: more tools as needed (answer a request's question, pull a message into a task, start a batch).
+- [ ] Thread: make a task from selected messages; show the day once (rows repeat the day header); search.
+- [ ] Mac window headings are not bold on macOS (they are on the phone and in Chromium on Linux).

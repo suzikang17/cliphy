@@ -18,10 +18,11 @@ const ITEMS: {
   section: DesktopSection;
   label: string;
   path: string;
-  icon: "chatbubble-outline" | "folder-outline" | "list-outline";
+  icon: "chatbubble-outline" | "folder-outline" | "chatbubbles-outline" | "list-outline";
 }[] = [
   { section: "chat", label: "Chat", path: "/(tabs)/chat", icon: "chatbubble-outline" },
   { section: "projects", label: "Projects", path: "/(tabs)/projects", icon: "folder-outline" },
+  { section: "texts", label: "Texts", path: "/coach/threads", icon: "chatbubbles-outline" },
   { section: "upnext", label: "Up next", path: "/coach/upnext", icon: "list-outline" },
 ];
 

@@ -32,7 +32,13 @@ import {
   projectRows,
   projectTiles,
   taskDue,
+  mergeThread,
+  messageMark,
+  threadDays,
+  threadFilter,
+  historyLine,
 } from "../coach";
+import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
 import type { Project } from "@cliphy/shared";
 
@@ -514,6 +520,8 @@ describe("desktopSection", () => {
     expect(desktopSection("/chat")).toBe("chat");
     expect(desktopSection("/projects")).toBe("projects");
     expect(desktopSection("/coach/upnext")).toBe("upnext");
+    expect(desktopSection("/coach/threads")).toBe("texts");
+    expect(desktopSection("/coach/thread/p1")).toBe("texts");
   });
 
   it("keeps Projects lit inside a project and its batches", () => {
@@ -611,5 +619,79 @@ describe("taskDue", () => {
     expect(taskDue("2026-11-15", "2026-11-17")).toEqual({ text: "Late", late: true });
     expect(taskDue("2026-11-24", "2026-11-17")).toEqual({ text: "24 Nov", late: false });
     expect(taskDue(null, "2026-11-17")).toBeNull();
+  });
+});
+
+describe("a person's thread", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Thread");
+  });
+
+  const m = (id: string, over: Partial<InboundMessage> = {}): InboundMessage => ({
+    id,
+    personId: "p1",
+    channel: "imessage",
+    direction: "in",
+    text: id,
+    attachments: [],
+    sentAt: "2026-11-10T10:00:00",
+    ...over,
+  });
+
+  it("names what has become of a message, the owner's own tick first", () => {
+    expect(messageMark(m("a", { handledAt: "2026-11-12T09:00:00Z", batchId: "b" }))).toBe("Done");
+    expect(messageMark(m("a", { batchId: "b", requestId: "r" }))).toBe("In a batch");
+    expect(messageMark(m("a", { requestId: "r" }))).toBe("Request");
+    expect(messageMark(m("a"))).toBeNull();
+  });
+
+  it("filters to what is still open: hers, not ticked and not in a batch", () => {
+    const all = [
+      m("open"),
+      m("mine", { direction: "out" }),
+      m("ticked", { handledAt: "2026-11-12T09:00:00Z" }),
+      m("batched", { batchId: "b" }),
+      m("request", { requestId: "r" }),
+    ];
+    expect(threadFilter(all, "all").map((x) => x.id)).toEqual(all.map((x) => x.id));
+    expect(threadFilter(all, "open").map((x) => x.id)).toEqual(["open", "request"]);
+    expect(threadFilter(all, "done").map((x) => x.id)).toEqual(["ticked", "batched"]);
+  });
+
+  it("lays the thread out oldest first, a day at a time", () => {
+    const days = threadDays([
+      m("c", { sentAt: "2026-11-11T09:00:00" }),
+      m("b", { sentAt: "2026-11-10T15:00:00" }),
+      m("a", { sentAt: "2026-11-10T10:00:00" }),
+    ]);
+    expect(days.map((d) => [d.day, d.messages.map((x) => x.id)])).toEqual([
+      ["10 Nov 2026", ["a", "b"]],
+      ["11 Nov 2026", ["c"]],
+    ]);
+  });
+
+  it("joins an older page on without repeating a message", () => {
+    const merged = mergeThread([m("c"), m("b")], [m("b"), m("a")]);
+    expect(merged.map((x) => x.id)).toEqual(["c", "b", "a"]);
+  });
+});
+
+describe("historyLine", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Setup");
+  });
+
+  it("says how far back a person's texts are read", () => {
+    expect(historyLine({ historyWindow: "new", historyDays: null })).toBe(
+      "Reading new texts only.",
+    );
+    expect(historyLine({ historyWindow: "window", historyDays: 90 })).toBe(
+      "Reading the last 90 days.",
+    );
+    expect(historyLine({ historyWindow: "all", historyDays: null })).toBe("Reading everything.");
   });
 });

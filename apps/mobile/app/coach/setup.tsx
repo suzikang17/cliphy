@@ -8,6 +8,7 @@ import {
   formatPairCode,
   helperRunning,
   pairCodeComplete,
+  historyLine,
   mcpCommand,
   setupSteps,
   type SetupStep,
@@ -545,13 +546,29 @@ export default function SetupScreen() {
                     </View>
                   </>
                 ) : p.captureThread ? (
-                  <View style={{ flexDirection: "row" }}>
-                    <QuickButton
-                      label="Stop"
-                      disabled={saving}
-                      onPress={() => capture(p, { captureThread: false })}
-                    />
-                  </View>
+                  <>
+                    <Body muted>{`${historyLine(p)} Change how far back the Mac reads:`}</Body>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <QuickButton
+                        label="3 months"
+                        chosen={p.historyWindow === "window"}
+                        disabled={saving}
+                        onPress={() => capture(p, { historyDays: 90 })}
+                      />
+                      <QuickButton
+                        label="Everything"
+                        chosen={p.historyWindow === "all"}
+                        disabled={saving}
+                        onPress={() => capture(p, { historyWindow: "all" })}
+                      />
+                      <QuickButton
+                        label="Stop"
+                        disabled={saving}
+                        onPress={() => capture(p, { captureThread: false })}
+                      />
+                    </View>
+                    <Body muted>Older texts arrive over the next few minutes.</Body>
+                  </>
                 ) : (
                   <>
                     <Body muted>How far back should the Mac read?</Body>

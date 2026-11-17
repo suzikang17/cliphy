@@ -348,12 +348,13 @@ export function projectRows(
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export type DesktopSection = "chat" | "projects" | "upnext";
+export type DesktopSection = "chat" | "projects" | "texts" | "upnext";
 
 /** Which item of the Mac window's side nav the current screen belongs to. */
 export function desktopSection(pathname: string): DesktopSection | null {
   if (pathname === "/chat") return "chat";
   if (pathname === "/coach/upnext") return "upnext";
+  if (pathname === "/coach/threads" || pathname.startsWith("/coach/thread/")) return "texts";
   if (
     pathname === "/projects" ||
     pathname.startsWith("/coach/project/") ||
@@ -420,4 +421,53 @@ export function taskDue(
   next.setUTCDate(next.getUTCDate() + 1);
   if (dueDate === next.toISOString().slice(0, 10)) return { text: "Tomorrow", late: false };
   return { text: shortDay(`${dueDate}T12:00:00`), late: false };
+}
+
+// ── A person's thread: every message, and what has become of each ────────
+
+export type ThreadFilter = "all" | "open" | "done";
+
+/** One word for what has become of a message. The owner's own tick wins. */
+export function messageMark(message: InboundMessage): "Done" | "In a batch" | "Request" | null {
+  if (message.handledAt) return "Done";
+  if (message.batchId) return "In a batch";
+  if (message.requestId) return "Request";
+  return null;
+}
+
+/** Open: something they sent that is neither ticked nor in a batch. Done: ticked or batched. */
+export function threadFilter(messages: InboundMessage[], filter: ThreadFilter): InboundMessage[] {
+  if (filter === "all") return messages;
+  const done = (m: InboundMessage) => Boolean(m.handledAt || m.batchId);
+  return messages.filter((m) => (filter === "done" ? done(m) : m.direction === "in" && !done(m)));
+}
+
+/** The thread as it reads: oldest first, under the day each message was sent. */
+export function threadDays(
+  messages: InboundMessage[],
+): { day: string; messages: InboundMessage[] }[] {
+  const days: { day: string; messages: InboundMessage[] }[] = [];
+  for (const message of [...messages].sort((a, b) => a.sentAt.localeCompare(b.sentAt))) {
+    const d = new Date(message.sentAt);
+    const day = `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const last = days[days.length - 1];
+    if (last?.day === day) last.messages.push(message);
+    else days.push({ day, messages: [message] });
+  }
+  return days;
+}
+
+/** Add an older page to what is already loaded, once each. */
+export function mergeThread(loaded: InboundMessage[], older: InboundMessage[]): InboundMessage[] {
+  const seen = new Set(loaded.map((m) => m.id));
+  return [...loaded, ...older.filter((m) => !seen.has(m.id))];
+}
+
+/** How far back the Mac reads a person's texts, in a sentence. */
+export function historyLine(person: Pick<Person, "historyWindow" | "historyDays">): string {
+  if (person.historyWindow === "all") return "Reading everything.";
+  if (person.historyWindow === "window" && person.historyDays) {
+    return `Reading the last ${person.historyDays} days.`;
+  }
+  return "Reading new texts only.";
 }

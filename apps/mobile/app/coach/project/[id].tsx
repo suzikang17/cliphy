@@ -278,7 +278,19 @@ export default function ProjectScreen() {
                 ) : null}
               </Widget>
 
-              <Widget title={clientName ?? "Client"}>
+              <Widget
+                title={clientName ?? "Client"}
+                action={
+                  clientId ? (
+                    <WidgetLink
+                      label="All texts"
+                      onPress={() =>
+                        router.push(`/coach/thread/${clientId}?projectId=${id}` as never)
+                      }
+                    />
+                  ) : undefined
+                }
+              >
                 {latest.map((m) => (
                   <MessageRow key={m.id} message={m} compact />
                 ))}

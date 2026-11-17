@@ -4,6 +4,7 @@ import type { AppEnv } from "../../env.js";
 import { supabase } from "../../lib/supabase.js";
 import { toMessage, toPerson } from "../../lib/coachMappers.js";
 import { signAttachments } from "../../services/coach/batches.js";
+import { messageMarks } from "../../services/coach/thread.js";
 
 export const peopleRoutes = new Hono<AppEnv>();
 
@@ -119,30 +120,78 @@ peopleRoutes.patch("/:id", async (c) => {
   return c.json({ person: toPerson(data as Record<string, unknown>) });
 });
 
-// ── GET /:id/messages — a person's recent messages, to pull into a task ──
+// ── GET /:id/messages — a person's thread ────────────────────────────────
 
-/** How many recent messages are offered. */
+/** How many messages are given when no page size is asked for. */
 const RECENT_MESSAGES = 100;
+/** The most messages one call reads or changes. */
+const MAX_PAGE = 200;
 
-peopleRoutes.get("/:id/messages", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const { data: person } = await supabase
+/** The person, if they are this user's. */
+async function ownPerson(id: string, userId: string): Promise<boolean> {
+  const { data } = await supabase
     .from("coach_people")
     .select("id")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!person) return c.json({ error: "person not found" }, 404);
+  return Boolean(data);
+}
 
-  const { data } = await supabase
+/**
+ * A person's thread, newest first, a page at a time: `limit` (up to
+ * MAX_PAGE) and `before` (a time) walk back through all of it. Each message
+ * says what has become of it: checked off, turned into a request, in a batch.
+ */
+peopleRoutes.get("/:id/messages", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const before = c.req.query("before");
+  const limitParam = c.req.query("limit");
+  const limit = limitParam === undefined ? RECENT_MESSAGES : Number(limitParam);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE) {
+    return c.json({ error: `limit must be 1 to ${MAX_PAGE}` }, 400);
+  }
+  if (before !== undefined && Number.isNaN(Date.parse(before))) {
+    return c.json({ error: "before must be a time" }, 400);
+  }
+  if (!(await ownPerson(id, userId))) return c.json({ error: "person not found" }, 404);
+
+  let query = supabase.from("coach_messages").select("*").eq("user_id", userId).eq("person_id", id);
+  if (before) query = query.lt("sent_at", before);
+  // One more than asked for says whether anything older remains.
+  const { data } = await query.order("sent_at", { ascending: false }).limit(limit + 1);
+  const rows = (data as Record<string, unknown>[]) ?? [];
+  const page = rows.slice(0, limit);
+
+  const marks = await messageMarks(page, userId);
+  const messages = page.map((row) => ({ ...toMessage(row), ...marks.get(row.id as string) }));
+  await signAttachments(messages);
+  return c.json({ messages, hasMore: rows.length > limit });
+});
+
+/** Check messages off (or uncheck them): the owner's own note that they are dealt with. */
+peopleRoutes.post("/:id/messages/handled", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = await c.req
+    .json<{ messageIds?: unknown; handled?: unknown }>()
+    .catch(() => ({}) as { messageIds?: unknown; handled?: unknown });
+  const ids = Array.isArray(body.messageIds)
+    ? body.messageIds.filter((x): x is string => typeof x === "string")
+    : [];
+  if (ids.length === 0 || ids.length > MAX_PAGE) {
+    return c.json({ error: "messageIds must be a list of messages" }, 400);
+  }
+  if (!(await ownPerson(id, userId))) return c.json({ error: "person not found" }, 404);
+
+  const { data, error } = await supabase
     .from("coach_messages")
-    .select("*")
+    .update({ handled_at: body.handled === false ? null : new Date().toISOString() })
     .eq("user_id", userId)
     .eq("person_id", id)
-    .order("sent_at", { ascending: false })
-    .limit(RECENT_MESSAGES);
-  const messages = ((data as Record<string, unknown>[]) ?? []).map(toMessage);
-  await signAttachments(messages);
-  return c.json({ messages });
+    .in("id", ids)
+    .select("id");
+  if (error) return c.json({ error: "Failed to update messages" }, 500);
+  return c.json({ updated: ((data as unknown[]) ?? []).length });
 });

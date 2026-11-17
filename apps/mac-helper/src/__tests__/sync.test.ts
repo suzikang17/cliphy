@@ -541,3 +541,61 @@ describe("mac helper sync", () => {
     expect(w.state.cursors.p1).toBe(11);
   });
 });
+
+describe("changing how far back to read, for someone already captured", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Mac helper");
+  });
+
+  const thread = [row(1), row(2), row(3)];
+
+  it("reads the whole thread once the choice becomes everything", async () => {
+    const w = world({ rows: thread });
+    await syncOnce(w.deps); // "new": starts from now, uploads nothing.
+    expect(w.posted).toEqual([]);
+
+    const everything = world({
+      people: [{ ...maren, historyWindow: "all" }],
+      rows: thread,
+      state: w.state,
+    });
+    await syncOnce(everything.deps);
+    expect(everything.posted.flatMap((p) => p.messages.map((m) => m.externalId))).toEqual([
+      "g-1",
+      "g-2",
+      "g-3",
+    ]);
+    expect(everything.posted.every((p) => p.historical)).toBe(true);
+  });
+
+  it("does not read again while the choice stays the same", async () => {
+    const all = { ...maren, historyWindow: "all" as const };
+    const w = world({ people: [all], rows: thread });
+    await syncOnce(w.deps);
+    const again = world({ people: [all], rows: thread, state: w.state });
+    await syncOnce(again.deps);
+    expect(again.posted).toEqual([]);
+  });
+
+  it("reads back for someone captured by an older helper that kept no record of the choice", async () => {
+    const before = emptyState();
+    before.connected.p1 = true;
+    before.cursors.p1 = 3;
+    before.handles.p1 = "+15550100";
+    const w = world({ people: [{ ...maren, historyWindow: "all" }], rows: thread, state: before });
+    await syncOnce(w.deps);
+    expect(w.posted.flatMap((p) => p.messages)).toHaveLength(3);
+  });
+
+  it("leaves someone on new-only alone when an older helper kept no record", async () => {
+    const before = emptyState();
+    before.connected.p1 = true;
+    before.cursors.p1 = 3;
+    before.handles.p1 = "+15550100";
+    const w = world({ rows: thread, state: before });
+    await syncOnce(w.deps);
+    expect(w.posted).toEqual([]);
+  });
+});

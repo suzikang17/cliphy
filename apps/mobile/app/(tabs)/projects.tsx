@@ -113,6 +113,12 @@ export default function ProjectsScreen() {
 
         {rows ? (
           <>
+            <SectionLabel>Texts</SectionLabel>
+            <Row
+              title="Everyone's threads"
+              detail="Tick messages off or batch them"
+              onPress={() => router.push("/coach/threads" as never)}
+            />
             <SectionLabel>Add a project</SectionLabel>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>
               <TextInput
