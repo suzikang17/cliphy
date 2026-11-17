@@ -54,3 +54,5 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Tabs view: optional "related pages of one site" nesting (e.g. wecuratelife-mockups /c /d /e) distinct from duplicates.
 - [ ] Merge groups: optional "also re-tag saved clips" (library-wide tag merge with confirmation).
 - [ ] Upgrade `@anthropic-ai/sdk` from 0.39 to 1.x (strict tools, structured outputs, effort, refusal fallbacks); coach interpretation currently validates model output by hand because the installed SDK predates them.
+- [ ] Coach chat: a tapped answer saved the request and made its tasks but no "Saved. N tasks added." message was stored (2026-11-17, 50 s after a deploy). Needs the Vercel log for `POST /coach/chat/:id/choose`; likely a cold start cut off before the message was written.
+- [ ] Coach: add a task by hand from Up next or Chat's plus, not only from a project page.
