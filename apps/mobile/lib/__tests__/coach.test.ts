@@ -37,6 +37,10 @@ import {
   threadDays,
   threadFilter,
   historyLine,
+  shiftHours,
+  shiftTime,
+  timeLabel,
+  workLine,
 } from "../coach";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
@@ -521,6 +525,7 @@ describe("desktopSection", () => {
     expect(desktopSection("/projects")).toBe("projects");
     expect(desktopSection("/coach/upnext")).toBe("upnext");
     expect(desktopSection("/coach/threads")).toBe("texts");
+    expect(desktopSection("/coach/setup")).toBe("settings");
     expect(desktopSection("/coach/thread/p1")).toBe("texts");
   });
 
@@ -693,5 +698,57 @@ describe("historyLine", () => {
       "Reading the last 90 days.",
     );
     expect(historyLine({ historyWindow: "all", historyDays: null })).toBe("Reading everything.");
+  });
+});
+
+describe("working hours", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Settings");
+  });
+
+  it("shows a time the way a clock does", () => {
+    expect(timeLabel("09:00")).toBe("9:00 AM");
+    expect(timeLabel("17:30")).toBe("5:30 PM");
+    expect(timeLabel("00:00")).toBe("12:00 AM");
+    expect(timeLabel("12:00")).toBe("12:00 PM");
+  });
+
+  it("moves a time by half hours and stops at the ends of the day", () => {
+    expect(shiftTime("09:00", 30)).toBe("09:30");
+    expect(shiftTime("09:00", -30)).toBe("08:30");
+    expect(shiftTime("23:30", 30)).toBe("23:30");
+    expect(shiftTime("00:00", -30)).toBe("00:00");
+    expect(shiftTime("09:10", 30)).toBe("09:30");
+  });
+
+  it("keeps the start before the end when either is moved", () => {
+    expect(shiftHours({ start: "09:00", end: "17:00" }, "start", 30)).toEqual({
+      start: "09:30",
+      end: "17:00",
+    });
+    // Pushing the start into the end moves the end along.
+    expect(shiftHours({ start: "16:30", end: "17:00" }, "start", 30)).toEqual({
+      start: "17:00",
+      end: "17:30",
+    });
+    // Pulling the end into the start moves the start back.
+    expect(shiftHours({ start: "09:00", end: "09:30" }, "end", -30)).toEqual({
+      start: "08:30",
+      end: "09:00",
+    });
+    // Nowhere left to go: nothing changes.
+    expect(shiftHours({ start: "23:00", end: "23:30" }, "start", 30)).toEqual({
+      start: "23:00",
+      end: "23:30",
+    });
+  });
+
+  it("sums the hours up in a line", () => {
+    expect(workLine([1, 2, 3, 4, 5], "09:00", "17:00")).toBe("Mon–Fri, 9:00 AM – 5:00 PM");
+    expect(workLine([0, 1, 2, 3, 4, 5, 6], "08:00", "12:00")).toBe("Every day, 8:00 AM – 12:00 PM");
+    expect(workLine([1, 3, 5], "09:00", "17:00")).toBe("Mon, Wed, Fri, 9:00 AM – 5:00 PM");
+    expect(workLine([6, 0], "10:00", "14:00")).toBe("Sat, Sun, 10:00 AM – 2:00 PM");
   });
 });

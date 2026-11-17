@@ -234,7 +234,16 @@ const ROUTES: [RegExp, unknown][] = [
   [/^\/api\/coach\/tasks$/, { tasks }],
   [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts, hasMore: false }],
   [/^\/api\/coach\/rules$/, { rules: [] }],
-  [/^\/api\/coach\/settings$/, { settings: { timezone: "America/New_York", timezoneSet: true } }],
+  [
+    /^\/api\/coach\/settings$/,
+    {
+      settings: {
+        timezone: "America/New_York",
+        timezoneSet: true,
+        work: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" },
+      },
+    },
+  ],
   [
     /^\/api\/coach\/health$/,
     { pushTokens: 1, timezoneSet: true, pushOk: true, lastDeliveredAt: null, helperSeenAt: day(0) },

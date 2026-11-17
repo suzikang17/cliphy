@@ -114,11 +114,11 @@ export default function ChatScreen() {
         <Pressable
           onPress={() => go("/coach/setup")}
           accessibilityRole="button"
-          accessibilityLabel="Setup"
+          accessibilityLabel="Settings"
           hitSlop={10}
         >
           <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: ACCENT }}>
-            Setup
+            Settings
           </Text>
         </Pressable>
       </View>

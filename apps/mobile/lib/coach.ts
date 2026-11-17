@@ -348,12 +348,13 @@ export function projectRows(
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export type DesktopSection = "chat" | "projects" | "texts" | "upnext";
+export type DesktopSection = "chat" | "projects" | "texts" | "upnext" | "settings";
 
 /** Which item of the Mac window's side nav the current screen belongs to. */
 export function desktopSection(pathname: string): DesktopSection | null {
   if (pathname === "/chat") return "chat";
   if (pathname === "/coach/upnext") return "upnext";
+  if (pathname === "/coach/setup") return "settings";
   if (pathname === "/coach/threads" || pathname.startsWith("/coach/thread/")) return "texts";
   if (
     pathname === "/projects" ||
@@ -470,4 +471,57 @@ export function historyLine(person: Pick<Person, "historyWindow" | "historyDays"
     return `Reading the last ${person.historyDays} days.`;
   }
   return "Reading new texts only.";
+}
+
+// ── Working hours ────────────────────────────────────────────────────────
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_END = 23 * 60 + 30;
+
+const minutesOf = (time: string): number => {
+  const [h, m] = time.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const timeOf = (minutes: number): string =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** "17:30" as a clock shows it: "5:30 PM". */
+export function timeLabel(time: string): string {
+  const minutes = minutesOf(time);
+  const hour = Math.floor(minutes / 60);
+  return `${hour % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** Move a time by `by` minutes, landing on a half hour, within the day. */
+export function shiftTime(time: string, by: number): string {
+  const moved = Math.round((minutesOf(time) + by) / 30) * 30;
+  return timeOf(Math.min(DAY_END, Math.max(0, moved)));
+}
+
+/** Move the start or the end by `by` minutes, pushing the other along so the start stays first. */
+export function shiftHours(
+  hours: { start: string; end: string },
+  which: "start" | "end",
+  by: number,
+): { start: string; end: string } {
+  let start = minutesOf(which === "start" ? shiftTime(hours.start, by) : hours.start);
+  let end = minutesOf(which === "end" ? shiftTime(hours.end, by) : hours.end);
+  if (start >= end) {
+    if (which === "start") end = start + 30;
+    else start = end - 30;
+  }
+  if (start < 0 || end > DAY_END) return hours;
+  return { start: timeOf(start), end: timeOf(end) };
+}
+
+/** Working days and hours in one line: "Mon–Fri, 9:00 AM – 5:00 PM". */
+export function workLine(days: number[], start: string, end: string): string {
+  const sorted = [...new Set(days)].sort((a, b) => a - b);
+  const weekdays = sorted.length === 5 && sorted.every((d, i) => d === i + 1);
+  // Monday first, as a working week reads.
+  const names = [...sorted.filter((d) => d !== 0), ...sorted.filter((d) => d === 0)]
+    .map((d) => DAY_NAMES[d])
+    .join(", ");
+  const when = sorted.length === 7 ? "Every day" : weekdays ? "Mon–Fri" : names;
+  return `${when}, ${timeLabel(start)} – ${timeLabel(end)}`;
 }

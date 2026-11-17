@@ -18,12 +18,18 @@ const ITEMS: {
   section: DesktopSection;
   label: string;
   path: string;
-  icon: "chatbubble-outline" | "folder-outline" | "chatbubbles-outline" | "list-outline";
+  icon:
+    | "chatbubble-outline"
+    | "folder-outline"
+    | "chatbubbles-outline"
+    | "list-outline"
+    | "settings-outline";
 }[] = [
   { section: "chat", label: "Chat", path: "/(tabs)/chat", icon: "chatbubble-outline" },
   { section: "projects", label: "Projects", path: "/(tabs)/projects", icon: "folder-outline" },
   { section: "texts", label: "Texts", path: "/coach/threads", icon: "chatbubbles-outline" },
   { section: "upnext", label: "Up next", path: "/coach/upnext", icon: "list-outline" },
+  { section: "settings", label: "Settings", path: "/coach/setup", icon: "settings-outline" },
 ];
 
 /** The web build, in the Mac window or a browser: a side nav that stays put, with the current screen beside it. */

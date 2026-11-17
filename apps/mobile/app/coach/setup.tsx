@@ -14,7 +14,9 @@ import {
   type SetupStep,
 } from "../../lib/coach";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+// Where an outside tool reaches the API. On the website that is the site itself.
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL || (DESKTOP && !MAC_WINDOW ? window.location.origin : "");
 import {
   addPerson,
   claimPairCode,
@@ -29,20 +31,14 @@ import {
   updatePerson,
 } from "../../lib/coachApi";
 import { createApiKey } from "../../lib/api";
+import { DESKTOP, MAC_WINDOW } from "../../lib/desktop";
+import { WorkHours, type WorkHoursValue } from "../../components/coach/WorkHours";
+import { Widget, WidgetGrid, WidgetLink } from "../../components/coach/Widget";
 import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications";
 
 import { useCoach } from "../../lib/coachStore";
 import { registerForPushNotifications } from "../../lib/notifications";
-import {
-  Body,
-  FONT,
-  LINE,
-  Page,
-  QuickButton,
-  Row,
-  SectionLabel,
-  useCoachTheme,
-} from "../../components/coach/ui";
+import { Body, FONT, LINE, Page, QuickButton, Row, useCoachTheme } from "../../components/coach/ui";
 
 const STEP_TITLE: Record<SetupStep, string> = {
   reminders: "Notifications",
@@ -51,7 +47,6 @@ const STEP_TITLE: Record<SetupStep, string> = {
   try: "Try it",
 };
 /** Short weekday labels, Sunday first, matching the server's day numbers. */
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ROLES: { role: PersonRole; label: string }[] = [
   { role: "client", label: "Client" },
   { role: "collaborator", label: "Collaborator" },
@@ -59,8 +54,9 @@ const ROLES: { role: PersonRole; label: string }[] = [
 ];
 
 /**
- * Setup and health in one place: the first-run steps, each proven by a real
- * test, then what is connected and when it last worked.
+ * Settings: what is left to set up, the people, how requests get in, working
+ * hours, outside tools, and what the bot has learned. Each group is its own
+ * widget; on a wide window they sit side by side.
  */
 export default function SetupScreen() {
   const t = useCoachTheme();
@@ -81,6 +77,7 @@ export default function SetupScreen() {
   const [workEnd, setWorkEnd] = useState("17:00");
   const [workSet, setWorkSet] = useState(false);
   const [workNote, setWorkNote] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
   const [pairCode, setPairCode] = useState("");
   const [pairing, setPairing] = useState(false);
@@ -225,6 +222,7 @@ export default function SetupScreen() {
       await addPerson({ name: n, role, handles: h ? [h] : [] });
       setName("");
       setHandle("");
+      setAddOpen(false);
       await load();
     } catch {
       setFailed(true);
@@ -273,27 +271,31 @@ export default function SetupScreen() {
     }
   };
 
-  // Working hours: when the bot may check in. None set means no check-ins.
-  const saveWork = async (clear: boolean) => {
-    if (saving) return;
-    setSaving(true);
+  // Working hours: when the bot may check in. Off means no check-ins.
+  // Each change shows at once and is saved a moment later, so a run of taps
+  // on a stepper is one save.
+  const workTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const changeWork = (next: WorkHoursValue) => {
+    setWorkSet(next.on);
+    setWorkDays(next.days);
+    setWorkStart(next.start);
+    setWorkEnd(next.end);
     setWorkNote(null);
-    try {
-      await updateCoachSettings({
-        work: clear ? null : { days: workDays, start: workStart.trim(), end: workEnd.trim() },
-      });
-      setWorkSet(!clear);
-      setWorkNote(clear ? "Check-ins are off." : "Saved.");
-    } catch {
-      setWorkNote("Use times like 09:00 and 17:00, with the start before the end.");
-    } finally {
-      setSaving(false);
-    }
+    if (workTimer.current) clearTimeout(workTimer.current);
+    workTimer.current = setTimeout(() => {
+      updateCoachSettings({
+        work: next.on ? { days: next.days, start: next.start, end: next.end } : null,
+      })
+        .then(() => setWorkNote("Saved."))
+        .catch(() => setWorkNote("Couldn't save that. Try again."));
+    }, 600);
   };
-  const toggleDay = (day: number) =>
-    setWorkDays((days) =>
-      days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort((a, b) => a - b),
-    );
+  useEffect(
+    () => () => {
+      if (workTimer.current) clearTimeout(workTimer.current);
+    },
+    [],
+  );
 
   const forget = async (rule: CoachRule) => {
     setRules((rs) => rs.filter((r) => r.id !== rule.id));
@@ -318,388 +320,360 @@ export default function SetupScreen() {
     marginTop: 8,
   } as const;
 
+  const note = { fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 8 } as const;
+  const keyBlock = (opts: {
+    shown: string | null;
+    about: string;
+    after: string;
+    making: boolean;
+    make: () => void;
+    said: string | null;
+    copied: () => void;
+  }) => (
+    <View style={{ marginBottom: 8 }}>
+      {opts.shown ? (
+        <>
+          <Text selectable style={{ ...input, fontSize: 13 }}>
+            {opts.shown}
+          </Text>
+          <Text style={note}>{opts.after}</Text>
+        </>
+      ) : (
+        <Text style={note}>{opts.about}</Text>
+      )}
+      <View style={{ flexDirection: "row", marginTop: 10 }}>
+        {opts.shown ? (
+          <QuickButton
+            label="Copy"
+            primary
+            onPress={() => {
+              void Clipboard.setStringAsync(opts.shown as string);
+              opts.copied();
+            }}
+          />
+        ) : (
+          <QuickButton
+            label={opts.making ? "Making" : "Make key"}
+            primary
+            disabled={opts.making}
+            onPress={opts.make}
+          />
+        )}
+      </View>
+      {opts.said ? <Text style={note}>{opts.said}</Text> : null}
+    </View>
+  );
+
   return (
     <Page
-      title="Setup"
+      title="Settings"
       sub={health ? (steps.length === 0 ? "All working" : `${steps.length} to finish`) : undefined}
     >
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 14,
+          paddingBottom: 60,
+          gap: 12,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         {failed ? (
-          <View style={{ marginTop: 16 }}>
-            <Body muted>Couldn't reach the server.</Body>
-          </View>
+          <Body muted>That didn't go through. Check the connection and try again.</Body>
         ) : null}
 
-        {steps.length > 0 ? (
-          <>
-            <SectionLabel>{`Next: ${STEP_TITLE[steps[0]]}`}</SectionLabel>
-            <View style={{ marginTop: 8 }}>
-              {steps[0] === "reminders" ? (
-                <>
-                  <Body>I need to be able to reach you.</Body>
-                  <View style={{ flexDirection: "row", marginTop: 10 }}>
-                    <QuickButton
-                      label={testing ? "Testing" : "Allow"}
-                      primary
-                      disabled={testing}
-                      onPress={testReminders}
-                    />
-                  </View>
-                </>
-              ) : null}
-              {steps[0] === "person" ? <Body>Who do you work with? Add them below.</Body> : null}
-              {steps[0] === "messages" ? (
-                <Body>
-                  Your Mac can pass me a person's texts and attachments. Open Cliphy Helper on the
-                  Mac, then tap Mac messages below and enter its code.
-                </Body>
-              ) : null}
-              {steps[0] === "try" ? (
-                <Body>Share one real request to Cliphy and choose Send to Chat.</Body>
-              ) : null}
-            </View>
-          </>
-        ) : null}
+        <WidgetGrid>
+          {steps.length > 0 ? (
+            <Widget title={`Next: ${STEP_TITLE[steps[0]]}`} wide>
+              <View style={{ marginTop: 6 }}>
+                {steps[0] === "reminders" ? (
+                  DESKTOP ? (
+                    <Body>Open Cliphy on your phone and allow notifications there.</Body>
+                  ) : (
+                    <>
+                      <Body>I need to be able to reach you.</Body>
+                      <View style={{ flexDirection: "row", marginTop: 10 }}>
+                        <QuickButton
+                          label={testing ? "Testing" : "Allow"}
+                          primary
+                          disabled={testing}
+                          onPress={testReminders}
+                        />
+                      </View>
+                    </>
+                  )
+                ) : null}
+                {steps[0] === "person" ? (
+                  <Body>Who do you work with? Add them under People.</Body>
+                ) : null}
+                {steps[0] === "messages" ? (
+                  <Body>
+                    Your Mac can pass me a person's texts and pictures. Open Cliphy Helper on the
+                    Mac, then enter its code under Getting requests in.
+                  </Body>
+                ) : null}
+                {steps[0] === "try" ? (
+                  <Body>Share one real request to Cliphy and choose Send to Chat.</Body>
+                ) : null}
+              </View>
+            </Widget>
+          ) : null}
 
-        <SectionLabel>Connections</SectionLabel>
-        <Row
-          title="Notifications"
-          detail={
-            health?.lastDeliveredAt
-              ? `Last arrived ${new Date(health.lastDeliveredAt).toLocaleString()}`
-              : health && !health.timezoneSet
-                ? "Timezone not set yet"
-                : "Not tested yet"
-          }
-          right={remindersOk ? "Enabled" : testing ? "Testing" : "Test"}
-          rightColor={remindersOk ? t.ok : t.due}
-          onPress={remindersOk ? undefined : testReminders}
-        />
-        <Row
-          title="Mac messages"
-          detail={
-            captured.length === 0
-              ? "No threads chosen yet"
-              : macOn
-                ? captured.map((p) => p.name).join(", ")
-                : agoLabel(health?.helperSeenAt, new Date())
-                  ? `Mac last seen ${agoLabel(health?.helperSeenAt, new Date())}`
-                  : "The Mac helper has not connected"
-          }
-          right={macOn ? "Working" : "Connect"}
-          rightColor={macOn ? t.ok : t.due}
-          onPress={() => setPairOpen((open) => !open)}
-        />
-        {pairOpen ? (
-          <View style={{ marginBottom: 8 }}>
-            <Body>Open Cliphy Helper on the Mac and enter the code it shows.</Body>
-            <TextInput
-              value={pairCode}
-              onChangeText={(v) => setPairCode(formatPairCode(v))}
-              placeholder="XXXX-XXXX"
-              placeholderTextColor={t.muted}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={9}
-              accessibilityLabel="Code from the Mac"
-              style={input}
-            />
-            <View style={{ flexDirection: "row", marginTop: 10 }}>
-              <QuickButton
-                label={pairing ? "Connecting" : "Connect"}
-                primary
-                disabled={pairing || !pairCodeComplete(pairCode)}
-                onPress={connectMac}
+          <Widget
+            title="People"
+            count={people.length}
+            action={
+              <WidgetLink
+                label={addOpen ? "Cancel" : "Add"}
+                onPress={() => setAddOpen((o) => !o)}
               />
-            </View>
-            {pairNote ? <Body>{pairNote}</Body> : null}
-          </View>
-        ) : null}
-        <Row title="Share sheet" detail="Share to Cliphy, then Send to Chat" />
-        <Row
-          title="Runner key"
-          detail="For the machine that makes website changes"
-          right={runnerOpen ? "Close" : "Open"}
-          onPress={() => setRunnerOpen((open) => !open)}
-        />
-        {runnerOpen ? (
-          <View style={{ marginBottom: 8 }}>
-            {runnerKey ? (
-              <>
-                <Text selectable style={{ ...input, fontSize: 13 }}>
-                  {runnerKey}
-                </Text>
-                <Body muted>Shown once. Put it in the runner's config.</Body>
-              </>
-            ) : (
-              <Body>
-                A key that can only pick up and report on website changes. It cannot read your
-                messages.
-              </Body>
-            )}
-            <View style={{ flexDirection: "row", marginTop: 10 }}>
-              {runnerKey ? (
-                <QuickButton
-                  label="Copy"
-                  primary
-                  onPress={() => {
-                    void Clipboard.setStringAsync(runnerKey);
-                    setRunnerNote("Copied.");
-                  }}
+            }
+          >
+            {addOpen ? (
+              <View style={{ marginBottom: 10 }}>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Name"
+                  placeholderTextColor={t.muted}
+                  accessibilityLabel="Person's name"
+                  style={input}
                 />
-              ) : (
-                <QuickButton
-                  label={makingKey ? "Making" : "Make key"}
-                  primary
-                  disabled={makingKey}
-                  onPress={makeRunnerKey}
+                <TextInput
+                  value={handle}
+                  onChangeText={setHandle}
+                  placeholder="Phone number (optional)"
+                  placeholderTextColor={t.muted}
+                  keyboardType="phone-pad"
+                  accessibilityLabel="Phone number"
+                  style={input}
                 />
-              )}
-            </View>
-            {runnerNote ? <Body muted>{runnerNote}</Body> : null}
-          </View>
-        ) : null}
-        <Row
-          title="Claude Code"
-          detail="Let it see what's open and mark work done"
-          right={assistantOpen ? "Close" : "Open"}
-          onPress={() => setAssistantOpen((open) => !open)}
-        />
-        {assistantOpen ? (
-          <View style={{ marginBottom: 8 }}>
-            {assistantKey ? (
-              <>
-                <Text selectable style={{ ...input, fontSize: 13 }}>
-                  {mcpCommand(assistantKey, API_URL)}
-                </Text>
-                <Body muted>Shown once. Paste it into a terminal on your computer.</Body>
-              </>
-            ) : (
-              <Body>
-                A key for Claude Code on your own computer. With it, Claude can read your projects,
-                tasks and clients' messages, add tasks and mark them done.
-              </Body>
-            )}
-            <View style={{ flexDirection: "row", marginTop: 10 }}>
-              {assistantKey ? (
-                <QuickButton
-                  label="Copy"
-                  primary
-                  onPress={() => {
-                    void Clipboard.setStringAsync(mcpCommand(assistantKey, API_URL));
-                    setAssistantNote("Copied.");
-                  }}
-                />
-              ) : (
-                <QuickButton
-                  label={makingAssistantKey ? "Making" : "Make key"}
-                  primary
-                  disabled={makingAssistantKey}
-                  onPress={makeAssistantKey}
-                />
-              )}
-            </View>
-            {assistantNote ? <Body muted>{assistantNote}</Body> : null}
-          </View>
-        ) : null}
-
-        <SectionLabel>People</SectionLabel>
-        {people.map((p) => (
-          <View key={p.id}>
-            <Row
-              title={p.name}
-              detail={
-                p.role === "both"
-                  ? "Client and collaborator"
-                  : p.role === "client"
-                    ? "Client"
-                    : "Collaborator"
-              }
-              right={p.captureThread ? "Capturing" : "Capture"}
-              rightColor={p.captureThread ? t.ok : t.muted}
-              onPress={() => setOpenPerson(openPerson === p.id ? null : p.id)}
-            />
-            {openPerson === p.id ? (
-              <View style={{ paddingVertical: 10, gap: 10 }}>
-                {p.handles.length === 0 ? (
-                  <>
-                    <Body muted>Add their phone number to capture their texts.</Body>
-                    <TextInput
-                      value={number}
-                      onChangeText={setNumber}
-                      placeholder="Phone number"
-                      placeholderTextColor={t.muted}
-                      keyboardType="phone-pad"
-                      accessibilityLabel={`Phone number for ${p.name}`}
-                      style={input}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {ROLES.map((r) => (
+                    <QuickButton
+                      key={r.role}
+                      label={r.label}
+                      chosen={role === r.role}
+                      onPress={() => setRole(r.role)}
                     />
-                    <View style={{ flexDirection: "row" }}>
-                      <QuickButton
-                        label="Save"
-                        primary
-                        disabled={saving || !number.trim()}
-                        onPress={() => saveNumber(p)}
-                      />
-                    </View>
-                  </>
-                ) : p.captureThread ? (
-                  <>
-                    <Body muted>{`${historyLine(p)} Change how far back the Mac reads:`}</Body>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <QuickButton
-                        label="3 months"
-                        chosen={p.historyWindow === "window"}
-                        disabled={saving}
-                        onPress={() => capture(p, { historyDays: 90 })}
-                      />
-                      <QuickButton
-                        label="Everything"
-                        chosen={p.historyWindow === "all"}
-                        disabled={saving}
-                        onPress={() => capture(p, { historyWindow: "all" })}
-                      />
-                      <QuickButton
-                        label="Stop"
-                        disabled={saving}
-                        onPress={() => capture(p, { captureThread: false })}
-                      />
-                    </View>
-                    <Body muted>Older texts arrive over the next few minutes.</Body>
-                  </>
-                ) : (
-                  <>
-                    <Body muted>How far back should the Mac read?</Body>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <QuickButton
-                        label="New only"
-                        disabled={saving}
-                        onPress={() => capture(p, { historyWindow: "new" })}
-                      />
-                      <QuickButton
-                        label="3 months"
-                        disabled={saving}
-                        onPress={() => capture(p, { historyDays: 90 })}
-                      />
-                      <QuickButton
-                        label="Everything"
-                        disabled={saving}
-                        onPress={() => capture(p, { historyWindow: "all" })}
-                      />
-                    </View>
-                  </>
-                )}
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", marginTop: 10 }}>
+                  <QuickButton
+                    label="Add"
+                    primary
+                    disabled={!name.trim() || saving}
+                    onPress={savePerson}
+                  />
+                </View>
               </View>
             ) : null}
-          </View>
-        ))}
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="Name"
-          placeholderTextColor={t.muted}
-          accessibilityLabel="Person's name"
-          style={input}
-        />
-        <TextInput
-          value={handle}
-          onChangeText={setHandle}
-          placeholder="Phone number (optional)"
-          placeholderTextColor={t.muted}
-          keyboardType="phone-pad"
-          accessibilityLabel="Phone number"
-          style={input}
-        />
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-          {ROLES.map((r) => (
-            <QuickButton
-              key={r.role}
-              label={r.label}
-              chosen={role === r.role}
-              onPress={() => setRole(r.role)}
-            />
-          ))}
-        </View>
-        <View style={{ flexDirection: "row", marginTop: 10 }}>
-          <QuickButton label="Add" primary disabled={!name.trim() || saving} onPress={savePerson} />
-        </View>
+            {people.length === 0 && !addOpen ? (
+              <Text style={note}>Nobody yet. Add the clients and collaborators you work with.</Text>
+            ) : null}
+            {people.map((p) => (
+              <View key={p.id}>
+                <Row
+                  title={p.name}
+                  detail={
+                    (p.role === "both"
+                      ? "Client and collaborator"
+                      : p.role === "client"
+                        ? "Client"
+                        : "Collaborator") + (p.captureThread ? ` · ${historyLine(p)}` : "")
+                  }
+                  right={p.captureThread ? "Capturing" : "Not captured"}
+                  rightColor={p.captureThread ? t.ok : t.muted}
+                  onPress={() => setOpenPerson(openPerson === p.id ? null : p.id)}
+                />
+                {openPerson === p.id ? (
+                  <View style={{ paddingVertical: 10, gap: 10 }}>
+                    {p.handles.length === 0 ? (
+                      <>
+                        <Body muted>Add their phone number to capture their texts.</Body>
+                        <TextInput
+                          value={number}
+                          onChangeText={setNumber}
+                          placeholder="Phone number"
+                          placeholderTextColor={t.muted}
+                          keyboardType="phone-pad"
+                          accessibilityLabel={`Phone number for ${p.name}`}
+                          style={input}
+                        />
+                        <View style={{ flexDirection: "row" }}>
+                          <QuickButton
+                            label="Save"
+                            primary
+                            disabled={saving || !number.trim()}
+                            onPress={() => saveNumber(p)}
+                          />
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Body muted>
+                          {p.captureThread
+                            ? "How far back the Mac reads their texts:"
+                            : "Capture their texts from the Mac, reading back:"}
+                        </Body>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                          <QuickButton
+                            label="New only"
+                            chosen={p.captureThread && p.historyWindow === "new"}
+                            disabled={saving}
+                            onPress={() => capture(p, { historyWindow: "new" })}
+                          />
+                          <QuickButton
+                            label="3 months"
+                            chosen={p.captureThread && p.historyWindow === "window"}
+                            disabled={saving}
+                            onPress={() => capture(p, { historyDays: 90 })}
+                          />
+                          <QuickButton
+                            label="Everything"
+                            chosen={p.captureThread && p.historyWindow === "all"}
+                            disabled={saving}
+                            onPress={() => capture(p, { historyWindow: "all" })}
+                          />
+                          {p.captureThread ? (
+                            <QuickButton
+                              label="Stop"
+                              disabled={saving}
+                              onPress={() => capture(p, { captureThread: false })}
+                            />
+                          ) : null}
+                        </View>
+                      </>
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </Widget>
 
-        <SectionLabel>Working hours</SectionLabel>
-        <View style={{ marginTop: 8 }}>
-          <Body muted>
-            {workSet
-              ? "I check in during these hours."
-              : "Set these and I'll check in while you work."}
-          </Body>
-        </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-          {DAY_LABELS.map((label, day) => (
-            <QuickButton
-              key={label}
-              label={label}
-              chosen={workDays.includes(day)}
-              onPress={() => toggleDay(day)}
-            />
-          ))}
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput
-            value={workStart}
-            onChangeText={setWorkStart}
-            placeholder="09:00"
-            placeholderTextColor={t.muted}
-            keyboardType="numbers-and-punctuation"
-            accessibilityLabel="Start of working day"
-            style={{ ...input, flex: 1 }}
-          />
-          <TextInput
-            value={workEnd}
-            onChangeText={setWorkEnd}
-            placeholder="17:00"
-            placeholderTextColor={t.muted}
-            keyboardType="numbers-and-punctuation"
-            accessibilityLabel="End of working day"
-            style={{ ...input, flex: 1 }}
-          />
-        </View>
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-          <QuickButton
-            label="Save"
-            primary
-            disabled={saving || workDays.length === 0}
-            onPress={() => saveWork(false)}
-          />
-          {workSet ? (
-            <QuickButton label="Turn off" disabled={saving} onPress={() => saveWork(true)} />
-          ) : null}
-        </View>
-        {workNote ? (
-          <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 8 }}>
-            {workNote}
-          </Text>
-        ) : null}
-
-        <SectionLabel>Learned</SectionLabel>
-        {rules.length === 0 ? (
-          <View style={{ marginTop: 8 }}>
-            <Body muted>Nothing yet.</Body>
-          </View>
-        ) : (
-          rules.map((r) => (
+          <Widget title="Getting requests in">
             <Row
-              key={r.id}
-              title={r.sentence}
-              right="Forget"
-              rightColor={t.due}
-              onPress={() => forget(r)}
+              title="Mac messages"
+              detail={
+                captured.length === 0
+                  ? "No threads chosen yet"
+                  : macOn
+                    ? captured.map((p) => p.name).join(", ")
+                    : agoLabel(health?.helperSeenAt, new Date())
+                      ? `Mac last seen ${agoLabel(health?.helperSeenAt, new Date())}`
+                      : "The Mac helper has not connected"
+              }
+              right={macOn ? "Working" : pairOpen ? "Close" : "Connect"}
+              rightColor={macOn ? t.ok : t.due}
+              onPress={() => setPairOpen((open) => !open)}
             />
-          ))
-        )}
-        <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 10 }}>
-          If it isn't listed here, I haven't learned it.
-        </Text>
+            {pairOpen ? (
+              <View style={{ marginBottom: 8 }}>
+                <Text style={note}>Open Cliphy Helper on the Mac and enter the code it shows.</Text>
+                <TextInput
+                  value={pairCode}
+                  onChangeText={(v) => setPairCode(formatPairCode(v))}
+                  placeholder="XXXX-XXXX"
+                  placeholderTextColor={t.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={9}
+                  accessibilityLabel="Code from the Mac"
+                  style={input}
+                />
+                <View style={{ flexDirection: "row", marginTop: 10 }}>
+                  <QuickButton
+                    label={pairing ? "Connecting" : "Connect"}
+                    primary
+                    disabled={pairing || !pairCodeComplete(pairCode)}
+                    onPress={connectMac}
+                  />
+                </View>
+                {pairNote ? <Text style={note}>{pairNote}</Text> : null}
+              </View>
+            ) : null}
+            <Row title="Share sheet" detail="On the phone: share to Cliphy, then Send to Chat" />
+            <Row
+              title="Notifications"
+              detail={
+                health?.lastDeliveredAt
+                  ? `Last arrived ${new Date(health.lastDeliveredAt).toLocaleString()}`
+                  : health && !health.timezoneSet
+                    ? "Timezone not set yet"
+                    : "Not tested yet"
+              }
+              right={
+                remindersOk ? "Working" : DESKTOP ? "On the phone" : testing ? "Testing" : "Test"
+              }
+              rightColor={remindersOk ? t.ok : t.due}
+              onPress={remindersOk || DESKTOP ? undefined : testReminders}
+            />
+          </Widget>
+
+          <Widget title="Working hours">
+            <WorkHours
+              value={{ on: workSet, days: workDays, start: workStart, end: workEnd }}
+              onChange={changeWork}
+            />
+            {workNote ? <Text style={note}>{workNote}</Text> : null}
+          </Widget>
+
+          {/* Keys can only be made by a signed-in person, which the Mac window is not. */}
+          {MAC_WINDOW ? null : (
+            <Widget title="Connected tools">
+              <Row
+                title="Claude Code"
+                detail="Let it see what's open and mark work done"
+                right={assistantOpen ? "Close" : "Connect"}
+                onPress={() => setAssistantOpen((open) => !open)}
+              />
+              {assistantOpen
+                ? keyBlock({
+                    shown: assistantKey ? mcpCommand(assistantKey, API_URL) : null,
+                    about:
+                      "A key for Claude Code on your own computer. With it, Claude can read your projects, tasks and clients' messages, add tasks and mark them done.",
+                    after: "Shown once. Paste it into a terminal on your computer.",
+                    making: makingAssistantKey,
+                    make: makeAssistantKey,
+                    said: assistantNote,
+                    copied: () => setAssistantNote("Copied."),
+                  })
+                : null}
+              <Row
+                title="Website runner"
+                detail="The machine that makes website changes for you"
+                right={runnerOpen ? "Close" : "Connect"}
+                onPress={() => setRunnerOpen((open) => !open)}
+              />
+              {runnerOpen
+                ? keyBlock({
+                    shown: runnerKey,
+                    about:
+                      "A key that can only pick up and report on website changes. It cannot read your messages.",
+                    after: "Shown once. Put it in the runner's config.",
+                    making: makingKey,
+                    make: makeRunnerKey,
+                    said: runnerNote,
+                    copied: () => setRunnerNote("Copied."),
+                  })
+                : null}
+            </Widget>
+          )}
+
+          <Widget title="Learned" count={rules.length} wide>
+            {rules.length === 0 ? <Text style={note}>Nothing yet.</Text> : null}
+            {rules.map((r) => (
+              <Row
+                key={r.id}
+                title={r.sentence}
+                right="Forget"
+                rightColor={t.due}
+                onPress={() => forget(r)}
+              />
+            ))}
+            <Text style={note}>If it isn't listed here, I haven't learned it.</Text>
+          </Widget>
+        </WidgetGrid>
       </ScrollView>
     </Page>
   );
