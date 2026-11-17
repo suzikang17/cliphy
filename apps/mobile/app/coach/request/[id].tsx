@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { CoachRequest, InboundMessage, Person } from "@cliphy/shared";
-import { reopenOutcome } from "../../../lib/coach";
+import { reopenOutcome, errorText } from "../../../lib/coach";
 import {
   confirmRequest,
   fixRequest,
@@ -32,10 +32,10 @@ export default function RequestScreen() {
   const [messages, setMessages] = useState<InboundMessage[]>([]);
   const [replaces, setReplaces] = useState<CoachRequest | null>(null);
   const [person, setPerson] = useState<Person | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [fixing, setFixing] = useState(false);
-  const [actionFailed, setActionFailed] = useState(false);
+  const [actionFailed, setActionFailed] = useState<string | null>(null);
   const [note, setNote] = useState("");
   // "Still needs doing" on a history request: idle, reading again, or no longer watching.
   const [reopening, setReopening] = useState<"idle" | "waiting" | "slow">("idle");
@@ -54,9 +54,9 @@ export default function RequestScreen() {
       setMessages(r.messages);
       setReplaces(r.replaces);
       setPerson(p.people.find((x) => x.id === r.request.personId) ?? null);
-      setFailed(false);
-    } catch {
-      setFailed(true);
+      setFailed(null);
+    } catch (err) {
+      setFailed(errorText(err));
     }
   }, [id]);
 
@@ -78,8 +78,8 @@ export default function RequestScreen() {
     try {
       await confirmRequest(id, answer ? { answer } : {});
       done();
-    } catch {
-      setActionFailed(true);
+    } catch (err) {
+      setActionFailed(errorText(err));
       setBusy(false);
     }
   };
@@ -91,8 +91,8 @@ export default function RequestScreen() {
     try {
       await fixRequest(id, text);
       done();
-    } catch {
-      setActionFailed(true);
+    } catch (err) {
+      setActionFailed(errorText(err));
       setBusy(false);
     }
   };
@@ -100,11 +100,11 @@ export default function RequestScreen() {
   const reopen = async () => {
     if (busy || reopening === "waiting") return;
     setBusy(true);
-    setActionFailed(false);
+    setActionFailed(null);
     try {
       await reopenRequest(id);
-    } catch {
-      setActionFailed(true);
+    } catch (err) {
+      setActionFailed(errorText(err));
       setBusy(false);
       return;
     }
@@ -138,8 +138,8 @@ export default function RequestScreen() {
   return (
     <Page title="Request" sub={person ? `From ${person.name}` : undefined}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
-        {failed ? <Body muted>Couldn't load this. Go back and try again.</Body> : null}
-        {actionFailed ? <Body muted>That didn't work. Try again.</Body> : null}
+        {failed ? <Body muted>{failed}</Body> : null}
+        {actionFailed ? <Body muted>{actionFailed}</Body> : null}
 
         {request ? (
           <>

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import type { UpNext, UpNextTask } from "@cliphy/shared";
-import { dayParts } from "../../lib/coach";
+import { dayParts, errorText } from "../../lib/coach";
 import { getUpNext } from "../../lib/coachApi";
 import {
   ACCENT,
@@ -20,7 +20,7 @@ export default function UpNextScreen() {
   const router = useRouter();
   const t = useCoachTheme();
   const [up, setUp] = useState<UpNext | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [view, setView] = useState<"date" | "project">("date");
 
   useFocusEffect(
@@ -28,9 +28,9 @@ export default function UpNextScreen() {
       getUpNext()
         .then((u) => {
           setUp(u);
-          setFailed(false);
+          setFailed(null);
         })
-        .catch(() => setFailed(true));
+        .catch((err) => setFailed(errorText(err)));
     }, []),
   );
 
@@ -93,7 +93,7 @@ export default function UpNextScreen() {
 
         {failed ? (
           <View style={{ marginTop: 20 }}>
-            <Body muted>Couldn't load this.</Body>
+            <Body muted>{failed}</Body>
           </View>
         ) : null}
 

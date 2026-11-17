@@ -1,3 +1,4 @@
+import { errorText } from "../../lib/coach";
 import { useCallback, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -11,16 +12,16 @@ const ROLE: Record<string, string> = { client: "Client", collaborator: "Collabor
 export default function ThreadsScreen() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       getPeople()
         .then((r) => {
           setPeople(r.people);
-          setFailed(false);
+          setFailed(null);
         })
-        .catch(() => setFailed(true));
+        .catch((err) => setFailed(errorText(err)));
     }, []),
   );
 
@@ -29,7 +30,7 @@ export default function ThreadsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
         {failed ? (
           <View style={{ marginTop: 20 }}>
-            <Body muted>Couldn't load this.</Body>
+            <Body muted>{failed}</Body>
           </View>
         ) : null}
         {people?.length === 0 ? (

@@ -42,6 +42,8 @@ import {
   timeLabel,
   workLine,
   messageParts,
+  taskTitleFrom,
+  errorText,
 } from "../coach";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
@@ -369,9 +371,9 @@ describe("the website task runner on the phone", () => {
     expect(runLine(run({ status: "working" }))).toBe("Working on it.");
     expect(runLine(run({ status: "done" }))).toBe("Done. See Chat for the result.");
     expect(runLine(run({ status: "failed", error: "I could not find a page 2." }))).toBe(
-      "That didn't work: I could not find a page 2.",
+      "I could not find a page 2.",
     );
-    expect(runLine(run({ status: "failed" }))).toBe("That didn't work.");
+    expect(runLine(run({ status: "failed" }))).toBe("Error");
     expect(runLine(run({ status: "cancelled" }))).toBe("Stopped.");
   });
 });
@@ -798,5 +800,61 @@ describe("messageParts", () => {
     expect(shape(messageParts("", [pic("a", 0)]))).toEqual([["a"]]);
     expect(shape(messageParts("just words", []))).toEqual(["just words"]);
     expect(shape(messageParts("short", [pic("a", 99)]))).toEqual(["short", ["a"]]);
+  });
+});
+
+describe("taskTitleFrom", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Thread");
+  });
+
+  const m = (text: string, direction: "in" | "out" = "in", sentAt = "2026-11-10T10:00:00") =>
+    ({ id: text, direction, text, attachments: [], sentAt }) as unknown as InboundMessage;
+
+  it("suggests the earliest thing they wrote, first line only", () => {
+    expect(
+      taskTitleFrom([
+        m("Also the footer", "in", "2026-11-10T11:00:00"),
+        m("Can the sconces go higher\nThanks!", "in", "2026-11-10T10:00:00"),
+      ]),
+    ).toBe("Can the sconces go higher");
+  });
+
+  it("prefers their words to mine, and cuts a long line at a word", () => {
+    expect(taskTitleFrom([m("On it", "out", "2026-11-10T09:00:00"), m("Fix the footer")])).toBe(
+      "Fix the footer",
+    );
+    const long =
+      "Could you please move the photo further down and use one of these images as the front picture instead";
+    const title = taskTitleFrom([m(long)]);
+    expect(title.length).toBeLessThanOrEqual(81);
+    expect(title.endsWith("…")).toBe(true);
+    expect(long.startsWith(title.slice(0, -1))).toBe(true);
+    expect(title.slice(0, -1).endsWith(" ")).toBe(false);
+  });
+
+  it("skips a greeting on its own line, and gives nothing for pictures alone", () => {
+    expect(taskTitleFrom([m("Hi Girl.\n\nCould I ask for the photo to be further down")])).toBe(
+      "Could I ask for the photo to be further down",
+    );
+    expect(taskTitleFrom([m("")])).toBe("");
+    expect(taskTitleFrom([])).toBe("");
+  });
+});
+
+describe("errorText", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Errors");
+  });
+
+  it("is the system's own message, or the one word Error", () => {
+    expect(errorText(new Error("project already exists"))).toBe("project already exists");
+    expect(errorText(new Error(""))).toBe("Error");
+    expect(errorText("nope")).toBe("Error");
+    expect(errorText(undefined)).toBe("Error");
   });
 });

@@ -278,7 +278,12 @@ export async function fakeApi(request: Request): Promise<Response> {
   const { pathname } = new URL(request.url);
   const found =
     request.method === "GET" ? ROUTES.find(([pattern]) => pattern.test(pathname)) : null;
-  const body = found ? found[1] : request.method === "GET" ? null : { ok: true };
+  // A new task answers as the real API does, so the screens can open it.
+  const made =
+    request.method === "POST" && pathname === "/api/coach/tasks"
+      ? { task: fullTask("task-new", "New task", { requestId: null }) }
+      : null;
+  const body = made ?? (found ? found[1] : request.method === "GET" ? null : { ok: true });
   return new Response(JSON.stringify(body ?? { error: "Not found" }), {
     status: body ? 200 : 404,
     headers: { "Content-Type": "application/json" },

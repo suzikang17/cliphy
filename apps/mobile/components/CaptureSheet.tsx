@@ -1,3 +1,4 @@
+import { errorText } from "../lib/coach";
 import { View, Text, Pressable, Modal, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -27,7 +28,7 @@ export function CaptureSheet({
       await uploadAndClipImage(result.assets[0].uri);
       onCaptured();
     } catch (err) {
-      Alert.alert("Couldn't save image", err instanceof Error ? err.message : "Try again");
+      Alert.alert("Error", errorText(err));
     }
   }
 

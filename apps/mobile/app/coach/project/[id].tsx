@@ -8,7 +8,7 @@ import type {
   InboundMessage,
   ProgressEntry,
 } from "@cliphy/shared";
-import { batchLine, projectTiles, shortDay, taskDue } from "../../../lib/coach";
+import { batchLine, projectTiles, shortDay, taskDue, errorText } from "../../../lib/coach";
 import {
   createTask,
   getBatchCandidates,
@@ -55,7 +55,7 @@ export default function ProjectScreen() {
   const [name, setName] = useState("Project");
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [photos, setPhotos] = useState<ProgressEntry[]>([]);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   // The website's repo and live site. With a repo, work can be started on the site.
   const [repo, setRepo] = useState("");
   const [site, setSite] = useState("");
@@ -99,8 +99,8 @@ export default function ProjectScreen() {
       const { task } = await createTask({ kind: "do", title, projectId: id });
       setTaskTitle("");
       router.push(`/coach/task/${task.id}` as never);
-    } catch {
-      setTaskNote("Couldn't add that. Try again.");
+    } catch (err) {
+      setTaskNote(errorText(err));
     } finally {
       setAdding(false);
     }
@@ -121,7 +121,7 @@ export default function ProjectScreen() {
         setSaved(stored);
         setStateLine(project?.stateLine ?? "");
       })
-      .catch(() => setFailed(true));
+      .catch((err) => setFailed(errorText(err)));
   }, [id]);
 
   // The client's side: their name, their latest messages, and how much
@@ -160,8 +160,7 @@ export default function ProjectScreen() {
       else setSite(stored);
       setSiteNote((n) => ({ ...n, [field]: "Saved." }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "";
-      setSiteNote((n) => ({ ...n, [field]: message || "Couldn't save that." }));
+      setSiteNote((n) => ({ ...n, [field]: errorText(err) }));
     }
   };
 
@@ -201,7 +200,7 @@ export default function ProjectScreen() {
           gap: 12,
         }}
       >
-        {failed ? <Body muted>Couldn't load this.</Body> : null}
+        {failed ? <Body muted>{failed}</Body> : null}
 
         {!failed ? (
           <>

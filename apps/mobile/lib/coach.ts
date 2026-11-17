@@ -275,7 +275,7 @@ export function runLine(run: CoachRun | null): string | null {
     case "done":
       return "Done. See Chat for the result.";
     case "failed":
-      return run.error ? `That didn't work: ${run.error}` : "That didn't work.";
+      return run.error || "Error";
     case "cancelled":
       return "Stopped.";
   }
@@ -560,4 +560,36 @@ export function messageParts(text: string, attachments: Attachment[]): MessagePa
   words(text.slice(from));
   pictures(attachments.filter((a) => a.at === undefined));
   return parts;
+}
+
+const TITLE_LENGTH = 80;
+/** A line that only says hello is not what needs doing. */
+const GREETING = /^(hi|hey|hello|good (morning|afternoon|evening))\b[^?]{0,20}$/i;
+
+/**
+ * A starting title for a task made from messages: the first real line of the
+ * earliest thing they wrote (mine if they wrote nothing), cut at a word.
+ */
+export function taskTitleFrom(messages: InboundMessage[]): string {
+  const ordered = [...messages].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+  const source =
+    ordered.find((m) => m.direction === "in" && m.text.trim()) ??
+    ordered.find((m) => m.text.trim());
+  if (!source) return "";
+  const lines = source.text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const line = lines.find((l) => !GREETING.test(l)) ?? lines[0] ?? "";
+  if (line.length <= TITLE_LENGTH) return line;
+  const cut = line.slice(0, TITLE_LENGTH);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 40 ? cut.lastIndexOf(" ") : TITLE_LENGTH).trimEnd()}…`;
+}
+
+/**
+ * What to show when something fails: the system's own message, or the one
+ * word "Error". Never a sentence of our own about what might have happened.
+ */
+export function errorText(err: unknown): string {
+  return err instanceof Error && err.message ? err.message : "Error";
 }

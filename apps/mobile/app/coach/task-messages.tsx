@@ -1,3 +1,4 @@
+import { errorText } from "../../lib/coach";
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -40,7 +41,7 @@ export default function TaskMessagesScreen() {
         setAlready(new Set(linked.messages.map((m) => m.id)));
         if (list.length === 0) setMessages([]);
       })
-      .catch(() => setNote("Couldn't load this."));
+      .catch((err) => setNote(errorText(err)));
   }, [taskId]);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function TaskMessagesScreen() {
     setMessages(null);
     getPersonMessages(personId)
       .then((r) => setMessages(r.messages))
-      .catch(() => setNote("Couldn't load this."));
+      .catch((err) => setNote(errorText(err)));
   }, [personId]);
 
   const toggle = (id: string) =>
@@ -65,8 +66,8 @@ export default function TaskMessagesScreen() {
     try {
       await addTaskMessages(taskId, [...picked]);
       router.back();
-    } catch {
-      setNote("That didn't work. Try again.");
+    } catch (err) {
+      setNote(errorText(err));
       setBusy(false);
     }
   };

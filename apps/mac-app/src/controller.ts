@@ -37,6 +37,10 @@ function historyOf(
   return found ?? "other";
 }
 
+/** The system's own message for a failure, or the one word "Error". */
+const errorText = (err: unknown): string =>
+  err instanceof Error && err.message ? err.message : "Error";
+
 /** pair: show a code. access: waiting for Full Disk Access. ready: uploading. */
 export type Step = "pair" | "access" | "ready";
 
@@ -214,8 +218,8 @@ export class Controller {
       // Anything unrecognised reads from now on, the choice that uploads least.
       await this.deps.addPerson(config, { name, handle, ...(HISTORY[history] ?? HISTORY.new) });
       this.set({ error: null, ...this.peopleView(await this.deps.people(config)) });
-    } catch {
-      this.set({ error: "Could not add them. Try again." });
+    } catch (err) {
+      this.set({ error: errorText(err) });
     }
   }
 
@@ -244,9 +248,9 @@ export class Controller {
     try {
       await this.deps.setCapture(config, personId, on);
       this.set({ error: null });
-    } catch {
+    } catch (err) {
       flip(!on);
-      this.set({ error: "Could not change that. Try again." });
+      this.set({ error: errorText(err) });
     }
   }
 
@@ -263,9 +267,9 @@ export class Controller {
     try {
       await this.deps.setHistory(config, personId, choice);
       this.set({ error: null });
-    } catch {
+    } catch (err) {
       show(before);
-      this.set({ error: "Could not change that. Try again." });
+      this.set({ error: errorText(err) });
     }
   }
 

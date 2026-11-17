@@ -1,3 +1,4 @@
+import { errorText } from "../../lib/coach";
 import { useEffect, useRef, useState } from "react";
 import { Image, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -35,6 +36,8 @@ export default function CameraScreen() {
   const started = useRef(false);
   /** The photo just taken, kept so a failed save can be tried again. */
   const [photo, setPhoto] = useState<string | null>(null);
+  /** The system's own words for why the photo was not saved. */
+  const [problem, setProblem] = useState("Error");
 
   // Upload and file a photo that has been taken. Kept apart from taking it,
   // so a failure can be retried with the same photo instead of a new one.
@@ -48,7 +51,8 @@ export default function CameraScreen() {
       setStage("done");
       // When it was not sure, the bot also said so in chat.
       void refreshCoach();
-    } catch {
+    } catch (err) {
+      setProblem(errorText(err));
       setStage("failed");
       return;
     }
@@ -75,7 +79,8 @@ export default function CameraScreen() {
         }
         setPhoto(shot.assets[0].uri);
         await save(shot.assets[0].uri);
-      } catch {
+      } catch (err) {
+        setProblem(errorText(err));
         setStage("failed");
       }
     })();
@@ -105,7 +110,7 @@ export default function CameraScreen() {
           {stage === "saving" ? <Body muted>Saving.</Body> : null}
           {stage === "failed" ? (
             <>
-              <Body muted>Couldn't save the photo.</Body>
+              <Body muted>{problem}</Body>
               <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                 {photo ? <QuickButton label="Retry" primary onPress={() => save(photo)} /> : null}
                 <QuickButton label="Close" onPress={() => router.back()} />

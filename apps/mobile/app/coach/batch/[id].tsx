@@ -3,7 +3,7 @@ import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import type { BatchItem, BatchItemState, CoachBatch, Person } from "@cliphy/shared";
-import { batchLine, smsUrl } from "../../../lib/coach";
+import { batchLine, smsUrl, errorText } from "../../../lib/coach";
 import {
   deleteBatch,
   getBatch,
@@ -43,8 +43,8 @@ export default function BatchScreen() {
       setItems(found.items);
       setDraft(found.batch.summary ?? "");
       setPerson(people.find((p) => p.id === found.batch.personId) ?? null);
-    } catch {
-      setNote("Couldn't load this.");
+    } catch (err) {
+      setNote(errorText(err));
     }
   }, [id]);
 
@@ -59,10 +59,10 @@ export default function BatchScreen() {
   const change = (item: BatchItem, values: { state?: BatchItemState; note?: string | null }) => {
     if (sent) return;
     setItems((old) => old.map((i) => (i.id === item.id ? { ...i, ...values } : i)));
-    updateBatchItem(id, item.id, values).catch(() => setNote("Couldn't save that."));
+    updateBatchItem(id, item.id, values).catch((err) => setNote(errorText(err)));
   };
 
-  const act = async (fn: () => Promise<{ batch: CoachBatch }>, failed: string) => {
+  const act = async (fn: () => Promise<{ batch: CoachBatch }>) => {
     if (busy) return;
     setBusy(true);
     setNote(null);
@@ -71,7 +71,7 @@ export default function BatchScreen() {
       setBatch(next);
       setDraft(next.summary ?? "");
     } catch (err) {
-      setNote(err instanceof Error && err.message ? err.message : failed);
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -84,8 +84,8 @@ export default function BatchScreen() {
     try {
       const { batch: next } = await saveBatchSummary(id, text);
       setBatch(next);
-    } catch {
-      setNote("Couldn't save your edit.");
+    } catch (err) {
+      setNote(errorText(err));
     }
   };
 
@@ -103,9 +103,9 @@ export default function BatchScreen() {
       // Messages opening is not the message being sent. The Mac marks it sent
       // when it sees it go; otherwise she taps Sent.
       setNote("Sent it? Tap Sent.");
-    } catch {
+    } catch (err) {
       await Clipboard.setStringAsync(text);
-      setNote("Couldn't open Messages. Copied instead.");
+      setNote(errorText(err));
     }
   };
 
@@ -115,8 +115,8 @@ export default function BatchScreen() {
     try {
       await deleteBatch(id);
       router.back();
-    } catch {
-      setNote("That didn't work. Try again.");
+    } catch (err) {
+      setNote(errorText(err));
       setBusy(false);
     }
   };
@@ -254,7 +254,7 @@ export default function BatchScreen() {
                     <QuickButton
                       label="Sent"
                       disabled={busy}
-                      onPress={() => act(() => markBatchSent(id), "That didn't work. Try again.")}
+                      onPress={() => act(() => markBatchSent(id))}
                     />
                   </>
                 ) : null}
@@ -262,9 +262,7 @@ export default function BatchScreen() {
                   label={batch.summary ? "Rewrite" : "Write summary"}
                   primary={!batch.summary}
                   disabled={busy || unchecked > 0}
-                  onPress={() =>
-                    act(() => writeBatchSummary(id), "Couldn't write the summary. Try again.")
-                  }
+                  onPress={() => act(() => writeBatchSummary(id))}
                 />
                 <QuickButton label="Remove" disabled={busy} onPress={remove} />
               </View>

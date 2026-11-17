@@ -9,7 +9,7 @@ import {
   type InboundMessage,
   type Person,
 } from "@cliphy/shared";
-import { runLine, smsUrl } from "../../../lib/coach";
+import { runLine, smsUrl, errorText } from "../../../lib/coach";
 import {
   cancelRun,
   getPeople,
@@ -73,8 +73,8 @@ export default function TaskScreen() {
           setOnSite(false);
         }
       }
-    } catch {
-      setNote("Couldn't load this.");
+    } catch (err) {
+      setNote(errorText(err));
     }
   }, [id]);
 
@@ -93,7 +93,7 @@ export default function TaskScreen() {
   );
   const unpull = (messageId: string) => {
     setPulled((old) => old.filter((m) => m.id !== messageId));
-    removeTaskMessage(id, messageId).catch(() => setNote("Couldn't take that off."));
+    removeTaskMessage(id, messageId).catch((err) => setNote(errorText(err)));
   };
 
   const running = siteRun?.status === "queued" || siteRun?.status === "working";
@@ -118,7 +118,7 @@ export default function TaskScreen() {
       setSiteRun(next);
       void refreshCoach();
     } catch (err) {
-      setNote(err instanceof Error && err.message ? err.message : "That didn't work. Try again.");
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -139,8 +139,8 @@ export default function TaskScreen() {
       await fn();
       if (thenLeave) finish();
       else await load();
-    } catch {
-      setNote("That didn't work. Try again.");
+    } catch (err) {
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -162,9 +162,9 @@ export default function TaskScreen() {
       // Messages opening is not the message being sent: she may cancel. The
       // task stays open until she says it went.
       setNote("Sent it? Tap Sent.");
-    } catch {
+    } catch (err) {
       await Clipboard.setStringAsync(draft);
-      setNote("Couldn't open Messages. Copied instead.");
+      setNote(errorText(err));
     }
   };
 
@@ -174,7 +174,7 @@ export default function TaskScreen() {
     setTask({ ...task, checklist });
     // Not held back by another change in flight, and not reloaded afterwards:
     // two quick ticks must both stick. Each save carries the whole list.
-    updateTask(task.id, { checklist }).catch(() => setNote("Couldn't save that tick."));
+    updateTask(task.id, { checklist }).catch((err) => setNote(errorText(err)));
   };
 
   const kit = task?.kit ?? {};

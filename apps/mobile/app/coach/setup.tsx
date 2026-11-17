@@ -12,6 +12,7 @@ import {
   mcpCommand,
   setupSteps,
   type SetupStep,
+  errorText,
 } from "../../lib/coach";
 
 // Where an outside tool reaches the API. On the website that is the site itself.
@@ -64,7 +65,7 @@ export default function SetupScreen() {
   const [health, setHealth] = useState<CoachHealth | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [rules, setRules] = useState<CoachRule[]>([]);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState<PersonRole>("client");
@@ -100,7 +101,7 @@ export default function SetupScreen() {
     try {
       setAssistantKey((await createApiKey("Claude Code")).key);
     } catch (err) {
-      setAssistantNote(err instanceof Error && err.message ? err.message : "Could not make a key");
+      setAssistantNote(errorText(err));
     } finally {
       setMakingAssistantKey(false);
     }
@@ -113,7 +114,7 @@ export default function SetupScreen() {
     try {
       setRunnerKey((await createRunnerKey()).key);
     } catch (err) {
-      setRunnerNote(err instanceof Error && err.message ? err.message : "Could not make a key");
+      setRunnerNote(errorText(err));
     } finally {
       setMakingKey(false);
     }
@@ -138,9 +139,9 @@ export default function SetupScreen() {
       setHealth(h);
       setPeople(p.people);
       setRules(r.rules.filter((x) => x.active));
-      setFailed(false);
-    } catch {
-      setFailed(true);
+      setFailed(null);
+    } catch (err) {
+      setFailed(errorText(err));
     }
   }, []);
 
@@ -190,9 +191,9 @@ export default function SetupScreen() {
           void syncLocalReminders();
         }
       }, 2000);
-    } catch {
+    } catch (err) {
       setTesting(false);
-      setFailed(true);
+      setFailed(errorText(err));
     }
   };
 
@@ -207,7 +208,7 @@ export default function SetupScreen() {
       setPairNote("Connected. The Mac starts in a moment.");
       setTimeout(() => void load(), 5000);
     } catch (err) {
-      setPairNote(err instanceof Error ? err.message : "Could not connect");
+      setPairNote(errorText(err));
     } finally {
       setPairing(false);
     }
@@ -224,8 +225,8 @@ export default function SetupScreen() {
       setHandle("");
       setAddOpen(false);
       await load();
-    } catch {
-      setFailed(true);
+    } catch (err) {
+      setFailed(errorText(err));
     } finally {
       setSaving(false);
     }
@@ -250,8 +251,8 @@ export default function SetupScreen() {
         await updatePerson(person.id, { captureThread: true, historyWindow: choice.historyWindow });
       setOpenPerson(null);
       await load();
-    } catch {
-      setFailed(true);
+    } catch (err) {
+      setFailed(errorText(err));
     } finally {
       setSaving(false);
     }
@@ -264,8 +265,8 @@ export default function SetupScreen() {
       await updatePerson(person.id, { handles: [number.trim()] });
       setNumber("");
       await load();
-    } catch {
-      setFailed(true);
+    } catch (err) {
+      setFailed(errorText(err));
     } finally {
       setSaving(false);
     }
@@ -287,7 +288,7 @@ export default function SetupScreen() {
         work: next.on ? { days: next.days, start: next.start, end: next.end } : null,
       })
         .then(() => setWorkNote("Saved."))
-        .catch(() => setWorkNote("Couldn't save that. Try again."));
+        .catch((err) => setWorkNote(errorText(err)));
     }, 600);
   };
   useEffect(
@@ -378,9 +379,7 @@ export default function SetupScreen() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {failed ? (
-          <Body muted>That didn't go through. Check the connection and try again.</Body>
-        ) : null}
+        {failed ? <Body muted>{failed}</Body> : null}
 
         <WidgetGrid>
           {steps.length > 0 ? (

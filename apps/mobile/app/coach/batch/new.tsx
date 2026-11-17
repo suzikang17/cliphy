@@ -1,3 +1,4 @@
+import { errorText } from "../../../lib/coach";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -26,7 +27,7 @@ export default function NewBatchScreen() {
   useEffect(() => {
     getBatchCandidates(personId, projectId)
       .then(setFound)
-      .catch(() => setNote("Couldn't load this."));
+      .catch((err) => setNote(errorText(err)));
   }, [personId, projectId]);
 
   const toggle = (id: string) =>
@@ -51,8 +52,8 @@ export default function NewBatchScreen() {
         messageIds: ids(found.messages),
       });
       router.replace(`/coach/batch/${batch.id}` as never);
-    } catch {
-      setNote("That didn't work. Try again.");
+    } catch (err) {
+      setNote(errorText(err));
       setBusy(false);
     }
   };

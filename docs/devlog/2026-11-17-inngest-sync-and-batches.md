@@ -102,3 +102,8 @@ phase: Growth
 **What to remember**
 
 - `pkill -f name` from a longer command line kills the shell running it, and a stale preview server then keeps serving old code on the port. Use a bracketed pattern: `pkill -f "dist/previe[w]"`.
+
+## Later: a task from selected messages; failures say what the system said
+
+- **Task from messages:** the thread's selection bar has "Task". It opens a title box pre-filled from the earliest thing they wrote (`taskTitleFrom`: first real line, greeting skipped, cut at a word), offers the person's projects when there is more than one, makes the task and pulls the selected messages into it, then opens it.
+- **Error text:** the owner called "That didn't go through" and its kind AI slop: a failure shows the system's own message, or the one word "Error". `errorText` in `lib/coach.ts`; every coach screen's catch now uses it (about forty strings removed), and the Mac controller does the same. Saved as a standing rule in memory.

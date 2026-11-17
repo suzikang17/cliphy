@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { ScrollView, TextInput, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { projectRows, type ProjectRow } from "../../lib/coach";
+import { projectRows, type ProjectRow, errorText } from "../../lib/coach";
 import { createProject, getPeople, getProjects, getUpNext } from "../../lib/coachApi";
 import {
   ACCENT,
@@ -20,7 +20,7 @@ export default function ProjectsScreen() {
   const router = useRouter();
   const t = useCoachTheme();
   const [rows, setRows] = useState<ProjectRow[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -38,9 +38,9 @@ export default function ProjectsScreen() {
         .then(([{ projects }, up, people]) => {
           if (!live) return;
           setRows(projectRows(projects, up?.byProject ?? [], people?.people ?? []));
-          setFailed(false);
+          setFailed(null);
         })
-        .catch(() => live && setFailed(true));
+        .catch((err) => live && setFailed(errorText(err)));
       return () => {
         live = false;
       };
@@ -59,11 +59,7 @@ export default function ProjectsScreen() {
       setName("");
       open(project.id);
     } catch (err) {
-      setNote(
-        err instanceof Error && /exists/i.test(err.message)
-          ? "You already have that one."
-          : "Couldn't add it. Try again.",
-      );
+      setNote(errorText(err));
     } finally {
       setAdding(false);
     }
@@ -92,7 +88,7 @@ export default function ProjectsScreen() {
       >
         {failed ? (
           <View style={{ marginTop: 20 }}>
-            <Body muted>Couldn't load this.</Body>
+            <Body muted>{failed}</Body>
           </View>
         ) : null}
 

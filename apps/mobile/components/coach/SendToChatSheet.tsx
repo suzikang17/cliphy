@@ -1,3 +1,4 @@
+import { errorText } from "../../lib/coach";
 import { useEffect, useState } from "react";
 import { Alert, Modal, Pressable, Text, View } from "react-native";
 import type { Person } from "@cliphy/shared";
@@ -37,9 +38,9 @@ export function SendToChatSheet({ onLibrary }: { onLibrary: (share: PendingShare
       await sendShareToChat(person.id, share);
       setPendingShare(null);
       void refreshCoach();
-    } catch {
+    } catch (err) {
       // Nothing is lost: the sheet stays open so it can be tried again or saved to Library.
-      Alert.alert("Couldn't send it", "Check your connection and try again.");
+      Alert.alert("Error", errorText(err));
     } finally {
       setBusy(false);
     }

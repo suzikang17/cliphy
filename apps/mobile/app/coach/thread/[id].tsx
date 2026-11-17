@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { InboundMessage } from "@cliphy/shared";
+import type { InboundMessage, Project } from "@cliphy/shared";
 import {
   mergeThread,
   messageMark,
+  taskTitleFrom,
   threadDays,
   threadFilter,
   type ThreadFilter,
+  errorText,
 } from "../../../lib/coach";
-import { createBatch, getPeople, getThread, setMessagesHandled } from "../../../lib/coachApi";
+import {
+  addTaskMessages,
+  createBatch,
+  createTask,
+  getPeople,
+  getProjects,
+  getThread,
+  setMessagesHandled,
+} from "../../../lib/coachApi";
 import { MessageRow } from "../../../components/coach/MessageRow";
 import {
   ACCENT,
@@ -30,7 +40,8 @@ const FILTERS: [ThreadFilter, string][] = [
 
 /**
  * Everything one person has sent and been sent, oldest first. Tap messages to
- * select them, then tick them off as dealt with or put them in a batch.
+ * select them, then tick them off as dealt with, make a task from them, or
+ * put them in a batch.
  */
 export default function ThreadScreen() {
   const { id, projectId } = useLocalSearchParams<{ id: string; projectId?: string }>();
@@ -43,6 +54,10 @@ export default function ThreadScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Making a task from the selection: its title, and which project it joins.
+  const [taskTitle, setTaskTitle] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [taskProject, setTaskProject] = useState<string | null>(projectId ?? null);
   const scroll = useRef<ScrollView>(null);
   const atBottom = useRef(false);
 
@@ -50,12 +65,20 @@ export default function ThreadScreen() {
     getPeople()
       .then((r) => setName(r.people.find((p) => p.id === id)?.name ?? "Texts"))
       .catch(() => {});
+    getProjects()
+      .then((r) => {
+        // This person's projects; with exactly one, a new task goes there.
+        const theirs = r.projects.filter((p) => p.active && p.personIds.includes(id));
+        setProjects(theirs);
+        setTaskProject((chosen) => chosen ?? (theirs.length === 1 ? theirs[0].id : null));
+      })
+      .catch(() => {});
     getThread(id)
       .then((r) => {
         setMessages(r.messages);
         setHasMore(r.hasMore);
       })
-      .catch(() => setNote("Couldn't load this."));
+      .catch((err) => setNote(errorText(err)));
   }, [id]);
 
   const shown = useMemo(() => threadFilter(messages ?? [], filter), [messages, filter]);
@@ -83,8 +106,8 @@ export default function ThreadScreen() {
       const page = await getThread(id, oldest.sentAt);
       setMessages((old) => mergeThread(old ?? [], page.messages));
       setHasMore(page.hasMore);
-    } catch {
-      setNote("Couldn't load earlier messages.");
+    } catch (err) {
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -105,9 +128,9 @@ export default function ThreadScreen() {
     setSelected(new Set());
     try {
       await setMessagesHandled(id, ids, handled);
-    } catch {
+    } catch (err) {
       setMessages(before);
-      setNote("Couldn't save that. Try again.");
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -128,7 +151,37 @@ export default function ThreadScreen() {
       setSelected(new Set());
       router.push(`/coach/batch/${made.id}` as never);
     } catch (err) {
-      setNote(err instanceof Error && err.message ? err.message : "Couldn't make the batch.");
+      setNote(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** One task for the selected messages, with those messages pulled into it. */
+  const makeTask = async () => {
+    const title = (taskTitle ?? "").trim();
+    if (busy || !title || picked.length === 0) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { task } = await createTask({
+        kind: "do",
+        title,
+        ...(taskProject ? { projectId: taskProject } : {}),
+      });
+      try {
+        await addTaskMessages(
+          task.id,
+          picked.map((m) => m.id),
+        );
+      } catch {
+        // The task exists; its messages can be pulled in from the task itself.
+      }
+      setSelected(new Set());
+      setTaskTitle(null);
+      router.push(`/coach/task/${task.id}` as never);
+    } catch (err) {
+      setNote(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -252,31 +305,89 @@ export default function ThreadScreen() {
       {picked.length > 0 ? (
         <View
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 8,
             paddingHorizontal: 16,
             paddingVertical: 10,
             borderTopWidth: LINE,
             borderTopColor: t.line,
             backgroundColor: t.bg,
+            gap: 8,
           }}
         >
-          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.text }}>
-            {picked.length} selected
-          </Text>
-          <View style={{ flex: 1 }} />
-          <QuickButton
-            label={unticking ? "Untick" : "Tick off"}
-            primary
-            disabled={busy}
-            onPress={tick}
-          />
-          <QuickButton label="Batch" disabled={busy} onPress={batch} />
-          <Pressable onPress={() => setSelected(new Set())} accessibilityRole="button" hitSlop={8}>
-            <Text style={{ ...small, textDecorationLine: "underline" }}>Clear</Text>
-          </Pressable>
+          {taskTitle !== null ? (
+            <>
+              <TextInput
+                value={taskTitle}
+                onChangeText={setTaskTitle}
+                onSubmitEditing={() => void makeTask()}
+                autoFocus
+                placeholder="What needs doing"
+                placeholderTextColor={t.muted}
+                returnKeyType="done"
+                accessibilityLabel="Task title"
+                style={{
+                  fontFamily: FONT,
+                  fontSize: 15,
+                  color: t.text,
+                  borderWidth: LINE,
+                  borderColor: t.line,
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 9,
+                }}
+              />
+              {projects.length > 1 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {projects.map((p) => (
+                    <QuickButton
+                      key={p.id}
+                      label={p.name}
+                      chosen={taskProject === p.id}
+                      onPress={() => setTaskProject(taskProject === p.id ? null : p.id)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </>
+          ) : null}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.text }}>
+              {picked.length} selected
+            </Text>
+            <View style={{ flex: 1 }} />
+            {taskTitle !== null ? (
+              <>
+                <QuickButton
+                  label={busy ? "Adding" : "Add task"}
+                  primary
+                  disabled={busy || !taskTitle.trim()}
+                  onPress={makeTask}
+                />
+                <QuickButton label="Back" disabled={busy} onPress={() => setTaskTitle(null)} />
+              </>
+            ) : (
+              <>
+                <QuickButton
+                  label={unticking ? "Untick" : "Tick off"}
+                  primary
+                  disabled={busy}
+                  onPress={tick}
+                />
+                <QuickButton
+                  label="Task"
+                  disabled={busy}
+                  onPress={() => setTaskTitle(taskTitleFrom(picked))}
+                />
+                <QuickButton label="Batch" disabled={busy} onPress={batch} />
+                <Pressable
+                  onPress={() => setSelected(new Set())}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                >
+                  <Text style={{ ...small, textDecorationLine: "underline" }}>Clear</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
         </View>
       ) : null}
     </Page>
