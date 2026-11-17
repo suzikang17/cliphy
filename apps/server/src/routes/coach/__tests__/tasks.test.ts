@@ -294,3 +294,33 @@ describe("coach tasks", () => {
     expect((await post("/api/coach/tasks/nope/sent", {})).status).toBe(404);
   });
 });
+
+describe("GET /tasks/:id", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Tasks");
+  });
+
+  it("returns one task, in any state, with whether it is blocked", async () => {
+    db = taskDb([
+      taskRow({ id: "t1", state: "open" }),
+      taskRow({ id: "t2", state: "done", after_task_id: "t1" }),
+      taskRow({ id: "t3", state: "open", after_task_id: "t1" }),
+    ]);
+    const done = await app().request("/api/coach/tasks/t2");
+    expect(done.status).toBe(200);
+    expect(((await done.json()) as { task: CoachTask }).task).toMatchObject({
+      id: "t2",
+      state: "done",
+    });
+    const waiting = await app().request("/api/coach/tasks/t3");
+    expect(((await waiting.json()) as { task: CoachTask }).task.blocked).toBe(true);
+  });
+
+  it("answers 404 for a task that is not the user's", async () => {
+    db = taskDb([taskRow({ id: "t1" })]);
+    const res = await app().request("/api/coach/tasks/other");
+    expect(res.status).toBe(404);
+  });
+});

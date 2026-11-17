@@ -38,6 +38,15 @@ taskRoutes.get("/", async (c) => {
   return c.json({ tasks: shown });
 });
 
+// ── GET /:id — one task, whatever its state ──────────────────────────────
+
+taskRoutes.get("/:id", async (c) => {
+  const { tasks } = await loadTasks(c.get("userId"));
+  const task = tasks.find((t) => t.id === c.req.param("id"));
+  if (!task) return c.json({ error: "task not found" }, 404);
+  return c.json({ task });
+});
+
 // ── POST / — a task the user makes themselves ────────────────────────────
 
 taskRoutes.post("/", async (c) => {

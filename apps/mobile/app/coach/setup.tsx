@@ -8,9 +8,12 @@ import {
   formatPairCode,
   helperRunning,
   pairCodeComplete,
+  mcpCommand,
   setupSteps,
   type SetupStep,
 } from "../../lib/coach";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 import {
   addPerson,
   claimPairCode,
@@ -24,7 +27,9 @@ import {
   updateCoachSettings,
   updatePerson,
 } from "../../lib/coachApi";
+import { createApiKey } from "../../lib/api";
 import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications";
+
 import { useCoach } from "../../lib/coachStore";
 import { registerForPushNotifications } from "../../lib/notifications";
 import {
@@ -84,6 +89,24 @@ export default function SetupScreen() {
   const [runnerKey, setRunnerKey] = useState<string | null>(null);
   const [runnerNote, setRunnerNote] = useState<string | null>(null);
   const [makingKey, setMakingKey] = useState(false);
+
+  // A key for Claude Code (MCP), shown once inside the command that uses it.
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantKey, setAssistantKey] = useState<string | null>(null);
+  const [assistantNote, setAssistantNote] = useState<string | null>(null);
+  const [makingAssistantKey, setMakingAssistantKey] = useState(false);
+  const makeAssistantKey = async () => {
+    if (makingAssistantKey) return;
+    setMakingAssistantKey(true);
+    setAssistantNote(null);
+    try {
+      setAssistantKey((await createApiKey("Claude Code")).key);
+    } catch (err) {
+      setAssistantNote(err instanceof Error && err.message ? err.message : "Could not make a key");
+    } finally {
+      setMakingAssistantKey(false);
+    }
+  };
 
   const makeRunnerKey = async () => {
     if (makingKey) return;
@@ -436,6 +459,49 @@ export default function SetupScreen() {
               )}
             </View>
             {runnerNote ? <Body muted>{runnerNote}</Body> : null}
+          </View>
+        ) : null}
+        <Row
+          title="Claude Code"
+          detail="Let it see what's open and mark work done"
+          right={assistantOpen ? "Close" : "Open"}
+          onPress={() => setAssistantOpen((open) => !open)}
+        />
+        {assistantOpen ? (
+          <View style={{ marginBottom: 8 }}>
+            {assistantKey ? (
+              <>
+                <Text selectable style={{ ...input, fontSize: 13 }}>
+                  {mcpCommand(assistantKey, API_URL)}
+                </Text>
+                <Body muted>Shown once. Paste it into a terminal on your computer.</Body>
+              </>
+            ) : (
+              <Body>
+                A key for Claude Code on your own computer. With it, Claude can read your projects,
+                tasks and clients' messages, add tasks and mark them done.
+              </Body>
+            )}
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+              {assistantKey ? (
+                <QuickButton
+                  label="Copy"
+                  primary
+                  onPress={() => {
+                    void Clipboard.setStringAsync(mcpCommand(assistantKey, API_URL));
+                    setAssistantNote("Copied.");
+                  }}
+                />
+              ) : (
+                <QuickButton
+                  label={makingAssistantKey ? "Making" : "Make key"}
+                  primary
+                  disabled={makingAssistantKey}
+                  onPress={makeAssistantKey}
+                />
+              )}
+            </View>
+            {assistantNote ? <Body muted>{assistantNote}</Body> : null}
           </View>
         ) : null}
 

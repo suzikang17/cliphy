@@ -53,3 +53,10 @@ phase: Growth
 
 - `runtimeVersion` is `fingerprint`: check `npx @expo/fingerprint fingerprint:generate` before and after touching `apps/mobile/package.json`. Adding `react-dom` / `react-native-web` left it unchanged.
 - gstack `/browse` is not installed on the devbox; Playwright's Chromium is, but needs libraries and fonts unpacked into a scratch folder (`apt-get download` + `dpkg-deb -x`, `LD_LIBRARY_PATH`, `FONTCONFIG_FILE`).
+
+## Later: the coach over MCP
+
+- `POST /api/mcp` (ADR 0065): eight tools for an outside assistant, each a thin wrapper over the coach's own routes. Added `GET /api/coach/tasks/:id`. Setup on the phone has a "Claude Code" row that makes a key and shows the command.
+- Tests written first: 16 for the tools (in-memory client), 6 for the endpoint, one of them the SDK's real HTTP client driven straight into the app; 2 for the single-task route; 2 for the command line.
+- The second Mac CI run (`28174b4`) shows Chat and a project page drawn correctly inside the real app on macOS, on made-up data. Headings are not bold there (they are in Chromium on Linux): to look at.
+- Not checked: the endpoint with a real key against production (keys can only be made from the phone), and Claude Code itself connecting.

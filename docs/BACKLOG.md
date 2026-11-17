@@ -58,4 +58,6 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Coach: add a task by hand from Up next or Chat's plus, not only from a project page.
 - [ ] Mac window: Library, camera/photo attach and reminders have no desktop form yet; "Setup" in Chat still shows the phone's setup.
 - [ ] Mac window: screen changes need a Mac app rebuild. Consider loading a hosted web build, or auto-update, once it is used daily.
-- [ ] MCP server for the coach (list projects/tasks/requests, add a task, mark done, read a batch) so Claude Code, Claude and ChatGPT can work from it; auth with the existing `cliphy_sk_` keys.
+- [ ] MCP: a key that can only call `/api/mcp` (needs the `scope` column from migration 045, then a new allowed value).
+- [ ] MCP: OAuth so Claude on the web and ChatGPT can connect (today: Claude Code with a header).
+- [ ] MCP: more tools as needed (answer a request's question, pull a message into a task, start a batch).

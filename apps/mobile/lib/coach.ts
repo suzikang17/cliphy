@@ -362,3 +362,9 @@ export function desktopSection(pathname: string): DesktopSection | null {
   }
   return null;
 }
+
+/** The line to paste into a terminal so Claude Code can read and add work in Cliphy. */
+export function mcpCommand(key: string, apiUrl: string): string {
+  const url = `${apiUrl.replace(/\/+$/, "")}/api/mcp`;
+  return `claude mcp add --transport http --scope user cliphy ${url} --header "Authorization: Bearer ${key}"`;
+}

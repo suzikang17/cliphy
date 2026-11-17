@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@cliphy/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@mozilla/readability": "^0.6.0",
     "@sentry/node": "^10.42.0",
     "@supabase/supabase-js": "^2.47.0",
@@ -25,7 +26,8 @@
     "inngest": "^4.4.0",
     "linkedom": "^0.18.13",
     "sharp": "^0.35.4",
-    "stripe": "^20.4.0"
+    "stripe": "^20.4.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

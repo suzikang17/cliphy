@@ -447,6 +447,16 @@ A reference of all external services, APIs, and third-party integrations used ac
 
 Inngest only runs the jobs it was last told about. `.github/workflows/inngest-sync.yml` re-registers the job list after every production deploy; by hand it is `curl -X PUT https://api.cliphy.app/api/inngest` (`"modified": true` in the answer means the list had changed).
 
+### MCP
+
+`POST /api/mcp` lets an outside assistant work from the coach (ADR 0065). Connect Claude Code with the line Setup → Claude Code shows on the phone:
+
+```sh
+claude mcp add --transport http --scope user cliphy https://api.cliphy.app/api/mcp --header "Authorization: Bearer cliphy_sk_..."
+```
+
+Tools live in `apps/server/src/services/coach/mcp.ts`; each calls the coach's own routes with the caller's key.
+
 ##### Extension (`apps/extension`)
 
 - `VITE_SUPABASE_URL` — Supabase project URL (public)

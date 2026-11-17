@@ -15,6 +15,7 @@ import {
   processPlaylistDiscovery,
   processSubscriptionPoll,
 } from "./functions/poll-subscriptions.js";
+import { mcpRoutes } from "./routes/mcp.js";
 import { authRoutes } from "./routes/auth.js";
 import { authGoogleRoutes } from "./routes/auth-google.js";
 import { subscriptionRoutes } from "./routes/subscriptions.js";
@@ -136,6 +137,7 @@ app.route("/podcasts", podcastRoutes);
 app.route("/tabs", tabsRoutes);
 app.route("/trail", trailRoutes);
 app.route("/coach", coachRoutes);
+app.route("/mcp", mcpRoutes);
 app.route("/pair", pairRoutes);
 
 app.onError(async (err, c) => {

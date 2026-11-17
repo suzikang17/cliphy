@@ -23,7 +23,7 @@ import {
   MIRROR_DELAY_MS,
 } from "../coach";
 import type { CoachBatch, CoachRun } from "@cliphy/shared";
-import { batchLine, desktopSection, messageLine, projectRows } from "../coach";
+import { batchLine, desktopSection, mcpCommand, messageLine, projectRows } from "../coach";
 import type { Project } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
@@ -516,5 +516,25 @@ describe("desktopSection", () => {
     expect(desktopSection("/coach/task/abc")).toBeNull();
     expect(desktopSection("/coach/request/abc")).toBeNull();
     expect(desktopSection("/")).toBeNull();
+  });
+});
+
+describe("mcpCommand", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("MCP");
+  });
+
+  it("is the one line to paste into a terminal to connect Claude Code", () => {
+    expect(mcpCommand("cliphy_sk_abc", "https://api.cliphy.app")).toBe(
+      'claude mcp add --transport http --scope user cliphy https://api.cliphy.app/api/mcp --header "Authorization: Bearer cliphy_sk_abc"',
+    );
+  });
+
+  it("copes with a trailing slash on the address", () => {
+    expect(mcpCommand("k", "https://api.cliphy.app/")).toContain(
+      " https://api.cliphy.app/api/mcp ",
+    );
   });
 });
