@@ -445,6 +445,8 @@ A reference of all external services, APIs, and third-party integrations used ac
 - `PROXY_URL` — Optional HTTP proxy URL
 - `INNGEST_SERVE_HOST` — Inngest webhook endpoint (default: `https://cliphy.vercel.app`)
 
+Inngest only runs the jobs it was last told about. `.github/workflows/inngest-sync.yml` re-registers the job list after every production deploy; by hand it is `curl -X PUT https://api.cliphy.app/api/inngest` (`"modified": true` in the answer means the list had changed).
+
 ##### Extension (`apps/extension`)
 
 - `VITE_SUPABASE_URL` — Supabase project URL (public)

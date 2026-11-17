@@ -1,0 +1,24 @@
+name: Inngest Sync
+
+# Inngest only runs the jobs it was last told about. Nothing told it after a
+# deploy, so jobs added since the last manual sync never ran (the coach jobs
+# sat unregistered 2026-11-14 to 2026-11-17). This asks the live server to
+# re-register its job list after every production deploy.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Re-register jobs
+        run: |
+          curl -sS --fail-with-body -m 60 --retry 3 --retry-delay 10 \
+            -X PUT https://api.cliphy.app/api/inngest
