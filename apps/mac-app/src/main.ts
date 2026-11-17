@@ -352,7 +352,8 @@ if (!app.requestSingleInstanceLock()) {
       webDir: path.join(__dirname, "..", "web"),
       apiUrl: API_URL,
       // Read each time: connecting or disconnecting takes effect at once.
-      apiKey: () => loadConfig(DIR)?.apiKey ?? null,
+      // The pictures for CI are drawn unpaired, on made-up data.
+      apiKey: () => (SMOKE_OUT ? "smoke" : (loadConfig(DIR)?.apiKey ?? null)),
       fetch: SMOKE_OUT ? fakeApi : (request) => fetch(request),
     });
     protocol.handle("app", (request) => serve(request));
