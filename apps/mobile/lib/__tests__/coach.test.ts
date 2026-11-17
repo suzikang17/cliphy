@@ -41,6 +41,7 @@ import {
   shiftTime,
   timeLabel,
   workLine,
+  messageParts,
 } from "../coach";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
@@ -750,5 +751,52 @@ describe("working hours", () => {
     expect(workLine([0, 1, 2, 3, 4, 5, 6], "08:00", "12:00")).toBe("Every day, 8:00 AM – 12:00 PM");
     expect(workLine([1, 3, 5], "09:00", "17:00")).toBe("Mon, Wed, Fri, 9:00 AM – 5:00 PM");
     expect(workLine([6, 0], "10:00", "14:00")).toBe("Sat, Sun, 10:00 AM – 2:00 PM");
+  });
+});
+
+describe("messageParts", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Thread");
+  });
+
+  const pic = (name: string, at?: number) => ({
+    storagePath: name,
+    mediaType: "image/png",
+    ...(at === undefined ? {} : { at }),
+  });
+  const shape = (parts: ReturnType<typeof messageParts>) =>
+    parts.map((p) => (p.kind === "text" ? p.text : p.pictures.map((x) => x.storagePath)));
+
+  it("puts each picture after the words it was sent with", () => {
+    const text = "Use one of these: and under Details: Thanks";
+    expect(shape(messageParts(text, [pic("a", 17), pic("b", 17), pic("c", 36)]))).toEqual([
+      "Use one of these:",
+      ["a", "b"],
+      "and under Details:",
+      ["c"],
+      "Thanks",
+    ]);
+  });
+
+  it("keeps pictures at the end when their places are not known", () => {
+    expect(shape(messageParts("Hi there", [pic("a"), pic("b")]))).toEqual(["Hi there", ["a", "b"]]);
+  });
+
+  it("puts pictures with no place after the ones that have one", () => {
+    expect(shape(messageParts("one two", [pic("x"), pic("a", 3)]))).toEqual([
+      "one",
+      ["a"],
+      "two",
+      ["x"],
+    ]);
+  });
+
+  it("handles pictures first, pictures only, words only, and a place past the end", () => {
+    expect(shape(messageParts("look at this", [pic("a", 0)]))).toEqual([["a"], "look at this"]);
+    expect(shape(messageParts("", [pic("a", 0)]))).toEqual([["a"]]);
+    expect(shape(messageParts("just words", []))).toEqual(["just words"]);
+    expect(shape(messageParts("short", [pic("a", 99)]))).toEqual(["short", ["a"]]);
   });
 });

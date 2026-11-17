@@ -1,4 +1,5 @@
 import type {
+  Attachment,
   CoachBatch,
   CoachChatMessage,
   CoachHealth,
@@ -524,4 +525,39 @@ export function workLine(days: number[], start: string, end: string): string {
     .join(", ");
   const when = sorted.length === 7 ? "Every day" : weekdays ? "Mon–Fri" : names;
   return `${when}, ${timeLabel(start)} – ${timeLabel(end)}`;
+}
+
+export type MessagePart =
+  | { kind: "text"; text: string }
+  | { kind: "pictures"; pictures: Attachment[] };
+
+/**
+ * A message as it was sent: words and pictures in order. A picture with a
+ * known place (`at`) goes after the words before that place; pictures with no
+ * known place go at the end, as they always did.
+ */
+export function messageParts(text: string, attachments: Attachment[]): MessagePart[] {
+  const parts: MessagePart[] = [];
+  const words = (chunk: string) => {
+    if (chunk.trim()) parts.push({ kind: "text", text: chunk.trim() });
+  };
+  const pictures = (items: Attachment[]) => {
+    const last = parts[parts.length - 1];
+    if (last?.kind === "pictures") last.pictures.push(...items);
+    else if (items.length > 0) parts.push({ kind: "pictures", pictures: [...items] });
+  };
+
+  const placed = attachments
+    .filter((a) => a.at !== undefined)
+    .sort((a, b) => (a.at as number) - (b.at as number));
+  let from = 0;
+  for (const picture of placed) {
+    const at = Math.min(text.length, Math.max(from, picture.at as number));
+    words(text.slice(from, at));
+    pictures([picture]);
+    from = at;
+  }
+  words(text.slice(from));
+  pictures(attachments.filter((a) => a.at === undefined));
+  return parts;
 }

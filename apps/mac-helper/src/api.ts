@@ -46,6 +46,9 @@ export function createApi(config: HelperConfig): SyncDeps["api"] {
         messages: body.messages,
       });
     },
+    layout: async (body) => {
+      await call("POST", "/intake/layout", body);
+    },
     heartbeat: async () => {
       await call("POST", "/intake/heartbeat", {});
     },

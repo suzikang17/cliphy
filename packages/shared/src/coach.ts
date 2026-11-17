@@ -55,6 +55,8 @@ export interface Attachment {
   mediaType: string;
   url?: string;
   clipId?: string;
+  /** Where in the message's text the picture sat, in characters from the start. Absent when not known. */
+  at?: number;
 }
 
 export interface InboundMessage {

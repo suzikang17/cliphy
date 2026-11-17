@@ -53,10 +53,12 @@ function world(
   const reads: ReadOptions[] = [];
   const uploads: string[] = [];
   const logs: string[] = [];
-  const fail: { post: boolean; put: false | "network" | 413; people: boolean } = {
+  const layouts: { personId: string; items: { externalId: string; at: number[] }[] }[] = [];
+  const fail: { post: boolean; put: false | "network" | 413; people: boolean; layout: boolean } = {
     post: false,
     put: false,
     people: false,
+    layout: false,
   };
   let saves = 0;
   let heartbeats = 0;
@@ -82,6 +84,10 @@ function world(
       },
       heartbeat: async () => {
         heartbeats++;
+      },
+      layout: async (body) => {
+        if (fail.layout) throw new Error("server down");
+        layouts.push(body);
       },
     },
     messages: {
@@ -118,6 +124,7 @@ function world(
   return {
     deps,
     posted,
+    layouts,
     reads,
     uploads,
     logs,
@@ -597,5 +604,63 @@ describe("changing how far back to read, for someone already captured", () => {
     const w = world({ rows: thread, state: before });
     await syncOnce(w.deps);
     expect(w.posted).toEqual([]);
+  });
+});
+
+describe("where pictures sit in a message", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Mac helper");
+  });
+
+  const placed = (rowId: number) =>
+    row(rowId, {
+      text: "Use this one: and this for Details:",
+      attachments: [image("/a.png", { at: 13 }), image("/b.png", { at: 35 })],
+    });
+
+  it("sends each picture's place along with a new message", async () => {
+    const w = world({ rows: [placed(5)], state: connected(4) });
+    await syncOnce(w.deps);
+    expect(w.posted[0].messages[0].attachments.map((a) => a.at)).toEqual([13, 35]);
+  });
+
+  it("reports the places once for messages uploaded before places were kept", async () => {
+    const w = world({ rows: [row(1), placed(2), placed(3)], state: connected(3) });
+    await syncOnce(w.deps);
+    expect(w.posted).toEqual([]);
+    expect(w.uploads).toEqual([]);
+    expect(w.layouts).toEqual([
+      {
+        personId: "p1",
+        items: [
+          { externalId: "g-2", at: [13, 35] },
+          { externalId: "g-3", at: [13, 35] },
+        ],
+      },
+    ]);
+
+    const again = world({ rows: [row(1), placed(2), placed(3)], state: w.state });
+    await syncOnce(again.deps);
+    expect(again.layouts).toEqual([]);
+  });
+
+  it("leaves out pictures that were never uploaded, and tries again if the server is unreachable", async () => {
+    const mixed = row(2, {
+      text: "one two",
+      attachments: [
+        image("/a.png", { at: 3 }),
+        image("/clip.mov", { at: 3, mimeType: "video/quicktime" }),
+        image("/b.png", { at: 7 }),
+      ],
+    });
+    const w = world({ rows: [mixed], state: connected(2) });
+    w.fail.layout = true;
+    await syncOnce(w.deps);
+    expect(w.layouts).toEqual([]);
+    w.fail.layout = false;
+    await syncOnce(w.deps);
+    expect(w.layouts[0].items).toEqual([{ externalId: "g-2", at: [3, 7] }]);
   });
 });

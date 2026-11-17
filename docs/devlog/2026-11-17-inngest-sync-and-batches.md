@@ -91,3 +91,14 @@ phase: Growth
 
 - Reads working and writes failing on the same site means an Origin rule, not auth.
 - A local stand-in for the API hides every rule the real one has. Check one signed-in write against production, or ask the owner to, before calling a web surface done.
+
+## Later: Mac history choice, Settings, pictures where they were sent
+
+- **Mac app** (`19e2a9a`): each captured person in the People list has a "how far back" choice beside their switch. The owner asked why a setting only the Mac acts on could not be set there.
+- **Settings** (`3ec27ef`): Setup is now Settings, in the nav, grouped into widgets (next step, People, Getting requests in, Working hours, Connected tools, Learned). Working hours are a switch, two presets, day chips and half-hour steppers that save by themselves (`components/coach/WorkHours.tsx`); typing "09:00" is gone. Key rows are hidden in the Mac window, which cannot make keys.
+- **Pictures in place:** Messages marks where a picture sits inside a text with U+FFFC and the helper was stripping the marks, so every picture landed after the whole text. The helper now keeps each place (`placePictures`, `Attachment.at`), sends it with new messages, and reports places once for messages already stored (`POST /coach/intake/layout`, no re-upload). `messageParts` lays a message out as words and pictures in order; `MessageRow` draws it. Places are only trusted when there is one mark per attachment. Needs the Mac app restarted from current `main`.
+- The thread and Settings were seen with the owner's real data on cliphy.app (her screenshots); the picture layout only on made-up data.
+
+**What to remember**
+
+- `pkill -f name` from a longer command line kills the shell running it, and a stale preview server then keeps serving old code on the port. Use a bracketed pattern: `pkill -f "dist/previe[w]"`.

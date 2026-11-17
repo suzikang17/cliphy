@@ -1,6 +1,6 @@
 import { Image, Pressable, Text, View } from "react-native";
 import type { InboundMessage } from "@cliphy/shared";
-import { shortDay } from "../../lib/coach";
+import { messageParts, shortDay } from "../../lib/coach";
 import { ACCENT, FONT, LINE, useCoachTheme } from "./ui";
 
 /** A square tick box. `crossed` is the "not done" state. */
@@ -64,38 +64,43 @@ export function MessageRow({
           {who}
           {shortDay(message.sentAt)}
         </Text>
-        {message.text.trim() ? (
-          <Text
-            style={{
-              fontFamily: FONT,
-              fontSize: compact ? 13 : 15,
-              lineHeight: compact ? 18 : 21,
-              color: compact ? t.muted : t.text,
-              marginTop: 1,
-            }}
-          >
-            {message.text.trim()}
-          </Text>
-        ) : null}
-        {pictures.length > 0 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-            {pictures.map((a) => (
-              <Image
-                key={a.storagePath}
-                source={{ uri: a.url as string }}
-                accessibilityLabel="Picture she sent"
-                style={{
-                  width: compact ? 64 : 84,
-                  height: compact ? 64 : 84,
-                  borderRadius: 6,
-                  borderWidth: LINE,
-                  borderColor: t.line,
-                  backgroundColor: t.hairline,
-                }}
-              />
-            ))}
-          </View>
-        ) : null}
+        {messageParts(message.text, pictures).map((part, index) =>
+          part.kind === "text" ? (
+            <Text
+              key={index}
+              style={{
+                fontFamily: FONT,
+                fontSize: compact ? 13 : 15,
+                lineHeight: compact ? 18 : 21,
+                color: compact ? t.muted : t.text,
+                marginTop: index === 0 ? 1 : 6,
+              }}
+            >
+              {part.text}
+            </Text>
+          ) : (
+            <View
+              key={index}
+              style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}
+            >
+              {part.pictures.map((a) => (
+                <Image
+                  key={a.storagePath}
+                  source={{ uri: a.url as string }}
+                  accessibilityLabel="Picture she sent"
+                  style={{
+                    width: compact ? 64 : 84,
+                    height: compact ? 64 : 84,
+                    borderRadius: 6,
+                    borderWidth: LINE,
+                    borderColor: t.line,
+                    backgroundColor: t.hairline,
+                  }}
+                />
+              ))}
+            </View>
+          ),
+        )}
       </View>
     </Pressable>
   );

@@ -45,6 +45,8 @@ export interface HelperState {
   handles: Record<string, string>;
   /** How far back each person was last read ("all", "window:90", "new"). If it changes, they are read again. */
   history: Record<string, string>;
+  /** People whose already-uploaded pictures have had their places in the text reported. */
+  layout: Record<string, boolean>;
   /** When the last complete cycle finished. Tells missed messages from re-synced old ones. */
   lastSyncAt: string | null;
   /** Attachments already uploaded for a batch the server has not yet accepted. */
@@ -59,6 +61,7 @@ export const emptyState = (): HelperState => ({
   backfill: {},
   handles: {},
   history: {},
+  layout: {},
   lastSyncAt: null,
   uploaded: {},
   attachmentTries: {},
@@ -76,6 +79,11 @@ export interface SyncDeps {
       messages: IntakeMessage[];
     }): Promise<void>;
     heartbeat(): Promise<void>;
+    /** Where pictures sit in messages the server already has. */
+    layout(body: {
+      personId: string;
+      items: { externalId: string; at: number[] }[];
+    }): Promise<void>;
   };
   messages: {
     read(opts: ReadOptions): ThreadMessage[];
@@ -107,6 +115,7 @@ function forget(state: HelperState, personId: string): void {
   delete state.backfill[personId];
   delete state.handles[personId];
   delete state.history[personId];
+  delete state.layout[personId];
 }
 
 /**
@@ -141,6 +150,7 @@ export async function syncOnce(deps: SyncDeps): Promise<SyncResult> {
     ...Object.keys(state.backfill),
     ...Object.keys(state.handles),
     ...Object.keys(state.history),
+    ...Object.keys(state.layout),
   ])) {
     if (!captured.has(id)) forget(state, id);
   }
@@ -198,6 +208,14 @@ async function syncPerson(
   if (state.history[id] !== choice) {
     state.history[id] = choice;
     deps.save();
+  }
+
+  // Someone new: everything uploaded from here on carries its pictures' places.
+  if (!state.connected[id] && !state.backfill[id]) state.layout[id] = true;
+  // Someone captured before places were kept: report them once, without
+  // uploading anything again.
+  if (state.connected[id] && !state.backfill[id] && !state.layout[id]) {
+    await reportLayout(deps, person);
   }
 
   // First time: follow the person's history choice.
@@ -278,6 +296,44 @@ async function syncPerson(
 }
 
 /**
+ * Tell the server where the pictures sit in messages it already holds. Only
+ * the places are sent. A failure leaves the person unmarked, so the next
+ * cycle tries again.
+ */
+async function reportLayout(deps: SyncDeps, person: CapturedPerson): Promise<void> {
+  const { state } = deps;
+  const upto = state.cursors[person.id] ?? 0;
+  try {
+    let after = 0;
+    while (after < upto) {
+      const rows = deps.messages.read({
+        handles: person.handles,
+        afterRowId: after,
+        uptoRowId: upto,
+        sinceIso: null,
+        limit: BATCH_SIZE,
+      });
+      if (rows.length === 0) break;
+      after = rows[rows.length - 1].rowId;
+      const items = rows
+        .map((row) => ({
+          externalId: row.guid,
+          // The pictures that were uploaded: images with a file behind them.
+          at: row.attachments
+            .filter((a) => a.path && a.mimeType?.startsWith("image/") && a.at !== undefined)
+            .map((a) => a.at as number),
+        }))
+        .filter((item) => item.at.length > 0);
+      if (items.length > 0) await deps.api.layout({ personId: person.id, items });
+    }
+    state.layout[person.id] = true;
+    deps.save();
+  } catch (err) {
+    deps.log(`Could not report where pictures sit: ${String(err)}`);
+  }
+}
+
+/**
  * Upload a message's image attachments.
  *
  * A missing or non-image attachment is skipped. One the server refuses
@@ -310,7 +366,11 @@ async function uploadAttachments(
     try {
       const { path, signedUrl } = await deps.api.uploadUrl(prepared.mediaType);
       await deps.api.put(signedUrl, prepared.bytes, prepared.mediaType);
-      state.uploaded[key] = { storagePath: path, mediaType: prepared.mediaType };
+      state.uploaded[key] = {
+        storagePath: path,
+        mediaType: prepared.mediaType,
+        ...(attachment.at === undefined ? {} : { at: attachment.at }),
+      };
       uploaded.push(state.uploaded[key]);
     } catch (err) {
       const refused =

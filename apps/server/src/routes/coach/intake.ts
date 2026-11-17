@@ -20,6 +20,10 @@ const EXTENSIONS: Record<string, string> = {
 
 // ── POST /upload-url — where the capturer puts an attachment's bytes ─────
 
+/** A place in a text: a whole number of characters from its start. */
+const isPlace = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
 intakeRoutes.post("/upload-url", async (c) => {
   const userId = c.get("userId");
   const { mediaType } = await c.req.json<{ mediaType?: string }>();
@@ -51,7 +55,7 @@ interface IncomingMessage {
   direction: Direction;
   text: string;
   sentAt: string;
-  attachments: { storagePath: string; mediaType: string }[];
+  attachments: { storagePath: string; mediaType: string; at?: number }[];
 }
 
 /** Validate and normalise the batch. Returns an error message, or the messages in time order. */
@@ -81,7 +85,12 @@ function parseMessages(raw: unknown, userId: string): string | IncomingMessage[]
       if (typeof a.mediaType !== "string" || !(a.mediaType in EXTENSIONS)) {
         return "unsupported attachment type";
       }
-      attachments.push({ storagePath: a.storagePath, mediaType: a.mediaType });
+      attachments.push({
+        storagePath: a.storagePath,
+        mediaType: a.mediaType,
+        // Where in the text the picture sat. Anything but a whole number from zero up is dropped.
+        ...(isPlace(a.at) ? { at: a.at } : {}),
+      });
     }
 
     out.push({
@@ -94,6 +103,69 @@ function parseMessages(raw: unknown, userId: string): string | IncomingMessage[]
   }
   return out.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
 }
+
+// ── POST /layout — where pictures sit in messages already stored ─────────
+// Messages uploaded before places were kept have none. The capturer sends
+// them once: per message, one place per stored picture, in order.
+
+const MAX_LAYOUT_ITEMS = 500;
+
+intakeRoutes.post("/layout", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req
+    .json<{ personId?: unknown; items?: unknown }>()
+    .catch(() => ({}) as { personId?: unknown; items?: unknown });
+  if (typeof body.personId !== "string") return c.json({ error: "personId is required" }, 400);
+  if (!Array.isArray(body.items) || body.items.length > MAX_LAYOUT_ITEMS) {
+    return c.json({ error: "items must be a list" }, 400);
+  }
+  const places = new Map<string, number[]>();
+  for (const item of body.items as Record<string, unknown>[]) {
+    if (
+      typeof item?.externalId !== "string" ||
+      !Array.isArray(item.at) ||
+      !item.at.every(isPlace)
+    ) {
+      return c.json({ error: "each item needs an externalId and a list of places" }, 400);
+    }
+    places.set(item.externalId, item.at as number[]);
+  }
+
+  const { data: person } = await supabase
+    .from("coach_people")
+    .select("id")
+    .eq("id", body.personId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!person) return c.json({ error: "person not found" }, 404);
+  if (places.size === 0) return c.json({ updated: 0 });
+
+  const { data } = await supabase
+    .from("coach_messages")
+    .select("id, external_id, attachments")
+    .eq("user_id", userId)
+    .eq("person_id", body.personId)
+    .in("external_id", [...places.keys()]);
+
+  let updated = 0;
+  for (const row of (data as {
+    id: string;
+    external_id: string;
+    attachments: Record<string, unknown>[] | null;
+  }[]) ?? []) {
+    const at = places.get(row.external_id);
+    const pictures = row.attachments ?? [];
+    // Only when the pictures line up one for one; a guess would misplace them.
+    if (!at || at.length !== pictures.length || pictures.length === 0) continue;
+    const { error } = await supabase
+      .from("coach_messages")
+      .update({ attachments: pictures.map((picture, i) => ({ ...picture, at: at[i] })) })
+      .eq("id", row.id)
+      .eq("user_id", userId);
+    if (!error) updated++;
+  }
+  return c.json({ updated });
+});
 
 intakeRoutes.post("/messages", async (c) => {
   const userId = c.get("userId");

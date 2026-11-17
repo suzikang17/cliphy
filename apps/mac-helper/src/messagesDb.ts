@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import path from "node:path";
 import { appleTimeToIso, mimeFor, textFromAttributedBody } from "./convert.js";
-import type { ThreadMessage } from "./plan.js";
+import { placePictures, type ThreadMessage } from "./plan.js";
 
 // Reading the Messages history. The database is opened read-only and is never
 // written to. Needs Full Disk Access for the program that runs this.
@@ -115,15 +115,20 @@ export function readThread(db: MessagesDb, opts: ReadOptions): ThreadMessage[] {
       uti: string | null;
       transferState: bigint | number | null;
     }[];
+    // Newer macOS leaves `text` empty and keeps the words in `attributedBody`.
+    // Messages marks where an image sits with U+FFFC; that is not something
+    // anyone wrote, but where it stood says which words a picture goes with.
+    const placed = placePictures(r.text || textFromAttributedBody(r.body));
+    // Only trusted when there is one mark per attachment, in the same order.
+    const marked = placed.at.length === files.length && placed.text.length > 0;
     return {
       rowId,
       guid: r.guid,
-      // Newer macOS leaves `text` empty and keeps the words in `attributedBody`.
-      // Messages marks where an image sits with U+FFFC; that is not something anyone wrote.
-      text: (r.text || textFromAttributedBody(r.body)).replace(/\uFFFC/g, "").trim(),
+      text: placed.text,
       sentAtIso: appleTimeToIso(r.date),
       isFromMe: Number(r.fromMe) === 1,
-      attachments: files.map((f) => ({
+      attachments: files.map((f, i) => ({
+        ...(marked ? { at: placed.at[i] } : {}),
         // Messages writes paths as "~/Library/…". No filename means it is not on disk (yet).
         path: f.filename ? f.filename.replace(/^~(?=\/)/, homedir()) : null,
         mimeType: mimeFor(f.mimeType, f.uti, f.filename),

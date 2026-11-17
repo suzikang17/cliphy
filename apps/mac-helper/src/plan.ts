@@ -27,12 +27,33 @@ export interface ThreadMessage {
     mimeType: string | null;
     /** False while Messages is still downloading it. */
     ready: boolean;
+    /** Where in the text it sat, when Messages marked a place for every attachment. */
+    at?: number;
   }[];
 }
 
 export interface UploadedAttachment {
   storagePath: string;
   mediaType: string;
+  /** Where in the message's text the picture sat, counted in characters. */
+  at?: number;
+}
+
+/**
+ * Take Messages' picture marks (U+FFFC) out of a text and say where each one
+ * stood, counted in characters of the trimmed text that is left.
+ */
+export function placePictures(raw: string): { text: string; at: number[] } {
+  const clean = raw.replace(/\uFFFC/g, "");
+  const text = clean.trim();
+  const lead = clean.length - clean.trimStart().length;
+  const at: number[] = [];
+  let written = 0;
+  for (const char of raw) {
+    if (char === "\uFFFC") at.push(Math.min(text.length, Math.max(0, written - lead)));
+    else written += char.length;
+  }
+  return { text, at };
 }
 
 /** The shape `POST /coach/intake/messages` takes for one message. */

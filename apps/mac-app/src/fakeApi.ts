@@ -204,7 +204,30 @@ const text = (
   sentAt: day(offset),
 });
 
+/** A flat square of colour standing in for a photo, placed `at` characters into the text. */
+const swatch = (name: string, colour: string, at: number) => ({
+  storagePath: `coach/preview/${name}.svg`,
+  mediaType: "image/png",
+  at,
+  url: `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84"><rect width="84" height="84" fill="${colour}"/></svg>`,
+  )}`,
+});
+
 const texts: InboundMessage[] = [
+  {
+    ...text(
+      "message-7",
+      "in",
+      "Could one of these be the front picture: and under Details use this one: Thanks",
+      -0.1,
+    ),
+    attachments: [
+      swatch("a", "#c9b79c", 40),
+      swatch("b", "#8a9a86", 40),
+      swatch("c", "#5d5a6e", 72),
+    ],
+  },
   text("message-6", "in", "And the footer still says 2025", -0.2),
   text("message-5", "in", "Also can the hero photo be the one from the porch shoot", -0.4),
   text("message-4", "out", "Sconces are moved. Have a look when you can", -0.6),

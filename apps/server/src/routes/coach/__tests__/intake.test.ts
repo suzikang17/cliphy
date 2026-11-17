@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
 import { Hono } from "hono";
-import { makeDb, passAuth, passCoach, json, type FakeDb, type Op } from "./helpers.js";
+import { makeDb, eqValue, passAuth, passCoach, json, type FakeDb, type Op } from "./helpers.js";
 
 let db: FakeDb;
 const createSignedUploadUrl = vi.fn();
@@ -319,5 +319,125 @@ describe("coach intake", () => {
     const res = await post("/api/coach/intake/upload-url", { mediaType: "application/pdf" });
     expect(res.status).toBe(400);
     expect(createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("where pictures sit in a message", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Intake");
+    inngestSend.mockReset();
+  });
+
+  it("keeps a picture's place in the text when a message is stored", async () => {
+    db = intakeDb();
+    await post("/api/coach/intake/messages", {
+      ...batch,
+      messages: [
+        {
+          externalId: "m1",
+          direction: "in",
+          text: "Use this one: thanks",
+          sentAt: "2026-11-14T09:42:00Z",
+          attachments: [
+            { storagePath: "coach/test-user-id/a.png", mediaType: "image/png", at: 13 },
+            { storagePath: "coach/test-user-id/b.png", mediaType: "image/png", at: -4 },
+            { storagePath: "coach/test-user-id/c.png", mediaType: "image/png", at: "3" },
+          ],
+        },
+      ],
+    });
+    const stored = db.written("coach_messages", "upsert") as { attachments: unknown[] }[];
+    expect(stored[0].attachments).toEqual([
+      { storagePath: "coach/test-user-id/a.png", mediaType: "image/png", at: 13 },
+      // A place that is not a whole number from zero up is dropped, not stored.
+      { storagePath: "coach/test-user-id/b.png", mediaType: "image/png" },
+      { storagePath: "coach/test-user-id/c.png", mediaType: "image/png" },
+    ]);
+  });
+
+  const stored = (external_id: string, count: number) => ({
+    id: `row-${external_id}`,
+    external_id,
+    attachments: Array.from({ length: count }, (_, i) => ({
+      storagePath: `coach/test-user-id/${external_id}-${i}.png`,
+      mediaType: "image/png",
+    })),
+  });
+  const layoutDb = (rows: unknown[], person = true) =>
+    makeDb((op: Op) => {
+      if (op.table === "coach_people") return { data: person ? { id: "p1" } : null };
+      if (op.table === "coach_messages" && op.action === "select") return { data: rows };
+      return undefined;
+    });
+
+  it("adds places to messages already stored, matching pictures in order", async () => {
+    db = layoutDb([stored("g1", 2), stored("g2", 1)]);
+    const res = await post("/api/coach/intake/layout", {
+      personId: "p1",
+      items: [
+        { externalId: "g1", at: [13, 35] },
+        { externalId: "g2", at: [0] },
+        { externalId: "unknown", at: [1] },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ updated: 2 });
+    const writes = db.ops.filter((o) => o.table === "coach_messages" && o.action === "update");
+    expect(writes.map((w) => [eqValue(w, "id"), w.payload])).toEqual([
+      [
+        "row-g1",
+        {
+          attachments: [
+            { storagePath: "coach/test-user-id/g1-0.png", mediaType: "image/png", at: 13 },
+            { storagePath: "coach/test-user-id/g1-1.png", mediaType: "image/png", at: 35 },
+          ],
+        },
+      ],
+      [
+        "row-g2",
+        {
+          attachments: [
+            { storagePath: "coach/test-user-id/g2-0.png", mediaType: "image/png", at: 0 },
+          ],
+        },
+      ],
+    ]);
+    expect(writes.every((w) => eqValue(w, "user_id") === "test-user-id")).toBe(true);
+  });
+
+  it("leaves a message alone when its pictures do not line up one for one", async () => {
+    db = layoutDb([stored("g1", 3)]);
+    const res = await post("/api/coach/intake/layout", {
+      personId: "p1",
+      items: [{ externalId: "g1", at: [13, 35] }],
+    });
+    expect(await res.json()).toEqual({ updated: 0 });
+    expect(db.written("coach_messages")).toEqual([]);
+  });
+
+  it("refuses a malformed list and someone else's person", async () => {
+    db = layoutDb([]);
+    expect((await post("/api/coach/intake/layout", { personId: "p1", items: "x" })).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await post("/api/coach/intake/layout", {
+          personId: "p1",
+          items: [{ externalId: "g1", at: [1.5] }],
+        })
+      ).status,
+    ).toBe(400);
+    db = layoutDb([], false);
+    expect(
+      (
+        await post("/api/coach/intake/layout", {
+          personId: "p1",
+          items: [{ externalId: "g1", at: [1] }],
+        })
+      ).status,
+    ).toBe(404);
   });
 });
