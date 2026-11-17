@@ -11,6 +11,7 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.surface } }}
     >
       <Tabs.Screen name="index" options={{ title: "Library" }} />
+      <Tabs.Screen name="projects" options={{ title: "Projects" }} />
       <Tabs.Screen name="chat" options={{ title: "Chat" }} />
       {/* Still routable, no longer tabs: reached from Library and the avatar. */}
       <Tabs.Screen name="subscriptions" options={{ href: null }} />

@@ -39,14 +39,19 @@ export function hardShadow(line: string, offset = 2): ViewStyle {
   };
 }
 
-/** A pushed page: back arrow, title, one optional line under it. */
+/**
+ * A page: back arrow, title, one optional line under it.
+ * `root` is for a tab, which has nowhere to go back to.
+ */
 export function Page({
   title,
   sub,
+  root,
   children,
 }: {
   title: string;
   sub?: string;
+  root?: boolean;
   children: ReactNode;
 }) {
   const t = useCoachTheme();
@@ -62,17 +67,26 @@ export function Page({
           borderBottomColor: t.line,
         }}
       >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={12}
-          style={{ flexDirection: "row", alignItems: "center" }}
-        >
-          <Text style={{ fontFamily: FONT, fontSize: 22, fontWeight: "700", color: t.text }}>
-            ‹ {title}
+        {root ? (
+          <Text
+            accessibilityRole="header"
+            style={{ fontFamily: FONT, fontSize: 22, fontWeight: "700", color: t.text }}
+          >
+            {title}
           </Text>
-        </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={12}
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
+            <Text style={{ fontFamily: FONT, fontSize: 22, fontWeight: "700", color: t.text }}>
+              ‹ {title}
+            </Text>
+          </Pressable>
+        )}
         {sub ? (
           <Text style={{ fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 2 }}>
             {sub}

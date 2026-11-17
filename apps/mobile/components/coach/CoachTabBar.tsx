@@ -7,10 +7,10 @@ import { useCoach } from "../../lib/coachStore";
 import { ACCENT, FONT, LINE, hardShadow, useCoachTheme } from "./ui";
 
 /**
- * Library on the left, a round plus in the middle, Chat on the right.
+ * Library on the left, a round plus in the middle, Projects and Chat on the right.
  * Each tab is an icon above a small label; the active one is shown by colour
- * only. The plus is the one heavy element. Chat appears only for accounts
- * that have the coach.
+ * only. The plus is the one heavy element. Projects and Chat appear only for
+ * accounts that have the coach.
  */
 export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
   const t = useCoachTheme();
@@ -19,9 +19,9 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
   const active = state.routes[state.index]?.name;
 
   const tab = (
-    name: "index" | "chat",
+    name: "index" | "projects" | "chat",
     label: string,
-    icon: "grid-outline" | "chatbubble-outline",
+    icon: "grid-outline" | "folder-outline" | "chatbubble-outline",
   ) => {
     const on = active === name;
     const badge = name === "chat" ? coach.waiting : 0;
@@ -86,7 +86,10 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
         paddingHorizontal: 12,
       }}
     >
-      {tab("index", "Library", "grid-outline")}
+      {/* Equal halves keep the plus in the middle whatever sits on each side. */}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        {tab("index", "Library", "grid-outline")}
+      </View>
       <View style={{ width: 72, alignItems: "center" }}>
         <Pressable
           onPress={() => {
@@ -116,11 +119,14 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
           <Ionicons name="add" size={28} color="#fff" />
         </Pressable>
       </View>
-      {coach.status === "on" ? (
-        tab("chat", "Chat", "chatbubble-outline")
-      ) : (
-        <View style={{ flex: 1 }} />
-      )}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        {coach.status === "on" ? (
+          <>
+            {tab("projects", "Projects", "folder-outline")}
+            {tab("chat", "Chat", "chatbubble-outline")}
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }

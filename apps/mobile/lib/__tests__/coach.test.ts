@@ -23,7 +23,8 @@ import {
   MIRROR_DELAY_MS,
 } from "../coach";
 import type { CoachBatch, CoachRun } from "@cliphy/shared";
-import { batchLine, messageLine } from "../coach";
+import { batchLine, messageLine, projectRows } from "../coach";
+import type { Project } from "@cliphy/shared";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
   id: "m",
@@ -418,5 +419,76 @@ describe("batches on the phone", () => {
         attachments: [{ storagePath: "a.png", mediaType: "image/png" }],
       }),
     ).toBe("Photo");
+  });
+});
+
+describe("projectRows", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  const project = (over: Partial<Project>): Project => ({
+    id: "p1",
+    name: "Alder House",
+    tag: "project:alder-house",
+    active: true,
+    stateLine: "",
+    personIds: [],
+    repo: null,
+    siteUrl: null,
+    ...over,
+  });
+  const maren = { id: "c1", name: "Maren" } as Person;
+
+  it("shows the client, the next thing to do and how many tasks are open", () => {
+    const rows = projectRows(
+      [project({ personIds: ["c1"] })],
+      [{ projectId: "p1", name: "Alder House", state: "", next: "Swap the hero photo", open: 3 }],
+      [maren],
+    );
+    expect(rows).toEqual([
+      {
+        id: "p1",
+        name: "Alder House",
+        detail: "Maren · Swap the hero photo",
+        open: 3,
+        active: true,
+      },
+    ]);
+  });
+
+  it("falls back to the project's state line, then to the client alone", () => {
+    const rows = projectRows(
+      [
+        project({ id: "p1", stateLine: "Waiting on photos" }),
+        project({ id: "p2", name: "Birch Studio", personIds: ["c1"] }),
+        project({ id: "p3", name: "Cedar Shop" }),
+      ],
+      [],
+      [maren],
+    );
+    expect(rows.map((r) => r.detail)).toEqual(["Waiting on photos", "Maren", undefined]);
+    expect(rows.map((r) => r.open)).toEqual([0, 0, 0]);
+  });
+
+  it("puts projects with open work first, then by name, with inactive ones last", () => {
+    const rows = projectRows(
+      [
+        project({ id: "p1", name: "Cedar Shop" }),
+        project({ id: "p2", name: "Birch Studio", active: false }),
+        project({ id: "p3", name: "Alder House" }),
+        project({ id: "p4", name: "Dune Cafe" }),
+      ],
+      [{ projectId: "p4", name: "Dune Cafe", state: "", next: null, open: 1 }],
+      [],
+    );
+    expect(rows.map((r) => r.name)).toEqual([
+      "Dune Cafe",
+      "Alder House",
+      "Cedar Shop",
+      "Birch Studio",
+    ]);
   });
 });

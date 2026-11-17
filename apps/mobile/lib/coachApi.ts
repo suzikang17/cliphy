@@ -103,6 +103,8 @@ export const updatePerson = (
   }>,
 ) => apiFetch<{ person: Person }>(`/api/coach/people/${id}`, json("PATCH", body));
 export const getProjects = () => apiFetch<{ projects: Project[] }>("/api/coach/projects");
+export const createProject = (name: string) =>
+  apiFetch<{ project: Project }>("/api/coach/projects", json("POST", { name }));
 export const updateProject = (id: string, body: { repo?: string; siteUrl?: string }) =>
   apiFetch<{ project: Project }>(`/api/coach/projects/${id}`, json("PATCH", body));
 export const getProjectHistory = (id: string) =>

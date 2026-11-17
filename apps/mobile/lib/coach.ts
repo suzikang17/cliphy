@@ -6,6 +6,8 @@ import type {
   CoachRun,
   InboundMessage,
   Person,
+  Project,
+  UpNext,
 } from "@cliphy/shared";
 
 // Everything the coach screens decide, kept out of the screens so it can be
@@ -308,4 +310,39 @@ export function batchLine(batch: CoachBatch): string {
 /** A message in one line: its words, or "Photo" when it is only pictures. */
 export function messageLine(message: InboundMessage): string {
   return message.text.trim() || (message.attachments.length > 0 ? "Photo" : "");
+}
+
+export interface ProjectRow {
+  id: string;
+  name: string;
+  /** The client, then the next thing to do or where the project stands. */
+  detail: string | undefined;
+  open: number;
+  active: boolean;
+}
+
+/** The Projects list: ones with open work first, then by name, inactive ones last. */
+export function projectRows(
+  projects: Project[],
+  byProject: UpNext["byProject"],
+  people: Pick<Person, "id" | "name">[],
+): ProjectRow[] {
+  const work = new Map(byProject.map((p) => [p.projectId, p]));
+  const names = new Map(people.map((p) => [p.id, p.name]));
+  const rank = (r: ProjectRow) => (!r.active ? 2 : r.open > 0 ? 0 : 1);
+
+  return projects
+    .map((project) => {
+      const found = work.get(project.id);
+      const client = project.personIds.map((id) => names.get(id)).find(Boolean);
+      const parts = [client, found?.next || project.stateLine || found?.state].filter(Boolean);
+      return {
+        id: project.id,
+        name: project.name,
+        detail: parts.length > 0 ? parts.join(" · ") : undefined,
+        open: found?.open ?? 0,
+        active: project.active,
+      };
+    })
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
