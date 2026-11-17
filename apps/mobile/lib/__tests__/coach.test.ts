@@ -22,7 +22,8 @@ import {
   runLine,
   MIRROR_DELAY_MS,
 } from "../coach";
-import type { CoachRun } from "@cliphy/shared";
+import type { CoachBatch, CoachRun } from "@cliphy/shared";
+import { batchLine, messageLine } from "../coach";
 
 const msg = (over: Partial<CoachChatMessage>): CoachChatMessage => ({
   id: "m",
@@ -350,5 +351,72 @@ describe("the website task runner on the phone", () => {
     );
     expect(runLine(run({ status: "failed" }))).toBe("That didn't work.");
     expect(runLine(run({ status: "cancelled" }))).toBe("Stopped.");
+  });
+});
+
+describe("batches on the phone", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Batches");
+  });
+
+  const batch = (over: Partial<CoachBatch> = {}): CoachBatch => ({
+    id: "ba1",
+    personId: "p1",
+    projectId: "pr1",
+    status: "checking",
+    summary: null,
+    sentAt: null,
+    createdAt: "2026-11-17T10:00:00Z",
+    itemCount: 3,
+    uncheckedCount: 2,
+    ...over,
+  });
+
+  it("says how many are left to check", () => {
+    expect(batchLine(batch())).toBe("2 of 3 to check");
+  });
+
+  it("says when everything is checked and the summary is next", () => {
+    expect(batchLine(batch({ uncheckedCount: 0 }))).toBe("Checked. Write the summary.");
+  });
+
+  it("says when the summary is ready to send", () => {
+    expect(batchLine(batch({ status: "ready", summary: "All live.", uncheckedCount: 0 }))).toBe(
+      "Ready to send",
+    );
+  });
+
+  it("says when it was sent", () => {
+    expect(
+      batchLine(batch({ status: "sent", sentAt: "2026-11-17T15:00:00Z", uncheckedCount: 0 })),
+    ).toBe("Sent 17 Nov");
+  });
+
+  it("goes back to checking when an item is unticked after the summary", () => {
+    expect(batchLine(batch({ status: "ready", summary: "All live.", uncheckedCount: 1 }))).toBe(
+      "1 of 3 to check",
+    );
+  });
+
+  it("shows a message as its text, or Photo when it is only pictures", () => {
+    const message = {
+      id: "m1",
+      personId: "p1",
+      channel: "imessage" as const,
+      direction: "in" as const,
+      text: "  footer link is dead ",
+      attachments: [],
+      sentAt: "2026-11-10T09:59:00Z",
+    };
+    expect(messageLine(message)).toBe("footer link is dead");
+    expect(
+      messageLine({
+        ...message,
+        text: "",
+        attachments: [{ storagePath: "a.png", mediaType: "image/png" }],
+      }),
+    ).toBe("Photo");
   });
 });

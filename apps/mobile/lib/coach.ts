@@ -1,8 +1,10 @@
 import type {
+  CoachBatch,
   CoachChatMessage,
   CoachHealth,
   CoachReminder,
   CoachRun,
+  InboundMessage,
   Person,
 } from "@cliphy/shared";
 
@@ -273,4 +275,37 @@ export function runLine(run: CoachRun | null): string | null {
     case "cancelled":
       return "Stopped.";
   }
+}
+
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** A day as "17 Nov". */
+export function shortDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
+}
+
+/** Where a batch has got to, in one line. */
+export function batchLine(batch: CoachBatch): string {
+  if (batch.status === "sent") return batch.sentAt ? `Sent ${shortDay(batch.sentAt)}` : "Sent";
+  if (batch.uncheckedCount > 0) return `${batch.uncheckedCount} of ${batch.itemCount} to check`;
+  return batch.status === "ready" ? "Ready to send" : "Checked. Write the summary.";
+}
+
+/** A message in one line: its words, or "Photo" when it is only pictures. */
+export function messageLine(message: InboundMessage): string {
+  return message.text.trim() || (message.attachments.length > 0 ? "Photo" : "");
 }

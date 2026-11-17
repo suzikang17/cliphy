@@ -1,14 +1,26 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Image, ScrollView, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import type { CoachRequest, ProgressEntry } from "@cliphy/shared";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import type { CoachBatch, CoachRequest, ProgressEntry } from "@cliphy/shared";
+import { batchLine, shortDay } from "../../../lib/coach";
 import {
+  createTask,
+  getBatches,
   getProjectHistory,
   getProjects,
   updateProject,
   type HistoryEntry,
 } from "../../../lib/coachApi";
-import { Body, FONT, LINE, Page, SectionLabel, useCoachTheme } from "../../../components/coach/ui";
+import {
+  Body,
+  FONT,
+  LINE,
+  Page,
+  QuickButton,
+  Row,
+  SectionLabel,
+  useCoachTheme,
+} from "../../../components/coach/ui";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -32,6 +44,38 @@ export default function ProjectScreen() {
   const [saved, setSaved] = useState({ repo: "", site: "" });
   const [siteNote, setSiteNote] = useState<{ repo?: string; site?: string }>({});
 
+  // Batches of finished work, and a task added by hand.
+  const [batches, setBatches] = useState<CoachBatch[]>([]);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskNote, setTaskNote] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  // Read again on return: a batch may have been made, checked or sent.
+  useFocusEffect(
+    useCallback(() => {
+      getBatches(id)
+        .then((r) => setBatches(r.batches))
+        .catch(() => {});
+    }, [id]),
+  );
+
+  const addTask = async () => {
+    const title = taskTitle.trim();
+    if (!title || adding) return;
+    setAdding(true);
+    setTaskNote(null);
+    try {
+      const { task } = await createTask({ kind: "do", title, projectId: id });
+      setTaskTitle("");
+      router.push(`/coach/task/${task.id}` as never);
+    } catch {
+      setTaskNote("Couldn't add that. Try again.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   useEffect(() => {
     Promise.all([getProjectHistory(id), getProjects()])
       .then(([h, p]) => {
@@ -39,6 +83,8 @@ export default function ProjectScreen() {
         setPhotos(h.progress ?? []);
         const project = p.projects.find((x) => x.id === id);
         setName(project?.name ?? "Project");
+        // Whoever is on the project, else whoever asked for its latest request.
+        setClientId(project?.personIds[0] ?? h.entries[0]?.request.personId ?? null);
         const stored = { repo: project?.repo ?? "", site: project?.siteUrl ?? "" };
         setRepo(stored.repo);
         setSite(stored.site);
@@ -145,6 +191,43 @@ export default function ProjectScreen() {
               style={input}
             />
             <Text style={noteStyle}>{siteNote.site ?? "Live site, for the before picture."}</Text>
+            <SectionLabel>Add a task</SectionLabel>
+            <TextInput
+              value={taskTitle}
+              onChangeText={setTaskTitle}
+              onSubmitEditing={() => void addTask()}
+              placeholder="What needs doing"
+              placeholderTextColor={t.muted}
+              returnKeyType="done"
+              accessibilityLabel="New task"
+              style={input}
+            />
+            <Text style={noteStyle}>{taskNote ?? "Then pull in the texts it came from."}</Text>
+
+            <SectionLabel>Batches</SectionLabel>
+            {batches.map((b) => (
+              <Row
+                key={b.id}
+                title={shortDay(b.createdAt)}
+                detail={`${b.itemCount} ${b.itemCount === 1 ? "item" : "items"}`}
+                right={batchLine(b)}
+                onPress={() => router.push(`/coach/batch/${b.id}` as never)}
+              />
+            ))}
+            {clientId ? (
+              <View style={{ flexDirection: "row", marginTop: 10 }}>
+                <QuickButton
+                  label="New batch"
+                  onPress={() =>
+                    router.push(`/coach/batch/new?personId=${clientId}&projectId=${id}` as never)
+                  }
+                />
+              </View>
+            ) : (
+              <Text style={noteStyle}>
+                Batches start once a client has asked for something here.
+              </Text>
+            )}
             <SectionLabel>History</SectionLabel>
           </>
         ) : null}

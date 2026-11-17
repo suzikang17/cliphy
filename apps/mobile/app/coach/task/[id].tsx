@@ -1,21 +1,30 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import { isRunnable, type CoachRun, type CoachTask, type Person } from "@cliphy/shared";
+import {
+  isRunnable,
+  type CoachRun,
+  type CoachTask,
+  type InboundMessage,
+  type Person,
+} from "@cliphy/shared";
 import { runLine, smsUrl } from "../../../lib/coach";
 import {
   cancelRun,
   getPeople,
   getProjects,
   getRun,
+  getTaskMessages,
   getTasks,
   markTaskSent,
+  removeTaskMessage,
   startRun,
   updateTask,
 } from "../../../lib/coachApi";
 import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
+import { MessageRow } from "../../../components/coach/MessageRow";
 import {
   ACCENT,
   Body,
@@ -72,6 +81,20 @@ export default function TaskScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Texts pulled into the task. Read again on return from the picker.
+  const [pulled, setPulled] = useState<InboundMessage[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      getTaskMessages(id)
+        .then((r) => setPulled(r.messages))
+        .catch(() => {});
+    }, [id]),
+  );
+  const unpull = (messageId: string) => {
+    setPulled((old) => old.filter((m) => m.id !== messageId));
+    removeTaskMessage(id, messageId).catch(() => setNote("Couldn't take that off."));
+  };
 
   const running = siteRun?.status === "queued" || siteRun?.status === "working";
   useEffect(() => {
@@ -307,6 +330,36 @@ export default function TaskScreen() {
                 ))}
               </>
             ) : null}
+
+            <SectionLabel>Messages</SectionLabel>
+            {pulled.map((m) => (
+              <View key={m.id} style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                <View style={{ flex: 1 }}>
+                  <MessageRow message={m} />
+                </View>
+                <Text
+                  onPress={() => unpull(m.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Take this message off the task"
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: 12,
+                    color: t.muted,
+                    paddingVertical: 12,
+                    paddingLeft: 12,
+                    textDecorationLine: "underline",
+                  }}
+                >
+                  Remove
+                </Text>
+              </View>
+            ))}
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+              <QuickButton
+                label="Add messages"
+                onPress={() => router.push(`/coach/task-messages?taskId=${task.id}` as never)}
+              />
+            </View>
 
             {onSite || siteRun ? (
               <>

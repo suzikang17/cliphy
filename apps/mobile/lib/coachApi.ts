@@ -1,4 +1,8 @@
 import type {
+  BatchCandidates,
+  BatchItem,
+  BatchItemState,
+  CoachBatch,
   CoachChatMessage,
   CoachHealth,
   CoachReminder,
@@ -67,6 +71,7 @@ export const getTasks = () => apiFetch<{ tasks: CoachTask[] }>("/api/coach/tasks
 export const createTask = (body: {
   kind: TaskKind;
   title: string;
+  projectId?: string;
   dueDate?: string;
   dueTime?: string;
   place?: string;
@@ -173,3 +178,51 @@ export const cancelRun = (runId: string) =>
 /** A key that can only do the runner's calls. The key itself is shown once. */
 export const createRunnerKey = () =>
   apiFetch<{ key: string }>("/api/keys", json("POST", { name: "Runner", scope: "runner" }));
+
+// Messages pulled into a task
+export const getPersonMessages = (personId: string) =>
+  apiFetch<{ messages: InboundMessage[] }>(`/api/coach/people/${personId}/messages`);
+export const getTaskMessages = (taskId: string) =>
+  apiFetch<{ messages: InboundMessage[] }>(`/api/coach/tasks/${taskId}/messages`);
+export const addTaskMessages = (taskId: string, messageIds: string[]) =>
+  apiFetch<{ ok: true }>(`/api/coach/tasks/${taskId}/messages`, json("POST", { messageIds }));
+export const removeTaskMessage = (taskId: string, messageId: string) =>
+  apiFetch<{ ok: true }>(`/api/coach/tasks/${taskId}/messages/${messageId}`, json("DELETE"));
+
+// Batches: finished work, checked, then summarized for the client
+export const getBatches = (projectId: string) =>
+  apiFetch<{ batches: CoachBatch[] }>(
+    `/api/coach/batches?projectId=${encodeURIComponent(projectId)}`,
+  );
+export const getBatchCandidates = (personId: string, projectId?: string) =>
+  apiFetch<BatchCandidates>(
+    `/api/coach/batches/candidates?personId=${encodeURIComponent(personId)}${
+      projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""
+    }`,
+  );
+export const createBatch = (body: {
+  personId: string;
+  projectId?: string;
+  requestIds: string[];
+  messageIds: string[];
+  taskIds: string[];
+}) => apiFetch<{ batch: CoachBatch }>("/api/coach/batches", json("POST", body));
+export const getBatch = (id: string) =>
+  apiFetch<{ batch: CoachBatch; items: BatchItem[] }>(`/api/coach/batches/${id}`);
+export const updateBatchItem = (
+  batchId: string,
+  itemId: string,
+  body: { state?: BatchItemState; note?: string | null },
+) =>
+  apiFetch<{ item: BatchItem }>(
+    `/api/coach/batches/${batchId}/items/${itemId}`,
+    json("PATCH", body),
+  );
+export const writeBatchSummary = (id: string) =>
+  apiFetch<{ batch: CoachBatch }>(`/api/coach/batches/${id}/summary`, json("POST"));
+export const saveBatchSummary = (id: string, summary: string) =>
+  apiFetch<{ batch: CoachBatch }>(`/api/coach/batches/${id}`, json("PATCH", { summary }));
+export const markBatchSent = (id: string) =>
+  apiFetch<{ batch: CoachBatch }>(`/api/coach/batches/${id}/sent`, json("POST"));
+export const deleteBatch = (id: string) =>
+  apiFetch<{ ok: true }>(`/api/coach/batches/${id}`, json("DELETE"));
