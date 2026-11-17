@@ -29,3 +29,9 @@ phase: Growth
 - A batch item that is a message picked on its own uses the message text as its label, so the check screen shows only its pictures underneath.
 - TDD lapse: hand-added tasks in batches (candidates, create, their messages) were written before their tests; the tests were added after and passed first time.
 - Not seen on a device yet: every new phone screen. Not run against the real model: the summary.
+
+## Later: Projects tab
+
+- Added a Projects tab on the phone (`dd6f526`): every project with its client, next step and open task count; add a project by name. Before this, a project could only be reached through Up next → By project, which lists only projects that have tasks, so the new batch and "Add a task" controls were effectively hidden.
+- `Page` takes `root` for a tab screen (title, no back arrow). The tab bar is now two equal halves around the plus: Library | + | Projects, Chat.
+- Not seen on a device yet. `projectRows` is unit tested (3 tests, written first).
