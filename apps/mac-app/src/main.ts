@@ -1,5 +1,24 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, shell, Tray } from "electron";
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  Menu,
+  nativeImage,
+  protocol,
+  shell,
+  Tray,
+} from "electron";
+import { execFile } from "node:child_process";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, userInfo } from "node:os";
 import path from "node:path";
 import { createApi } from "../../mac-helper/src/api.js";
 import { contactFiles, readContacts, type ContactNames } from "../../mac-helper/src/contacts.js";
@@ -23,6 +42,7 @@ import {
 } from "../../mac-helper/src/store.js";
 import { ApiError, syncOnce } from "../../mac-helper/src/sync.js";
 import { createAppServer } from "./appServer.js";
+import { claudeCode, mcpCommand, type ClaudeCodeStatus, type ShellResult } from "./claudeCode.js";
 import { fakeApi } from "./fakeApi.js";
 import { Controller, type AddHistory, type AppState, type NewPerson } from "./controller.js";
 import { stayInMenuBar } from "./quit.js";
@@ -152,6 +172,46 @@ function listRecentThreads() {
   }
 }
 
+/** Run a script the way the owner's terminal would, so `claude` is found as it is there. */
+function loginShell(script: string, env: Record<string, string>): Promise<ShellResult> {
+  return new Promise((resolve) => {
+    execFile(
+      userInfo().shell || "/bin/zsh",
+      ["-ilc", script],
+      { env: { ...process.env, ...env }, timeout: 60_000 },
+      (err, stdout, stderr) => {
+        const code = !err ? 0 : typeof err.code === "number" ? err.code : 1;
+        resolve({ code, output: `${stdout}${stderr}` });
+      },
+    );
+  });
+}
+
+const claude = claudeCode({
+  run: loginShell,
+  readConfig: () => {
+    try {
+      return readFileSync(path.join(homedir(), ".claude.json"), "utf8");
+    } catch {
+      return null;
+    }
+  },
+});
+
+/** Present once this app has connected Claude Code, so connecting the Mac again keeps it working. */
+const CLAUDE_FLAG = path.join(DIR, "claude-code");
+
+/** What the window is told: where Claude Code stands, and the system's message if it failed. */
+async function claudeAnswer(
+  work: () => Promise<ClaudeCodeStatus>,
+): Promise<{ status: ClaudeCodeStatus | null; error: string | null }> {
+  try {
+    return { status: await work(), error: null };
+  } catch (err) {
+    return { status: null, error: err instanceof Error && err.message ? err.message : "Error" };
+  }
+}
+
 const controller = new Controller({
   apiUrl: API_URL,
   loadConfig: () => loadConfig(DIR),
@@ -159,6 +219,10 @@ const controller = new Controller({
     saveConfig(DIR, config);
     // Paired for the first time: come back by itself after a restart.
     app.setLoginItemSettings({ openAtLogin: true });
+    // Pairing makes a new key; Claude Code, if this app connected it, moves to it.
+    if (existsSync(CLAUDE_FLAG)) {
+      claude.connect(config.apiKey, config.apiUrl).catch(() => log("Couldn't update Claude Code."));
+    }
   },
   clearConfig: () => clearConfig(DIR),
   pair: (apiUrl, show) => pairWithPhone(apiUrl, realPairDeps(show)),
@@ -276,7 +340,41 @@ ipcMain.handle("set-history", (_event, personId: string, history: AddHistory) =>
 ipcMain.handle("add-person", (_event, handle: string, name: string, history?: AddHistory) =>
   controller.addPerson(String(handle), String(name), history),
 );
-ipcMain.handle("disconnect", () => controller.disconnect());
+ipcMain.handle("disconnect", async () => {
+  controller.disconnect();
+  // Claude Code was using this Mac's key: it goes with it.
+  rmSync(CLAUDE_FLAG, { force: true });
+  await claude.disconnect().catch(() => log("Couldn't remove Cliphy from Claude Code."));
+});
+ipcMain.handle("claude-code-status", () =>
+  claudeAnswer(() => claude.status(loadConfig(DIR)?.apiKey ?? null)),
+);
+ipcMain.handle("claude-code-connect", () =>
+  claudeAnswer(async () => {
+    const config = loadConfig(DIR);
+    if (!config) throw new Error("This Mac is not connected");
+    const status = await claude.connect(config.apiKey, config.apiUrl);
+    if (status === "on") {
+      mkdirSync(DIR, { recursive: true, mode: 0o700 });
+      writeFileSync(CLAUDE_FLAG, "");
+    }
+    return status;
+  }),
+);
+ipcMain.handle("claude-code-disconnect", () =>
+  claudeAnswer(async () => {
+    rmSync(CLAUDE_FLAG, { force: true });
+    await claude.disconnect();
+    return "off";
+  }),
+);
+// The key goes straight to the clipboard; the window never holds it.
+ipcMain.handle("claude-code-copy", () => {
+  const config = loadConfig(DIR);
+  if (!config) return false;
+  clipboard.writeText(mcpCommand(config.apiKey, config.apiUrl));
+  return true;
+});
 ipcMain.handle("open-setup", showSetup);
 ipcMain.handle("open-coach", showCoach);
 

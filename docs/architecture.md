@@ -457,6 +457,8 @@ claude mcp add --transport http --scope user cliphy https://api.cliphy.app/api/m
 
 Tools live in `apps/server/src/services/coach/mcp.ts`; each calls the coach's own routes with the caller's key.
 
+On the Mac there is nothing to paste: in the Mac window, Settings → Connected tools → Claude Code → **Connect** has the Mac app run that command itself, with the Mac's own key, in the owner's login shell (`apps/mac-app/src/claudeCode.ts`, ADR 0067). Pairing the Mac again moves Claude Code to the new key, and Disconnect removes it.
+
 ##### Extension (`apps/extension`)
 
 - `VITE_SUPABASE_URL` — Supabase project URL (public)

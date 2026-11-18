@@ -15,9 +15,33 @@ export const DESKTOP = Platform.OS === "web";
  */
 export const MAC_WINDOW = DESKTOP && process.env.EXPO_PUBLIC_TARGET === "mac";
 
+/** Where Claude Code on the Mac stands. missing: no `claude` there. stale: an old key. */
+export type MacClaudeCodeStatus = "missing" | "off" | "on" | "stale";
+
+/** Each Claude Code action answers with where it stands, or the system's message. */
+export interface MacClaudeCodeAnswer {
+  status: MacClaudeCodeStatus | null;
+  error: string | null;
+}
+
+/** Claude Code on the Mac, set up by the Mac app with its own key. The key never reaches the page. */
+export interface MacClaudeCode {
+  status(): Promise<MacClaudeCodeAnswer>;
+  connect(): Promise<MacClaudeCodeAnswer>;
+  disconnect(): Promise<MacClaudeCodeAnswer>;
+  /** Put the connect command on the clipboard, for a `claude` the Mac app cannot find. */
+  copyCommand(): Promise<boolean>;
+}
+
 /** What the Mac app lets the page ask of it. Absent in a plain browser. */
 interface MacBridge {
   openSetup?: () => void;
+  claudeCode?: MacClaudeCode;
+}
+
+/** Claude Code on this Mac, when the page is in the Mac window. */
+export function macClaudeCode(): MacClaudeCode | null {
+  return (globalThis as { helper?: MacBridge }).helper?.claudeCode ?? null;
 }
 
 /** Open the Mac's own screen: who is captured from Messages, and the connection. */

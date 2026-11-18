@@ -18,4 +18,11 @@ contextBridge.exposeInMainWorld("helper", {
   /** Switch the window between the Mac's own screen and the full app. */
   openSetup: () => ipcRenderer.invoke("open-setup"),
   openCoach: () => ipcRenderer.invoke("open-coach"),
+  /** Claude Code on this Mac, connected with the Mac's own key. The key never comes back here. */
+  claudeCode: {
+    status: () => ipcRenderer.invoke("claude-code-status"),
+    connect: () => ipcRenderer.invoke("claude-code-connect"),
+    disconnect: () => ipcRenderer.invoke("claude-code-disconnect"),
+    copyCommand: (): Promise<boolean> => ipcRenderer.invoke("claude-code-copy"),
+  },
 });

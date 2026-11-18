@@ -19,6 +19,15 @@ pnpm --filter cliphy-helper-app preview   # the full app in a browser, on made-u
 node build.mjs --no-web                   # rebuild the Mac's own code only
 ```
 
+## Claude Code
+
+Settings → Connected tools → Claude Code → **Connect** points Claude Code on this
+Mac at the coach (`claude mcp add --scope user cliphy …`), using the Mac's own
+key. The key stays in the main process: the window only gets back where Claude
+Code stands. The command runs in the login shell (`$SHELL -ilc`) because an app
+opened from Finder has a bare PATH. See `src/claudeCode.ts` and
+`docs/decisions/0067`.
+
 ## Using it
 
 1. Open Cliphy Helper. It shows a code.

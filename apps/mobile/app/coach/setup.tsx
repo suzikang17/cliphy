@@ -32,7 +32,14 @@ import {
   updatePerson,
 } from "../../lib/coachApi";
 import { createApiKey } from "../../lib/api";
-import { DESKTOP, MAC_WINDOW } from "../../lib/desktop";
+import {
+  DESKTOP,
+  MAC_WINDOW,
+  macClaudeCode,
+  type MacClaudeCodeAnswer,
+  type MacClaudeCodeStatus,
+} from "../../lib/desktop";
+import { macClaudeCodeCard } from "../../lib/macClaudeCode";
 import { WorkHours, type WorkHoursValue } from "../../components/coach/WorkHours";
 import { Widget, WidgetGrid, WidgetLink } from "../../components/coach/Widget";
 import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications";
@@ -40,6 +47,9 @@ import { reportTimezone, syncLocalReminders } from "../../lib/coachNotifications
 import { useCoach } from "../../lib/coachStore";
 import { registerForPushNotifications } from "../../lib/notifications";
 import { Body, FONT, LINE, Page, QuickButton, Row, useCoachTheme } from "../../components/coach/ui";
+
+// In the Mac window the Mac app connects Claude Code itself, with its own key.
+const MAC_CLAUDE = MAC_WINDOW ? macClaudeCode() : null;
 
 const STEP_TITLE: Record<SetupStep, string> = {
   reminders: "Notifications",
@@ -104,6 +114,49 @@ export default function SetupScreen() {
       setAssistantNote(errorText(err));
     } finally {
       setMakingAssistantKey(false);
+    }
+  };
+
+  const macClaude = MAC_CLAUDE;
+  const [macClaudeStatus, setMacClaudeStatus] = useState<MacClaudeCodeStatus | null>(null);
+  const [macClaudeBusy, setMacClaudeBusy] = useState(false);
+  const macClaudeRun = useCallback(
+    async (work: () => Promise<MacClaudeCodeAnswer>, done?: (s: MacClaudeCodeStatus) => string) => {
+      setMacClaudeBusy(true);
+      setAssistantNote(null);
+      try {
+        const answer = await work();
+        if (answer.status) setMacClaudeStatus(answer.status);
+        setAssistantNote(answer.error ?? (answer.status && done ? done(answer.status) : null));
+      } catch (err) {
+        setAssistantNote(errorText(err));
+      } finally {
+        setMacClaudeBusy(false);
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    if (macClaude) void macClaudeRun(() => macClaude.status());
+  }, [macClaude, macClaudeRun]);
+  const macClaudeAct = () => {
+    if (!macClaude || macClaudeBusy) return;
+    const card = macClaudeCodeCard(macClaudeStatus);
+    if (card.action === "connect") {
+      void macClaudeRun(
+        () => macClaude.connect(),
+        (s) => (s === "on" ? "Connected." : macClaudeCodeCard(s).detail),
+      );
+    } else if (card.action === "disconnect") {
+      void macClaudeRun(
+        () => macClaude.disconnect(),
+        () => "Disconnected.",
+      );
+    } else {
+      void macClaude
+        .copyCommand()
+        .then((copied) => setAssistantNote(copied ? "Copied." : "Error"))
+        .catch((err: unknown) => setAssistantNote(errorText(err)));
     }
   };
 
@@ -322,6 +375,42 @@ export default function SetupScreen() {
   } as const;
 
   const note = { fontFamily: FONT, fontSize: 12, color: t.muted, marginTop: 8 } as const;
+  const macClaudeBlock = () => {
+    const card = macClaudeCodeCard(macClaudeStatus);
+    return (
+      <>
+        <Row
+          title="Claude Code"
+          detail={macClaudeStatus ? card.detail : "Checking"}
+          right={assistantOpen ? "Close" : card.right}
+          rightColor={card.ok && !assistantOpen ? t.ok : undefined}
+          onPress={() => setAssistantOpen((open) => !open)}
+        />
+        {assistantOpen ? (
+          <View style={{ marginBottom: 8 }}>
+            <Text style={note}>{card.note}</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+              <QuickButton
+                label={macClaudeBusy ? "Working" : card.actionLabel}
+                primary={card.action !== "disconnect"}
+                disabled={macClaudeBusy || !macClaudeStatus}
+                onPress={macClaudeAct}
+              />
+              {card.action === "copy" ? (
+                <QuickButton
+                  label="Check again"
+                  disabled={macClaudeBusy}
+                  onPress={() => macClaude && void macClaudeRun(() => macClaude.status())}
+                />
+              ) : null}
+            </View>
+            {assistantNote ? <Text style={note}>{assistantNote}</Text> : null}
+          </View>
+        ) : null}
+      </>
+    );
+  };
+
   const keyBlock = (opts: {
     shown: string | null;
     about: string;
@@ -617,47 +706,55 @@ export default function SetupScreen() {
             {workNote ? <Text style={note}>{workNote}</Text> : null}
           </Widget>
 
-          {/* Keys can only be made by a signed-in person, which the Mac window is not. */}
-          {MAC_WINDOW ? null : (
-            <Widget title="Connected tools">
-              <Row
-                title="Claude Code"
-                detail="Let it see what's open and mark work done"
-                right={assistantOpen ? "Close" : "Connect"}
-                onPress={() => setAssistantOpen((open) => !open)}
-              />
-              {assistantOpen
-                ? keyBlock({
-                    shown: assistantKey ? mcpCommand(assistantKey, API_URL) : null,
-                    about:
-                      "A key for Claude Code on your own computer. With it, Claude can read your projects, tasks and clients' messages, add tasks and mark them done.",
-                    after: "Shown once. Paste it into a terminal on your computer.",
-                    making: makingAssistantKey,
-                    make: makeAssistantKey,
-                    said: assistantNote,
-                    copied: () => setAssistantNote("Copied."),
-                  })
-                : null}
-              <Row
-                title="Website runner"
-                detail="The machine that makes website changes for you"
-                right={runnerOpen ? "Close" : "Connect"}
-                onPress={() => setRunnerOpen((open) => !open)}
-              />
-              {runnerOpen
-                ? keyBlock({
-                    shown: runnerKey,
-                    about:
-                      "A key that can only pick up and report on website changes. It cannot read your messages.",
-                    after: "Shown once. Put it in the runner's config.",
-                    making: makingKey,
-                    make: makeRunnerKey,
-                    said: runnerNote,
-                    copied: () => setRunnerNote("Copied."),
-                  })
-                : null}
-            </Widget>
-          )}
+          <Widget title="Connected tools">
+            {macClaude ? (
+              macClaudeBlock()
+            ) : MAC_WINDOW ? null : (
+              <>
+                <Row
+                  title="Claude Code"
+                  detail="Let it see what's open and mark work done"
+                  right={assistantOpen ? "Close" : "Connect"}
+                  onPress={() => setAssistantOpen((open) => !open)}
+                />
+                {assistantOpen
+                  ? keyBlock({
+                      shown: assistantKey ? mcpCommand(assistantKey, API_URL) : null,
+                      about:
+                        "A key for Claude Code on your own computer. With it, Claude can read your projects, tasks and clients' messages, add tasks and mark them done.",
+                      after: "Shown once. Paste it into a terminal on your computer.",
+                      making: makingAssistantKey,
+                      make: makeAssistantKey,
+                      said: assistantNote,
+                      copied: () => setAssistantNote("Copied."),
+                    })
+                  : null}
+              </>
+            )}
+            {/* Keys can only be made by a signed-in person, which the Mac window is not. */}
+            {MAC_WINDOW ? null : (
+              <>
+                <Row
+                  title="Website runner"
+                  detail="The machine that makes website changes for you"
+                  right={runnerOpen ? "Close" : "Connect"}
+                  onPress={() => setRunnerOpen((open) => !open)}
+                />
+                {runnerOpen
+                  ? keyBlock({
+                      shown: runnerKey,
+                      about:
+                        "A key that can only pick up and report on website changes. It cannot read your messages.",
+                      after: "Shown once. Put it in the runner's config.",
+                      making: makingKey,
+                      make: makeRunnerKey,
+                      said: runnerNote,
+                      copied: () => setRunnerNote("Copied."),
+                    })
+                  : null}
+              </>
+            )}
+          </Widget>
 
           <Widget title="Learned" count={rules.length} wide>
             {rules.length === 0 ? <Text style={note}>Nothing yet.</Text> : null}
