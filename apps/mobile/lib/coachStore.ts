@@ -1,7 +1,15 @@
 import { useSyncExternalStore } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { CoachChatMessage, UpNext } from "@cliphy/shared";
-import { fromStored, isCoachOff, LOCAL_PREFIX, mergeMessages, newestTime, toStored } from "./coach";
+import {
+  fromStored,
+  isCoachOff,
+  LOCAL_PREFIX,
+  mergeMessages,
+  newestTime,
+  toStored,
+  navBadges,
+} from "./coach";
 import { chooseButton, getChat, getUpNext, sendChat } from "./coachApi";
 
 // One small store for the coach: whether this account has it, the thread, what
@@ -18,6 +26,8 @@ export interface CoachState {
   /** What the bot is doing right now, e.g. ["Reading Maren's message"]. Empty when idle. */
   activity: string[];
   strip: UpNext["strip"] | null;
+  /** Counts for the nav: tasks to do across projects, and tasks late or due today. */
+  badges: { projects: number; upnext: number };
   /** Bot messages with buttons nobody has tapped yet. */
   waiting: number;
   /** True when the last refresh failed (for example no network). The thread is kept. */
@@ -29,6 +39,7 @@ const EMPTY: CoachState = {
   messages: [],
   activity: [],
   strip: null,
+  badges: { projects: 0, upnext: 0 },
   waiting: 0,
   offline: false,
 };
@@ -114,8 +125,10 @@ export async function refreshStrip(): Promise<void> {
   if (state.status !== "on") return;
   const mine = epoch;
   try {
-    const { strip } = await getUpNext();
-    if (mine === epoch) set({ strip });
+    const up = await getUpNext();
+    if (mine === epoch) {
+      set({ strip: up.strip, badges: navBadges(up, new Date().toLocaleDateString("en-CA")) });
+    }
   } catch {
     // The strip is a convenience; leave the last one showing.
   }

@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import type { CoachChatMessage } from "@cliphy/shared";
-import { textParts } from "../../lib/coach";
+import { chatLinks, textParts } from "../../lib/coach";
 import { linkPath } from "../../lib/coachNav";
 import { DESKTOP } from "../../lib/desktop";
 import { refreshCoach, refreshStrip, say, tap, useCoach } from "../../lib/coachStore";
@@ -266,6 +266,8 @@ function BotMessage({
   const tapped = message.chosen !== null;
   const images = message.attachments.filter((a) => a.url);
 
+  const links =
+    message.link?.type === "upnext" || message.link?.type === "setup" ? [] : chatLinks(message);
   return (
     <BotCard>
       <Body>
@@ -325,17 +327,30 @@ function BotMessage({
         </View>
       ) : null}
 
-      {message.link && message.link.type !== "upnext" && message.link.type !== "setup" ? (
-        <Pressable
-          onPress={() => onOpen(linkPath(message.link!))}
-          accessibilityRole="link"
-          hitSlop={8}
-          style={{ marginTop: 10, alignSelf: "flex-start" }}
+      {/* Where it went: the request, its project, each task made, by name. */}
+      {links.length > 0 ? (
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            columnGap: 16,
+            rowGap: 8,
+            marginTop: 10,
+          }}
         >
-          <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.accent }}>
-            Open ›
-          </Text>
-        </Pressable>
+          {links.map((link) => (
+            <Pressable
+              key={link.path}
+              onPress={() => onOpen(link.path)}
+              accessibilityRole="link"
+              hitSlop={8}
+            >
+              <Text style={{ fontFamily: FONT, fontSize: 13, fontWeight: "700", color: t.accent }}>
+                {`${link.label} ›`}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       ) : null}
     </BotCard>
   );

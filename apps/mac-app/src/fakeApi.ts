@@ -89,6 +89,10 @@ const chat: CoachChatMessage[] = [
       },
     ],
     link: { type: "request", id: "request-1" },
+    links: [
+      { type: "request", id: "request-1", label: "Request" },
+      { type: "project", id: "project-1", label: "Alder House" },
+    ],
     createdAt: day(-1),
   }),
   message({
@@ -105,6 +109,44 @@ const chat: CoachChatMessage[] = [
     text: "Two things: swap the hero photo, and tell Maren the lighting page is live.",
     link: { type: "upnext" },
     createdAt: day(-0.5),
+  }),
+];
+
+const said: CoachChatMessage[] = [
+  message({
+    id: "chat-4",
+    role: "bot",
+    kind: "did",
+    text: "Saved. 2 tasks added.",
+    links: [
+      { type: "project", id: "project-1", label: "Alder House" },
+      { type: "task", id: "task-1", label: "Swap the hero photo" },
+      { type: "task", id: "task-2", label: "Tell Maren the lighting page is live" },
+    ],
+    link: { type: "project", id: "project-1", label: "Alder House" },
+    createdAt: day(-0.4),
+  }),
+  message({
+    id: "chat-5",
+    role: "bot",
+    kind: "project",
+    text: "New project for Maren: Business cards and brochure?",
+    buttons: [
+      { label: "Create", action: { type: "create_project", name: "Business cards and brochure" } },
+      {
+        label: "Alder House",
+        action: {
+          type: "file_proposed",
+          name: "Business cards and brochure",
+          projectId: "project-1",
+        },
+      },
+      {
+        label: "No project",
+        action: { type: "file_proposed", name: "Business cards and brochure", projectId: null },
+      },
+    ],
+    createdAt: day(-0.3),
   }),
 ];
 
@@ -228,7 +270,7 @@ const texts: InboundMessage[] = [
       swatch("c", "#5d5a6e", 72),
     ],
   },
-  text("message-6", "in", "And the footer still says 2025", -0.2),
+  { ...text("message-6", "in", "And the footer still says 2025", -0.2), taskId: "task-1" },
   text("message-5", "in", "Also can the hero photo be the one from the porch shoot", -0.4),
   text("message-4", "out", "Sconces are moved. Have a look when you can", -0.6),
   { ...text("message-3", "in", "Thank you!", -0.9), handledAt: day(-0.5) },
@@ -244,7 +286,7 @@ const texts: InboundMessage[] = [
 ];
 
 const ROUTES: [RegExp, unknown][] = [
-  [/^\/api\/coach\/chat$/, { messages: chat, activity: [] }],
+  [/^\/api\/coach\/chat$/, { messages: [...chat, ...said], activity: [] }],
   [/^\/api\/coach\/upnext$/, upnext],
   [/^\/api\/coach\/projects$/, { projects }],
   [/^\/api\/coach\/people$/, { people: [person] }],
@@ -255,6 +297,9 @@ const ROUTES: [RegExp, unknown][] = [
   [/^\/api\/coach\/batches$/, { batches: [batch] }],
   [/^\/api\/coach\/batches\/candidates$/, { requests: [request], messages: [], tasks: [] }],
   [/^\/api\/coach\/tasks$/, { tasks }],
+  [/^\/api\/coach\/tasks\/[^/]+$/, { task: tasks[0] }],
+  [/^\/api\/coach\/tasks\/[^/]+\/messages$/, { messages: [] }],
+  [/^\/api\/coach\/runs$/, { run: null }],
   [/^\/api\/coach\/people\/[^/]+\/messages$/, { messages: texts, hasMore: false }],
   [/^\/api\/coach\/rules$/, { rules: [] }],
   [

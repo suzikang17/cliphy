@@ -8,7 +8,14 @@ import type {
   InboundMessage,
   ProgressEntry,
 } from "@cliphy/shared";
-import { batchLine, projectTiles, shortDay, taskDue, errorText } from "../../../lib/coach";
+import {
+  batchLine,
+  errorText,
+  newSince,
+  projectTiles,
+  shortDay,
+  taskDue,
+} from "../../../lib/coach";
 import {
   createTask,
   getBatchCandidates,
@@ -21,6 +28,7 @@ import {
   updateProject,
   type HistoryEntry,
 } from "../../../lib/coachApi";
+import { markSeen } from "../../../lib/seen";
 import { MessageRow } from "../../../components/coach/MessageRow";
 import { Tile, Widget, WidgetGrid, WidgetLink } from "../../../components/coach/Widget";
 import {
@@ -77,6 +85,11 @@ export default function ProjectScreen() {
   const [ready, setReady] = useState(0);
   const [editingSite, setEditingSite] = useState(false);
   const [allHistory, setAllHistory] = useState(false);
+  // When this project was last opened before now: tasks added since are "New".
+  const [seenBefore, setSeenBefore] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void markSeen(id).then(setSeenBefore);
+  }, [id]);
 
   // Read again on return: a batch may have been made, checked or sent.
   useFocusEffect(
@@ -185,6 +198,7 @@ export default function ProjectScreen() {
   // Newest first, whichever order they came in.
   const latest = [...recent].sort((a, b) => b.sentAt.localeCompare(a.sentAt)).slice(0, 3);
   const todo = tasks.filter((x) => x.state === "open" || x.state === "waiting");
+  const isNew = new Set(newSince(todo, seenBefore).map((x) => x.id));
   const trail = allHistory ? (entries ?? []) : (entries ?? []).slice(0, SHOWN);
   const newBatch = () =>
     router.push(`/coach/batch/new?personId=${clientId}&projectId=${id}` as never);
@@ -223,6 +237,7 @@ export default function ProjectScreen() {
                     <Row
                       key={task.id}
                       title={task.title}
+                      detail={isNew.has(task.id) ? "New" : undefined}
                       right={
                         task.state === "waiting" ? "Waiting" : task.blocked ? "Blocked" : due?.text
                       }

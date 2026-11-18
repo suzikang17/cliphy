@@ -72,6 +72,8 @@ export const getTasks = (projectId?: string) =>
   apiFetch<{ tasks: CoachTask[] }>(
     `/api/coach/tasks${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
   );
+/** One task, whatever its state. */
+export const getTask = (id: string) => apiFetch<{ task: CoachTask }>(`/api/coach/tasks/${id}`);
 export const createTask = (body: {
   kind: TaskKind;
   title: string;

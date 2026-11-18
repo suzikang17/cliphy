@@ -8,6 +8,7 @@ import {
   type OpenQuestion,
   type TaskKind,
 } from "@cliphy/shared";
+import { projectTag } from "./projectTag.js";
 
 /**
  * Everything the bot says, in one place.
@@ -20,6 +21,8 @@ export interface BotMessage {
   text: string;
   buttons: ChatButton[];
   link: ChatLink | null;
+  /** Every place the message points at. Absent means just `link`, if any. */
+  links?: ChatLink[];
   attachments: Attachment[];
   kind: ChatKind;
   refId: string | null;
@@ -43,7 +46,13 @@ function doButton(task: { id: string; kind: TaskKind }): ChatButton {
 export function requestArrived(
   request: { id: string; understood: string; openQuestion: OpenQuestion | null },
   attachments: Attachment[],
+  /** The project it was filed under, so the message says where it went. */
+  project?: { id: string; name: string } | null,
 ): BotMessage {
+  const links: ChatLink[] = [
+    { type: "request", id: request.id, label: "Request" },
+    ...(project ? [{ type: "project" as const, id: project.id, label: project.name }] : []),
+  ];
   const question = request.openQuestion;
   const buttons: ChatButton[] = question
     ? question.options.slice(0, MAX_CHAT_BUTTONS).map((answer) => ({
@@ -58,6 +67,7 @@ export function requestArrived(
     text: question ? `${request.understood}\n\n${question.text}` : request.understood,
     buttons,
     link: { type: "request", id: request.id },
+    links,
     attachments: attachments.slice(0, MAX_ATTACHMENTS),
     kind: "request",
     refId: request.id,
@@ -157,11 +167,17 @@ export function ruleLearned(rule: { id: string; sentence: string }): BotMessage 
 }
 
 /** A plain line saying what the bot just did on the user's behalf. */
-export function didAction(text: string, buttons: ChatButton[] = []): BotMessage {
+export function didAction(
+  text: string,
+  buttons: ChatButton[] = [],
+  /** What was made or changed, so the line leads straight to it. */
+  links: ChatLink[] = [],
+): BotMessage {
   return {
     text: sentence(text),
     buttons,
-    link: null,
+    link: links[0] ?? null,
+    links,
     attachments: [],
     kind: "did",
     refId: null,
@@ -340,5 +356,42 @@ export function runnerQuiet(run: { id: string }): BotMessage {
     attachments: [],
     kind: "runner_quiet",
     refId: run.id,
+  };
+}
+
+// ── A project the bot thinks is new ──────────────────────────────────────
+
+/**
+ * Asked before any project is made. One question per name, however many
+ * texts mention it; what is waiting on the answer stays under the client.
+ */
+export function projectProposed(input: {
+  name: string;
+  personName: string;
+  /** The person's other projects, most likely first. One is offered. */
+  existing: NamedProject[];
+}): BotMessage {
+  const other = input.existing[0];
+  return {
+    text: `New project for ${input.personName}: ${input.name}?`,
+    buttons: [
+      { label: "Create", action: { type: "create_project", name: input.name } },
+      ...(other
+        ? [
+            {
+              label: shortName(other.name),
+              action: { type: "file_proposed" as const, name: input.name, projectId: other.id },
+            },
+          ]
+        : []),
+      {
+        label: "No project",
+        action: { type: "file_proposed", name: input.name, projectId: null },
+      },
+    ],
+    link: null,
+    attachments: [],
+    kind: "project",
+    refId: projectTag(input.name),
   };
 }

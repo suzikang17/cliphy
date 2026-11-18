@@ -253,23 +253,50 @@ describe("coach processBundle", () => {
       expect(out.requestId).toBe("r1");
     });
 
-    it("creates the project when the model names a new one, and puts the person on it", async () => {
+    it("makes no project by itself: the name waits on the request until the owner answers", async () => {
       await storeInterpretation(
         bundle(),
         messages(),
         requestInterp({ projectId: null, newProjectName: "Studio prints" }),
         "u1",
       );
-      expect(db.written("coach_projects", "insert")[0]).toMatchObject({
-        user_id: "u1",
-        name: "Studio prints",
-        tag: "project:studio-prints",
+      expect(db.written("coach_projects")).toEqual([]);
+      expect(db.written("coach_project_people")).toEqual([]);
+      expect(db.written("coach_requests", "upsert")[0]).toMatchObject({
+        project_id: null,
+        proposed_project: "Studio prints",
       });
-      expect(db.written("coach_project_people")[0]).toEqual({
-        project_id: "pr-new",
-        person_id: "p1",
+    });
+
+    it("files under a project that already has that name, without asking", async () => {
+      const inner = db;
+      db = makeDb((op: Op) =>
+        op.table === "coach_projects" && op.action === "select"
+          ? { data: { id: "pr-old", tag: "project:studio-prints" } }
+          : inner.respond(op),
+      );
+      const out = await storeInterpretation(
+        bundle(),
+        messages(),
+        requestInterp({ projectId: null, newProjectName: "Studio Prints" }),
+        "u1",
+      );
+      expect(out.proposedProject).toBeNull();
+      expect(db.written("coach_projects")).toEqual([]);
+      expect(db.written("coach_requests", "upsert")[0]).toMatchObject({
+        project_id: "pr-old",
+        proposed_project: null,
       });
-      expect(db.written("coach_requests", "upsert")[0]).toMatchObject({ project_id: "pr-new" });
+    });
+
+    it("says which name is waiting, so the job can ask", async () => {
+      const out = await storeInterpretation(
+        bundle(),
+        messages(),
+        requestInterp({ projectId: null, newProjectName: "Studio prints" }),
+        "u1",
+      );
+      expect(out.proposedProject).toBe("Studio prints");
     });
   });
 

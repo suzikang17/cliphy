@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import type { Project } from "@cliphy/shared";
 import {
   errorText,
+  newSince,
   projectBoard,
   taskDue,
   type ClientGroup,
@@ -17,6 +18,7 @@ import {
   mergeProject,
   updateProject,
 } from "../../lib/coachApi";
+import { startSeeing } from "../../lib/seen";
 import { WidgetGrid, WidgetLink } from "../../components/coach/Widget";
 import {
   Body,
@@ -46,6 +48,8 @@ export default function ProjectsScreen() {
   /** The card whose "merge into" choices are showing. */
   const [merging, setMerging] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  /** How many tasks are new in each project since it was last opened. */
+  const [fresh, setFresh] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +61,19 @@ export default function ProjectsScreen() {
       ]);
       setProjects(all);
       setBoard(projectBoard(all, tasks?.tasks ?? [], people?.people ?? []));
+      // What is new: tasks added since each project was last opened.
+      const seen = await startSeeing(all.map((p) => p.id));
+      setFresh(
+        Object.fromEntries(
+          all.map((p) => [
+            p.id,
+            newSince(
+              (tasks?.tasks ?? []).filter((task) => task.projectId === p.id),
+              seen[p.id],
+            ).length,
+          ]),
+        ),
+      );
       setFailed(null);
     } catch (err) {
       setFailed(errorText(err));
@@ -134,9 +151,33 @@ export default function ProjectsScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Open ${project.name}`}
         >
-          <Text style={{ fontFamily: FONT, fontSize: 17, fontWeight: "700", color: t.text }}>
-            {project.name}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text
+              style={{
+                flexShrink: 1,
+                fontFamily: FONT,
+                fontSize: 17,
+                fontWeight: "700",
+                color: t.text,
+              }}
+            >
+              {project.name}
+            </Text>
+            {fresh[project.id] > 0 ? (
+              <View
+                style={{
+                  backgroundColor: t.fill,
+                  borderRadius: 9,
+                  paddingHorizontal: 7,
+                  paddingVertical: 1,
+                }}
+              >
+                <Text style={{ fontFamily: FONT, fontSize: 11, fontWeight: "700", color: "#fff" }}>
+                  {`${fresh[project.id]} new`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {project.state ? <Text style={{ ...small, marginTop: 2 }}>{project.state}</Text> : null}
           <View style={{ flexDirection: "row", gap: 14, marginTop: 8 }}>
             {(

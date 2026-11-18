@@ -116,3 +116,13 @@ phase: Growth
 - **Dark mode:** the shared dark tokens could not be read in the coach's outlined style. Measured on the old background: accent 2.5:1, outlines 2.1:1, dividers 1.2:1. The coach now has its own dark colours (`DARK` in `components/coach/ui.tsx`): text 16.6, muted 8.9, accent 9.0, outlines 5.7. `ACCENT` as a bare constant is gone from the screens; they use `t.accent` (text, icons) and `t.fill` (filled backgrounds under white).
 - Still open: the bot creating projects without asking. The owner has not said whether she wants that changed.
 - TDD lapse: `projectBoard` and its tests were written in one step, so the tests were not seen failing first.
+
+## Later: asking before a project, and finding where things went
+
+The owner: "everything seems a little bit hidden and you have to look for it in the right place."
+
+- **Projects are asked about, not made.** `processBundle` no longer inserts a project when the model names a new one. The name is kept on the request (`coach_requests.proposed_project`, migration 048, pushed with her go-ahead) and one question is posted in Chat per name: "New project for Maren: Business cards and brochure?" with Create / an existing project / No project. `create_project` and `file_proposed` actions file every request waiting on that name. A name matching an existing project is filed there without asking. History is asked about too; it is the only thing history says in Chat.
+- **Links say where things went.** A chat message can carry several named links (`links`, stored in the same `link` column as a list). "Saved. 2 tasks added." links to the project and each task; a request card links to its project. In a thread, "Request", "Task" and "In a batch" are links (`messageWent`; `taskId` is new in the thread's marks).
+- **Breadcrumbs.** Task and request pages show their project, what they came from and the client's texts (`components/coach/Crumbs.tsx`). The task page now reads the task by id, so a finished task opened from a link shows instead of "This one is finished".
+- **Badges.** The nav counts tasks to do (Projects) and tasks late or due today (Up next), refreshed as screens change. A project card says "N new" and a task says "New" when added since the project was last opened; that record is kept on the device (`lib/seen.ts`).
+- TDD lapse, again: the continuity helpers and their tests were written in one step.

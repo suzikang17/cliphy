@@ -24,12 +24,12 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
     icon: "grid-outline" | "folder-outline" | "chatbubble-outline",
   ) => {
     const on = active === name;
-    const badge = name === "chat" ? coach.waiting : 0;
+    const badge = name === "chat" ? coach.waiting : name === "projects" ? coach.badges.projects : 0;
     return (
       <Pressable
         onPress={() => navigation.navigate(name)}
         accessibilityRole="tab"
-        accessibilityLabel={badge ? `${label}, ${badge} waiting` : label}
+        accessibilityLabel={badge ? `${label}, ${badge}` : label}
         accessibilityState={{ selected: on }}
         style={{ flex: 1, alignItems: "center", paddingVertical: 4 }}
       >

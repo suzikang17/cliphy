@@ -4,11 +4,13 @@ import {
   type ChatButton,
   type CoachTask,
   type TaskState,
+  type ChatLink,
 } from "@cliphy/shared";
 import { supabase } from "../../lib/supabase.js";
 import { stateAfterSent } from "./chain.js";
 import { startOnSite, taskUnblocked } from "./botMessages.js";
 import { postBotMessage } from "./chat.js";
+import { projectTag } from "./projectTag.js";
 import { loadSettings, syncTaskReminders } from "./reminders.js";
 import { announceAnswer, confirmRequest } from "./requestActions.js";
 import { cancelRun, reposByProject, startRun } from "./runs.js";
@@ -29,6 +31,8 @@ export interface ActionResult {
   release?: boolean;
   /** What the user can do next, offered on the line that reports what happened. */
   buttons?: ChatButton[];
+  /** What was made or changed, so the line that reports it leads there. */
+  links?: ChatLink[];
 }
 
 const NOTHING: ActionResult = { changed: false, say: null };
@@ -179,6 +183,11 @@ async function confirm(
     changed: true,
     say: n === 0 ? "Saved." : `Saved. ${n} ${n === 1 ? "task" : "tasks"} added.`,
     buttons: first ? [startOnSite(first.id)] : [],
+    // Where it all went: the project, then each task by name.
+    links: [
+      ...(await projectLink(userId, result.body.request.projectId)),
+      ...tasks.slice(0, 3).map((t) => ({ type: "task" as const, id: t.id, label: t.title })),
+    ],
   };
 }
 
@@ -278,6 +287,99 @@ export async function fileProgressEntry(
   };
 }
 
+/** A link to a project by its name, or nothing when there is none. */
+async function projectLink(userId: string, projectId: string | null): Promise<ChatLink[]> {
+  if (!projectId) return [];
+  const { data } = await supabase
+    .from("coach_projects")
+    .select("id, name")
+    .eq("id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const project = data as { id: string; name: string } | null;
+  return project ? [{ type: "project", id: project.id, label: project.name }] : [];
+}
+
+const requestsWord = (n: number) => `${n} ${n === 1 ? "request" : "requests"}`;
+
+/** Move every request waiting on a proposed project name to `projectId` (or to none). */
+async function moveProposed(
+  userId: string,
+  name: string,
+  projectId: string | null,
+): Promise<{ count: number; personIds: string[] }> {
+  const { data: waiting } = await supabase
+    .from("coach_requests")
+    .select("id, person_id")
+    .eq("user_id", userId)
+    .eq("proposed_project", name);
+  const rows = (waiting as { id: string; person_id: string }[]) ?? [];
+  if (rows.length > 0) {
+    await supabase
+      .from("coach_requests")
+      .update({ project_id: projectId, proposed_project: null })
+      .eq("user_id", userId)
+      .eq("proposed_project", name);
+  }
+  return { count: rows.length, personIds: [...new Set(rows.map((r) => r.person_id))] };
+}
+
+/** "Create": make the project the bot proposed and file under it what was waiting. */
+async function createProposedProject(userId: string, name: string): Promise<ActionResult> {
+  const tag = projectTag(name);
+  if (tag === "project:") return FAILED;
+  const { data: created } = await supabase
+    .from("coach_projects")
+    .insert({ user_id: userId, name, tag })
+    .select("id, name, tag")
+    .single();
+  let project = created as { id: string; name: string } | null;
+  if (!project) {
+    // Made in the meantime (or by hand): use that one.
+    const { data: existing } = await supabase
+      .from("coach_projects")
+      .select("id, name")
+      .eq("user_id", userId)
+      .eq("tag", tag)
+      .maybeSingle();
+    project = existing as { id: string; name: string } | null;
+  }
+  if (!project) return FAILED;
+
+  const { count, personIds } = await moveProposed(userId, name, project.id);
+  if (personIds.length > 0) {
+    await supabase.from("coach_project_people").upsert(
+      personIds.map((person_id) => ({ project_id: project.id, person_id })),
+      { onConflict: "project_id,person_id", ignoreDuplicates: true },
+    );
+  }
+  return {
+    changed: true,
+    say: `Made ${project.name}. ${requestsWord(count)} filed.`,
+    links: [{ type: "project", id: project.id, label: project.name }],
+  };
+}
+
+/** File what was waiting on a proposed name under an existing project, or under none. */
+async function fileProposed(
+  userId: string,
+  name: string,
+  projectId: string | null,
+): Promise<ActionResult> {
+  if (projectId === null) {
+    await moveProposed(userId, name, null);
+    return { changed: true, say: "Left without a project." };
+  }
+  const [link] = await projectLink(userId, projectId);
+  if (!link) return FAILED;
+  const { count } = await moveProposed(userId, name, projectId);
+  return {
+    changed: true,
+    say: `${requestsWord(count)} filed under ${link.label}.`,
+    links: [link],
+  };
+}
+
 /** Carry out a chat button's action for this user. Every id is checked against the user. */
 export async function executeAction(userId: string, action: ChatAction): Promise<ActionResult> {
   switch (action.type) {
@@ -308,6 +410,10 @@ export async function executeAction(userId: string, action: ChatAction): Promise
       return startOnTheSite(userId, action.taskId);
     case "stop_run":
       return stopRun(userId, action.runId);
+    case "create_project":
+      return createProposedProject(userId, action.name);
+    case "file_proposed":
+      return fileProposed(userId, action.name, action.projectId);
     case "open":
     case "dismiss":
       return NOTHING;

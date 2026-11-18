@@ -7,9 +7,12 @@ import {
   confirmRequest,
   fixRequest,
   getPeople,
+  getProjects,
   getRequest,
+  getTasks,
   reopenRequest,
 } from "../../../lib/coachApi";
+import { Crumbs, type Crumb } from "../../../components/coach/Crumbs";
 import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
 import {
@@ -33,6 +36,8 @@ export default function RequestScreen() {
   const [replaces, setReplaces] = useState<CoachRequest | null>(null);
   const [person, setPerson] = useState<Person | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // Where the request was filed and what was made from it, as links.
+  const [crumbs, setCrumbs] = useState<Crumb[]>([]);
   const [busy, setBusy] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [actionFailed, setActionFailed] = useState<string | null>(null);
@@ -49,11 +54,30 @@ export default function RequestScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [r, p] = await Promise.all([getRequest(id), getPeople()]);
+      const [r, p, projectList, taskList] = await Promise.all([
+        getRequest(id),
+        getPeople(),
+        getProjects().catch(() => null),
+        getTasks().catch(() => null),
+      ]);
       setRequest(r.request);
       setMessages(r.messages);
       setReplaces(r.replaces);
-      setPerson(p.people.find((x) => x.id === r.request.personId) ?? null);
+      const from = p.people.find((x) => x.id === r.request.personId) ?? null;
+      setPerson(from);
+      const home = projectList?.projects.find((x) => x.id === r.request.projectId);
+      setCrumbs([
+        ...(home ? [{ kind: "Project", label: home.name, path: `/coach/project/${home.id}` }] : []),
+        {
+          kind: "Texts",
+          label: from?.name ?? "Thread",
+          path: `/coach/thread/${r.request.personId}`,
+        },
+        // Open tasks made from it. Finished ones are in the project's batches.
+        ...(taskList?.tasks ?? [])
+          .filter((task) => task.requestId === id)
+          .map((task) => ({ kind: "Task", label: task.title, path: `/coach/task/${task.id}` })),
+      ]);
       setFailed(null);
     } catch (err) {
       setFailed(errorText(err));
@@ -140,6 +164,7 @@ export default function RequestScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
         {failed ? <Body muted>{failed}</Body> : null}
         {actionFailed ? <Body muted>{actionFailed}</Body> : null}
+        <Crumbs items={crumbs} />
 
         {request ? (
           <>

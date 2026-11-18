@@ -1,15 +1,5 @@
+import { PREFIX, projectTag } from "./projectTag.js";
 import { supabase } from "../../lib/supabase.js";
-
-const PREFIX = "project:";
-
-/** "Alder House!" → "project:alder-house". A name with nothing sluggable gives the bare prefix. */
-export function projectTag(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${PREFIX}${slug}`;
-}
 
 /** "project:alder-house" → "Alder house". */
 export function projectNameFromTag(tag: string): string {
@@ -45,3 +35,5 @@ export async function seedProjectsFromTags(userId: string): Promise<number> {
     .select("id");
   return ((data as unknown[]) ?? []).length;
 }
+
+export { projectTag };

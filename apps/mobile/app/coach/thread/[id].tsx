@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import type { InboundMessage, Project } from "@cliphy/shared";
 import {
   mergeThread,
-  messageMark,
+  messageWent,
   taskTitleFrom,
   threadDays,
   threadFilter,
@@ -260,7 +260,7 @@ export default function ThreadScreen() {
           <View key={day.day}>
             <SectionLabel>{day.day}</SectionLabel>
             {day.messages.map((message) => {
-              const mark = messageMark(message);
+              const went = messageWent(message);
               return (
                 <View
                   key={message.id}
@@ -277,17 +277,19 @@ export default function ThreadScreen() {
                       onPress={() => toggle(message.id)}
                     />
                   </View>
-                  {mark ? (
+                  {went ? (
                     <Text
+                      onPress={went.path ? () => router.push(went.path as never) : undefined}
+                      accessibilityRole={went.path ? "link" : undefined}
                       style={{
                         ...small,
                         fontWeight: "700",
                         marginTop: 13,
                         marginLeft: 8,
-                        color: mark === "Done" ? t.muted : t.accent,
+                        color: went.path ? t.accent : t.muted,
                       }}
                     >
-                      {mark}
+                      {went.path ? `${went.label} ›` : went.label}
                     </Text>
                   ) : null}
                 </View>

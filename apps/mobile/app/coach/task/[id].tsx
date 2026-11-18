@@ -16,7 +16,7 @@ import {
   getProjects,
   getRun,
   getTaskMessages,
-  getTasks,
+  getTask,
   markTaskSent,
   removeTaskMessage,
   startRun,
@@ -24,6 +24,7 @@ import {
 } from "../../../lib/coachApi";
 import { syncLocalReminders } from "../../../lib/coachNotifications";
 import { refreshCoach, refreshStrip } from "../../../lib/coachStore";
+import { Crumbs, type Crumb } from "../../../components/coach/Crumbs";
 import { MessageRow } from "../../../components/coach/MessageRow";
 import {
   Body,
@@ -53,14 +54,39 @@ export default function TaskScreen() {
   // Work in a project with a website repo can be started on the site.
   const [onSite, setOnSite] = useState(false);
   const [siteRun, setSiteRun] = useState<CoachRun | null>(null);
+  // Where the task belongs and what it came from, as links.
+  const [crumbs, setCrumbs] = useState<Crumb[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [{ tasks }, { people }] = await Promise.all([getTasks(), getPeople()]);
-      const found = tasks.find((x) => x.id === id) ?? null;
+      // Read on its own, so a finished task opened from Chat or a thread still shows.
+      const [found, { people }, projectList] = await Promise.all([
+        getTask(id)
+          .then((r) => r.task)
+          .catch(() => null),
+        getPeople(),
+        getProjects().catch(() => null),
+      ]);
       setTask(found);
       setMissing(!found);
       setPerson(people.find((p) => p.id === found?.withPersonId) ?? null);
+      const home = projectList?.projects.find((p) => p.id === found?.projectId);
+      const client = home?.personIds[0] ?? found?.withPersonId ?? null;
+      setCrumbs([
+        ...(home ? [{ kind: "Project", label: home.name, path: `/coach/project/${home.id}` }] : []),
+        ...(found?.requestId
+          ? [{ kind: "From", label: "Request", path: `/coach/request/${found.requestId}` }]
+          : []),
+        ...(client
+          ? [
+              {
+                kind: "Texts",
+                label: people.find((p) => p.id === client)?.name ?? "Thread",
+                path: `/coach/thread/${client}`,
+              },
+            ]
+          : []),
+      ]);
       if (found?.kind === "do" && found.projectId) {
         // Extra to the task itself: if either read fails, the screen still works without it.
         try {
@@ -182,7 +208,8 @@ export default function TaskScreen() {
   return (
     <Page title={task ? KIND_LABEL[task.kind] : "Task"} sub={person?.name}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}>
-        {missing ? <Body muted>This one is finished.</Body> : null}
+        {missing ? <Body muted>Task not found.</Body> : null}
+        <Crumbs items={crumbs} />
         {!task && !missing && note ? <Body muted>{note}</Body> : null}
 
         {task ? (

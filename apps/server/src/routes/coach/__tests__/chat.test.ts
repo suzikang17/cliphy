@@ -409,6 +409,88 @@ describe("coach chat", () => {
     });
   });
 
+  const proposal = (action: unknown) =>
+    messageRow([{ label: "Create", action }], { kind: "project" });
+  /** A world where two requests wait on the name "Studio prints". */
+  const proposedWorld = (action: unknown, extra: (op: Op) => unknown = () => undefined) => {
+    const inner = world({ message: proposal(action) });
+    return makeDb((op: Op) => {
+      const special = extra(op);
+      if (special !== undefined) return special as { data: unknown };
+      if (op.table === "coach_requests" && op.action === "select") {
+        return {
+          data: [
+            { id: "r1", person_id: "p1" },
+            { id: "r2", person_id: "p1" },
+          ],
+        };
+      }
+      if (op.table === "coach_requests" && op.action === "update") {
+        return { data: [{ id: "r1" }, { id: "r2" }] };
+      }
+      return inner.respond(op);
+    });
+  };
+
+  it("makes a proposed project on Create and files what was waiting on it", async () => {
+    db = proposedWorld({ type: "create_project", name: "Studio prints" }, (op) =>
+      op.table === "coach_projects" && op.action === "insert"
+        ? { data: { id: "pr-new", name: "Studio prints", tag: "project:studio-prints" } }
+        : undefined,
+    );
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBe("Made Studio prints. 2 requests filed.");
+    expect(db.written("coach_projects", "insert")[0]).toMatchObject({
+      user_id: "test-user-id",
+      name: "Studio prints",
+      tag: "project:studio-prints",
+    });
+    expect(db.written("coach_project_people")[0]).toEqual([
+      { project_id: "pr-new", person_id: "p1" },
+    ]);
+    const filed = db.ops.find((o) => o.table === "coach_requests" && o.action === "update")!;
+    expect(filed.payload).toEqual({ project_id: "pr-new", proposed_project: null });
+    expect(eqValue(filed, "proposed_project")).toBe("Studio prints");
+    expect(eqValue(filed, "user_id")).toBe("test-user-id");
+    // The line that reports it leads to the new project.
+    expect(posted().at(-1)?.link).toEqual({
+      type: "project",
+      id: "pr-new",
+      label: "Studio prints",
+    });
+  });
+
+  it("files what was waiting under an existing project instead", async () => {
+    db = proposedWorld({ type: "file_proposed", name: "Studio prints", projectId: "pr1" }, (op) =>
+      op.table === "coach_projects" && op.action === "select"
+        ? { data: { id: "pr1", name: "Alder House" } }
+        : undefined,
+    );
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBe("2 requests filed under Alder House.");
+    const filed = db.ops.find((o) => o.table === "coach_requests" && o.action === "update")!;
+    expect(filed.payload).toEqual({ project_id: "pr1", proposed_project: null });
+    expect(db.written("coach_projects")).toEqual([]);
+  });
+
+  it("leaves them under no project when asked to", async () => {
+    db = proposedWorld({ type: "file_proposed", name: "Studio prints", projectId: null });
+    const res = await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect((await res.json()).did).toBe("Left without a project.");
+    const filed = db.ops.find((o) => o.table === "coach_requests" && o.action === "update")!;
+    expect(filed.payload).toEqual({ project_id: null, proposed_project: null });
+  });
+
+  it("will not file under a project that is not the user's", async () => {
+    db = proposedWorld(
+      { type: "file_proposed", name: "Studio prints", projectId: "someone-elses" },
+      (op) =>
+        op.table === "coach_projects" && op.action === "select" ? { data: null } : undefined,
+    );
+    await post("/api/coach/chat/m1/choose", { index: 0 });
+    expect(db.ops.some((o) => o.table === "coach_requests" && o.action === "update")).toBe(false);
+  });
+
   it("refuses to focus on a project that is not the user's", async () => {
     const inner = world({
       message: messageRow(

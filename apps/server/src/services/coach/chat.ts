@@ -4,6 +4,15 @@ import type { BotMessage } from "./botMessages.js";
 
 type Row = Record<string, unknown>;
 
+/**
+ * The `link` column holds one link or a list of them. Both shapes are given:
+ * `links` for screens that show them all, `link` (the first) for older ones.
+ */
+function linksOf(stored: unknown): { link: ChatLink | null; links: ChatLink[] } {
+  const links = (Array.isArray(stored) ? stored : stored ? [stored] : []) as ChatLink[];
+  return { link: links[0] ?? null, links };
+}
+
 export function toChatMessage(row: Row): CoachChatMessage {
   return {
     id: row.id as string,
@@ -11,7 +20,7 @@ export function toChatMessage(row: Row): CoachChatMessage {
     text: (row.text as string) ?? "",
     attachments: (row.attachments as Attachment[]) ?? [],
     buttons: (row.buttons as ChatButton[]) ?? [],
-    link: (row.link as ChatLink) ?? null,
+    ...linksOf(row.link),
     chosen: typeof row.chosen === "number" ? row.chosen : null,
     kind: row.kind as CoachChatMessage["kind"],
     createdAt: row.created_at as string,
@@ -32,7 +41,8 @@ export async function postBotMessage(userId: string, msg: BotMessage): Promise<s
     text: msg.text,
     attachments: msg.attachments,
     buttons: msg.buttons,
-    link: msg.link,
+    // Several links are stored as a list; one, as itself.
+    link: msg.links && msg.links.length > 1 ? msg.links : (msg.links?.[0] ?? msg.link),
     kind: msg.kind,
     ref_id: msg.refId,
   };

@@ -38,6 +38,7 @@ function threadDb(opts: {
   messages?: Record<string, unknown>[];
   requests?: Record<string, unknown>[];
   items?: Record<string, unknown>[];
+  links?: Record<string, unknown>[];
 }) {
   return makeDb((op: Op) => {
     if (op.table === "coach_people") return { data: opts.person === false ? null : { id: "p1" } };
@@ -48,6 +49,7 @@ function threadDb(opts: {
     }
     if (op.table === "coach_requests") return { data: opts.requests ?? [] };
     if (op.table === "coach_batch_items") return { data: opts.items ?? [] };
+    if (op.table === "coach_task_messages") return { data: opts.links ?? [] };
     return undefined;
   });
 }
@@ -80,6 +82,20 @@ describe("GET /people/:id/messages, a page at a time", () => {
       ["m1", null, null, "batch1"],
     ]);
     expect(body.hasMore).toBe(false);
+  });
+
+  it("says which task a message was pulled into", async () => {
+    db = threadDb({
+      messages: [row("m1"), row("m2")],
+      links: [{ message_id: "m1", task_id: "t1" }],
+    });
+    const body = (await (await call("GET", "/people/p1/messages?limit=50")).json()) as {
+      messages: { id: string; taskId: string | null }[];
+    };
+    expect(body.messages.map((m) => [m.id, m.taskId])).toEqual([
+      ["m1", "t1"],
+      ["m2", null],
+    ]);
   });
 
   it("does not count a batch the message was carried out of", async () => {

@@ -45,7 +45,12 @@ import {
   taskTitleFrom,
   errorText,
   projectBoard,
+  chatLinks,
+  messageWent,
+  navBadges,
+  newSince,
 } from "../coach";
+import type { UpNext, UpNextTask } from "@cliphy/shared";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
 import type { Project } from "@cliphy/shared";
@@ -956,5 +961,81 @@ describe("projectBoard", () => {
         projects: [expect.objectContaining({ id: "p2", name: "House things" })],
       },
     ]);
+  });
+});
+
+describe("finding where things went", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Continuity");
+  });
+
+  it("gives every link a message carries, each with a name to show", () => {
+    expect(
+      chatLinks({
+        link: { type: "project", id: "p1", label: "Alder House" },
+        links: [
+          { type: "project", id: "p1", label: "Alder House" },
+          { type: "task", id: "t1", label: "Swap the hero photo" },
+        ],
+      }),
+    ).toEqual([
+      { label: "Alder House", path: "/coach/project/p1" },
+      { label: "Swap the hero photo", path: "/coach/task/t1" },
+    ]);
+    // A message from before links had names, or with only one.
+    expect(chatLinks({ link: { type: "request", id: "r1" } })).toEqual([
+      { label: "Open", path: "/coach/request/r1" },
+    ]);
+    expect(chatLinks({ link: null })).toEqual([]);
+  });
+
+  it("says where a text went and how to get there", () => {
+    const m = (over: Partial<InboundMessage>) => ({ id: "m", ...over }) as InboundMessage;
+    expect(messageWent(m({ handledAt: "2026-11-12T09:00:00Z", taskId: "t1" }))).toEqual({
+      label: "Done",
+      path: null,
+    });
+    expect(messageWent(m({ batchId: "b1", taskId: "t1" }))).toEqual({
+      label: "In a batch",
+      path: "/coach/batch/b1",
+    });
+    expect(messageWent(m({ taskId: "t1", requestId: "r1" }))).toEqual({
+      label: "Task",
+      path: "/coach/task/t1",
+    });
+    expect(messageWent(m({ requestId: "r1" }))).toEqual({
+      label: "Request",
+      path: "/coach/request/r1",
+    });
+    expect(messageWent(m({}))).toBeNull();
+  });
+
+  it("counts for the nav: tasks to do across projects, and what is late or due today", () => {
+    const task = (id: string) => ({ id }) as UpNextTask;
+    const up = {
+      overdue: [task("a"), task("b")],
+      thisWeek: [
+        { date: "2026-11-17", tasks: [task("c")] },
+        { date: "2026-11-18", tasks: [task("d"), task("e")] },
+      ],
+      byProject: [
+        { projectId: "p1", name: "A", state: "", next: null, open: 4 },
+        { projectId: "p2", name: "B", state: "", next: null, open: 1 },
+      ],
+    } as unknown as UpNext;
+    expect(navBadges(up, "2026-11-17")).toEqual({ projects: 5, upnext: 3 });
+    expect(navBadges(null, "2026-11-17")).toEqual({ projects: 0, upnext: 0 });
+  });
+
+  it("counts tasks added since a project was last looked at", () => {
+    const tasks = [
+      { id: "old", createdAt: "2026-11-10T10:00:00Z" },
+      { id: "new", createdAt: "2026-11-17T10:00:00Z" },
+    ] as CoachTask[];
+    expect(newSince(tasks, "2026-11-15T00:00:00Z").map((t) => t.id)).toEqual(["new"]);
+    // Never looked at: nothing is "new", or everything would be on first use.
+    expect(newSince(tasks, undefined)).toEqual([]);
   });
 });

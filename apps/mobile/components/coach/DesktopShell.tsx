@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { desktopSection, type DesktopSection } from "../../lib/coach";
-import { useCoach } from "../../lib/coachStore";
+import { refreshStrip, useCoach } from "../../lib/coachStore";
 import { MAC_WINDOW, openMacSetup } from "../../lib/desktop";
 import { FONT, LINE, useCoachTheme } from "./ui";
 
@@ -37,7 +37,20 @@ export function DesktopShell({ children }: { children: ReactNode }) {
   const t = useCoachTheme();
   const router = useRouter();
   const coach = useCoach();
-  const active = desktopSection(usePathname());
+  const pathname = usePathname();
+  const active = desktopSection(pathname);
+  // The counts follow the work: read again whenever the screen changes.
+  useEffect(() => {
+    void refreshStrip();
+  }, [pathname, coach.status]);
+  const badgeFor = (section: DesktopSection): number =>
+    section === "chat"
+      ? coach.waiting
+      : section === "projects"
+        ? coach.badges.projects
+        : section === "upnext"
+          ? coach.badges.upnext
+          : 0;
   // A narrow window (a phone's browser) has no room for a side nav: the same
   // items go along the bottom instead.
   const narrow = useWindowDimensions().width < NARROW;
@@ -66,7 +79,24 @@ export function DesktopShell({ children }: { children: ReactNode }) {
                 accessibilityState={{ selected: on }}
                 style={{ flex: 1, alignItems: "center" }}
               >
-                <Ionicons name={item.icon} size={22} color={on ? t.accent : t.muted} />
+                <View>
+                  <Ionicons name={item.icon} size={22} color={on ? t.accent : t.muted} />
+                  {badgeFor(item.section) > 0 ? (
+                    <Text
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -14,
+                        fontFamily: FONT,
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: t.accent,
+                      }}
+                    >
+                      {badgeFor(item.section)}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text
                   style={{
                     fontFamily: FONT,
@@ -116,13 +146,13 @@ export function DesktopShell({ children }: { children: ReactNode }) {
 
           {ITEMS.map((item) => {
             const on = active === item.section;
-            const badge = item.section === "chat" ? coach.waiting : 0;
+            const badge = badgeFor(item.section);
             return (
               <Pressable
                 key={item.section}
                 onPress={() => router.navigate(item.path as never)}
                 accessibilityRole="tab"
-                accessibilityLabel={badge ? `${item.label}, ${badge} waiting` : item.label}
+                accessibilityLabel={badge ? `${item.label}, ${badge}` : item.label}
                 accessibilityState={{ selected: on }}
                 style={{
                   flexDirection: "row",

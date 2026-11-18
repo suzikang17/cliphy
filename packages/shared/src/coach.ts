@@ -74,6 +74,8 @@ export interface InboundMessage {
   requestId?: string | null;
   /** The batch it sits in. */
   batchId?: string | null;
+  /** A task it was pulled into. */
+  taskId?: string | null;
 }
 
 export interface OpenQuestion {
@@ -231,6 +233,10 @@ export type ChatAction =
   /** Start the website change for this task on the runner. */
   | { type: "start_run"; taskId: string }
   | { type: "stop_run"; runId: string }
+  /** Make the project the bot proposed, and file under it everything waiting on that name. */
+  | { type: "create_project"; name: string }
+  /** File what is waiting on a proposed project under an existing one, or under none. */
+  | { type: "file_proposed"; name: string; projectId: string | null }
   | { type: "open"; link: ChatLink }
   | { type: "dismiss" };
 
@@ -240,13 +246,16 @@ export interface ChatButton {
 }
 
 export interface ChatLink {
-  type: "request" | "task" | "project" | "upnext" | "setup" | "camera";
+  type: "request" | "task" | "project" | "upnext" | "setup" | "camera" | "batch" | "thread";
   id?: string;
+  /** What to call it where it is shown: a project's or task's name. */
+  label?: string;
 }
 
 /** Why the bot spoke. With `refId`, also what stops it saying the same thing twice. */
 export type ChatKind =
   | "request"
+  | "project"
   | "reply"
   | "reminder"
   | "unblocked"
@@ -269,6 +278,8 @@ export interface CoachChatMessage {
   attachments: Attachment[];
   buttons: ChatButton[];
   link: ChatLink | null;
+  /** Every place the message points at: where a thing was filed, what was made. */
+  links?: ChatLink[];
   /** Index of the button the user tapped, once they have. */
   chosen: number | null;
   kind: ChatKind;

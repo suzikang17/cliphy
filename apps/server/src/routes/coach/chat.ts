@@ -110,7 +110,9 @@ chatRoutes.post("/:id/choose", async (c) => {
     message = { ...message, chosen: null };
   }
   // Whatever the bot did, or could not do, it says so.
-  if (result.say) await postBotMessage(userId, didAction(result.say, result.buttons));
+  if (result.say) {
+    await postBotMessage(userId, didAction(result.say, result.buttons, result.links));
+  }
 
   return c.json({ message, did: result.say });
 });

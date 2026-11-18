@@ -1,3 +1,4 @@
+import { linkPath } from "./coachNav";
 import type {
   Attachment,
   CoachBatch,
@@ -673,4 +674,47 @@ export function projectBoard(
         Number(a.client === null) - Number(b.client === null) ||
         (a.client ?? "").localeCompare(b.client ?? ""),
     );
+}
+
+// ── Continuity: where a thing went, and what is new ──────────────────────
+
+/** Every place a chat message points at, with the name to show for each. */
+export function chatLinks(
+  message: Pick<CoachChatMessage, "link" | "links">,
+): { label: string; path: string }[] {
+  const links = message.links?.length ? message.links : message.link ? [message.link] : [];
+  return links.map((link) => ({ label: link.label?.trim() || "Open", path: linkPath(link) }));
+}
+
+/** What became of a text, and the screen that shows it. The owner's own tick comes first. */
+export function messageWent(
+  message: InboundMessage,
+): { label: "Done" | "In a batch" | "Task" | "Request"; path: string | null } | null {
+  if (message.handledAt) return { label: "Done", path: null };
+  if (message.batchId) return { label: "In a batch", path: `/coach/batch/${message.batchId}` };
+  if (message.taskId) return { label: "Task", path: `/coach/task/${message.taskId}` };
+  if (message.requestId) return { label: "Request", path: `/coach/request/${message.requestId}` };
+  return null;
+}
+
+/** The numbers on the nav: tasks to do across projects, and tasks late or due today. */
+export function navBadges(up: UpNext | null, today: string): { projects: number; upnext: number } {
+  if (!up) return { projects: 0, upnext: 0 };
+  const dueToday = up.thisWeek.find((d) => d.date === today)?.tasks.length ?? 0;
+  return {
+    projects: up.byProject.reduce((sum, p) => sum + p.open, 0),
+    upnext: up.overdue.length + dueToday,
+  };
+}
+
+/**
+ * Tasks added since a project was last looked at (`since`). With no record of
+ * a look, nothing counts as new: otherwise everything would on first use.
+ */
+export function newSince<T extends { createdAt: string }>(
+  tasks: T[],
+  since: string | undefined,
+): T[] {
+  if (!since) return [];
+  return tasks.filter((t) => t.createdAt > since);
 }

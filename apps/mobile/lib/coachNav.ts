@@ -15,5 +15,9 @@ export function linkPath(link: ChatLink): string {
       return "/coach/setup";
     case "camera":
       return "/coach/camera";
+    case "batch":
+      return `/coach/batch/${link.id}`;
+    case "thread":
+      return `/coach/thread/${link.id}`;
   }
 }

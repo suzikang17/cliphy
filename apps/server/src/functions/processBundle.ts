@@ -10,7 +10,7 @@ import {
   type InterpretContext,
   type Interpretation,
 } from "../services/coach/interpret.js";
-import { replyArrived, requestArrived } from "../services/coach/botMessages.js";
+import { projectProposed, replyArrived, requestArrived } from "../services/coach/botMessages.js";
 import { postBotMessage } from "../services/coach/chat.js";
 import { projectTag } from "../services/coach/projects.js";
 import { isReopen } from "../services/coach/reopen.js";
@@ -57,11 +57,16 @@ async function clipAttachments(messages: Row[], userId: string, tags: string[]):
 }
 
 /** The project to file under: the chosen one, or a new one the model named. */
+/**
+ * The project a request belongs to. A project is never made here: when the
+ * model names one that does not exist, the name is handed back as `proposed`
+ * and the owner is asked in Chat before anything is created.
+ */
 async function resolveProject(
   interp: Interpretation,
   personId: string,
   userId: string,
-): Promise<{ id: string; tag: string } | null> {
+): Promise<{ project: { id: string; tag: string } | null; proposed: string | null }> {
   if (interp.projectId) {
     const { data } = await supabase
       .from("coach_projects")
@@ -69,38 +74,31 @@ async function resolveProject(
       .eq("id", interp.projectId)
       .eq("user_id", userId)
       .maybeSingle();
-    return (data as { id: string; tag: string } | null) ?? null;
+    return { project: (data as { id: string; tag: string } | null) ?? null, proposed: null };
   }
-  if (!interp.newProjectName) return null;
+  const name = interp.newProjectName?.trim();
+  if (!name) return { project: null, proposed: null };
 
-  const tag = projectTag(interp.newProjectName);
-  if (tag === "project:") return null;
+  const tag = projectTag(name);
+  if (tag === "project:") return { project: null, proposed: null };
 
-  const { data: created } = await supabase
+  // The same name as a project that exists is that project, not a new one.
+  const { data: existing } = await supabase
     .from("coach_projects")
-    .insert({ user_id: userId, name: interp.newProjectName, tag })
     .select("id, tag")
-    .single();
-  let project = created as { id: string; tag: string } | null;
-  if (!project) {
-    // Most likely the tag already exists (unique per user): use that project.
-    const { data: existing } = await supabase
-      .from("coach_projects")
-      .select("id, tag")
-      .eq("user_id", userId)
-      .eq("tag", tag)
-      .maybeSingle();
-    project = (existing as { id: string; tag: string } | null) ?? null;
-  }
-  if (project) {
-    await supabase
-      .from("coach_project_people")
-      .upsert(
-        { project_id: project.id, person_id: personId },
-        { onConflict: "project_id,person_id", ignoreDuplicates: true },
-      );
-  }
-  return project;
+    .eq("user_id", userId)
+    .eq("tag", tag)
+    .maybeSingle();
+  const project = existing as { id: string; tag: string } | null;
+  if (project?.tag !== tag) return { project: null, proposed: name };
+
+  await supabase
+    .from("coach_project_people")
+    .upsert(
+      { project_id: project.id, person_id: personId },
+      { onConflict: "project_id,person_id", ignoreDuplicates: true },
+    );
+  return { project, proposed: null };
 }
 
 /**
@@ -115,8 +113,8 @@ export async function storeInterpretation(
   messages: Row[],
   interp: Interpretation,
   userId: string,
-): Promise<{ requestId: string | null }> {
-  if (interp.kind === "chat") return { requestId: null };
+): Promise<{ requestId: string | null; proposedProject: string | null }> {
+  if (interp.kind === "chat") return { requestId: null, proposedProject: null };
 
   if (interp.kind === "reply") {
     if (interp.repliesToTaskId) {
@@ -127,10 +125,10 @@ export async function storeInterpretation(
         .eq("user_id", userId);
     }
     await clipAttachments(messages, userId, []);
-    return { requestId: null };
+    return { requestId: null, proposedProject: null };
   }
 
-  const project = await resolveProject(interp, bundle.person_id, userId);
+  const { project, proposed } = await resolveProject(interp, bundle.person_id, userId);
   const historical = bundle.historical === true;
 
   const { data, error } = await supabase
@@ -141,6 +139,8 @@ export async function storeInterpretation(
         bundle_id: bundle.id,
         person_id: bundle.person_id,
         project_id: project?.id ?? null,
+        // A project the model named that does not exist: waits for the owner's answer.
+        proposed_project: proposed,
         understood: interp.understood,
         open_question: historical ? null : interp.question,
         // Read from a thread's past: history only, nothing to confirm or do.
@@ -157,7 +157,7 @@ export async function storeInterpretation(
   if (error || !data) throw new Error(`Failed to store request for bundle ${bundle.id}`);
 
   await clipAttachments(messages, userId, project ? [project.tag] : []);
-  return { requestId: (data as { id: string }).id };
+  return { requestId: (data as { id: string }).id, proposedProject: proposed };
 }
 
 /** The sweep stops re-reading a bundle once the job has given up on it this many times. */
@@ -302,37 +302,43 @@ async function runBundle({
 
   // Load, download and interpret in one step: image bytes do not survive
   // being passed between steps.
-  const { interp, messages, waitingAsks } = await step.run("interpret", async () => {
-    const { ctx, messages } = await loadContext(bundle, userId);
-    const parsed: InboundMessage[] = messages.map(toMessage);
+  const { interp, messages, waitingAsks, person, projects, lastProjectId } = await step.run(
+    "interpret",
+    async () => {
+      const { ctx, messages } = await loadContext(bundle, userId);
+      const parsed: InboundMessage[] = messages.map(toMessage);
 
-    const images: { bytes: Buffer; mediaType: string }[] = [];
-    // History becomes one line in a project's trail: the words are enough, so
-    // its images are not downloaded or sent to the model.
-    const historical = bundle.historical === true;
-    for (const m of historical ? [] : parsed) {
-      for (const a of m.attachments) {
-        try {
-          const { bytes } = await downloadImage(a.storagePath);
-          // The type recorded at capture, not one guessed from the file name:
-          // a HEIC photo must not reach the model labelled as a JPEG.
-          images.push({ bytes, mediaType: a.mediaType });
-        } catch (err) {
-          // A screenshot may be the whole request, so a storage hiccup is
-          // retried. Only the last attempt reads the bundle without it.
-          if (attempt < RETRIES) throw err;
-          log.warn("Could not download attachment", { path: a.storagePath, err: String(err) });
+      const images: { bytes: Buffer; mediaType: string }[] = [];
+      // History becomes one line in a project's trail: the words are enough, so
+      // its images are not downloaded or sent to the model.
+      const historical = bundle.historical === true;
+      for (const m of historical ? [] : parsed) {
+        for (const a of m.attachments) {
+          try {
+            const { bytes } = await downloadImage(a.storagePath);
+            // The type recorded at capture, not one guessed from the file name:
+            // a HEIC photo must not reach the model labelled as a JPEG.
+            images.push({ bytes, mediaType: a.mediaType });
+          } catch (err) {
+            // A screenshot may be the whole request, so a storage hiccup is
+            // retried. Only the last attempt reads the bundle without it.
+            if (attempt < RETRIES) throw err;
+            log.warn("Could not download attachment", { path: a.storagePath, err: String(err) });
+          }
         }
       }
-    }
-    return {
-      interp: historical
-        ? await interpretBundle(parsed, images, ctx, { model: HISTORY_MODEL })
-        : await interpretBundle(parsed, images, ctx),
-      messages,
-      waitingAsks: ctx.waitingAsks,
-    };
-  });
+      return {
+        interp: historical
+          ? await interpretBundle(parsed, images, ctx, { model: HISTORY_MODEL })
+          : await interpretBundle(parsed, images, ctx),
+        messages,
+        waitingAsks: ctx.waitingAsks,
+        person: ctx.person,
+        projects: ctx.projects.map((p) => ({ id: p.id, name: p.name })),
+        lastProjectId: ctx.recentRequests.find((r) => r.projectId)?.projectId ?? null,
+      };
+    },
+  );
 
   // Reopened, read again, and still not a request: it stays the history it
   // was. Nothing is linked or said, and the owner can try again.
@@ -347,7 +353,7 @@ async function runBundle({
     return { kind: interp.kind, requestId: null, reopened: false };
   }
 
-  const { requestId } = await step.run("store", () =>
+  const { requestId, proposedProject } = await step.run("store", () =>
     storeInterpretation(
       {
         id: bundleId,
@@ -364,6 +370,19 @@ async function runBundle({
   // Say it in the chat thread. Posting is keyed on the request or bundle, so
   // a retry of this run cannot say it twice. History read from the past is silent.
   await step.run("announce", async () => {
+    // A project the model thinks is new is asked about, once per name, even
+    // when it came from history: nothing is made without an answer.
+    if (proposedProject) {
+      const usual = projects.find((p) => p.id === lastProjectId);
+      await postBotMessage(
+        userId,
+        projectProposed({
+          name: proposedProject,
+          personName: person.name,
+          existing: usual ? [usual, ...projects.filter((p) => p !== usual)] : projects,
+        }),
+      );
+    }
     if (bundle.historical === true) return;
     if (interp.kind === "request" && requestId) {
       const attachments = messages.flatMap((m) => (m.attachments as Attachment[]) ?? []);
@@ -372,6 +391,7 @@ async function runBundle({
         requestArrived(
           { id: requestId, understood: interp.understood, openQuestion: interp.question },
           attachments,
+          projects.find((p) => p.id === interp.projectId) ?? null,
         ),
       );
     } else if (interp.kind === "reply") {

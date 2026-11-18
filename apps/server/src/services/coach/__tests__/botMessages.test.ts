@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { layer, epic, feature } from "allure-js-commons";
 import {
+  projectProposed,
   requestArrived,
   replyArrived,
   reminderDue,
@@ -358,5 +359,78 @@ describe("bot messages", () => {
         buttons: [],
       });
     });
+  });
+});
+
+describe("where things went", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Chat links");
+  });
+
+  it("a line about what was done can point at each thing it made", () => {
+    const links = [
+      { type: "project" as const, id: "p1", label: "Alder House" },
+      { type: "task" as const, id: "t1", label: "Swap the hero photo" },
+    ];
+    const message = didAction("Saved. 1 task added", [], links);
+    expect(message.links).toEqual(links);
+    // Older phones read one link: the first.
+    expect(message.link).toEqual(links[0]);
+    expect(didAction("Closed").links).toEqual([]);
+  });
+
+  it("a request says which project it was filed under", () => {
+    const message = requestArrived(
+      { id: "r1", understood: "Move the sconces up.", openQuestion: null },
+      [],
+      { id: "p1", name: "Alder House" },
+    );
+    expect(message.links).toEqual([
+      { type: "request", id: "r1", label: "Request" },
+      { type: "project", id: "p1", label: "Alder House" },
+    ]);
+    const loose = requestArrived({ id: "r1", understood: "Hi.", openQuestion: null }, []);
+    expect(loose.links).toEqual([{ type: "request", id: "r1", label: "Request" }]);
+  });
+});
+
+describe("asking before a project is made", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Projects");
+  });
+
+  it("names the project and offers to make it, file under another, or neither", () => {
+    const message = projectProposed({
+      name: "Business cards and brochure",
+      personName: "Maren",
+      existing: [
+        { id: "p1", name: "Alder House website refresh" },
+        { id: "p2", name: "Shop" },
+      ],
+    });
+    expect(message.text).toBe("New project for Maren: Business cards and brochure?");
+    expect(message.buttons).toEqual([
+      { label: "Create", action: { type: "create_project", name: "Business cards and brochure" } },
+      {
+        label: "Alder House",
+        action: { type: "file_proposed", name: "Business cards and brochure", projectId: "p1" },
+      },
+      {
+        label: "No project",
+        action: { type: "file_proposed", name: "Business cards and brochure", projectId: null },
+      },
+    ]);
+    expect(message.kind).toBe("project");
+    // Asked once per name, however many texts mention it.
+    expect(message.refId).toBe("project:business-cards-and-brochure");
+  });
+
+  it("offers only to make it or not when there is no other project", () => {
+    const message = projectProposed({ name: "Shop", personName: "Maren", existing: [] });
+    expect(message.buttons.map((b) => b.label)).toEqual(["Create", "No project"]);
   });
 });

@@ -10,9 +10,11 @@ export interface MessageMarks {
   requestId: string | null;
   /** The batch it sits in, unless it was carried out of that batch. */
   batchId: string | null;
+  /** A task it was pulled into, if any. */
+  taskId: string | null;
 }
 
-/** Marks for a page of message rows, keyed by message id. Two reads, whatever the page size. */
+/** Marks for a page of message rows, keyed by message id. Three reads, whatever the page size. */
 export async function messageMarks(
   rows: Row[],
   userId: string,
@@ -20,7 +22,7 @@ export async function messageMarks(
   const ids = rows.map((r) => r.id as string);
   const bundleIds = [...new Set(rows.map((r) => r.bundle_id as string | null).filter(Boolean))];
 
-  const [requests, items] = await Promise.all([
+  const [requests, items, tasks] = await Promise.all([
     bundleIds.length > 0
       ? supabase
           .from("coach_requests")
@@ -35,7 +37,17 @@ export async function messageMarks(
           .eq("user_id", userId)
           .in("message_id", ids)
       : { data: [] },
+    ids.length > 0
+      ? supabase
+          .from("coach_task_messages")
+          .select("message_id, task_id")
+          .eq("user_id", userId)
+          .in("message_id", ids)
+      : { data: [] },
   ]);
+  const taskOf = new Map(
+    ((tasks.data as Row[]) ?? []).map((t) => [t.message_id as string, t.task_id as string]),
+  );
 
   const requestOf = new Map(
     ((requests.data as Row[]) ?? []).map((r) => [r.bundle_id as string, r.id as string]),
@@ -53,6 +65,7 @@ export async function messageMarks(
         handledAt: (r.handled_at as string) ?? null,
         requestId: requestOf.get(r.bundle_id as string) ?? null,
         batchId: batchOf.get(r.id as string) ?? null,
+        taskId: taskOf.get(r.id as string) ?? null,
       },
     ]),
   );
