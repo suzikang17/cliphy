@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Image, Linking, ScrollView, Text, TextInput, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import type {
   CoachBatch,
@@ -9,10 +9,20 @@ import type {
   ProgressEntry,
   Project,
 } from "@cliphy/shared";
-import { batchLine, errorText, newSince, projectTiles, shortDay, taskDue } from "../../lib/coach";
+import {
+  batchLine,
+  dateChoices,
+  errorText,
+  newSince,
+  projectTiles,
+  shortDay,
+  standing,
+  taskDue,
+} from "../../lib/coach";
 import {
   createTask,
   getReady,
+  updateTask,
   mergeProject,
   getBatches,
   getPeople,
@@ -25,7 +35,7 @@ import {
 } from "../../lib/coachApi";
 import { markSeen } from "../../lib/seen";
 import { MessageRow } from "./MessageRow";
-import { Tile, Widget, WidgetGrid, WidgetLink } from "./Widget";
+import { WidgetLink } from "./Widget";
 import { Body, FONT, LINE, Page, QuickButton, Row, useCoachTheme } from "./ui";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -79,8 +89,12 @@ export function ProjectDetail({
   const [stateLine, setStateLine] = useState("");
   const [recent, setRecent] = useState<InboundMessage[]>([]);
   const [ready, setReady] = useState(0);
-  const [editingSite, setEditingSite] = useState(false);
   const [allHistory, setAllHistory] = useState(false);
+  // Acting on tasks in place, and the tucked-away parts of the page.
+  const [openTask, setOpenTask] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{ task: CoachTask; word: string } | null>(null);
+  const [actNote, setActNote] = useState<string | null>(null);
+  const [openMore, setOpenMore] = useState<string | null>(null);
   // Tidying up: fold this project into another, or archive it.
   const [others, setOthers] = useState<Project[]>([]);
   const [merging, setMerging] = useState(false);
@@ -121,7 +135,8 @@ export function ProjectDetail({
     try {
       const { task } = await createTask({ kind: "do", title, projectId: id });
       setTaskTitle("");
-      router.push(`/coach/task/${task.id}` as never);
+      // Stays here: the new task joins the list, ready for the next one to be typed.
+      setTasks((old) => [...old, task]);
     } catch (err) {
       setTaskNote(errorText(err));
     } finally {
@@ -215,127 +230,357 @@ export function ProjectDetail({
     router.push(`/coach/batch/new?personId=${clientId}&projectId=${id}` as never);
 
   const sub = [clientName, stateLine].filter(Boolean).join(" · ") || undefined;
-  const body = (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{
-        paddingHorizontal: 16,
-        paddingTop: 14,
-        paddingBottom: 48,
-        gap: 12,
-      }}
-    >
-      {failed ? <Body muted>{failed}</Body> : null}
+  // Acting on a task where it is listed: finish it, move its date, or drop it.
+  const refreshReady = () =>
+    getReady(id)
+      .then((r) => setReady(r.requests.length + r.tasks.length))
+      .catch(() => {});
+  const finish = async (task: CoachTask, state: "done" | "dropped") => {
+    setActNote(null);
+    setOpenTask(null);
+    setTasks((old) => old.filter((x) => x.id !== task.id));
+    setUndo({ task, word: state === "done" ? "Done" : "Dropped" });
+    try {
+      await updateTask(task.id, { state });
+      void refreshReady();
+    } catch (err) {
+      setTasks((old) => [...old, task]);
+      setUndo(null);
+      setActNote(errorText(err));
+    }
+  };
+  const putBack = async () => {
+    if (!undo) return;
+    const { task } = undo;
+    setUndo(null);
+    setTasks((old) => [...old, task]);
+    try {
+      await updateTask(task.id, { state: "open" });
+      void refreshReady();
+    } catch (err) {
+      setTasks((old) => old.filter((x) => x.id !== task.id));
+      setActNote(errorText(err));
+    }
+  };
+  const moveDate = async (task: CoachTask, dueDate: string | null) => {
+    setActNote(null);
+    setOpenTask(null);
+    setTasks((old) => old.map((x) => (x.id === task.id ? { ...x, dueDate } : x)));
+    try {
+      await updateTask(task.id, { dueDate });
+    } catch (err) {
+      setTasks((old) => old.map((x) => (x.id === task.id ? task : x)));
+      setActNote(errorText(err));
+    }
+  };
 
-      {!failed ? (
-        <>
-          <WidgetGrid gap={10}>
-            {tiles.map((tile) => (
-              <Tile
-                key={tile.key}
-                value={tile.value}
-                label={tile.label}
-                strong={tile.key === "ready" && ready > 0}
+  const heading = (label: string, action?: React.ReactNode) => (
+    <View style={{ flexDirection: "row", alignItems: "baseline", marginTop: 30, marginBottom: 6 }}>
+      <Text
+        accessibilityRole="header"
+        style={{ flex: 1, fontFamily: FONT, fontSize: 18, fontWeight: "700", color: t.text }}
+      >
+        {label}
+      </Text>
+      {action}
+    </View>
+  );
+  /** A line that opens a tucked-away part of the page. */
+  const more = (
+    key: string,
+    label: string,
+    detail: string | undefined,
+    content: React.ReactNode,
+  ) => (
+    <View key={key} style={{ borderTopWidth: 1, borderTopColor: t.hairline }}>
+      <Pressable
+        onPress={() => setOpenMore(openMore === key ? null : key)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: openMore === key }}
+        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 13 }}
+      >
+        <Text style={{ flex: 1, fontFamily: FONT, fontSize: 15, fontWeight: "500", color: t.text }}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text style={{ ...noteStyle, marginTop: 0, marginRight: 10 }}>{detail}</Text>
+        ) : null}
+        <Text style={{ fontFamily: FONT, fontSize: 15, color: t.muted }}>
+          {openMore === key ? "–" : "+"}
+        </Text>
+      </Pressable>
+      {openMore === key ? <View style={{ paddingBottom: 16 }}>{content}</View> : null}
+    </View>
+  );
+
+  const body = (
+    <ScrollView keyboardShouldPersistTaps="handled">
+      {/* One column, no boxes: sections under headings, with room to read. */}
+      <View
+        style={{
+          width: "100%",
+          maxWidth: 760,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 60,
+        }}
+      >
+        {failed ? <Body muted>{failed}</Body> : null}
+
+        {!failed ? (
+          <>
+            <Text style={{ fontFamily: FONT, fontSize: 15, color: t.muted }}>
+              {standing(tiles)}
+            </Text>
+
+            {heading("To do")}
+            {todo.length === 0 ? <Text style={noteStyle}>Nothing open.</Text> : null}
+            {todo.map((task) => {
+              const due = taskDue(task.dueDate, today);
+              const waiting = task.state === "waiting";
+              const word = waiting
+                ? "Waiting"
+                : task.blocked
+                  ? "Blocked"
+                  : (due?.text ?? "No date");
+              return (
+                <View
+                  key={task.id}
+                  style={{
+                    borderBottomWidth: 1,
+                    borderBottomColor: t.hairline,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <Pressable
+                      onPress={() => void finish(task, "done")}
+                      disabled={task.blocked}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: false, disabled: task.blocked }}
+                      accessibilityLabel={`Done: ${task.title}`}
+                      hitSlop={8}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        borderWidth: LINE,
+                        borderColor: task.blocked ? t.hairline : t.line,
+                      }}
+                    />
+                    <Pressable
+                      onPress={() => router.push(`/coach/task/${task.id}` as never)}
+                      accessibilityRole="link"
+                      style={{ flex: 1 }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: FONT,
+                          fontSize: 16,
+                          lineHeight: 22,
+                          color: task.blocked ? t.muted : t.text,
+                        }}
+                      >
+                        {task.title}
+                      </Text>
+                      {isNew.has(task.id) ? (
+                        <Text
+                          style={{ ...noteStyle, marginTop: 1, color: t.accent, fontWeight: "700" }}
+                        >
+                          New
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                    <Text
+                      onPress={() => setOpenTask(openTask === task.id ? null : task.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${word}. Change`}
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: due?.late && !waiting ? t.due : t.muted,
+                        textDecorationLine: "underline",
+                      }}
+                    >
+                      {word}
+                    </Text>
+                  </View>
+                  {openTask === task.id ? (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginTop: 10,
+                        marginLeft: 36,
+                      }}
+                    >
+                      {dateChoices(today).map((choice) => (
+                        <QuickButton
+                          key={choice.label}
+                          label={choice.label}
+                          chosen={task.dueDate === choice.date}
+                          onPress={() => void moveDate(task, choice.date)}
+                        />
+                      ))}
+                      <QuickButton label="Drop" onPress={() => void finish(task, "dropped")} />
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+            {undo ? (
+              <Text style={{ ...noteStyle, marginTop: 10 }}>
+                {`${undo.word}: ${undo.task.title}. `}
+                <Text
+                  onPress={() => void putBack()}
+                  accessibilityRole="button"
+                  style={{ fontWeight: "700", color: t.text, textDecorationLine: "underline" }}
+                >
+                  Undo
+                </Text>
+              </Text>
+            ) : null}
+            {actNote ? <Text style={{ ...noteStyle, marginTop: 10 }}>{actNote}</Text> : null}
+            <TextInput
+              value={taskTitle}
+              onChangeText={setTaskTitle}
+              onSubmitEditing={() => void addTask()}
+              placeholder="Add a task"
+              placeholderTextColor={t.muted}
+              returnKeyType="done"
+              blurOnSubmit={false}
+              accessibilityLabel="New task"
+              style={{ ...input, marginTop: 14 }}
+            />
+            {taskNote ? <Text style={noteStyle}>{taskNote}</Text> : null}
+
+            {heading(
+              "Report",
+              clientId ? <WidgetLink label="New batch" onPress={newBatch} /> : undefined,
+            )}
+            {ready > 0 && clientId ? (
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 6 }}
+              >
+                <QuickButton label={`Batch ${ready} ready`} primary onPress={newBatch} />
+                <Text style={{ ...noteStyle, marginTop: 0 }}>Finished, not yet reported.</Text>
+              </View>
+            ) : null}
+            {batches.slice(0, SHOWN).map((b) => (
+              <Row
+                key={b.id}
+                title={shortDay(b.createdAt)}
+                detail={`${b.itemCount} ${b.itemCount === 1 ? "item" : "items"}`}
+                right={batchLine(b)}
+                onPress={() => router.push(`/coach/batch/${b.id}` as never)}
               />
             ))}
-          </WidgetGrid>
+            {batches.length === 0 && ready === 0 ? (
+              <Text style={noteStyle}>Nothing finished to report yet.</Text>
+            ) : null}
 
-          <WidgetGrid>
-            <Widget title="To do" count={todo.length}>
-              {todo.slice(0, SHOWN).map((task) => {
-                const due = taskDue(task.dueDate, today);
-                return (
-                  <Row
-                    key={task.id}
-                    title={task.title}
-                    detail={isNew.has(task.id) ? "New" : undefined}
-                    right={
-                      task.state === "waiting" ? "Waiting" : task.blocked ? "Blocked" : due?.text
-                    }
-                    rightColor={due?.late && task.state === "open" ? t.due : undefined}
-                    dim={task.blocked}
-                    onPress={() => router.push(`/coach/task/${task.id}` as never)}
-                  />
-                );
-              })}
-              {todo.length > SHOWN ? (
-                <Text style={noteStyle}>{`${todo.length - SHOWN} more in Up next`}</Text>
-              ) : null}
-              {todo.length === 0 ? <Text style={noteStyle}>Nothing open.</Text> : null}
-              <TextInput
-                value={taskTitle}
-                onChangeText={setTaskTitle}
-                onSubmitEditing={() => void addTask()}
-                placeholder="Add a task"
-                placeholderTextColor={t.muted}
-                returnKeyType="done"
-                accessibilityLabel="New task"
-                style={input}
-              />
-              {taskNote ? <Text style={noteStyle}>{taskNote}</Text> : null}
-            </Widget>
-
-            <Widget
-              title="Batches"
-              count={batches.length}
-              action={clientId ? <WidgetLink label="New" onPress={newBatch} /> : undefined}
-            >
-              {batches.slice(0, SHOWN).map((b) => (
-                <Row
-                  key={b.id}
-                  title={shortDay(b.createdAt)}
-                  detail={`${b.itemCount} ${b.itemCount === 1 ? "item" : "items"}`}
-                  right={batchLine(b)}
-                  onPress={() => router.push(`/coach/batch/${b.id}` as never)}
-                />
-              ))}
-              {batches.length === 0 ? (
-                <Text style={noteStyle}>
-                  {clientId
-                    ? "Finished work you check, then report in one message."
-                    : "Batches start once a client has asked for something here."}
-                </Text>
-              ) : null}
-              {clientId && ready > 0 ? (
-                <View style={{ flexDirection: "row", marginTop: 10 }}>
-                  <QuickButton label={`Batch ${ready} ready`} primary onPress={newBatch} />
-                </View>
-              ) : null}
-            </Widget>
-
-            <Widget
-              title={clientName ?? "Client"}
-              action={
-                clientId ? (
+            {clientId ? (
+              <>
+                {heading(
+                  clientName ? `Latest from ${clientName}` : "Latest texts",
                   <WidgetLink
                     label="All texts"
                     onPress={() =>
                       router.push(`/coach/thread/${clientId}?projectId=${id}` as never)
                     }
-                  />
-                ) : undefined
-              }
-            >
-              {latest.map((m) => (
-                <MessageRow key={m.id} message={m} compact />
-              ))}
-              {latest.length === 0 ? (
-                <Text style={noteStyle}>
-                  {clientId ? "No messages captured yet." : "Nobody is on this project yet."}
-                </Text>
-              ) : null}
-            </Widget>
+                  />,
+                )}
+                {latest.map((m) => (
+                  <MessageRow key={m.id} message={m} />
+                ))}
+                {latest.length === 0 ? (
+                  <Text style={noteStyle}>No messages captured yet.</Text>
+                ) : null}
+              </>
+            ) : null}
 
-            <Widget
-              title="Site"
-              action={
-                <WidgetLink
-                  label={editingSite ? "Done" : saved.site || saved.repo ? "Edit" : "Add"}
-                  onPress={() => setEditingSite((on) => !on)}
-                />
-              }
-            >
-              {editingSite ? (
+            <View style={{ marginTop: 34, borderBottomWidth: 1, borderBottomColor: t.hairline }}>
+              {more(
+                "asked",
+                "Everything asked",
+                entries ? String(entries.length) : undefined,
+                <>
+                  {entries?.length === 0 ? <Text style={noteStyle}>Nothing asked yet.</Text> : null}
+                  {trail.map((entry) => (
+                    <View key={entry.request.id}>
+                      <Row
+                        title={entry.request.understood}
+                        detail={when(entry.request.createdAt)}
+                        right={
+                          entry.request.openQuestion && !entry.request.answer
+                            ? "Needs your answer"
+                            : entry.request.status === "new"
+                              ? "New"
+                              : undefined
+                        }
+                        rightColor={t.due}
+                        onPress={() => open(entry.request)}
+                      />
+                      {entry.replaced.map((old) => (
+                        <View key={old.id} style={{ marginLeft: 14 }}>
+                          <Row
+                            title={old.understood}
+                            detail={`${when(old.createdAt)} · Replaced`}
+                            dim
+                            onPress={() => open(old)}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                  {(entries?.length ?? 0) > SHOWN ? (
+                    <View style={{ marginTop: 10 }}>
+                      <WidgetLink
+                        label={allHistory ? "Show fewer" : `Show all ${entries?.length}`}
+                        onPress={() => setAllHistory((on) => !on)}
+                      />
+                    </View>
+                  ) : null}
+                </>,
+              )}
+
+              {photos.some((p) => p.url)
+                ? more(
+                    "pictures",
+                    "Pictures",
+                    String(photos.filter((p) => p.url).length),
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {photos
+                        .filter((p) => p.url)
+                        .map((p) => (
+                          <View key={p.id} style={{ marginRight: 8 }}>
+                            <Image
+                              source={{ uri: p.url as string }}
+                              accessibilityLabel={`Progress photo, ${when(p.createdAt)}`}
+                              style={{
+                                width: 110,
+                                height: 146,
+                                borderRadius: 6,
+                                borderWidth: LINE,
+                                borderColor: t.line,
+                                backgroundColor: t.hairline,
+                              }}
+                            />
+                            <Text style={{ ...noteStyle, fontSize: 11 }}>{when(p.createdAt)}</Text>
+                          </View>
+                        ))}
+                    </ScrollView>,
+                  )
+                : null}
+
+              {more(
+                "site",
+                "Site",
+                saved.site
+                  ? saved.site.replace(/^https?:\/\//, "").replace(/\/$/, "")
+                  : "Not linked",
                 <>
                   <TextInput
                     value={site}
@@ -365,128 +610,54 @@ export function ProjectDetail({
                     {siteNote.repo ??
                       "Its repo on GitHub. With it, work can be started on the site."}
                   </Text>
-                </>
-              ) : (
-                <>
                   {saved.site ? (
-                    <Row
-                      title={saved.site.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                      right="Open"
-                      onPress={() => void Linking.openURL(saved.site)}
-                    />
-                  ) : null}
-                  {saved.repo ? <Row title={saved.repo} detail="GitHub repo" /> : null}
-                  {!saved.site && !saved.repo ? (
-                    <Text style={noteStyle}>No site linked yet.</Text>
-                  ) : null}
-                </>
-              )}
-            </Widget>
-
-            {photos.some((p) => p.url) ? (
-              <Widget title="Pictures" wide>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginTop: 8 }}
-                >
-                  {photos
-                    .filter((p) => p.url)
-                    .map((p) => (
-                      <View key={p.id} style={{ marginRight: 8 }}>
-                        <Image
-                          source={{ uri: p.url as string }}
-                          accessibilityLabel={`Progress photo, ${when(p.createdAt)}`}
-                          style={{
-                            width: 110,
-                            height: 146,
-                            borderRadius: 6,
-                            borderWidth: LINE,
-                            borderColor: t.line,
-                            backgroundColor: t.hairline,
-                          }}
-                        />
-                        <Text
-                          style={{ fontFamily: FONT, fontSize: 11, color: t.muted, marginTop: 3 }}
-                        >
-                          {when(p.createdAt)}
-                        </Text>
-                      </View>
-                    ))}
-                </ScrollView>
-              </Widget>
-            ) : null}
-
-            <Widget title="Asked" count={entries?.length} wide>
-              {entries?.length === 0 ? <Text style={noteStyle}>Nothing asked yet.</Text> : null}
-              {trail.map((entry) => (
-                <View key={entry.request.id}>
-                  <Row
-                    title={entry.request.understood}
-                    detail={when(entry.request.createdAt)}
-                    right={
-                      entry.request.openQuestion && !entry.request.answer
-                        ? "Needs your answer"
-                        : entry.request.status === "new"
-                          ? "New"
-                          : undefined
-                    }
-                    rightColor={t.due}
-                    onPress={() => open(entry.request)}
-                  />
-                  {entry.replaced.map((old) => (
-                    <View key={old.id} style={{ marginLeft: 14 }}>
-                      <Row
-                        title={old.understood}
-                        detail={`${when(old.createdAt)} · Replaced`}
-                        dim
-                        onPress={() => open(old)}
+                    <View style={{ flexDirection: "row", marginTop: 10 }}>
+                      <QuickButton
+                        label="Open site"
+                        onPress={() => void Linking.openURL(saved.site)}
                       />
                     </View>
-                  ))}
-                </View>
-              ))}
-              {(entries?.length ?? 0) > SHOWN ? (
-                <View style={{ marginTop: 8 }}>
-                  <WidgetLink
-                    label={allHistory ? "Show fewer" : `Show all ${entries?.length}`}
-                    onPress={() => setAllHistory((on) => !on)}
-                  />
-                </View>
-              ) : null}
-            </Widget>
-
-            <Widget title="Project" wide>
-              {merging ? (
-                <>
-                  <Text style={noteStyle}>Move everything in this project into:</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                    {others.map((other) => (
-                      <QuickButton
-                        key={other.id}
-                        label={other.name}
-                        onPress={() => tidy(() => mergeProject(id, other.id))}
-                      />
-                    ))}
-                    <QuickButton label="Cancel" onPress={() => setMerging(false)} />
-                  </View>
-                </>
-              ) : (
-                <View style={{ flexDirection: "row", gap: 16, marginTop: 6 }}>
-                  {others.length > 0 ? (
-                    <WidgetLink label="Merge into…" onPress={() => setMerging(true)} />
                   ) : null}
-                  <WidgetLink
-                    label="Archive"
-                    onPress={() => tidy(() => updateProject(id, { active: false }))}
-                  />
-                </View>
+                </>,
               )}
-              {tidyNote ? <Text style={noteStyle}>{tidyNote}</Text> : null}
-            </Widget>
-          </WidgetGrid>
-        </>
-      ) : null}
+
+              {more(
+                "tidy",
+                "Merge or archive",
+                undefined,
+                merging ? (
+                  <>
+                    <Text style={noteStyle}>Move everything in this project into:</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                      {others.map((other) => (
+                        <QuickButton
+                          key={other.id}
+                          label={other.name}
+                          onPress={() => tidy(() => mergeProject(id, other.id))}
+                        />
+                      ))}
+                      <QuickButton label="Cancel" onPress={() => setMerging(false)} />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {others.length > 0 ? (
+                        <QuickButton label="Merge into…" onPress={() => setMerging(true)} />
+                      ) : null}
+                      <QuickButton
+                        label="Archive"
+                        onPress={() => tidy(() => updateProject(id, { active: false }))}
+                      />
+                    </View>
+                    {tidyNote ? <Text style={noteStyle}>{tidyNote}</Text> : null}
+                  </>
+                ),
+              )}
+            </View>
+          </>
+        ) : null}
+      </View>
     </ScrollView>
   );
 

@@ -50,6 +50,9 @@ import {
   navBadges,
   newSince,
   workBoard,
+  dateChoices,
+  standing,
+  type ProjectTile,
 } from "../coach";
 import type { CoachRequest } from "@cliphy/shared";
 import type { UpNext, UpNextTask } from "@cliphy/shared";
@@ -1125,5 +1128,50 @@ describe("workBoard", () => {
     expect(board.todo).toEqual([]);
     expect(board.waiting.map((c) => c.key)).toEqual(["t4"]);
     expect(board.ready.map((c) => c.key)).toEqual(["t9"]);
+  });
+});
+
+describe("dateChoices", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  it("offers the dates a task usually moves to, counted from today", () => {
+    expect(dateChoices("2026-11-18")).toEqual([
+      { label: "Today", date: "2026-11-18" },
+      { label: "Tomorrow", date: "2026-11-19" },
+      { label: "Next week", date: "2026-11-25" },
+      { label: "No date", date: null },
+    ]);
+    // Across a month end.
+    expect(dateChoices("2026-11-30")[1].date).toBe("2026-12-01");
+  });
+});
+
+describe("standing", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  it("says where a project stands in one line, leaving out what is zero", () => {
+    const tiles = [
+      { key: "todo", value: "2", label: "To do" },
+      { key: "waiting", value: "0", label: "Waiting on them" },
+      { key: "ready", value: "3", label: "Ready to report" },
+      { key: "heard", value: "2 h ago", label: "Last heard" },
+    ] as ProjectTile[];
+    expect(standing(tiles)).toBe("2 to do · 3 ready to report · heard 2 h ago");
+    expect(
+      standing([
+        { key: "todo", value: "0", label: "To do" },
+        { key: "waiting", value: "0", label: "Waiting on them" },
+        { key: "ready", value: "0", label: "Ready to report" },
+        { key: "heard", value: "–", label: "Last heard" },
+      ]),
+    ).toBe("Nothing open");
   });
 });

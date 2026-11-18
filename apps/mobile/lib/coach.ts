@@ -781,3 +781,32 @@ export function workBoard(input: {
     ],
   };
 }
+
+/** The dates a task is usually moved to, from `today` (YYYY-MM-DD, local). */
+export function dateChoices(today: string): { label: string; date: string | null }[] {
+  const plus = (days: number) => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  return [
+    { label: "Today", date: today },
+    { label: "Tomorrow", date: plus(1) },
+    { label: "Next week", date: plus(7) },
+    { label: "No date", date: null },
+  ];
+}
+
+/** Where a project stands, in one line of plain words. Zeroes are left out. */
+export function standing(tiles: ProjectTile[]): string {
+  const words: Record<ProjectTile["key"], (value: string) => string> = {
+    todo: (v) => `${v} to do`,
+    waiting: (v) => `${v} waiting on them`,
+    ready: (v) => `${v} ready to report`,
+    heard: (v) => `heard ${v}`,
+  };
+  const parts = tiles
+    .filter((tile) => tile.value !== "0" && tile.value !== "–")
+    .map((tile) => words[tile.key](tile.value));
+  return parts.length > 0 ? parts.join(" · ") : "Nothing open";
+}
