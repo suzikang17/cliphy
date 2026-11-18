@@ -471,3 +471,90 @@ describe("batches: finished work, checked and summarized for the client", () => 
     });
   });
 });
+
+describe("GET /batches/ready", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Batches");
+  });
+
+  const task = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    request_id: "r1",
+    project_id: "pr1",
+    kind: "do",
+    state: "done",
+    title: `task ${id}`,
+    kit: {},
+    checklist: [],
+    after_task_id: null,
+    created_at: "2026-11-10T10:00:00Z",
+    ...over,
+  });
+  const readyDb = (opts: { requests: unknown[]; tasks: unknown[]; items?: unknown[] }) =>
+    makeDb((op: Op) => {
+      if (op.table === "coach_requests") return { data: opts.requests };
+      if (op.table === "coach_tasks") return { data: opts.tasks };
+      if (op.table === "coach_batch_items") return { data: opts.items ?? [] };
+      return undefined;
+    });
+  const ready = async (query = "") =>
+    (await (await call("GET", `/ready${query}`)).json()) as {
+      requests: { id: string }[];
+      tasks: { id: string }[];
+    };
+
+  it("gives requests whose work is all finished, and hand-added tasks that are done", async () => {
+    db = readyDb({
+      requests: [
+        requestRow({ id: "r1", status: "confirmed" }),
+        requestRow({ id: "r2", status: "confirmed" }),
+        requestRow({ id: "r3", status: "confirmed" }),
+        requestRow({ id: "r4", status: "new" }),
+        requestRow({ id: "r5", status: "closed", historical: true }),
+      ],
+      tasks: [
+        task("t1"),
+        task("t2", { state: "dropped" }),
+        // r2 still has work open.
+        task("t3", { request_id: "r2" }),
+        task("t4", { request_id: "r2", state: "open" }),
+        // r3 had everything dropped: nothing was done, so nothing to report.
+        task("t5", { request_id: "r3", state: "dropped" }),
+        // Added by hand.
+        task("t6", { request_id: null }),
+        task("t7", { request_id: null, state: "open" }),
+      ],
+    });
+    const out = await ready();
+    expect(out.requests.map((r) => r.id)).toEqual(["r1"]);
+    expect(out.tasks.map((t) => t.id)).toEqual(["t6"]);
+  });
+
+  it("leaves out what is already in a batch, unless it was carried out of it", async () => {
+    db = readyDb({
+      requests: [requestRow({ id: "r1", status: "confirmed" })],
+      tasks: [task("t1"), task("t6", { request_id: null }), task("t8", { request_id: null })],
+      items: [
+        { request_id: "r1", message_id: null, task_id: null, state: "done" },
+        { request_id: null, message_id: null, task_id: "t6", state: "unchecked" },
+        { request_id: null, message_id: null, task_id: "t8", state: "not_done" },
+      ],
+    });
+    const out = await ready();
+    expect(out.requests).toEqual([]);
+    expect(out.tasks.map((t) => t.id)).toEqual(["t8"]);
+  });
+
+  it("can be asked for one project", async () => {
+    db = readyDb({
+      requests: [
+        requestRow({ id: "r1", status: "confirmed", project_id: "pr1" }),
+        requestRow({ id: "r9", status: "confirmed", project_id: "pr2" }),
+      ],
+      tasks: [task("t1"), task("t9", { request_id: "r9", project_id: "pr2" })],
+    });
+    expect((await ready("?projectId=pr2")).requests.map((r) => r.id)).toEqual(["r9"]);
+  });
+});

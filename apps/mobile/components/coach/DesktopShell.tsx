@@ -11,6 +11,7 @@ import { FONT, LINE, useCoachTheme } from "./ui";
 const TITLE_STRIP = MAC_WINDOW ? 34 : 12;
 /** Screens were drawn for a phone; past this they stop widening. */
 const CONTENT_WIDTH = 760;
+const WIDE_WIDTH = 1280;
 /** Below this width the nav moves to the bottom. */
 const NARROW = 720;
 
@@ -216,7 +217,16 @@ export function DesktopShell({ children }: { children: ReactNode }) {
         </View>
 
         <View style={{ flex: 1, alignItems: "center" }}>
-          <View style={{ flex: 1, width: "100%", maxWidth: CONTENT_WIDTH }}>{children}</View>
+          <View
+            style={{
+              flex: 1,
+              width: "100%",
+              // The Projects screen lays work out across the window; the rest are columns.
+              maxWidth: pathname === "/projects" ? WIDE_WIDTH : CONTENT_WIDTH,
+            }}
+          >
+            {children}
+          </View>
         </View>
       </View>
     </View>

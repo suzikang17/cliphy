@@ -220,6 +220,11 @@ export const getBatches = (projectId: string) =>
   apiFetch<{ batches: CoachBatch[] }>(
     `/api/coach/batches?projectId=${encodeURIComponent(projectId)}`,
   );
+/** Finished work not yet reported to a client, for everything or one project. */
+export const getReady = (projectId?: string) =>
+  apiFetch<{ requests: CoachRequest[]; tasks: CoachTask[] }>(
+    `/api/coach/batches/ready${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`,
+  );
 export const getBatchCandidates = (personId: string, projectId?: string) =>
   apiFetch<BatchCandidates>(
     `/api/coach/batches/candidates?personId=${encodeURIComponent(personId)}${

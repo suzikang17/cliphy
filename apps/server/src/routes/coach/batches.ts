@@ -67,6 +67,54 @@ batchRoutes.get("/", async (c) => {
 
 // ── GET /candidates — what can go into a new batch ───────────────────────
 
+// ── GET /ready — finished work not yet reported ──────────────────────────
+// A request is ready once it was confirmed, at least one of its tasks was
+// done and none is still open. A task added by hand is ready once done.
+// Anything already in a batch is left out, unless it was carried out of it.
+
+batchRoutes.get("/ready", async (c) => {
+  const userId = c.get("userId");
+  const projectId = c.req.query("projectId");
+
+  const [requestRes, taskRes, itemRes] = await Promise.all([
+    supabase
+      .from("coach_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: false }),
+    supabase.from("coach_tasks").select("*").eq("user_id", userId),
+    supabase.from("coach_batch_items").select("request_id, task_id, state").eq("user_id", userId),
+  ]);
+  const tasks = (taskRes.data as Row[]) ?? [];
+
+  const taken = new Set<string>();
+  for (const item of (itemRes.data as Row[]) ?? []) {
+    if (item.state === "not_done") continue;
+    for (const key of ["request_id", "task_id"]) {
+      if (typeof item[key] === "string") taken.add(item[key] as string);
+    }
+  }
+
+  const live = (state: unknown) => state === "open" || state === "waiting";
+  const inProject = (row: Row) => !projectId || row.project_id === projectId;
+  const requests = ((requestRes.data as Row[]) ?? [])
+    .filter((r) => r.status === "confirmed" && r.historical !== true)
+    .filter((r) => inProject(r) && !taken.has(r.id as string))
+    .filter((r) => {
+      const mine = tasks.filter((t) => t.request_id === r.id);
+      return mine.some((t) => t.state === "done") && !mine.some((t) => live(t.state));
+    });
+  const byHand = tasks
+    .filter((t) => !t.request_id && t.state === "done")
+    .filter((t) => inProject(t) && !taken.has(t.id as string));
+
+  return c.json({
+    requests: requests.map(toRequest),
+    tasks: byHand.map((t) => toTask(t, false)),
+  });
+});
+
 batchRoutes.get("/candidates", async (c) => {
   const userId = c.get("userId");
   const personId = c.req.query("personId");

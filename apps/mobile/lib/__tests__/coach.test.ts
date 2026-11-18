@@ -49,7 +49,9 @@ import {
   messageWent,
   navBadges,
   newSince,
+  workBoard,
 } from "../coach";
+import type { CoachRequest } from "@cliphy/shared";
 import type { UpNext, UpNextTask } from "@cliphy/shared";
 import type { InboundMessage } from "@cliphy/shared";
 import type { CoachTask } from "@cliphy/shared";
@@ -1037,5 +1039,91 @@ describe("finding where things went", () => {
     expect(newSince(tasks, "2026-11-15T00:00:00Z").map((t) => t.id)).toEqual(["new"]);
     // Never looked at: nothing is "new", or everything would be on first use.
     expect(newSince(tasks, undefined)).toEqual([]);
+  });
+});
+
+describe("workBoard", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Projects");
+  });
+
+  const projects = [
+    { id: "p1", name: "Alder House" },
+    { id: "p2", name: "Shop" },
+  ];
+  const task = (over: Partial<CoachTask>): CoachTask =>
+    ({
+      id: "t1",
+      projectId: "p1",
+      state: "open",
+      blocked: false,
+      title: "Swap the hero photo",
+      dueDate: null,
+      createdAt: "2026-11-10T10:00:00Z",
+      ...over,
+    }) as CoachTask;
+  const ready = {
+    requests: [{ id: "r1", projectId: "p1", understood: "Move the sconces up" }] as CoachRequest[],
+    tasks: [task({ id: "t9", projectId: "p2", state: "done", title: "Fix the footer" })],
+  };
+
+  it("sorts every project's work into to do, waiting on them and ready to report", () => {
+    const board = workBoard({
+      tasks: [
+        task({ id: "t1", dueDate: "2026-11-20" }),
+        task({ id: "t2", title: "Rearrange Details", dueDate: "2026-11-18" }),
+        task({ id: "t3", title: "Tell Maren", blocked: true }),
+        task({ id: "t4", title: "Ask for prices", state: "waiting", projectId: "p2" }),
+      ],
+      ready,
+      projects,
+      projectId: null,
+    });
+    expect(board.todo).toEqual([
+      {
+        key: "t2",
+        title: "Rearrange Details",
+        project: "Alder House",
+        path: "/coach/task/t2",
+        dueDate: "2026-11-18",
+        blocked: false,
+      },
+      {
+        key: "t1",
+        title: "Swap the hero photo",
+        project: "Alder House",
+        path: "/coach/task/t1",
+        dueDate: "2026-11-20",
+        blocked: false,
+      },
+      // What cannot be started yet goes last.
+      {
+        key: "t3",
+        title: "Tell Maren",
+        project: "Alder House",
+        path: "/coach/task/t3",
+        dueDate: null,
+        blocked: true,
+      },
+    ]);
+    expect(board.waiting.map((c) => [c.key, c.project])).toEqual([["t4", "Shop"]]);
+    expect(board.ready.map((c) => [c.key, c.title, c.project, c.path])).toEqual([
+      ["r1", "Move the sconces up", "Alder House", "/coach/request/r1"],
+      ["t9", "Fix the footer", "Shop", "/coach/task/t9"],
+    ]);
+  });
+
+  it("can show one project only", () => {
+    const board = workBoard({
+      tasks: [task({}), task({ id: "t4", state: "waiting", projectId: "p2" })],
+      ready,
+      projects,
+      projectId: "p2",
+    });
+    expect(board.todo).toEqual([]);
+    expect(board.waiting.map((c) => c.key)).toEqual(["t4"]);
+    expect(board.ready.map((c) => c.key)).toEqual(["t9"]);
   });
 });

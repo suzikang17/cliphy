@@ -5,6 +5,7 @@ import type {
   CoachChatMessage,
   CoachHealth,
   CoachReminder,
+  CoachRequest,
   CoachRun,
   CoachTask,
   InboundMessage,
@@ -717,4 +718,66 @@ export function newSince<T extends { createdAt: string }>(
 ): T[] {
   if (!since) return [];
   return tasks.filter((t) => t.createdAt > since);
+}
+
+// ── The work board: every project's tasks by where they stand ────────────
+
+export interface WorkCard {
+  key: string;
+  title: string;
+  /** The project it belongs to, by name. */
+  project: string | null;
+  path: string;
+  dueDate: string | null;
+  /** Waiting on another task: cannot be started yet. */
+  blocked: boolean;
+}
+
+/**
+ * Work across projects (or one, with `projectId`) in three columns: to do,
+ * waiting on the client, and finished but not yet reported.
+ */
+export function workBoard(input: {
+  tasks: CoachTask[];
+  ready: { requests: CoachRequest[]; tasks: CoachTask[] };
+  projects: Pick<Project, "id" | "name">[];
+  projectId: string | null;
+}): { todo: WorkCard[]; waiting: WorkCard[]; ready: WorkCard[] } {
+  const name = (id: string | null) => input.projects.find((p) => p.id === id)?.name ?? null;
+  const wanted = <T extends { projectId: string | null }>(items: T[]) =>
+    items.filter((item) => !input.projectId || item.projectId === input.projectId);
+  const card = (task: CoachTask): WorkCard => ({
+    key: task.id,
+    title: task.title,
+    project: name(task.projectId),
+    path: `/coach/task/${task.id}`,
+    dueDate: task.dueDate,
+    blocked: task.blocked,
+  });
+  const soonest = (a: CoachTask, b: CoachTask) => {
+    if (a.blocked !== b.blocked) return Number(a.blocked) - Number(b.blocked);
+    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    return a.createdAt.localeCompare(b.createdAt);
+  };
+  const tasks = wanted(input.tasks);
+  return {
+    todo: tasks
+      .filter((t) => t.state === "open")
+      .sort(soonest)
+      .map(card),
+    waiting: tasks.filter((t) => t.state === "waiting").map(card),
+    ready: [
+      ...wanted(input.ready.requests).map((request) => ({
+        key: request.id,
+        title: request.understood,
+        project: name(request.projectId),
+        path: `/coach/request/${request.id}`,
+        dueDate: null,
+        blocked: false,
+      })),
+      ...wanted(input.ready.tasks).map(card),
+    ],
+  };
 }

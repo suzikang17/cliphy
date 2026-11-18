@@ -126,3 +126,13 @@ The owner: "everything seems a little bit hidden and you have to look for it in 
 - **Breadcrumbs.** Task and request pages show their project, what they came from and the client's texts (`components/coach/Crumbs.tsx`). The task page now reads the task by id, so a finished task opened from a link shows instead of "This one is finished".
 - **Badges.** The nav counts tasks to do (Projects) and tasks late or due today (Up next), refreshed as screens change. A project card says "N new" and a task says "New" when added since the project was last opened; that record is kept on the device (`lib/seen.ts`).
 - TDD lapse, again: the continuity helpers and their tests were written in one step.
+
+## 2026-11-18: Projects three ways, Chat in the middle
+
+- The card board was "rather terrible" (the owner's words): empty projects as large as the busy one, the same three links on every card, most of the window blank. Asked which of three directions to rebuild in; she asked for all three with a switcher.
+- **Detail:** a list of projects beside the chosen project's whole page. The project page's contents moved to `components/coach/ProjectDetail.tsx` so the same thing shows inline and as its own page; Merge and Archive live there now. On a narrow screen it is the list alone.
+- **Board:** every project's work in three columns (to do, waiting on them, ready to report), filtered by project (`workBoard`).
+- **Table:** a row per project with next task and counts; projects with nothing going collapse under "Quiet".
+- The choice is remembered on the device. The Projects screen uses the window's width; other screens stay a 760px column.
+- **"Ready to report" now means it.** It was counting everything that could go in a batch, which after a history read included every old request. `GET /coach/batches/ready`: a confirmed, non-history request with at least one task done and none open, or a hand-added task that is done, not already in a batch. The project tile and "Batch N ready" use it.
+- **Phone tab bar** (`10bc849`): Library, Chat as the round middle button with its count, Projects. The plus moved to Library's header and Chat's message box. Not seen on a device.

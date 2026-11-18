@@ -295,6 +295,15 @@ const ROUTES: [RegExp, unknown][] = [
     { entries: [{ request, replaced: [] }], progress: [] },
   ],
   [/^\/api\/coach\/batches$/, { batches: [batch] }],
+  [
+    /^\/api\/coach\/batches\/ready$/,
+    {
+      requests: [request],
+      tasks: [
+        fullTask("task-9", "Make the phone number bigger", { requestId: null, state: "done" }),
+      ],
+    },
+  ],
   [/^\/api\/coach\/batches\/candidates$/, { requests: [request], messages: [], tasks: [] }],
   [/^\/api\/coach\/tasks$/, { tasks }],
   [/^\/api\/coach\/tasks\/[^/]+$/, { task: tasks[0] }],
