@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import type { CoachChatMessage } from "@cliphy/shared";
 import { chatLinks, textParts } from "../../lib/coach";
+import { CaptureSheet } from "../../components/CaptureSheet";
 import { linkPath } from "../../lib/coachNav";
 import { DESKTOP } from "../../lib/desktop";
 import { refreshCoach, refreshStrip, say, tap, useCoach } from "../../lib/coachStore";
@@ -29,6 +30,7 @@ export default function ChatScreen() {
   const coach = useCoach();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const list = useRef<FlatList<CoachChatMessage>>(null);
   const input = useRef<TextInput>(null);
 
@@ -186,6 +188,28 @@ export default function ChatScreen() {
             backgroundColor: t.bg,
           }}
         >
+          {/* Save a link or a picture to the Library without leaving Chat. Phone only. */}
+          {DESKTOP ? null : (
+            <Pressable
+              onPress={() => setCaptureOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Save something new"
+              hitSlop={6}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                borderWidth: LINE,
+                borderColor: t.line,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontFamily: FONT, fontSize: 22, lineHeight: 24, color: t.text }}>
+                +
+              </Text>
+            </Pressable>
+          )}
           <TextInput
             ref={input}
             value={draft}
@@ -221,6 +245,13 @@ export default function ChatScreen() {
           <QuickButton label="Send" primary onPress={send} disabled={!draft.trim() || sending} />
         </View>
       </KeyboardAvoidingView>
+      {DESKTOP ? null : (
+        <CaptureSheet
+          visible={captureOpen}
+          onClose={() => setCaptureOpen(false)}
+          onCaptured={() => setCaptureOpen(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }

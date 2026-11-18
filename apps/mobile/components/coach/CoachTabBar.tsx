@@ -7,10 +7,10 @@ import { useCoach } from "../../lib/coachStore";
 import { FONT, LINE, hardShadow, useCoachTheme } from "./ui";
 
 /**
- * Library on the left, a round plus in the middle, Projects and Chat on the right.
- * Each tab is an icon above a small label; the active one is shown by colour
- * only. The plus is the one heavy element. Projects and Chat appear only for
- * accounts that have the coach.
+ * Library on the left, Chat as the round button in the middle, Projects on
+ * the right. Chat is where everything arrives, so it has the one heavy
+ * element and carries the count of things waiting on an answer. Accounts
+ * without the coach get a plus there instead, which saves something new.
  */
 export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
   const t = useCoachTheme();
@@ -73,6 +73,9 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
     );
   };
 
+  const coachOn = coach.status === "on";
+  const onChat = active === "chat";
+
   return (
     <View
       style={{
@@ -86,14 +89,19 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
         paddingHorizontal: 12,
       }}
     >
-      {/* Equal halves keep the plus in the middle whatever sits on each side. */}
+      {/* Equal halves keep the middle button in the middle whatever sits on each side. */}
       <View style={{ flex: 1, flexDirection: "row" }}>
         {tab("index", "Library", "grid-outline")}
       </View>
       <View style={{ width: 72, alignItems: "center" }}>
         <Pressable
           onPress={() => {
-            // The capture sheet belongs to Library: go there first, then open it.
+            if (coachOn) {
+              navigation.navigate("chat");
+              return;
+            }
+            // Without the coach the middle button saves something new. The
+            // sheet belongs to Library: go there first, then open it.
             if (active !== "index") {
               navigation.navigate("index");
               setTimeout(requestCapture, 80);
@@ -101,8 +109,15 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
               requestCapture();
             }
           }}
-          accessibilityRole="button"
-          accessibilityLabel="Save something new"
+          accessibilityRole={coachOn ? "tab" : "button"}
+          accessibilityState={coachOn ? { selected: onChat } : undefined}
+          accessibilityLabel={
+            coachOn
+              ? coach.waiting
+                ? `Chat, ${coach.waiting} waiting`
+                : "Chat"
+              : "Save something new"
+          }
           style={{
             width: 52,
             height: 52,
@@ -116,16 +131,37 @@ export function CoachTabBar({ state, navigation }: BottomTabBarProps) {
             ...hardShadow(t.line),
           }}
         >
-          <Ionicons name="add" size={28} color="#fff" />
+          <Ionicons
+            name={coachOn ? (onChat ? "chatbubble" : "chatbubble-outline") : "add"}
+            size={coachOn ? 24 : 28}
+            color="#fff"
+          />
+          {coachOn && coach.waiting > 0 ? (
+            <View
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -6,
+                minWidth: 20,
+                height: 20,
+                paddingHorizontal: 4,
+                borderRadius: 10,
+                borderWidth: LINE,
+                borderColor: t.line,
+                backgroundColor: t.bg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontFamily: FONT, fontSize: 11, fontWeight: "700", color: t.text }}>
+                {coach.waiting}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
       </View>
       <View style={{ flex: 1, flexDirection: "row" }}>
-        {coach.status === "on" ? (
-          <>
-            {tab("projects", "Projects", "folder-outline")}
-            {tab("chat", "Chat", "chatbubble-outline")}
-          </>
-        ) : null}
+        {coachOn ? tab("projects", "Projects", "folder-outline") : null}
       </View>
     </View>
   );

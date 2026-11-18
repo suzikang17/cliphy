@@ -38,6 +38,7 @@ import { UsageBar } from "../../components/UsageBar";
 import { Logo } from "../../components/Logo";
 import { brutalShadowSm } from "../../lib/theme";
 import { onCaptureRequested } from "../../lib/captureBus";
+import { useCoach } from "../../lib/coachStore";
 
 export default function QueueScreen() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function QueueScreen() {
   const [clipboardBanner, setClipboardBanner] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<ClipCategory | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const coachOn = useCoach().status === "on";
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Summary[] | null>(null);
   const bannerOpacity = useRef(new Animated.Value(0)).current;
@@ -307,9 +309,23 @@ export default function QueueScreen() {
         >
           Library
         </Text>
+        {/* With the coach on, the tab bar's middle button is Chat, so saving something new starts here. */}
+        {coachOn ? (
+          <Pressable
+            onPress={() => setCaptureOpen(true)}
+            className="ml-auto mr-2 w-9 h-9 items-center justify-center rounded-full bg-[#7a3fb0]"
+            style={{ borderWidth: 1.5, borderColor: "#000" }}
+            accessibilityRole="button"
+            accessibilityLabel="Save something new"
+          >
+            <Text className="text-xl font-bold text-white" style={{ lineHeight: 22 }}>
+              +
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => router.push("/settings")}
-          className="ml-auto w-9 h-9 items-center justify-center rounded-full bg-[#d5b8f0]"
+          className={`${coachOn ? "" : "ml-auto "}w-9 h-9 items-center justify-center rounded-full bg-[#d5b8f0]`}
           style={{ borderWidth: 1.5, borderColor: "#000" }}
           accessibilityRole="button"
           accessibilityLabel="Settings"
