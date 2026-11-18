@@ -337,7 +337,84 @@ export async function fakeApi(request: Request): Promise<Response> {
     request.method === "POST" && pathname === "/api/coach/tasks"
       ? { task: fullTask("task-new", "New task", { requestId: null }) }
       : null;
-  const body = made ?? (found ? found[1] : request.method === "GET" ? null : { ok: true });
+  // The digest is a POST that answers with what was found.
+  const digest =
+    request.method === "POST" && /^\/api\/coach\/people\/[^/]+\/digest$/.test(pathname)
+      ? {
+          days: 7,
+          messageCount: 8,
+          groups: [
+            {
+              name: "Front page",
+              items: [
+                {
+                  title: "Use a new front picture",
+                  detail:
+                    "Replace the front picture with one of the two she sent, and move the current photo further down the page.",
+                  quotes: [
+                    {
+                      messageId: "message-7",
+                      text: "Could one of these be the front picture:",
+                      sentAt: day(-0.1),
+                      attachments: texts[0].attachments.slice(0, 2),
+                    },
+                    {
+                      messageId: "message-5",
+                      text: "Also can the hero photo be the one from the porch shoot",
+                      sentAt: day(-0.4),
+                      attachments: [],
+                    },
+                  ],
+                  taskId: null,
+                  projectId: "project-1",
+                  dueDate: date(2),
+                  answered: false,
+                },
+                {
+                  title: "Fix the year in the footer",
+                  detail: "The footer shows 2025. It should show this year.",
+                  quotes: [
+                    {
+                      messageId: "message-6",
+                      text: "And the footer still says 2025",
+                      sentAt: day(-0.2),
+                      attachments: [],
+                    },
+                  ],
+                  taskId: "task-1",
+                  projectId: "project-1",
+                  dueDate: null,
+                  answered: false,
+                },
+              ],
+            },
+            {
+              name: "Lighting page",
+              items: [
+                {
+                  title: "Move the sconces up",
+                  detail:
+                    "Move the sconces higher on the lighting page. She did not say by how much.",
+                  quotes: [
+                    {
+                      messageId: "message-1",
+                      text: "Can we move the sconces up a little on the lighting page",
+                      sentAt: day(-1),
+                      attachments: [],
+                    },
+                  ],
+                  taskId: null,
+                  projectId: "project-1",
+                  dueDate: null,
+                  answered: true,
+                },
+              ],
+            },
+          ],
+        }
+      : null;
+  const body =
+    made ?? digest ?? (found ? found[1] : request.method === "GET" ? null : { ok: true });
   return new Response(JSON.stringify(body ?? { error: "Not found" }), {
     status: body ? 200 : 404,
     headers: { "Content-Type": "application/json" },

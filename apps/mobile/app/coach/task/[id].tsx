@@ -363,21 +363,24 @@ export default function TaskScreen() {
                 <View style={{ flex: 1 }}>
                   <MessageRow message={m} />
                 </View>
-                <Text
-                  onPress={() => unpull(m.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Take this message off the task"
-                  style={{
-                    fontFamily: FONT,
-                    fontSize: 12,
-                    color: t.muted,
-                    paddingVertical: 12,
-                    paddingLeft: 12,
-                    textDecorationLine: "underline",
-                  }}
-                >
-                  Remove
-                </Text>
+                {/* Texts the task was made from stay with it; only ones added by hand come off. */}
+                {m.fromRequest ? null : (
+                  <Text
+                    onPress={() => unpull(m.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Take this message off the task"
+                    style={{
+                      fontFamily: FONT,
+                      fontSize: 12,
+                      color: t.muted,
+                      paddingVertical: 12,
+                      paddingLeft: 12,
+                      textDecorationLine: "underline",
+                    }}
+                  >
+                    Remove
+                  </Text>
+                )}
               </View>
             ))}
             <View style={{ flexDirection: "row", marginTop: 10 }}>

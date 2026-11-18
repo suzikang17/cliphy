@@ -142,26 +142,66 @@ async function ownsTask(id: string, userId: string): Promise<boolean> {
   return Boolean(data);
 }
 
+/**
+ * The texts behind a task: the ones the request it was made from arrived in
+ * (always, without anyone attaching them) and any pulled in by hand.
+ */
 taskRoutes.get("/:id/messages", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  if (!(await ownsTask(id, userId))) return c.json({ error: "task not found" }, 404);
-
-  const { data: links } = await supabase
-    .from("coach_task_messages")
-    .select("message_id")
-    .eq("task_id", id)
-    .eq("user_id", userId);
-  const ids = ((links as { message_id: string }[]) ?? []).map((l) => l.message_id);
-  if (ids.length === 0) return c.json({ messages: [] });
-
-  const { data } = await supabase
-    .from("coach_messages")
-    .select("*")
+  const { data: task } = await supabase
+    .from("coach_tasks")
+    .select("id, request_id")
+    .eq("id", id)
     .eq("user_id", userId)
-    .in("id", ids)
-    .order("sent_at", { ascending: true });
-  const messages = ((data as Row[]) ?? []).map(toMessage);
+    .maybeSingle();
+  if (!task) return c.json({ error: "task not found" }, 404);
+  const requestId = (task as { request_id?: string | null }).request_id ?? null;
+
+  const [{ data: links }, { data: request }] = await Promise.all([
+    supabase
+      .from("coach_task_messages")
+      .select("message_id")
+      .eq("task_id", id)
+      .eq("user_id", userId),
+    requestId
+      ? supabase
+          .from("coach_requests")
+          .select("id, bundle_id")
+          .eq("id", requestId)
+          .eq("user_id", userId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const ids = ((links as { message_id: string }[]) ?? []).map((l) => l.message_id);
+  const bundleId = (request as { bundle_id?: string } | null)?.bundle_id ?? null;
+  if (ids.length === 0 && !bundleId) return c.json({ messages: [] });
+
+  const [pulled, source] = await Promise.all([
+    ids.length > 0
+      ? supabase.from("coach_messages").select("*").eq("user_id", userId).in("id", ids)
+      : Promise.resolve({ data: [] }),
+    bundleId
+      ? supabase
+          .from("coach_messages")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("bundle_id", bundleId)
+          .eq("direction", "in")
+      : Promise.resolve({ data: [] }),
+  ]);
+  const fromRequest = new Set(((source.data as Row[]) ?? []).map((m) => m.id as string));
+  const rows = new Map<string, Row>();
+  for (const row of [...((source.data as Row[]) ?? []), ...((pulled.data as Row[]) ?? [])]) {
+    rows.set(row.id as string, row);
+  }
+  const messages = [...rows.values()]
+    .map((row) => ({
+      ...toMessage(row),
+      // Came with the request: part of the task, not something to take off it.
+      ...(fromRequest.has(row.id as string) ? { fromRequest: true } : {}),
+    }))
+    .sort((a, b) => a.sentAt.localeCompare(b.sentAt));
   await signAttachments(messages);
   return c.json({ messages });
 });

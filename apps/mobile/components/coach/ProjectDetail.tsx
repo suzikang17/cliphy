@@ -485,12 +485,20 @@ export function ProjectDetail({
               <>
                 {heading(
                   clientName ? `Latest from ${clientName}` : "Latest texts",
-                  <WidgetLink
-                    label="All texts"
-                    onPress={() =>
-                      router.push(`/coach/thread/${clientId}?projectId=${id}` as never)
-                    }
-                  />,
+                  <View style={{ flexDirection: "row", gap: 16 }}>
+                    <WidgetLink
+                      label="Find requests"
+                      onPress={() =>
+                        router.push(`/coach/digest/${clientId}?projectId=${id}` as never)
+                      }
+                    />
+                    <WidgetLink
+                      label="All texts"
+                      onPress={() =>
+                        router.push(`/coach/thread/${clientId}?projectId=${id}` as never)
+                      }
+                    />
+                  </View>,
                 )}
                 {latest.map((m) => (
                   <MessageRow key={m.id} message={m} />

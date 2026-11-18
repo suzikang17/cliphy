@@ -53,7 +53,11 @@ import {
   dateChoices,
   standing,
   type ProjectTile,
+  digestCounts,
+  digestKey,
+  digestState,
 } from "../coach";
+import type { DigestGroup, DigestItem } from "@cliphy/shared";
 import type { CoachRequest } from "@cliphy/shared";
 import type { UpNext, UpNextTask } from "@cliphy/shared";
 import type { InboundMessage } from "@cliphy/shared";
@@ -1173,5 +1177,47 @@ describe("standing", () => {
         { key: "heard", value: "–", label: "Last heard" },
       ]),
     ).toBe("Nothing open");
+  });
+});
+
+describe("digest", () => {
+  beforeEach(async () => {
+    await layer("unit");
+    await epic("Coach");
+    await feature("Digest");
+  });
+
+  const item = (over: Partial<DigestItem>): DigestItem => ({
+    title: "Move the photo down",
+    detail: "",
+    quotes: [],
+    taskId: null,
+    projectId: null,
+    dueDate: null,
+    answered: false,
+    ...over,
+  });
+  const groups: DigestGroup[] = [
+    { name: "Front page", items: [item({}), item({ title: "Covered", taskId: "t1" })] },
+    {
+      name: "Details",
+      items: [item({ title: "Said done", answered: true }), item({ title: "Open two" })],
+    },
+  ];
+
+  it("counts what was found and what still needs a task", () => {
+    expect(digestCounts(groups)).toEqual({ found: 4, open: 2 });
+    expect(digestCounts([])).toEqual({ found: 0, open: 0 });
+  });
+
+  it("says in a word where a found request stands", () => {
+    expect(digestState(item({ taskId: "t1", answered: true }))).toBe("task");
+    expect(digestState(item({ answered: true }))).toBe("answered");
+    expect(digestState(item({}))).toBe("open");
+  });
+
+  it("gives each request a key that survives reordering, for selecting it", () => {
+    const keys = groups.flatMap((g, gi) => g.items.map((_, ii) => digestKey(gi, ii)));
+    expect(new Set(keys).size).toBe(4);
   });
 });

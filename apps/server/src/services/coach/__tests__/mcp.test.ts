@@ -97,6 +97,7 @@ describe("tool list", () => {
     const { tools } = await (await client()).listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "add_task",
+      "find_requests",
       "get_batch",
       "get_task",
       "list_batches",
@@ -408,5 +409,79 @@ describe("batches", () => {
         },
       ],
     });
+  });
+});
+
+describe("find_requests", () => {
+  it("reads a person's recent texts into requests, each with their own words", async () => {
+    answers["POST /people/c1/digest"] = {
+      body: {
+        days: 7,
+        messageCount: 12,
+        groups: [
+          {
+            name: "Front page",
+            items: [
+              {
+                title: "Move the photo down",
+                detail: "The front photo should sit further down.",
+                quotes: [
+                  {
+                    messageId: "m1",
+                    text: "Could the photo be further down",
+                    sentAt: "2026-11-17T10:00:00Z",
+                    attachments: [
+                      { storagePath: "a.png", mediaType: "image/png", url: "https://signed/a.png" },
+                    ],
+                  },
+                ],
+                taskId: null,
+                projectId: "p1",
+                dueDate: "2026-11-21",
+                answered: false,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const { data } = await run("find_requests", { person: "maren", days: 7 });
+    expect(calls.at(-1)).toEqual({ method: "POST", path: "/people/c1/digest", body: { days: 7 } });
+    expect(data).toEqual({
+      person: "Maren",
+      days: 7,
+      textsRead: 12,
+      groups: [
+        {
+          name: "Front page",
+          requests: [
+            {
+              title: "Move the photo down",
+              detail: "The front photo should sit further down.",
+              theirWords: [
+                {
+                  sentAt: "2026-11-17T10:00:00Z",
+                  text: "Could the photo be further down",
+                  images: ["https://signed/a.png"],
+                },
+              ],
+              project: "Alder House",
+              dueDate: "2026-11-21",
+              taskId: null,
+              answered: false,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("says who exists when the name matches nobody, and defaults to a week", async () => {
+    const missing = await run("find_requests", { person: "Zed" });
+    expect(missing.isError).toBe(true);
+    expect(missing.text).toContain("Maren");
+    answers["POST /people/c1/digest"] = { body: { days: 7, messageCount: 0, groups: [] } };
+    await run("find_requests", { person: "c1" });
+    expect(calls.find((c) => c.method === "POST")?.body).toEqual({ days: 7 });
   });
 });

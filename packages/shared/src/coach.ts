@@ -76,6 +76,43 @@ export interface InboundMessage {
   batchId?: string | null;
   /** A task it was pulled into. */
   taskId?: string | null;
+  /** On a task's page: it came with the request the task was made from. */
+  fromRequest?: boolean;
+}
+
+// ── Digest: the requests in a stretch of someone's texts ─────────────────
+
+export interface DigestQuote {
+  messageId: string;
+  /** Their words, exactly as sent. Empty for a message that was only pictures. */
+  text: string;
+  sentAt: string | null;
+  /** The pictures sent with that message. */
+  attachments: Attachment[];
+}
+
+export interface DigestItem {
+  title: string;
+  /** One or two sentences with the specifics needed to do it. */
+  detail: string;
+  quotes: DigestQuote[];
+  /** An open task that already covers it. */
+  taskId: string | null;
+  projectId: string | null;
+  dueDate: string | null;
+  /** The owner already said in the thread that it was done. */
+  answered: boolean;
+}
+
+export interface DigestGroup {
+  name: string;
+  items: DigestItem[];
+}
+
+export interface Digest {
+  days: number;
+  messageCount: number;
+  groups: DigestGroup[];
 }
 
 export interface OpenQuestion {

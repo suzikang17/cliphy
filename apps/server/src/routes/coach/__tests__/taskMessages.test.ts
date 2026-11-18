@@ -127,3 +127,60 @@ describe("messages pulled into a task", () => {
     expect((await call("GET", "/people/nope/messages")).status).toBe(404);
   });
 });
+
+describe("a task made from a request", () => {
+  beforeEach(() => {
+    layer("unit");
+    epic("Coach");
+    feature("Tasks");
+  });
+
+  const fromRequest = (linked: string[]) =>
+    makeDb((op: Op) => {
+      if (op.table === "coach_tasks") return { data: { id: "t1", request_id: "r1" } };
+      if (op.table === "coach_requests") return { data: { id: "r1", bundle_id: "b1" } };
+      if (op.table === "coach_task_messages") {
+        return { data: linked.map((message_id) => ({ message_id })) };
+      }
+      if (op.table === "coach_messages") {
+        // The request's own texts are asked for by bundle; pulled-in ones by id.
+        const byBundle = op.filters.some(([m, c]) => m === "eq" && c === "bundle_id");
+        return {
+          data: byBundle
+            ? [
+                messageRow({ id: "m1", sent_at: "2026-11-10T09:59:00Z" }),
+                messageRow({ id: "m2", sent_at: "2026-11-10T10:01:00Z" }),
+              ]
+            : [messageRow({ id: "m9", bundle_id: "b9", sent_at: "2026-11-09T08:00:00Z" })],
+        };
+      }
+      return undefined;
+    });
+
+  it("comes with the texts it was made from, without anyone attaching them", async () => {
+    db = fromRequest([]);
+    const body = (await (await call("GET", "/tasks/t1/messages")).json()) as {
+      messages: { id: string; fromRequest?: boolean }[];
+    };
+    expect(body.messages.map((m) => [m.id, m.fromRequest])).toEqual([
+      ["m1", true],
+      ["m2", true],
+    ]);
+    const read = db.ops.find((o) => o.table === "coach_messages")!;
+    expect(eqValue(read, "bundle_id")).toBe("b1");
+    expect(eqValue(read, "direction")).toBe("in");
+    expect(eqValue(read, "user_id")).toBe("test-user-id");
+  });
+
+  it("shows texts pulled in by hand alongside, oldest first, each once", async () => {
+    db = fromRequest(["m9", "m1"]);
+    const body = (await (await call("GET", "/tasks/t1/messages")).json()) as {
+      messages: { id: string; fromRequest?: boolean }[];
+    };
+    expect(body.messages.map((m) => [m.id, m.fromRequest ?? false])).toEqual([
+      ["m9", false],
+      ["m1", true],
+      ["m2", true],
+    ]);
+  });
+});

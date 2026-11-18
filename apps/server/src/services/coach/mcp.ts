@@ -6,6 +6,7 @@ import type {
   CoachBatch,
   CoachRequest,
   CoachTask,
+  Digest,
   InboundMessage,
   Person,
   Project,
@@ -162,6 +163,54 @@ export function buildCoachMcp(call: CoachCall): McpServer {
         asked: behind?.request.understood ?? null,
         answer: behind?.request.answer ?? null,
         messages: [...(behind?.messages ?? []), ...pulled.messages].map(messageLine),
+      };
+    },
+  );
+
+  tool(
+    "find_requests",
+    "Read a client's recent text messages and pull out every distinct thing they asked for: grouped by what it concerns, each with the detail needed to do it and the client's own words, exactly as sent. Use this to see what a client wants done before starting work. Reads the last 7 days unless told otherwise.",
+    {
+      person: z.string().describe("The client's name or id"),
+      days: z.number().int().min(1).max(365).optional().describe("How many days back. Default 7."),
+    },
+    async ({ person, days }) => {
+      const [{ people }, all] = await Promise.all([
+        api<{ people: Person[] }>("GET", "/people"),
+        projects(),
+      ]);
+      const key = person.trim().toLowerCase();
+      const found =
+        people.find((p) => p.id === person) ?? people.find((p) => p.name.toLowerCase() === key);
+      if (!found) {
+        const names = people.map((p) => p.name).join(", ");
+        throw new ToolError(`Nobody called "${person}". People: ${names || "none yet"}.`);
+      }
+      const digest = await api<Digest>("POST", `/people/${encodeURIComponent(found.id)}/digest`, {
+        days: days ?? 7,
+      });
+      return {
+        person: found.name,
+        days: digest.days,
+        textsRead: digest.messageCount,
+        groups: digest.groups.map((group) => ({
+          name: group.name,
+          requests: group.items.map((item) => ({
+            title: item.title,
+            detail: item.detail,
+            theirWords: item.quotes.map((quote) => ({
+              sentAt: quote.sentAt,
+              text: quote.text,
+              images: quote.attachments
+                .map((a) => a.url)
+                .filter((url): url is string => Boolean(url)),
+            })),
+            project: all.find((p) => p.id === item.projectId)?.name ?? null,
+            dueDate: item.dueDate,
+            taskId: item.taskId,
+            answered: item.answered,
+          })),
+        })),
       };
     },
   );

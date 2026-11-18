@@ -162,7 +162,7 @@ describe("a real MCP client", () => {
     await client.connect(transport);
 
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(8);
+    expect(tools).toHaveLength(9);
 
     const result = await client.callTool({ name: "list_projects", arguments: {} });
     const text = (result.content as { text: string }[])[0].text;

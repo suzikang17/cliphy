@@ -213,6 +213,15 @@ export default function ThreadScreen() {
           />
         ))}
         <View style={{ flex: 1 }} />
+        <Text
+          onPress={() =>
+            router.push(`/coach/digest/${id}${projectId ? `?projectId=${projectId}` : ""}` as never)
+          }
+          accessibilityRole="link"
+          style={{ ...small, fontWeight: "700", color: t.accent, marginRight: 8 }}
+        >
+          Find requests ›
+        </Text>
         {open.length > 0 ? (
           <Text
             onPress={() => setSelected(new Set(open.map((m) => m.id)))}

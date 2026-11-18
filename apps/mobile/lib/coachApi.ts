@@ -11,6 +11,7 @@ import type {
   CoachRun,
   CoachSettings,
   CoachTask,
+  Digest,
   InboundMessage,
   Person,
   PersonRole,
@@ -81,6 +82,8 @@ export const createTask = (body: {
   dueDate?: string;
   dueTime?: string;
   place?: string;
+  /** What done means, where it goes, what is needed. */
+  kit?: { doneWhen?: string; target?: string; materials?: string[] };
 }) => apiFetch<{ task: CoachTask }>("/api/coach/tasks", json("POST", body));
 export const updateTask = (
   id: string,
@@ -202,6 +205,9 @@ export const getThread = (personId: string, before?: string) =>
       before ? `&before=${encodeURIComponent(before)}` : ""
     }`,
   );
+/** Read the last `days` of a person's texts into the distinct requests in them. */
+export const getDigest = (personId: string, days: number) =>
+  apiFetch<Digest>(`/api/coach/people/${personId}/digest`, json("POST", { days }));
 /** Tick messages off as dealt with, or untick them. */
 export const setMessagesHandled = (personId: string, messageIds: string[], handled: boolean) =>
   apiFetch<{ updated: number }>(

@@ -8,6 +8,8 @@ import type {
   CoachRequest,
   CoachRun,
   CoachTask,
+  DigestGroup,
+  DigestItem,
   InboundMessage,
   Person,
   Project,
@@ -358,7 +360,13 @@ export function desktopSection(pathname: string): DesktopSection | null {
   if (pathname === "/chat") return "chat";
   if (pathname === "/coach/upnext") return "upnext";
   if (pathname === "/coach/setup") return "settings";
-  if (pathname === "/coach/threads" || pathname.startsWith("/coach/thread/")) return "texts";
+  if (
+    pathname === "/coach/threads" ||
+    pathname.startsWith("/coach/thread/") ||
+    pathname.startsWith("/coach/digest/")
+  ) {
+    return "texts";
+  }
   if (
     pathname === "/projects" ||
     pathname.startsWith("/coach/project/") ||
@@ -810,3 +818,20 @@ export function standing(tiles: ProjectTile[]): string {
     .map((tile) => words[tile.key](tile.value));
   return parts.length > 0 ? parts.join(" · ") : "Nothing open";
 }
+
+// ── Digest: the requests found in a stretch of texts ─────────────────────
+
+/** How many requests were found, and how many still need a task. */
+export function digestCounts(groups: DigestGroup[]): { found: number; open: number } {
+  const items = groups.flatMap((g) => g.items);
+  return { found: items.length, open: items.filter((i) => digestState(i) === "open").length };
+}
+
+/** Where a found request stands: already a task, already answered in the thread, or open. */
+export function digestState(item: DigestItem): "task" | "answered" | "open" {
+  if (item.taskId) return "task";
+  return item.answered ? "answered" : "open";
+}
+
+/** A request's place in the digest, for selecting it. */
+export const digestKey = (group: number, item: number): string => `${group}:${item}`;
