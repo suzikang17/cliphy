@@ -457,6 +457,8 @@ claude mcp add --transport http --scope user cliphy https://api.cliphy.app/api/m
 
 Tools live in `apps/server/src/services/coach/mcp.ts`; each calls the coach's own routes with the caller's key.
 
+**Working a batch** (ADR 0068): make a batch from a client's texts (Texts → the client → select → Batch), then in Claude Code in the client's repo run `/mcp__cliphy__work_batch <client or batch id> [format]`. Claude reads each item with the client's words (`get_batch`), makes the change, ticks it with a note of what changed (`check_batch_item`), saves the client summary in the format asked (`save_batch_summary`), and lists what is not addressed (`notAddressed`, plus `stillOpen` requests in no batch). The owner sends the summary from the phone or Mac window.
+
 On the Mac there is nothing to paste: in the Mac window, Settings → Connected tools → Claude Code → **Connect** has the Mac app run that command itself, with the Mac's own key, in the owner's login shell (`apps/mac-app/src/claudeCode.ts`, ADR 0067). Pairing the Mac again moves Claude Code to the new key, and Disconnect removes it.
 
 ##### Extension (`apps/extension`)

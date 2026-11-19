@@ -322,23 +322,28 @@ batchRoutes.patch("/:id", async (c) => {
   const body = await c.req.json<{ summary?: unknown }>().catch(() => ({}) as { summary?: unknown });
   const batch = await loadBatch(c.req.param("id"), userId);
   if (!batch) return c.json({ error: "batch not found" }, 404);
-  if (batch.status !== "ready") {
-    return c.json(
-      { error: batch.status === "sent" ? "This batch was sent" : "There is no summary yet" },
-      409,
-    );
-  }
+  if (batch.status === "sent") return c.json({ error: "This batch was sent" }, 409);
   const summary = typeof body.summary === "string" ? body.summary.trim() : "";
   if (!summary) return c.json({ error: "summary is required" }, 400);
 
+  // A summary written elsewhere (Claude Code, which did the work) makes the
+  // batch ready, on the same terms as one written here: every item checked.
+  const rows = await loadItems(batch.id as string, userId);
+  const values: { summary: string; status?: "ready" } = { summary };
+  if (batch.status === "checking") {
+    if (!canSummarize(rows.map(toBatchItem))) {
+      return c.json({ error: "Check every item first" }, 409);
+    }
+    values.status = "ready";
+  }
+
   const { error } = await supabase
     .from("coach_batches")
-    .update({ summary })
+    .update(values)
     .eq("id", batch.id as string)
     .eq("user_id", userId);
   if (error) return c.json({ error: "Failed to save the summary" }, 500);
-  const rows = await loadItems(batch.id as string, userId);
-  return c.json({ batch: toBatch({ ...batch, summary }, rows) });
+  return c.json({ batch: toBatch({ ...batch, ...values }, rows) });
 });
 
 // ── PATCH /:id/items/:itemId — tick an item, or carry it over ────────────

@@ -162,11 +162,191 @@ describe("a real MCP client", () => {
     await client.connect(transport);
 
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(9);
+    expect(tools).toHaveLength(11);
 
     const result = await client.callTool({ name: "list_projects", arguments: {} });
     const text = (result.content as { text: string }[])[0].text;
     expect(JSON.parse(text)).toEqual([expect.objectContaining({ name: "Alder House" })]);
+    await client.close();
+  });
+});
+
+describe("working a batch from Claude Code, end to end", () => {
+  const BATCH = "5d1c2b3a-0000-4000-8000-00000000ba01";
+  let items: Record<string, unknown>[];
+  let batch: Record<string, unknown>;
+
+  beforeEach(() => {
+    batch = {
+      id: BATCH,
+      user_id: "test-user-id",
+      person_id: "lotus",
+      project_id: "p1",
+      status: "checking",
+      summary: null,
+      sent_at: null,
+      created_at: "2026-11-18T10:00:00Z",
+    };
+    items = [
+      {
+        id: "i1",
+        batch_id: BATCH,
+        request_id: null,
+        message_id: "m1",
+        task_id: null,
+        label: "make the menu sticky",
+        state: "unchecked",
+        note: null,
+        position: 0,
+      },
+      {
+        id: "i2",
+        batch_id: BATCH,
+        request_id: null,
+        message_id: "m2",
+        task_id: null,
+        label: "new photo on the about page",
+        state: "unchecked",
+        note: null,
+        position: 1,
+      },
+    ];
+    const message = (id: string, text: string) => ({
+      id,
+      person_id: "lotus",
+      direction: "in",
+      text,
+      attachments: [],
+      sent_at: "2026-11-18T09:00:00Z",
+      bundle_id: null,
+    });
+    db = makeDb((op: Op) => {
+      if (op.table === "coach_people") {
+        return { data: [{ id: "lotus", name: "Lotus", role: "client", handles: [] }] };
+      }
+      if (op.table === "coach_projects") {
+        return { data: [{ id: "p1", name: "Lotus Yoga", tag: "project:lotus", active: true }] };
+      }
+      if (op.table === "coach_batches") {
+        if (op.action === "update") {
+          Object.assign(batch, op.payload);
+          return { data: batch };
+        }
+        return { data: op.single ? batch : [batch] };
+      }
+      if (op.table === "coach_batch_items") {
+        if (op.action === "update") {
+          const id = op.filters.find(([, col]) => col === "id")?.[2];
+          const row = items.find((i) => i.id === id);
+          Object.assign(row ?? {}, op.payload);
+          return { data: row ?? null };
+        }
+        return { data: op.single ? (items[0] ?? null) : items };
+      }
+      if (op.table === "coach_messages") {
+        return {
+          data: [
+            message("m1", "can the menu stay at the top when you scroll"),
+            message("m2", "use the new photo on the about page"),
+          ],
+        };
+      }
+      if (op.table === "coach_requests") {
+        return {
+          data: [
+            {
+              id: "r5",
+              person_id: "lotus",
+              project_id: "p1",
+              bundle_id: "b5",
+              understood: "Add the spring class times",
+              status: "confirmed",
+              historical: false,
+              created_at: "2026-11-17T10:00:00Z",
+            },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+  });
+
+  async function connect() {
+    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+    const { StreamableHTTPClientTransport } =
+      await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+    const transport = new StreamableHTTPClientTransport(new URL("http://cliphy.test/api/mcp"), {
+      requestInit: { headers: { Authorization: "Bearer cliphy_sk_good" } },
+      fetch: async (input, init) => app().request(String(input), init),
+    });
+    const client = new Client({ name: "test", version: "1" });
+    await client.connect(transport);
+    return client;
+  }
+  const read = (result: unknown) =>
+    JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<
+      string,
+      unknown
+    >;
+
+  it("reads the batch by client name, ticks each item, saves the summary, and shows what is left", async () => {
+    const client = await connect();
+
+    const prompt = await client.getPrompt({
+      name: "work_batch",
+      arguments: { batch: "Lotus", format: "bullets" },
+    });
+    expect((prompt.messages[0].content as { text: string }).text).toContain("get_batch");
+
+    const before = read(
+      await client.callTool({ name: "get_batch", arguments: { batch: "lotus" } }),
+    );
+    expect(before.id).toBe(BATCH);
+    expect(before.client).toBe("Lotus");
+    expect((before.items as { asked: string }[]).map((i) => i.asked)).toEqual([
+      "make the menu sticky",
+      "new photo on the about page",
+    ]);
+    expect(before.stillOpen).toEqual([
+      expect.objectContaining({ requestId: "r5", asked: "Add the spring class times" }),
+    ]);
+
+    // Saving before every item is checked is refused, by the route's own rule.
+    const early = await client.callTool({
+      name: "save_batch_summary",
+      arguments: { batch: BATCH, summary: "x" },
+    });
+    expect(early.isError).toBe(true);
+
+    await client.callTool({
+      name: "check_batch_item",
+      arguments: { batch: BATCH, item: "i1", state: "done", note: "Header is sticky (Nav.tsx)" },
+    });
+    await client.callTool({
+      name: "check_batch_item",
+      arguments: { batch: BATCH, item: "i2", state: "not_done", note: "Need the photo file" },
+    });
+    const saved = read(
+      await client.callTool({
+        name: "save_batch_summary",
+        arguments: { batch: BATCH, summary: "- The menu now stays at the top" },
+      }),
+    );
+    expect(saved).toEqual({
+      id: BATCH,
+      status: "ready",
+      summary: "- The menu now stays at the top",
+    });
+
+    const after = read(await client.callTool({ name: "get_batch", arguments: { batch: BATCH } }));
+    expect(after.notAddressed).toEqual([
+      {
+        id: "i2",
+        asked: "new photo on the about page",
+        state: "not_done",
+        note: "Need the photo file",
+      },
+    ]);
     await client.close();
   });
 });

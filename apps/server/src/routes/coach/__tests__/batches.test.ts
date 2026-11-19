@@ -400,6 +400,29 @@ describe("batches: finished work, checked and summarized for the client", () => 
       expect(db.written("coach_batches", "update")[0]).toEqual({ summary: "All live now." });
     });
 
+    it("can be written by hand once every item is checked, which makes it ready", async () => {
+      db = withBatch(batchRow(), [
+        itemRow({ state: "done" }),
+        itemRow({ id: "i2", state: "not_done" }),
+      ]);
+      const res = await call("PATCH", "/ba1", {
+        summary: "Done: the menu. Still to come: the photo.",
+      });
+      expect(res.status).toBe(200);
+      expect(db.written("coach_batches", "update")[0]).toEqual({
+        summary: "Done: the menu. Still to come: the photo.",
+        status: "ready",
+      });
+      expect(((await res.json()) as { batch: { status: string } }).batch.status).toBe("ready");
+    });
+
+    it("cannot be written by hand while an item is unchecked", async () => {
+      db = withBatch(batchRow(), [itemRow({ state: "done" }), itemRow({ id: "i2" })]);
+      const res = await call("PATCH", "/ba1", { summary: "x" });
+      expect(res.status).toBe(409);
+      expect(writes("coach_batches")).toEqual([]);
+    });
+
     it("cannot be edited to nothing, or after it was sent", async () => {
       db = withBatch(batchRow({ status: "ready", summary: SUMMARY }));
       expect((await call("PATCH", "/ba1", { summary: "  " })).status).toBe(400);

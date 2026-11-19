@@ -97,6 +97,7 @@ describe("tool list", () => {
     const { tools } = await (await client()).listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "add_task",
+      "check_batch_item",
       "find_requests",
       "get_batch",
       "get_task",
@@ -104,6 +105,7 @@ describe("tool list", () => {
       "list_projects",
       "list_requests",
       "list_tasks",
+      "save_batch_summary",
       "set_task_state",
     ]);
     for (const t of tools) expect(t.description?.length).toBeGreaterThan(20);
@@ -339,76 +341,220 @@ describe("set_task_state", () => {
 });
 
 describe("batches", () => {
+  const B1 = "0b7f6a52-1c1e-4d0b-9a57-3f2a1b6c9d01";
   const batch = {
-    id: "b1",
+    id: B1,
+    personId: "c1",
     projectId: "p1",
-    status: "ready",
-    summary: "The changes are live.",
+    status: "checking",
+    summary: null,
     sentAt: null,
     createdAt: "2026-11-17T10:00:00Z",
     itemCount: 2,
-    uncheckedCount: 0,
+    uncheckedCount: 1,
   };
-
-  it("lists a project's batches", async () => {
-    answers["GET /batches?projectId=p1"] = { body: { batches: [batch] } };
-    const { data } = await run("list_batches", { project: "Alder House" });
-    expect(data).toEqual([
-      {
-        id: "b1",
-        status: "ready",
-        items: 2,
-        unchecked: 0,
-        createdAt: "2026-11-17T10:00:00Z",
-        sentAt: null,
-      },
-    ]);
+  const items = [
+    {
+      id: "i1",
+      label: "Move the sconces up",
+      state: "done",
+      note: "Raised the sconce row 40px on /about",
+      taskId: null,
+      requestId: "r1",
+      messageId: null,
+      messages: [
+        {
+          id: "m1",
+          direction: "in",
+          sentAt: "2026-11-16T09:00:00Z",
+          text: "can the lights go higher",
+          attachments: [{ url: "https://x/pic.jpg" }],
+        },
+      ],
+    },
+    {
+      id: "i2",
+      label: "the hero photo is blurry",
+      state: "unchecked",
+      note: null,
+      taskId: null,
+      requestId: null,
+      messageId: "m2",
+      messages: [],
+    },
+  ];
+  const request = (over: Record<string, unknown>) => ({
+    id: "r9",
+    understood: "Add opening hours to the footer",
+    status: "confirmed",
+    historical: false,
+    projectId: "p1",
+    createdAt: "2026-11-15T10:00:00Z",
+    ...over,
   });
 
-  it("gives a batch's checklist and the summary for the client", async () => {
-    answers["GET /batches/b1"] = {
+  beforeEach(() => {
+    answers[`GET /batches/${B1}`] = { body: { batch, items } };
+    answers["GET /batches?personId=c1"] = {
+      body: { batches: [{ ...batch, id: "sent-one", status: "sent" }, batch] },
+    };
+    answers["GET /batches/candidates?personId=c1"] = {
       body: {
-        batch,
-        items: [
-          {
-            id: "i1",
-            label: "Move the sconces up",
-            state: "done",
-            note: null,
-            taskId: null,
-            requestId: "r1",
-            messages: [],
-          },
-          {
-            id: "i2",
-            label: "Swap the hero photo",
-            state: "not_done",
-            note: "Waiting on the photo",
-            taskId: "t2",
-            requestId: null,
-            messages: [],
-          },
+        requests: [
+          request({}),
+          request({ id: "r1" }), // already in this batch
+          request({ id: "r8", status: "closed" }),
+          request({ id: "r7", historical: true }),
         ],
       },
     };
-    const { data } = await run("get_batch", { id: "b1" });
+  });
+
+  it("lists a project's batches, or a client's", async () => {
+    answers["GET /batches?projectId=p1"] = { body: { batches: [batch] } };
+    const line = {
+      id: B1,
+      status: "checking",
+      items: 2,
+      unchecked: 1,
+      createdAt: "2026-11-17T10:00:00Z",
+      sentAt: null,
+    };
+    expect((await run("list_batches", { project: "Alder House" })).data).toEqual([line]);
+    expect((await run("list_batches", { client: "maren" })).data).toHaveLength(2);
+    expect((await run("list_batches", {})).isError).toBe(true);
+  });
+
+  it("gives each item with the client's words, what is not addressed, and what is open elsewhere", async () => {
+    const { data } = await run("get_batch", { batch: B1 });
     expect(data).toEqual({
-      id: "b1",
+      id: B1,
+      client: "Maren",
       project: "Alder House",
-      status: "ready",
-      summary: "The changes are live.",
+      status: "checking",
+      summary: null,
       sentAt: null,
       items: [
-        { label: "Move the sconces up", state: "done", note: null, requestId: "r1", taskId: null },
         {
-          label: "Swap the hero photo",
-          state: "not_done",
-          note: "Waiting on the photo",
+          id: "i1",
+          asked: "Move the sconces up",
+          kind: "request",
+          state: "done",
+          note: "Raised the sconce row 40px on /about",
+          requestId: "r1",
+          taskId: null,
+          theirWords: [
+            {
+              from: "client",
+              sentAt: "2026-11-16T09:00:00Z",
+              text: "can the lights go higher",
+              images: ["https://x/pic.jpg"],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          asked: "the hero photo is blurry",
+          kind: "message",
+          state: "unchecked",
+          note: null,
           requestId: null,
-          taskId: "t2",
+          taskId: null,
+          theirWords: [],
+        },
+      ],
+      notAddressed: [
+        { id: "i2", asked: "the hero photo is blurry", state: "unchecked", note: null },
+      ],
+      stillOpen: [
+        {
+          requestId: "r9",
+          asked: "Add opening hours to the footer",
+          status: "confirmed",
+          project: "Alder House",
+          createdAt: "2026-11-15T10:00:00Z",
         },
       ],
     });
+  });
+
+  it("finds a client's newest batch not yet sent from their name", async () => {
+    const { data } = await run("get_batch", { batch: "Maren" });
+    expect((data as { id: string }).id).toBe(B1);
+  });
+
+  it("says how to make a batch when the client has none waiting", async () => {
+    answers["GET /batches?personId=c1"] = { body: { batches: [] } };
+    const { text, isError } = await run("get_batch", { batch: "Maren" });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/Texts → Maren/);
+  });
+
+  it("records how an item was dealt with", async () => {
+    answers[`PATCH /batches/${B1}/items/i2`] = {
+      body: { item: { ...items[1], state: "not_done", note: "Need a sharper photo from her" } },
+    };
+    const { data } = await run("check_batch_item", {
+      batch: B1,
+      item: "i2",
+      state: "not_done",
+      note: "Need a sharper photo from her",
+    });
+    expect(calls.at(-1)).toEqual({
+      method: "PATCH",
+      path: `/batches/${B1}/items/i2`,
+      body: { state: "not_done", note: "Need a sharper photo from her" },
+    });
+    expect(data).toMatchObject({ state: "not_done", note: "Need a sharper photo from her" });
+  });
+
+  it("saves the summary, and passes on a refusal while items are unchecked", async () => {
+    answers[`PATCH /batches/${B1}`] = {
+      body: { batch: { ...batch, status: "ready", summary: "Lights are higher now." } },
+    };
+    const { data } = await run("save_batch_summary", {
+      batch: B1,
+      summary: "Lights are higher now.",
+    });
+    expect(data).toEqual({ id: B1, status: "ready", summary: "Lights are higher now." });
+
+    answers[`PATCH /batches/${B1}`] = { status: 409, body: { error: "Check every item first" } };
+    const refused = await run("save_batch_summary", { batch: B1, summary: "x" });
+    expect(refused).toMatchObject({ isError: true, text: "Check every item first" });
+  });
+});
+
+describe("work_batch prompt", () => {
+  it("walks Claude Code through the batch, in the format asked for", async () => {
+    const c = await client();
+    const { prompts } = await c.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(["work_batch"]);
+    const { messages } = await c.getPrompt({
+      name: "work_batch",
+      arguments: { batch: "Lotus", format: "bullets grouped by page" },
+    });
+    const text = (messages[0].content as { text: string }).text;
+    for (const step of [
+      "get_batch",
+      "check_batch_item",
+      "save_batch_summary",
+      "notAddressed",
+      "stillOpen",
+    ]) {
+      expect(text).toContain(step);
+    }
+    expect(text).toContain('"Lotus"');
+    expect(text).toContain("bullets grouped by page");
+  });
+
+  it("falls back to a short text when no format is given", async () => {
+    const { messages } = await (
+      await client()
+    ).getPrompt({
+      name: "work_batch",
+      arguments: { batch: "Lotus" },
+    });
+    expect((messages[0].content as { text: string }).text).toMatch(/short, friendly text/);
   });
 });
 

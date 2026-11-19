@@ -283,53 +283,189 @@ export function buildCoachMcp(call: CoachCall): McpServer {
     },
   );
 
+  /** A client given as their id or their name, in any case. */
+  async function findPerson(wanted: string, people?: Person[]): Promise<Person> {
+    const list = people ?? (await api<{ people: Person[] }>("GET", "/people")).people;
+    const key = wanted.trim().toLowerCase();
+    const found =
+      list.find((p) => p.id === wanted) ?? list.find((p) => p.name.toLowerCase() === key);
+    if (found) return found;
+    const names = list.map((p) => p.name).join(", ");
+    throw new ToolError(`Nobody called "${wanted}". People: ${names || "none yet"}.`);
+  }
+
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  /** A batch given as its id, or as a client's name: their newest batch not yet sent. */
+  async function findBatch(wanted: string): Promise<string> {
+    if (UUID.test(wanted.trim())) return wanted.trim();
+    const person = await findPerson(wanted);
+    const { batches } = await api<{ batches: CoachBatch[] }>(
+      "GET",
+      `/batches?personId=${encodeURIComponent(person.id)}`,
+    );
+    const open = batches.find((b) => b.status !== "sent");
+    if (!open) {
+      throw new ToolError(
+        `${person.name} has no batch waiting. Make one on the phone or in the Mac window: Texts → ${person.name} → select their messages → Batch.`,
+      );
+    }
+    return open.id;
+  }
+
+  const batchLine = (b: CoachBatch) => ({
+    id: b.id,
+    status: b.status,
+    items: b.itemCount,
+    unchecked: b.uncheckedCount,
+    createdAt: b.createdAt,
+    sentAt: b.sentAt,
+  });
+
   tool(
     "list_batches",
-    "List a project's batches. A batch is a set of finished work the owner checks item by item and then reports to the client in one message.",
-    { project: z.string().describe("Project name or id") },
-    async ({ project }) => {
-      const found = await findProject(project);
-      const { batches } = await api<{ batches: CoachBatch[] }>(
-        "GET",
-        `/batches?projectId=${encodeURIComponent(found.id)}`,
-      );
-      return batches.map((b) => ({
-        id: b.id,
-        status: b.status,
-        items: b.itemCount,
-        unchecked: b.uncheckedCount,
-        createdAt: b.createdAt,
-        sentAt: b.sentAt,
-      }));
+    "List batches for a project or a client, newest first. A batch is a set of things a client asked for that the owner works through item by item and then reports on in one message.",
+    {
+      project: z.string().optional().describe("Project name or id"),
+      client: z.string().optional().describe("Client's name or id"),
+    },
+    async ({ project, client }) => {
+      if (!project && !client) throw new ToolError("Give a project or a client.");
+      const query = new URLSearchParams();
+      if (project) query.set("projectId", (await findProject(project)).id);
+      if (client) query.set("personId", (await findPerson(client)).id);
+      const { batches } = await api<{ batches: CoachBatch[] }>("GET", `/batches?${query}`);
+      return batches.map(batchLine);
     },
   );
 
   tool(
     "get_batch",
-    "Read one batch: each item with whether it was checked off or carried over (and why), and the summary written for the client, if there is one yet.",
-    { id: z.string().describe("Batch id from list_batches") },
-    async ({ id }) => {
+    "Read one batch: every item with the client's own words (and links to their pictures), whether it has been addressed and how, the summary for the client if there is one, what in the batch is not addressed yet, and the client's other open requests that are in no batch. Give a batch id, or a client's name for their newest batch not yet sent.",
+    { batch: z.string().describe("Batch id, or the client's name") },
+    async ({ batch: wanted }) => {
+      const id = await findBatch(wanted);
       const { batch, items } = await api<{ batch: CoachBatch; items: BatchItem[] }>(
         "GET",
         `/batches/${encodeURIComponent(id)}`,
       );
-      const all = await projects();
+      const [all, { people }, candidates] = await Promise.all([
+        projects(),
+        api<{ people: Person[] }>("GET", "/people"),
+        api<{ requests: CoachRequest[] }>(
+          "GET",
+          `/batches/candidates?personId=${encodeURIComponent(batch.personId)}`,
+        ),
+      ]);
+      const inBatch = new Set(items.map((i) => i.requestId).filter(Boolean));
       return {
         id: batch.id,
+        client: people.find((p) => p.id === batch.personId)?.name ?? null,
         project: all.find((p) => p.id === batch.projectId)?.name ?? null,
         status: batch.status,
         summary: batch.summary,
         sentAt: batch.sentAt,
         items: items.map((i) => ({
-          label: i.label,
+          id: i.id,
+          asked: i.label,
+          kind: i.requestId ? "request" : i.taskId ? "task" : "message",
           state: i.state,
           note: i.note,
           requestId: i.requestId,
           taskId: i.taskId,
+          theirWords: (i.messages ?? []).map(messageLine),
         })),
+        notAddressed: items
+          .filter((i) => i.state !== "done")
+          .map((i) => ({ id: i.id, asked: i.label, state: i.state, note: i.note })),
+        stillOpen: candidates.requests
+          .filter((r) => (r.status === "new" || r.status === "confirmed") && !r.historical)
+          .filter((r) => !inBatch.has(r.id))
+          .map((r) => ({
+            requestId: r.id,
+            asked: r.understood,
+            status: r.status,
+            project: all.find((p) => p.id === r.projectId)?.name ?? null,
+            createdAt: r.createdAt,
+          })),
       };
     },
   );
 
+  tool(
+    "check_batch_item",
+    "Record how one batch item was dealt with. done: the change is made; the note says what changed, in a line the owner can check. not_done: it is carried over to a later batch; the note says why (blocked, needs the owner, needs the client). Every item needs one of these before the summary can be saved.",
+    {
+      batch: z.string().describe("Batch id"),
+      item: z.string().describe("Item id from get_batch"),
+      state: z.enum(["done", "not_done"]),
+      note: z.string().min(1).describe("What changed, or why it was not done"),
+    },
+    async ({ batch, item, state, note }) => {
+      const { item: saved } = await api<{ item: BatchItem }>(
+        "PATCH",
+        `/batches/${encodeURIComponent(batch)}/items/${encodeURIComponent(item)}`,
+        { state, note },
+      );
+      return { id: saved.id, asked: saved.label, state: saved.state, note: saved.note };
+    },
+  );
+
+  tool(
+    "save_batch_summary",
+    "Save the message for the client about this batch, once every item is checked. It shows on the owner's phone and in the Mac window, ready for her to send; nothing is sent to the client from here.",
+    {
+      batch: z.string().describe("Batch id"),
+      summary: z.string().min(1).describe("The message, in the format the owner asked for"),
+    },
+    async ({ batch, summary }) => {
+      const { batch: saved } = await api<{ batch: CoachBatch }>(
+        "PATCH",
+        `/batches/${encodeURIComponent(batch)}`,
+        { summary },
+      );
+      return { id: saved.id, status: saved.status, summary: saved.summary };
+    },
+  );
+
+  server.registerPrompt(
+    "work_batch",
+    {
+      description:
+        "Work through a client's batch in this repo: address each request, record what changed, write the summary for the client, and list what is still not done.",
+      argsSchema: {
+        batch: z.string().describe("Batch id, or the client's name for their newest batch"),
+        format: z
+          .string()
+          .optional()
+          .describe("How to write the summary, e.g. 'bullets', 'a short text', 'email'"),
+      },
+    },
+    ({ batch, format }) => ({
+      messages: [
+        {
+          role: "user",
+          content: { type: "text", text: workBatchPrompt(batch, format) },
+        },
+      ],
+    }),
+  );
+
   return server;
+}
+
+/** The steps Claude Code follows for `/mcp__cliphy__work_batch`. */
+export function workBatchPrompt(batch: string, format?: string): string {
+  const how = format?.trim()
+    ? format.trim()
+    : "a short, friendly text message in my voice, one line per request, saying what changed";
+  return [
+    `Work through my Cliphy batch "${batch}" in this repository.`,
+    "",
+    `1. Call get_batch with batch "${batch}". Read every item, including the client's own words and pictures (theirWords).`,
+    "2. For each item, make the change in this repo that addresses it. If it cannot be done here, or needs me or the client to decide, do not guess: leave it for step 3 as not done.",
+    "3. After each item, call check_batch_item: state done with a note saying what you changed (where, and what is different now), or not_done with a note saying why.",
+    `4. When every item is checked, write the summary for the client of the changes that addressed each request, as: ${how}. Only report what was really done. Save it with save_batch_summary and show it to me. Do not send anything to the client; I send it.`,
+    "5. Then call get_batch again and list what has not been addressed: the batch's notAddressed items (with why), and the client's stillOpen requests that are not in this batch.",
+  ].join("\n");
 }
