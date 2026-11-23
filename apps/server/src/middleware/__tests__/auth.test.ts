@@ -10,9 +10,13 @@ const maybeSingle = vi.fn();
 const getClaims = vi.fn();
 const eq = vi.fn();
 
+const rpc = vi.fn<(...a: unknown[]) => Promise<{ data: null; error: null }>>(() =>
+  Promise.resolve({ data: null, error: null }),
+);
 vi.mock("../../lib/supabase.js", () => ({
   supabase: {
     auth: { getClaims: (...a: unknown[]) => getClaims(...a) },
+    rpc: (...a: unknown[]) => rpc(...a),
     from: vi.fn(() => {
       const chain: Record<string, unknown> = {};
       chain.select = vi.fn().mockReturnValue(chain);
@@ -84,5 +88,18 @@ describe("authMiddleware api keys", () => {
   it("rejects requests without a bearer token", async () => {
     const res = await buildApp().request("/whoami");
     expect(res.status).toBe(401);
+  });
+
+  it("notes which app a signed-in request came from, and nothing for an API key", async () => {
+    getClaims.mockResolvedValue({ data: { claims: { sub: "user-9", email: "" } }, error: null });
+    const app = new Hono<AppEnv>();
+    app.use("*", authMiddleware);
+    app.get("/x", (c) => c.json({ ok: true }));
+
+    rpc.mockClear();
+    await app.request("/x", {
+      headers: { Authorization: "Bearer jwt", Origin: "chrome-extension://abcdef" },
+    });
+    expect(rpc).toHaveBeenCalledWith("touch_user", { p_user_id: "user-9", p_client: "extension" });
   });
 });

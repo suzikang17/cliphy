@@ -11,6 +11,7 @@ const maybeSingle = vi.fn();
 vi.mock("../../lib/supabase.js", () => ({
   supabase: {
     auth: { getClaims: vi.fn() },
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
     from: vi.fn(() => {
       const chain: Record<string, unknown> = {};
       for (const m of ["select", "update", "or", "eq"]) chain[m] = () => chain;

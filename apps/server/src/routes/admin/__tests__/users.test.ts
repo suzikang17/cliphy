@@ -38,6 +38,8 @@ function mockChain(result: { data?: unknown; error?: unknown; count?: number }) 
     "single",
     "neq",
     "update",
+    "in",
+    "limit",
   ];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
@@ -75,7 +77,7 @@ describe("Admin Users", () => {
   });
 
   it("GET /admin/users returns user list page", async () => {
-    mockFrom.mockReturnValue(
+    mockFrom.mockReturnValueOnce(
       mockChain({
         data: [
           {
@@ -85,11 +87,16 @@ describe("Admin Users", () => {
             subscription_status: "none",
             monthly_summary_count: 3,
             created_at: "2026-01-01T00:00:00Z",
+            first_client: "extension",
+            last_client: "web",
+            last_active_at: null,
           },
         ],
         count: 1,
       }),
     );
+    // The clips saved by the accounts on this page, one row each.
+    mockFrom.mockReturnValueOnce(mockChain({ data: [{ user_id: "u1" }, { user_id: "u1" }] }));
 
     const app = await createApp();
     const res = await app.request("/admin/users");
@@ -97,6 +104,8 @@ describe("Admin Users", () => {
     const html = await res.text();
     expect(html).toContain("test@example.com");
     expect(html).toContain("free");
+    // Clips, first app, last app, last active.
+    expect(html).toContain("<td>2</td><td>extension</td><td>web</td><td>never</td>");
   });
 
   it("GET /admin/users/:id renders inline actions and linked summary titles", async () => {

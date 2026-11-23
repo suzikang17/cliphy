@@ -20,6 +20,9 @@ interface UserRow {
   subscription_status: string;
   monthly_summary_count: number;
   created_at: string;
+  first_client: string | null;
+  last_client: string | null;
+  last_active_at: string | null;
 }
 
 interface SummaryRow {
@@ -65,9 +68,10 @@ adminUserRoutes.get("/", async (c) => {
 
   let query = supabase
     .from("users")
-    .select("id, email, plan, subscription_status, monthly_summary_count, created_at", {
-      count: "exact",
-    })
+    .select(
+      "id, email, plan, subscription_status, monthly_summary_count, created_at, first_client, last_client, last_active_at",
+      { count: "exact" },
+    )
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -76,6 +80,22 @@ adminUserRoutes.get("/", async (c) => {
   if (search) query = query.ilike("email", `%${search}%`);
 
   const { data: users, count } = await query;
+
+  // How many clips each listed account has ever saved: the difference between
+  // someone who signed in and left, and someone who uses it.
+  const clipCounts = new Map<string, number>();
+  const ids = (users ?? []).map((u: UserRow) => u.id);
+  if (ids.length > 0) {
+    const { data: clipRows } = await supabase
+      .from("clips")
+      .select("user_id")
+      .in("user_id", ids)
+      .limit(10000);
+    for (const row of clipRows ?? []) {
+      const id = row.user_id as string;
+      clipCounts.set(id, (clipCounts.get(id) ?? 0) + 1);
+    }
+  }
 
   const baseUrl = buildBaseUrl({ plan, status, search });
 
@@ -88,6 +108,10 @@ adminUserRoutes.get("/", async (c) => {
             <th>Plan</th>
             <th>Status</th>
             <th>Monthly Count</th>
+            <th>Clips</th>
+            <th>First app</th>
+            <th>Last app</th>
+            <th>Last active</th>
             <th>Created</th>
           </tr>
         </thead>
@@ -106,12 +130,16 @@ adminUserRoutes.get("/", async (c) => {
                 <StatusBadge status={u.subscription_status} />
               </td>
               <td>{u.monthly_summary_count}</td>
+              <td>{clipCounts.get(u.id) ?? 0}</td>
+              <td>{u.first_client ?? "—"}</td>
+              <td>{u.last_client ?? "—"}</td>
+              <td>{u.last_active_at ? formatDateTime(u.last_active_at) : "never"}</td>
               <td>{formatDateTime(u.created_at)}</td>
             </tr>
           ))}
           {(users ?? []).length === 0 && (
             <tr>
-              <td colspan={5} style="text-align:center;color:var(--text-faint);padding:2rem">
+              <td colspan={9} style="text-align:center;color:var(--text-faint);padding:2rem">
                 No users found
               </td>
             </tr>

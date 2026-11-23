@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "../env.js";
 import { supabase } from "../lib/supabase.js";
+import { clientOf, type ClientKind } from "../services/clientKind.js";
 
 const API_KEY_PREFIX = "cliphy_sk_";
 
@@ -19,20 +20,15 @@ export function runnerMayCall(method: string, path: string): boolean {
   return RUNNER_CALLS.some((pattern) => pattern.test(route));
 }
 
-// Touch users.last_active_at at most ~hourly — fire and forget, single
-// conditional UPDATE (no read). Drives subscription-poll backoff for
-// dormant users.
-function touchLastActive(userId: string): void {
-  const staleCutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  void supabase
-    .from("users")
-    .update({ last_active_at: new Date().toISOString() })
-    .eq("id", userId)
-    .or(`last_active_at.is.null,last_active_at.lt.${staleCutoff}`)
-    .then(
-      () => {},
-      () => {},
-    );
+// Touch users.last_active_at at most ~hourly — fire and forget, one
+// conditional statement (`touch_user`, migration 052). Drives subscription-poll
+// backoff for dormant users, and notes which app the account uses. `client` is
+// null for API keys: a key says nothing about which app the person signed up in.
+function touchLastActive(userId: string, client: ClientKind | null): void {
+  void supabase.rpc("touch_user", { p_user_id: userId, p_client: client }).then(
+    () => {},
+    () => {},
+  );
 }
 
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -76,7 +72,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.set("userEmail", "");
     c.set("keyScope", scope);
     c.set("authMethod", "api_key");
-    touchLastActive(keyRow.user_id as string);
+    touchLastActive(keyRow.user_id as string, null);
     return next();
   }
 
@@ -102,7 +98,10 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.set("userEmail", typeof claims.email === "string" ? claims.email : "");
   c.set("authMethod", "jwt");
   c.set("keyScope", null);
-  touchLastActive(claims.sub);
+  touchLastActive(
+    claims.sub,
+    clientOf({ origin: c.req.header("Origin"), userAgent: c.req.header("User-Agent") }),
+  );
 
   await next();
 };
