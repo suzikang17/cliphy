@@ -97,3 +97,56 @@ export async function transcribeAudio(audioUrl: string, opts: Options = {}): Pro
   if (!text.trim()) throw new Error("No speech found in the recording");
   return { text: text.trim(), seconds };
 }
+
+// ── Start, then check ────────────────────────────────────────────────────
+// A serverless function is cut off after a minute, and a Whisper service of
+// our own can take longer than that on a busy machine. So the job behind a
+// voice note does not wait on one call: it starts the transcription, then
+// asks how it is going until it is done. Deepgram answers in the first call.
+
+/** Either the finished transcript, or the id of a job to check on. */
+export type Started = { done: Transcript } | { jobId: string };
+
+export async function startTranscription(audioUrl: string, opts: Options = {}): Promise<Started> {
+  const env = opts.env ?? process.env;
+  if (pickProvider(env) !== "whisper") return { done: await transcribeAudio(audioUrl, opts) };
+
+  const fetcher = opts.fetch ?? globalThis.fetch;
+  const base = (set(env.WHISPER_SERVICE_URL) as string).replace(/\/+$/, "");
+  const res = await fetcher(`${base}/jobs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-API-Key": env.WHISPER_API_KEY ?? "" },
+    body: JSON.stringify({ audio_url: audioUrl }),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
+  });
+  if (!res.ok) throw await refusal("Whisper", res);
+  const data = (await res.json()) as { id?: string };
+  if (!data.id) throw new Error("Whisper gave no job id");
+  return { jobId: data.id };
+}
+
+/** The transcript of a started job, or null while it is still being worked on. */
+export async function checkTranscription(
+  jobId: string,
+  opts: Options = {},
+): Promise<Transcript | null> {
+  const env = opts.env ?? process.env;
+  const fetcher = opts.fetch ?? globalThis.fetch;
+  const base = (set(env.WHISPER_SERVICE_URL) ?? "").replace(/\/+$/, "");
+  const res = await fetcher(`${base}/jobs/${encodeURIComponent(jobId)}`, {
+    headers: { "X-API-Key": env.WHISPER_API_KEY ?? "" },
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
+  });
+  if (!res.ok) throw await refusal("Whisper", res);
+  const job = (await res.json()) as {
+    status?: string;
+    transcript?: string;
+    duration_seconds?: number;
+    error?: string;
+  };
+  if (job.status === "failed") throw new Error(job.error?.trim() || "Whisper job failed");
+  if (job.status !== "done") return null;
+  const text = (job.transcript ?? "").trim();
+  if (!text) throw new Error("No speech found in the recording");
+  return { text, seconds: typeof job.duration_seconds === "number" ? job.duration_seconds : null };
+}

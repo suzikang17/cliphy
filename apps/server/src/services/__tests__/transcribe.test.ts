@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { epic, feature, layer } from "allure-js-commons";
-import { pickProvider, transcribeAudio } from "../transcribe.js";
+import {
+  checkTranscription,
+  pickProvider,
+  startTranscription,
+  transcribeAudio,
+} from "../transcribe.js";
 
 // Speech to text for voice notes. One job: an address of an audio file in,
 // its words out. Which service does it is chosen by what is set up.
@@ -87,6 +92,62 @@ describe("transcribeAudio", () => {
 
     await expect(transcribeAudio(audio, { env: {} })).rejects.toThrow(
       "Transcription is not set up",
+    );
+  });
+});
+
+describe("starting a transcription and checking on it", () => {
+  const whisper = { WHISPER_SERVICE_URL: "https://w.example", WHISPER_API_KEY: "wk" };
+
+  it("is finished at once with Deepgram, which answers in the same call", async () => {
+    const { fetch } = fakeFetch({
+      body: {
+        metadata: { duration: 3 },
+        results: { channels: [{ alternatives: [{ transcript: "hello" }] }] },
+      },
+    });
+    expect(await startTranscription(audio, { env: { DEEPGRAM_API_KEY: "k" }, fetch })).toEqual({
+      done: { text: "hello", seconds: 3 },
+    });
+  });
+
+  it("starts a job on a Whisper service and hands back its id", async () => {
+    const { fetch, calls } = fakeFetch({ status: 202, body: { id: "job1", status: "queued" } });
+    expect(await startTranscription(audio, { env: whisper, fetch })).toEqual({ jobId: "job1" });
+    expect(calls[0].url).toBe("https://w.example/jobs");
+    expect(calls[0].init.method).toBe("POST");
+    expect((calls[0].init.headers as Record<string, string>)["X-API-Key"]).toBe("wk");
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({ audio_url: audio });
+  });
+
+  it("says a job is still going, then gives its words and length when it is done", async () => {
+    const going = fakeFetch({ body: { status: "running" } });
+    expect(await checkTranscription("job1", { env: whisper, fetch: going.fetch })).toBeNull();
+    expect(going.calls[0].url).toBe("https://w.example/jobs/job1");
+
+    const done = fakeFetch({
+      body: { status: "done", transcript: " hello there ", duration_seconds: 11 },
+    });
+    expect(await checkTranscription("job1", { env: whisper, fetch: done.fetch })).toEqual({
+      text: "hello there",
+      seconds: 11,
+    });
+  });
+
+  it("fails in the service's words when the job failed, was lost, or heard nothing", async () => {
+    const failed = fakeFetch({ body: { status: "failed", error: "Audio URL returned HTTP 403" } });
+    await expect(checkTranscription("job1", { env: whisper, fetch: failed.fetch })).rejects.toThrow(
+      "Audio URL returned HTTP 403",
+    );
+
+    const lost = fakeFetch({ status: 404, body: { error: "No such job" } });
+    await expect(checkTranscription("job1", { env: whisper, fetch: lost.fetch })).rejects.toThrow(
+      "Whisper 404: No such job",
+    );
+
+    const silent = fakeFetch({ body: { status: "done", transcript: "" } });
+    await expect(checkTranscription("job1", { env: whisper, fetch: silent.fetch })).rejects.toThrow(
+      "No speech found in the recording",
     );
   });
 });

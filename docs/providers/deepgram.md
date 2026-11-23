@@ -11,7 +11,7 @@ date_evaluated: 2026-11-23
 
 ## Why
 
-Speech to text for voice notes (ADR 0071). It reads the recording from a signed address and returns the transcript in the same call, so the serverless job needs no file upload and no polling. Used by `apps/server/src/services/transcribe.ts` when `DEEPGRAM_API_KEY` is set (Vercel production and preview); `DEEPGRAM_MODEL` overrides the default `nova-3`. Not set up yet: no account or key exists as of 2026-11-23, and until one does voice notes are saved but not transcribed.
+Speech to text for voice notes (ADR 0071). It reads the recording from a signed address and returns the transcript in the same call, so the serverless job needs no file upload and no polling. Used by `apps/server/src/services/transcribe.ts` when `DEEPGRAM_API_KEY` is set (Vercel production and preview); `DEEPGRAM_MODEL` overrides the default `nova-3`. Not set up: no account or key exists as of 2026-11-23. The owner is trying the self-hosted Whisper service first (`services/whisper`); this stays the fallback.
 
 ## Cost notes
 

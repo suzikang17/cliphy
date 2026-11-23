@@ -27,3 +27,15 @@ title: "Day 76 — Voice notes and notes, transcribed and tagged like any clip"
 - **The phone needs a new build.** `expo-audio` changed the native fingerprint (`6e52…` → `dc55…`). The installed build stops receiving updates from this commit on until a build with the new fingerprint is installed.
 - Nothing is transcribed until `DEEPGRAM_API_KEY` (or `WHISPER_SERVICE_URL`) is set in Vercel.
 - Checked in headless Chromium with a fake microphone on made-up data: record, upload, save, open the note, play. Not checked: a real transcription, tagging of a real note, anything on a phone.
+
+## Later: the Whisper service, running
+
+The owner asked what self-hosting would take, having two servers. The service was already in the repo (`services/whisper`, FastAPI and faster-whisper) and had never been deployed.
+
+- Added a Dockerfile; built and started it on the devbox (8 cores, 15 GB), bound to localhost on port 9010 (9000 is another project's), key in `~/.config/cliphy-whisper/env`.
+- **It did not work as written.** `faster-whisper` opens audio with an option `av` 17 removed, so every transcription failed with `open() got an unexpected keyword argument 'metadata_errors'`. Pinned `av<17`.
+- **Proof:** a public 11-second speech sample came back word for word. Without the key: 401.
+- **A wait the server cannot do.** The devbox was busy (load 17) and took 20 to 30 seconds for those 11 seconds; Vercel cuts a function off at 60. The service now has `POST /jobs` and `GET /jobs/:id`, and the voice-note job starts a transcription and asks again every five seconds (`startTranscription` / `checkTranscription`, `step.sleep` between looks). The podcast job still makes one long call and has the same limit; it is in the backlog.
+- Left for the owner: a public address (`sudo tailscale funnel --bg 9010`) and two settings in Vercel. See `services/whisper/README.md`.
+- The iOS build with the audio library finished and went to TestFlight (run 45102846163).
+- TDD lapse: `startTranscription`/`checkTranscription` and the job's waiting loop were written together with their tests, not after seeing them fail.

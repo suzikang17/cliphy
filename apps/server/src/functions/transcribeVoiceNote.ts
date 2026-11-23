@@ -4,12 +4,15 @@ import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { signImageUrl } from "../lib/storage.js";
 import { titleFrom } from "../routes/notes.js";
-import { transcribeAudio } from "../services/transcribe.js";
+import { checkTranscription, startTranscription } from "../services/transcribe.js";
 
 const log = logger.child({ fn: "transcribe-voice-note" });
 
 /** Failures that will be the same on a second try: nothing to hear, or nothing set up to listen. */
 const FINAL = /No speech found|not set up|\b40[0-4]\b/;
+/** How often a service of our own is asked whether it has finished, and how many times. */
+const LOOK_EVERY = "5s";
+const MAX_LOOKS = 120;
 
 /**
  * A voice note's recording becomes its words. The words go on the clip as
@@ -39,35 +42,58 @@ export const transcribeVoiceNote = inngest.createFunction(
       return { skipped: true };
     }
 
-    const transcript = await step.run("transcribe", async () => {
+    /** Say why on the note and stop: trying again would fail the same way. */
+    const giveUp = async (reason: string): Promise<never> => {
+      await supabase
+        .from("clips")
+        .update({ status: "failed", error_message: reason })
+        .eq("id", clipId);
+      log.warn("Voice note could not be transcribed", { clipId, reason });
+      throw new NonRetriableError(reason);
+    };
+    const attempt = async <T>(fn: () => Promise<T>): Promise<T> => {
       try {
-        const url = await signImageUrl(path);
-        if (!url) throw new Error("Recording not found in storage");
-        return await transcribeAudio(url);
+        return await fn();
       } catch (err) {
         const reason = err instanceof Error && err.message ? err.message : "Error";
         if (!FINAL.test(reason)) throw err;
-        // Trying again would fail the same way: say why on the note and stop.
-        await supabase
-          .from("clips")
-          .update({ status: "failed", error_message: reason })
-          .eq("id", clipId);
-        log.warn("Voice note could not be transcribed", { clipId, reason });
-        throw new NonRetriableError(reason);
+        return giveUp(reason);
       }
-    });
+    };
+
+    // A hosted service answers here. One of our own takes the job and is
+    // asked again below, so no single call has to outlast the function's limit.
+    const started = await step.run("transcribe", () =>
+      attempt(async () => {
+        const url = await signImageUrl(path);
+        if (!url) throw new Error("Recording not found in storage");
+        return startTranscription(url);
+      }),
+    );
+
+    let transcript = "done" in started ? started.done : null;
+    if ("jobId" in started) {
+      for (let look = 1; look <= MAX_LOOKS && !transcript; look++) {
+        await step.sleep(`wait-${look}`, LOOK_EVERY);
+        transcript = await step.run(`check-${look}`, () =>
+          attempt(() => checkTranscription(started.jobId)),
+        );
+      }
+    }
+    if (!transcript) return giveUp("Transcription took too long");
+    const result = transcript;
 
     await step.run("store", async () => {
       const { error } = await supabase
         .from("clips")
         .update({
-          content: transcript.text,
-          video_title: titleFrom(transcript.text),
+          content: result.text,
+          video_title: titleFrom(result.text),
           status: "completed",
           error_message: null,
           source_metadata: {
             ...clip.source_metadata,
-            ...(transcript.seconds ? { seconds: transcript.seconds } : {}),
+            ...(result.seconds ? { seconds: result.seconds } : {}),
           },
         })
         .eq("id", clipId);
@@ -78,6 +104,6 @@ export const transcribeVoiceNote = inngest.createFunction(
     await step.run("request-embed", async () => {
       await inngest.send({ name: "clip/embed.requested", data: { clipId } });
     });
-    return { clipId, seconds: transcript.seconds };
+    return { clipId, seconds: result.seconds };
   },
 );
