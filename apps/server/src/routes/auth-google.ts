@@ -4,6 +4,7 @@ import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
+import { resumeGoogleSubscriptions } from "../services/subscriptions.js";
 
 const GOOGLE_SCOPES = "https://www.googleapis.com/auth/youtube.readonly";
 
@@ -137,6 +138,14 @@ authGoogleRoutes.get("/callback", async (c) => {
     expires_at: expiresAt,
     scopes: tokens.scope ?? GOOGLE_SCOPES,
   });
+
+  // Connecting again after the connection lapsed: pick the liked-videos pull
+  // back up, so the person does not have to find and switch it on again.
+  try {
+    await resumeGoogleSubscriptions(userId, tokens.access_token);
+  } catch {
+    // Non-fatal: it can still be switched on by hand
+  }
 
   // Kick off playlist auto-discovery right away (also re-runs every poll cycle)
   try {

@@ -116,18 +116,6 @@ export default function SubscriptionsScreen() {
     }
   }
 
-  async function handleAddWatchLater() {
-    setAddLoading(true);
-    try {
-      const res = await createSubscription({ type: "watch_later" });
-      setSubscriptions((prev) => [...prev, res.subscription]);
-    } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to add Watch Later");
-    } finally {
-      setAddLoading(false);
-    }
-  }
-
   function promptAddLiked() {
     Alert.alert(
       "Auto-queue Liked Videos",
@@ -219,6 +207,8 @@ export default function SubscriptionsScreen() {
       if (res.connected) {
         const subsRes = await getSubscriptions();
         setSubscriptions(subsRes.subscriptions);
+        // Connecting is for this: ask now, not after a second hunt for the button.
+        if (isPro && !subsRes.subscriptions.some((s) => s.type === "liked")) promptAddLiked();
       }
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to connect Google");
@@ -262,7 +252,6 @@ export default function SubscriptionsScreen() {
     );
   }
 
-  const hasWatchLater = subscriptions.some((s) => s.type === "watch_later");
   const hasLiked = subscriptions.some((s) => s.type === "liked");
   const hasPlaylist = subscriptions.some((s) => s.type === "playlist");
 
@@ -379,7 +368,7 @@ export default function SubscriptionsScreen() {
           </Pressable>
         </View>
 
-        {/* Google account: Liked Videos + Watch Later */}
+        {/* Google account: Liked Videos */}
         <View
           className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-6"
           style={brutalShadowSm()}
@@ -396,7 +385,9 @@ export default function SubscriptionsScreen() {
           >
             {googleConnected
               ? "Google account connected"
-              : "Connect Google to auto-queue videos you like (and Watch Later)"}
+              : hasLiked
+                ? "Reconnect Google to resume Liked Videos"
+                : "Connect Google to auto-queue videos you like"}
           </Text>
 
           {googleConnected ? (
@@ -418,26 +409,6 @@ export default function SubscriptionsScreen() {
                     style={{ fontFamily: "DMSans" }}
                   >
                     Auto-queue Liked Videos
-                  </Text>
-                </Pressable>
-              )}
-              {!hasWatchLater && isPro && (
-                <Pressable
-                  onPress={handleAddWatchLater}
-                  disabled={addLoading}
-                  className="items-center py-2.5 border-2 border-black dark:border-[#505050] rounded-lg bg-white dark:bg-[#1e1e1e]"
-                  style={({ pressed }) =>
-                    pressed
-                      ? { transform: [{ translateX: 2 }, { translateY: 2 }] }
-                      : brutalShadowSm()
-                  }
-                  accessibilityRole="button"
-                >
-                  <Text
-                    className="font-bold text-sm text-[#111827] dark:text-white"
-                    style={{ fontFamily: "DMSans" }}
-                  >
-                    Auto-queue Watch Later
                   </Text>
                 </Pressable>
               )}

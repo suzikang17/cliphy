@@ -113,19 +113,6 @@ export function Subscriptions() {
     }
   }
 
-  async function handleAddWatchLater() {
-    setAddLoading(true);
-    setAddError(null);
-    try {
-      const res = await api.createSubscription({ type: "watch_later" });
-      setSubscriptions((prev) => [...prev, res.subscription]);
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to add Watch Later subscription");
-    } finally {
-      setAddLoading(false);
-    }
-  }
-
   async function handleAddLiked() {
     setAddLoading(true);
     setAddError(null);
@@ -202,7 +189,6 @@ export function Subscriptions() {
     );
   }
 
-  const hasWatchLater = subscriptions.some((s) => s.type === "watch_later");
   const hasLiked = subscriptions.some((s) => s.type === "liked");
 
   return (
@@ -212,8 +198,7 @@ export function Subscriptions() {
       <div className="mb-6 pt-2">
         <h1 className="text-2xl font-extrabold m-0">Auto-Subscriptions</h1>
         <p className="text-sm text-(--color-text-muted) mt-1 mb-0">
-          Automatically queue new videos from YouTube channels, playlists, and your Watch Later
-          list.
+          Automatically queue new videos from YouTube channels, playlists, and your liked videos.
         </p>
       </div>
 
@@ -297,7 +282,9 @@ export function Subscriptions() {
             <p className="text-xs text-(--color-text-muted) mt-0.5 mb-0">
               {googleConnected
                 ? "Google account connected"
-                : "Connect Google to auto-queue your Watch Later list and Liked Videos"}
+                : hasLiked
+                  ? "Reconnect Google to resume Liked Videos"
+                  : "Connect Google to auto-queue your Liked Videos"}
             </p>
           </div>
 
@@ -306,15 +293,6 @@ export function Subscriptions() {
               <span className="text-xs font-bold text-neon-600 dark:text-neon-400">
                 Connected ✓
               </span>
-              {!hasWatchLater && isPro && (
-                <button
-                  onClick={handleAddWatchLater}
-                  disabled={addLoading}
-                  className="text-xs font-bold px-3 py-1.5 border-2 border-(--color-border-hard) rounded-lg shadow-brutal-sm hover:shadow-brutal-pressed press-down cursor-pointer transition-all disabled:opacity-40"
-                >
-                  Enable Watch Later
-                </button>
-              )}
               {!hasLiked && isPro && (
                 <button
                   onClick={handleAddLiked}

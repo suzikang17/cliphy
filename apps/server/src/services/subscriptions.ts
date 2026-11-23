@@ -48,7 +48,12 @@ export async function refreshGoogleTokenIfNeeded(userId: string): Promise<string
   });
 
   if (!res.ok) {
-    log.warn("Google token refresh failed", { userId, status: res.status });
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    log.warn("Google token refresh failed", { userId, status: res.status, error: body?.error });
+    // invalid_grant: Google no longer honours this connection (revoked, or
+    // expired — a consent screen left in "Testing" expires it after 7 days).
+    // Retrying cannot help, so drop it; the app then offers Connect again.
+    if (body?.error === "invalid_grant") await dropGoogleConnection(userId);
     return null;
   }
 
@@ -61,6 +66,66 @@ export async function refreshGoogleTokenIfNeeded(userId: string): Promise<string
     .eq("user_id", userId);
 
   return data.access_token;
+}
+
+const GOOGLE_TYPES = ["watch_later", "liked"];
+
+/** Forget a Google connection and pause what depends on it. */
+export async function dropGoogleConnection(userId: string): Promise<void> {
+  await supabase.from("user_google_tokens").delete().eq("user_id", userId);
+  await supabase
+    .from("subscriptions")
+    .update({ is_active: false })
+    .eq("user_id", userId)
+    .in("type", GOOGLE_TYPES);
+  log.warn("Dropped a dead Google connection", { userId });
+}
+
+/**
+ * After Google is connected again: turn the liked-videos pull back on. What
+ * was liked while it was off is marked seen, so it resumes with new likes
+ * only, as it promised when it was first turned on.
+ */
+export async function resumeGoogleSubscriptions(
+  userId: string,
+  accessToken: string,
+): Promise<number> {
+  const { data: rows } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", "liked")
+    .eq("is_active", false);
+  const paused = (rows ?? []) as { id: string }[];
+  if (paused.length === 0) return 0;
+
+  let liked: { videoId: string }[];
+  try {
+    liked = await fetchLikedVideos(accessToken);
+  } catch (err) {
+    // Leave it paused: resuming blind would queue every like made meanwhile.
+    log.warn("Could not read likes to resume", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+
+  for (const sub of paused) {
+    const ids = liked.map((v) => v.videoId);
+    const { data: seenRows } = await supabase
+      .from("subscription_seen_videos")
+      .select("youtube_video_id")
+      .eq("subscription_id", sub.id)
+      .in("youtube_video_id", ids);
+    const seen = new Set((seenRows ?? []).map((r) => r.youtube_video_id as string));
+    await snapshotSeenVideos(
+      sub.id,
+      ids.filter((id) => !seen.has(id)),
+    );
+    await supabase.from("subscriptions").update({ is_active: true }).eq("id", sub.id);
+  }
+  return paused.length;
 }
 
 const CLIPHY_PLAYLIST_PATTERN = /cliphy/i;
@@ -169,11 +234,10 @@ export async function pollAndQueueSubscription(subscriptionId: string): Promise<
   let accessToken: string | null = null;
   if (needsToken || type === "playlist") {
     accessToken = await refreshGoogleTokenIfNeeded(userId);
-    if (needsToken && !accessToken) {
-      await supabase.from("subscriptions").update({ is_active: false }).eq("id", subscriptionId);
-      log.warn("Deactivated subscription — token refresh failed", { subscriptionId, type });
-      return;
-    }
+    // No token: either the connection is dead (already dropped, and this
+    // paused, by the refresh) or Google was briefly unreachable. Either way
+    // there is nothing to do now; a passing failure is retried next cycle.
+    if (needsToken && !accessToken) return;
   }
 
   let videos;
