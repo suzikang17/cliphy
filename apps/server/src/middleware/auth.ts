@@ -80,20 +80,29 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     return next();
   }
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
+  // A sign-in token is checked here, against the project's public signing
+  // keys (fetched once and kept for ten minutes), not by asking Supabase about
+  // each request. A token signed the older way (a shared secret, no public
+  // key) is still checked by asking, inside getClaims. The cost of checking
+  // here: a session that was signed out stays good until its token runs out,
+  // an hour at most.
+  // getClaims throws for some bad tokens (an expired one, one that is not a
+  // token at all) instead of answering with an error. Either way it is a 401,
+  // which is what tells the apps to renew their sign-in.
+  const { data, error } = await supabase.auth
+    .getClaims(token)
+    .catch(() => ({ data: null, error: new Error("invalid token") }));
+  const claims = data?.claims;
+  // The project's own API keys are tokens too, with no person in them.
+  if (error || !claims || typeof claims.sub !== "string" || !claims.sub) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  c.set("userId", user.id);
-  c.set("userEmail", user.email ?? "");
+  c.set("userId", claims.sub);
+  c.set("userEmail", typeof claims.email === "string" ? claims.email : "");
   c.set("authMethod", "jwt");
   c.set("keyScope", null);
-  touchLastActive(user.id);
+  touchLastActive(claims.sub);
 
   await next();
 };

@@ -7,12 +7,12 @@ const PLAINTEXT = "cliphy_sk_testkey1234567890abcdef";
 const HASH = createHash("sha256").update(PLAINTEXT).digest("hex");
 
 const maybeSingle = vi.fn();
-const getUser = vi.fn();
+const getClaims = vi.fn();
 const eq = vi.fn();
 
 vi.mock("../../lib/supabase.js", () => ({
   supabase: {
-    auth: { getUser: (...a: unknown[]) => getUser(...a) },
+    auth: { getClaims: (...a: unknown[]) => getClaims(...a) },
     from: vi.fn(() => {
       const chain: Record<string, unknown> = {};
       chain.select = vi.fn().mockReturnValue(chain);
@@ -52,7 +52,7 @@ describe("authMiddleware api keys", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ userId: "user-9", method: "api_key" });
-    expect(getUser).not.toHaveBeenCalled();
+    expect(getClaims).not.toHaveBeenCalled();
     expect(eq).toHaveBeenCalledWith("key_hash", HASH);
   });
 
@@ -67,7 +67,10 @@ describe("authMiddleware api keys", () => {
   });
 
   it("falls through to supabase JWT for non-prefixed tokens", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "user-1", email: "a@b.c" } }, error: null });
+    getClaims.mockResolvedValue({
+      data: { claims: { sub: "user-1", email: "a@b.c" } },
+      error: null,
+    });
 
     const res = await buildApp().request("/whoami", {
       headers: { Authorization: "Bearer some.jwt.token" },
