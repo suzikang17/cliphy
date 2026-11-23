@@ -43,6 +43,7 @@ import { fireReminders, reconcileReminders, weeklyReview } from "./functions/coa
 import { purgeTrailCron } from "./functions/purge-trail.js";
 import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPodcastFeeds.js";
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
+import { transcribeVoiceNote } from "./functions/transcribeVoiceNote.js";
 import { visionClip } from "./functions/visionClip.js";
 import { processBundle, reprocessBundle, sweepBundles } from "./functions/processBundle.js";
 
@@ -99,6 +100,7 @@ app.on(
       pollPodcastFeedsCron,
       processPodcastFeedPoll,
       transcribePodcastEpisode,
+      transcribeVoiceNote,
       visionClip,
       purgeTrailCron,
       processBundle,

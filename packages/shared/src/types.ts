@@ -54,7 +54,7 @@ export interface SummaryJson {
   topics?: string[];
 }
 
-export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image" | "note";
+export type SourceType = "youtube" | "tweet" | "podcast" | "web" | "image" | "note" | "voice";
 
 export type ClipCategory = "idea" | "reading" | "design" | "reference";
 

@@ -16,7 +16,7 @@ import {
 } from "@cliphy/shared";
 import type { SummaryJson, ChatMessage, SummaryLanguageCode } from "@cliphy/shared";
 import { toSummary } from "../lib/mappers.js";
-import { resolveClipImage } from "../lib/storage.js";
+import { resolveClipImage, resolveClipAudio } from "../lib/storage.js";
 import { semanticSearch } from "../services/search.js";
 import { suggestTags, suggestTagsBulk } from "../services/auto-tag.js";
 import { rankTags } from "../services/tagger.js";
@@ -745,7 +745,11 @@ summaryRoutes.get("/:id", async (c) => {
     return c.json({ error: "Summary not found" }, 404);
   }
 
-  return c.json({ summary: await resolveClipImage(toSummary(data as Record<string, unknown>)) });
+  return c.json({
+    summary: await resolveClipAudio(
+      await resolveClipImage(toSummary(data as Record<string, unknown>)),
+    ),
+  });
 });
 
 // ── DELETE /:id — Soft-delete a summary ─────────────────────

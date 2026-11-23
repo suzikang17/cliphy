@@ -2,14 +2,16 @@ import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { generateEmbedding } from "../services/embedding.js";
-import { enrichClip } from "../services/enrich.js";
-import type { Summary } from "@cliphy/shared";
+import { enrichClip, enrichPlan } from "../services/enrich.js";
+import { mergeTags } from "../services/tagger.js";
+import { MAX_TAGS_PER_SUMMARY, type SourceType, type Summary } from "@cliphy/shared";
 
 const log = logger.child({ fn: "embed-clip" });
 
 type ClipRow = {
   source_type: string;
   enrichment_tier?: string;
+  tags?: string[] | null;
   author: string | null;
   content: string | null;
   summary_json?: Summary["summaryJson"] | null;
@@ -57,13 +59,10 @@ export const embedClip = inngest.createFunction(
     // Bookmark-tier clips get an embedding but never a Claude pass — that is
     // the whole point of the metadata tier. Removing this guard silently
     // re-introduces a summarization cost on every pinned site.
-    if (
-      clip.enrichment_tier !== "metadata" &&
-      (clip.source_type === "web" ||
-        clip.source_type === "tweet" ||
-        clip.source_type === "image") &&
-      !clip.summary_json
-    ) {
+    // Notes and voice notes are read too: a note each time it changes (keeping
+    // the tags already on it), a voice note once its words are in.
+    const plan = enrichPlan(clip);
+    if (plan !== "skip") {
       const enrichment = await step.run("enrich-clip", async () => {
         const existingTags = await (async () => {
           const { data } = await supabase
@@ -77,7 +76,7 @@ export const embedClip = inngest.createFunction(
           return [...set];
         })();
         const e = await enrichClip({
-          sourceType: clip.source_type as "web" | "tweet" | "image",
+          sourceType: clip.source_type as SourceType,
           title: clip.video_title ?? undefined,
           text: clip.content ?? "",
           existingTags,
@@ -85,7 +84,14 @@ export const embedClip = inngest.createFunction(
         const summaryJson = { summary: e.summary, keyPoints: [], timestamps: [] };
         const { error } = await supabase
           .from("clips")
-          .update({ category: e.category, tags: e.tags, summary_json: summaryJson })
+          .update({
+            category: e.category,
+            tags:
+              plan === "refresh"
+                ? mergeTags((clip.tags as string[] | null) ?? [], e.tags, MAX_TAGS_PER_SUMMARY)
+                : e.tags,
+            summary_json: summaryJson,
+          })
           .eq("id", clipId);
         if (error) throw new Error(`Failed to enrich ${clipId}: ${error.message}`);
         return e;

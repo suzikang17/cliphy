@@ -58,3 +58,25 @@ export async function enrichClip(input: EnrichInput): Promise<Enrichment> {
   const text = res.content.map((b) => ("text" in b ? b.text : "")).join("");
   return parseEnrichment(text);
 }
+
+/**
+ * Whether a saved thing gets a summary, a category and tags now.
+ * - "fill": once, when it has none yet (web pages, tweets, images, voice notes).
+ * - "refresh": again each time it changes, keeping tags already on it (notes,
+ *   which grow as they are added to).
+ * - "skip": nothing to read, a bookmark-only save, or a type with its own
+ *   pipeline (videos and podcasts are tagged after they are summarized).
+ */
+export function enrichPlan(clip: {
+  source_type?: unknown;
+  enrichment_tier?: unknown;
+  summary_json?: unknown;
+  content?: unknown;
+}): "fill" | "refresh" | "skip" {
+  const hasWords = typeof clip.content === "string" && clip.content.trim().length > 0;
+  if (clip.source_type === "note") return hasWords ? "refresh" : "skip";
+  if (clip.source_type === "voice") return hasWords && !clip.summary_json ? "fill" : "skip";
+  const read = ["web", "tweet", "image"].includes(clip.source_type as string);
+  if (!read || clip.enrichment_tier === "metadata" || clip.summary_json) return "skip";
+  return "fill";
+}

@@ -30,3 +30,14 @@ export async function resolveClipImage<T extends { sourceType: string; heroImage
   }
   return clip;
 }
+
+/** Give a voice note a short-lived address its recording can be played from. */
+export async function resolveClipAudio<
+  T extends { sourceType: string; sourceMetadata?: Record<string, unknown> },
+>(clip: T): Promise<T> {
+  const path = clip.sourceMetadata?.storagePath;
+  if (clip.sourceType !== "voice" || typeof path !== "string") return clip;
+  const audioUrl = await signImageUrl(path);
+  if (audioUrl) clip.sourceMetadata = { ...clip.sourceMetadata, audioUrl };
+  return clip;
+}
