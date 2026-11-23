@@ -79,6 +79,7 @@ vi.mock("../../services/enqueue-video.js", () => ({
 const { clipsRoutes } = await import("../clips.js");
 const { detectSourceType } = await import("../../services/detectSourceType.js");
 const { inngest } = await import("../../lib/inngest.js");
+const { extractWebClip } = await import("../../services/extractors/web.js");
 
 function app() {
   const a = new Hono();
@@ -95,25 +96,24 @@ describe("POST /clips universal ingest", () => {
     vi.clearAllMocks();
   });
 
-  it("extracts a web url, saves the clip, and fires enrichment", async () => {
+  it("saves an article as a bare link at once and leaves the reading to the background", async () => {
+    const insertChain = mockChain({
+      data: {
+        id: "c1",
+        source_type: "web",
+        status: "processing",
+        video_title: "https://example.com/post",
+        tags: [],
+        created_at: "t",
+        updated_at: "t",
+      },
+      error: null,
+    });
     supabaseMock = {
       from: vi
         .fn()
         .mockReturnValueOnce(mockChain({ data: null })) // dedup: none
-        .mockReturnValueOnce(mockChain({ data: [] })) // existing-tags query (sync enrichment)
-        .mockReturnValueOnce(
-          mockChain({
-            data: {
-              id: "c1",
-              source_type: "web",
-              status: "completed",
-              tags: [],
-              created_at: "t",
-              updated_at: "t",
-            },
-            error: null,
-          }),
-        ), // insert
+        .mockReturnValueOnce(insertChain),
     };
     const res = await app().request("/clips", {
       method: "POST",
@@ -122,9 +122,21 @@ describe("POST /clips universal ingest", () => {
     });
     expect(res.status).toBe(201);
     const json = await res.json();
-    expect(json.clip.id).toBe("c1");
+    expect(json.clip).toMatchObject({ id: "c1", status: "processing" });
+    // Two trips to the database (already saved? then the insert), and the
+    // page is not fetched while the person waits.
+    expect(supabaseMock.from).toHaveBeenCalledTimes(2);
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_url: "https://example.com/post",
+        video_title: "https://example.com/post",
+        status: "processing",
+      }),
+    );
+    expect(extractWebClip).not.toHaveBeenCalled();
     expect(inngest.send).toHaveBeenCalledWith({
-      name: "clip/embed.requested",
+      id: "extract-c1",
+      name: "clip/extract.requested",
       data: { clipId: "c1" },
     });
   });

@@ -45,6 +45,7 @@ import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPo
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 import { transcribeVoiceNote } from "./functions/transcribeVoiceNote.js";
 import { visionClip } from "./functions/visionClip.js";
+import { extractClip } from "./functions/extract-clip.js";
 import { processBundle, reprocessBundle, sweepBundles } from "./functions/processBundle.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
@@ -102,6 +103,7 @@ app.on(
       transcribePodcastEpisode,
       transcribeVoiceNote,
       visionClip,
+      extractClip,
       purgeTrailCron,
       processBundle,
       reprocessBundle,

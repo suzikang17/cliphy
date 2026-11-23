@@ -5,12 +5,9 @@ import { supabase } from "../lib/supabase.js";
 import { inngest } from "../lib/inngest.js";
 import { toClip } from "../lib/mappers.js";
 import { detectSourceType } from "../services/detectSourceType.js";
-import { extractWebClip } from "../services/extractors/web.js";
-import { extractTweetClip } from "../services/extractors/tweet.js";
 import { extractWebMetadata } from "../services/extractors/webMetadata.js";
 import { signImageUrl } from "../lib/storage.js";
 import { findRelatedClips } from "../services/related.js";
-import { enrichClip } from "../services/enrich.js";
 import { createImageClip } from "../services/imageClip.js";
 import { enqueueVideo } from "../services/enqueue-video.js";
 import { quickSave } from "../services/quick-save.js";
@@ -144,91 +141,46 @@ clipsRoutes.post("/", async (c) => {
     return c.json({ clip: toClip(row) }, 201);
   }
 
-  // Build the insert payload from whichever extractor matches.
-  const insert: Record<string, unknown> = {
-    user_id: userId,
-    source_type: sourceType,
-    source_url: body.url,
-    tags: [],
-    ...(userNote && { user_notes: userNote }),
-  };
-
-  try {
-    if (sourceType === "web") {
-      const web = await extractWebClip(body.url);
-      insert.video_title = web.title;
-      insert.content = web.content || null;
-      insert.excerpt = web.excerpt ?? null;
-      insert.hero_image_url = web.heroImageUrl ?? null;
-      insert.source_metadata = {
-        siteName: web.siteName,
-        faviconUrl: web.faviconUrl,
-        readingTimeMin: web.readingTimeMin,
-        kind: web.kind,
-      };
-      insert.status = "completed";
-    } else if (sourceType === "tweet") {
-      const tw = await extractTweetClip(body.url);
-      insert.video_title = `${tw.author.name} (@${tw.author.handle})`;
-      insert.author = tw.author.handle;
-      insert.content = tw.text;
-      insert.excerpt = tw.text.slice(0, 200);
-      insert.hero_image_url = tw.heroImageUrl ?? null;
-      insert.published_at = tw.publishedAt ?? null;
-      insert.source_metadata = {
-        handle: tw.author.handle,
-        avatarUrl: tw.author.avatarUrl,
-        media: tw.media,
-        quotedTweet: tw.quotedTweet,
-        threadTweetIds: tw.threadTweetIds,
-        threadTruncated: tw.threadTruncated,
-        likeCount: tw.likeCount,
-        retweetCount: tw.retweetCount,
-      };
-      insert.status = "completed";
-    } else {
-      // Other types (e.g. podcast) have no extractor on this path yet;
-      // save a bare link so nothing is lost. YouTube is routed to the queue above.
-      insert.status = "completed";
-    }
-  } catch (err) {
-    insert.status = "failed";
-    insert.error_message = err instanceof Error ? err.message : "Extraction failed";
-    insert.video_title = body.url;
+  // An article or a post: store the bare link and answer at once. Reading
+  // the page (extract-clip) and the summary, tags and category (embed-clip)
+  // follow in the background, with retries, and the clip fills in live.
+  if (sourceType === "web" || sourceType === "tweet") {
+    const { data: row, error } = await supabase
+      .from("clips")
+      .insert({
+        user_id: userId,
+        source_type: sourceType,
+        source_url: body.url,
+        video_title: body.url,
+        status: "processing",
+        tags: [],
+        ...(userNote && { user_notes: userNote }),
+      })
+      .select("*")
+      .single();
+    if (error || !row) return c.json({ error: "Failed to save clip" }, 500);
+    await inngest.send({
+      id: `extract-${row.id as string}`,
+      name: "clip/extract.requested",
+      data: { clipId: row.id },
+    });
+    return c.json({ clip: toClip(row) }, 201);
   }
 
-  // Enrich synchronously (summary/tags/category) so the inbox is populated
-  // reliably at capture time, independent of the async embedding worker.
-  // Best-effort: a failure here never blocks saving the clip.
-  if (
-    insert.status === "completed" &&
-    (sourceType === "web" || sourceType === "tweet") &&
-    typeof insert.content === "string" &&
-    insert.content
-  ) {
-    try {
-      const { data: tagRows } = await supabase
-        .from("clips")
-        .select("tags")
-        .eq("user_id", userId)
-        .is("deleted_at", null)
-        .limit(500);
-      const existingTags = [...new Set((tagRows ?? []).flatMap((r) => (r.tags as string[]) ?? []))];
-      const e = await enrichClip({
-        sourceType,
-        title: insert.video_title as string | undefined,
-        text: insert.content,
-        existingTags,
-      });
-      insert.category = e.category;
-      insert.tags = e.tags;
-      insert.summary_json = { summary: e.summary, keyPoints: [], timestamps: [] };
-    } catch {
-      // leave unenriched — the embed worker (or a backfill) can retry later
-    }
-  }
-
-  const { data: row, error } = await supabase.from("clips").insert(insert).select("*").single();
+  // Other types (e.g. podcast) have no extractor on this path yet; save a
+  // bare link so nothing is lost. YouTube is routed to the queue above.
+  const { data: row, error } = await supabase
+    .from("clips")
+    .insert({
+      user_id: userId,
+      source_type: sourceType,
+      source_url: body.url,
+      status: "completed",
+      tags: [],
+      ...(userNote && { user_notes: userNote }),
+    })
+    .select("*")
+    .single();
   if (error || !row) return c.json({ error: "Failed to save clip" }, 500);
 
   await inngest.send({ name: "clip/embed.requested", data: { clipId: row.id } });
