@@ -107,7 +107,14 @@ async function main() {
     plan: string;
     monthly_summary_count: number;
     last_active_at: string | null;
-  }>("users", "id, plan, monthly_summary_count, last_active_at");
+    first_client: string | null;
+    last_client: string | null;
+  }>("users", "id, plan, monthly_summary_count, last_active_at, first_client, last_client");
+  show(
+    "First app (accounts made since this was recorded)",
+    tally(users.map((u) => u.first_client ?? "unknown")),
+  );
+  show("Latest app", tally(users.map((u) => u.last_client ?? "not seen since")));
   show("Last active (server saw a request)", tally(users.map((u) => since(u.last_active_at))));
 
   const clips = await all<{ user_id: string; status: string; source_type: string }>(
