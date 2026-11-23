@@ -23,7 +23,7 @@ phase: Growth
 - **Where accounts come from** (`1341568`, `7e92eeb`): a counts-only breakdown script (`scripts/account-breakdown.ts`, the "accounts" job of the check workflow), then migration 052 and `services/clientKind.ts`. The server reads extension, website, Mac or phone off the `Origin` and `User-Agent` headers every installed version already sends, and stores `first_client` and `last_client` on the account with the hourly activity touch (`touch_user`). The admin users list shows Clips, First app, Last app and Last active.
 - **What the breakdown showed:** 92 accounts, 87 by Google sign-in, 90 on personal mailboxes; 24 sign-ups on Aug 3 to 5; 87 accounts with no clip at all; two accounts hold 295 of 302 clips. People sign in and stop before a first save. The database cannot say why.
 
-- **PostHog** (ADR 0073): the server records `clip_saved`, `save_refused` (with status and code), `summary_completed` and `summary_failed` per account id; the website loads `posthog-js` for pages, referrers and recordings, through `/ingest` on our own address. Privacy policy updated. The extension and phone app are not instrumented themselves.
+- **PostHog** (ADR 0073): the server records `clip_saved`, `save_refused` (with status and code), `summary_completed` and `summary_failed` per account id; the website loads `posthog-js` for pages, referrers and recordings, through `/ingest` on our own address. Privacy policy updated. Later the same day: the extension sends its own events (installed, side panel opened, sign-in and save attempts with a reason code on failure; live only after the next store release), and the site asks before running analytics (`ConsentBanner`, `cookieless_mode: "on_reject"`). The phone app is not instrumented itself.
 
 ## Issues
 

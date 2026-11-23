@@ -28,8 +28,9 @@ The owner asked for monitoring and whether PostHog would help. It does, for the 
 
 ## Tradeoffs
 
-- **The extension itself reports nothing.** A click that never reaches the server (a broken button, a blocked request) is still invisible. Adding events inside the extension is the next step if the funnel points there; it needs a store release and an updated data disclosure.
-- **No consent banner.** The site stores a PostHog id in the browser's local storage. Visitors in the EU are arguably owed a choice first. PostHog's cookieless mode is the likely fix; not done.
+- **The extension reports a few events of its own** (added the same day, `apps/extension/lib/analytics.ts`): installed, updated, side panel opened, sign-in started / completed / failed, save clicked, save failed with a reason code. Sent with a plain request from the background worker, so no outside code is loaded and there is no session recording (PostHog's docs name recording as the commonest cause of store rejection). Before sign-in the person is a random id kept in the extension's storage; sign-in ties it to the account. It reaches people only with the next store release, and the store's data disclosure has to say so first.
+- **The site asks before running analytics** (`ConsentBanner`, `cookieless_mode: "on_reject"`). Until the visitor answers, nothing is sent or stored. Allow gives full analytics. Decline still counts the visit by an anonymous id worked out on PostHog's side, with nothing stored and no recording; that needs "Enable cookieless tracking" switched on in the PostHog project, or declined visits are dropped. The no-banner mode (`"always"`) was not used because it turns recordings off for everyone.
+- **Fewer recordings and funnels than without a banner:** only visitors who press Allow are recorded or tied to an account on the site. The server's events do not depend on it.
 - **Events sent after a response can be lost** if the function is frozen first. `waitUntil` is used where Vercel offers it.
 - **Account ids go to a US company.** Named in the privacy policy (updated the same day).
 - **No "signed up" event from the server.** The first event for an account marks it; the website's first identified visit is the closest to a sign-up.

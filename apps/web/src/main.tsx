@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 import { AuthProvider } from "./lib/auth-context";
 import { initAnalytics } from "./lib/analytics";
+import { ConsentBanner } from "./components/ConsentBanner";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
@@ -30,6 +31,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/subscriptions" element={<Subscriptions />} />
           </Route>
         </Routes>
+        <ConsentBanner />
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

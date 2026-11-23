@@ -4,8 +4,10 @@ import { createRoot } from "react-dom/client";
 import { Sentry, initSentry } from "../../lib/sentry";
 import { ErrorFallback } from "../../components/ErrorFallback";
 import { App } from "./App";
+import { track } from "../../lib/analytics";
 
 initSentry();
+track("sidepanel_opened");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

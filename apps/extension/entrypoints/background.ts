@@ -3,6 +3,7 @@ import { extractVideoId } from "@cliphy/shared";
 import type { Menus, Tabs, Runtime, Windows } from "wxt/browser";
 import { signIn, signOut, isAuthenticated, getAccessToken, getUserIdFromToken } from "../lib/auth";
 import { addToQueue, RateLimitError, ProRequiredError } from "../lib/api";
+import { linkAccount, saveFailureReason, track } from "../lib/analytics";
 import { startRealtimeSubscription, stopRealtimeSubscription } from "../lib/supabase";
 import { createBackgroundClient } from "../lib/sentry";
 import { OPEN_TABS_VIEW_FLAG } from "../lib/tabs/cache";
@@ -150,6 +151,7 @@ export default defineBackground(() => {
   // ── Keyboard command: save this page (⌘⇧S) ───────────────
   browser.commands.onCommand.addListener((command: string, tab?: Tabs.Tab) => {
     if (command !== "save-page" || tab?.id == null) return;
+    track("save_clicked", { source: "shortcut" });
     void runQuickSave({ id: tab.id, url: tab.url, title: tab.title }, quickSaveDeps);
   });
 
@@ -196,7 +198,10 @@ export default defineBackground(() => {
   });
 
   // ── Context menu ──────────────────────────────────────────
-  browser.runtime.onInstalled.addListener(() => {
+  browser.runtime.onInstalled.addListener((details: Runtime.OnInstalledDetailsType) => {
+    if (details.reason === "install") track("extension_installed");
+    else if (details.reason === "update") track("extension_updated");
+
     // On a watch page: "Add to Cliphy" queues the current video
     browser.contextMenus.create({
       id: "add-to-cliphy",
@@ -227,6 +232,7 @@ export default defineBackground(() => {
     // fast-path; the server also backfills title/channel via oEmbed if these are missing.
     const metadata = await getQueueMetadata(tab?.id, url);
 
+    track("save_clicked", { source: "menu" });
     try {
       await addToQueue({ videoUrl: url, ...metadata });
       // Flash green "+" badge for 2s on success
@@ -239,6 +245,7 @@ export default defineBackground(() => {
         linkLabel: "Open Cliphy →",
       });
     } catch (err) {
+      track("save_failed", { source: "menu", reason: saveFailureReason(err) });
       // Flash red "!" badge for 3s on error
       await browser.action.setBadgeBackgroundColor({ color: "#dc2626" });
       await browser.action.setBadgeText({ text: "!" });
@@ -282,8 +289,10 @@ export default defineBackground(() => {
         case "ADD_TO_QUEUE": {
           const tabId = sender.tab?.id;
           (async () => {
+            track("save_clicked", { source: "button" });
             const authed = await isAuthenticated();
             if (!authed) {
+              track("save_failed", { source: "button", reason: "signed_out" });
               sendResponse({ success: false, error: "Not authenticated" });
               return;
             }
@@ -301,6 +310,7 @@ export default defineBackground(() => {
                 videoDurationSeconds: msg.videoDurationSeconds,
               });
             } catch (err) {
+              track("save_failed", { source: "button", reason: saveFailureReason(err) });
               console.error("[Cliphy] addToQueue failed:", err);
               const message = err instanceof Error ? err.message : String(err);
               if (tabId != null && err instanceof RateLimitError) {
@@ -331,12 +341,21 @@ export default defineBackground(() => {
         }
 
         case "SIGN_IN":
+          track("sign_in_started", { method: "google" });
           signIn()
             .then(() => {
+              linkAccount();
+              track("sign_in_completed", { method: "google" });
               setupRealtime();
               sendResponse({ success: true });
             })
-            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+            .catch((err: Error) => {
+              track("sign_in_failed", {
+                method: "google",
+                reason: /cancel|not approve/i.test(err.message) ? "cancelled" : "error",
+              });
+              sendResponse({ success: false, error: err.message });
+            });
           return true;
 
         case "SIGN_OUT":

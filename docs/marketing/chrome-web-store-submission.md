@@ -137,6 +137,7 @@ data via the promo harness at `apps/web/promo/` — regenerate with
 - [x] Personally identifiable information — Email address (via Google OAuth, for authentication only)
 - [x] Website content — YouTube video metadata (title, channel, video ID, duration) for videos the user explicitly summarizes
 - [x] Authentication information — OAuth tokens stored locally
+- [x] User activity — from the release that adds analytics (ADR 0073): that the extension was installed or updated, that the side panel was opened, and that a sign-in or a save was tried and whether it worked. Clicks on Cliphy's own controls only; never pages visited, video or page addresses, titles or content.
 
 **Data types NOT collected:**
 
@@ -144,20 +145,22 @@ data via the promo harness at `apps/web/promo/` — regenerate with
 - [ ] Financial / payment information (handled entirely by Stripe, never touches the extension)
 - [ ] Location
 - [ ] Web browsing history (only YouTube video IDs for explicitly summarized videos)
-- [ ] User activity monitoring
+- [ ] Monitoring of activity on other sites (network requests, mouse position, scrolling, keystrokes)
 
 ### Data Usage Disclosure
 
-| Question                                                                   | Answer                                                                                                                         |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Is data sold to third parties?                                             | No                                                                                                                             |
-| Is data used for purposes unrelated to the extension's core functionality? | No                                                                                                                             |
-| Is data used for creditworthiness or lending purposes?                     | No                                                                                                                             |
-| Is data transferred to third parties?                                      | Yes — video transcripts are sent to Anthropic's Claude API for AI summary generation. Payment processing is handled by Stripe. |
+| Question                                                                   | Answer                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is data sold to third parties?                                             | No                                                                                                                                                                                                                                                                  |
+| Is data used for purposes unrelated to the extension's core functionality? | No                                                                                                                                                                                                                                                                  |
+| Is data used for creditworthiness or lending purposes?                     | No                                                                                                                                                                                                                                                                  |
+| Is data transferred to third parties?                                      | Yes — video transcripts are sent to Anthropic's Claude API for AI summary generation. Payment processing is handled by Stripe. Usage events (see "User activity" above), under the account ID or a random install ID, are sent to PostHog to improve the extension. |
 
 ### Remote Code
 
-**Does your extension execute remote code?** No
+**Does your extension execute remote code?** No (analytics is a plain request from the background worker; no PostHog script is loaded)
+
+> **Before publishing the first release with analytics:** tick "User activity" in the dashboard's data collection list and add PostHog to the third-party answer, as written above. The store can reject or take down an extension whose disclosure does not match what it sends.
 
 ### Privacy Policy URL
 
@@ -175,7 +178,7 @@ static on Day 15 — see `docs/devlog/day-15-landing-page-static-pages-migration
 
 Paste this in the certification field:
 
-> Cliphy's use of data complies with the Chrome Web Store's Limited Use policy. Data collected through Chrome APIs is used solely to provide the video summarization service. Data is not used for advertising, credit assessments, or any purpose unrelated to the extension's core functionality.
+> Cliphy's use of data complies with the Chrome Web Store's Limited Use policy. Data collected through Chrome APIs is used solely to provide and improve the video summarization service. Data is not used for advertising, credit assessments, or any purpose unrelated to the extension's core functionality.
 
 ---
 

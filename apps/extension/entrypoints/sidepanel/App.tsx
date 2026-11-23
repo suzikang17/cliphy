@@ -1,3 +1,4 @@
+import { linkAccount, track } from "../../lib/analytics";
 import type { ExtensionMessage, Summary, UsageInfo, VideoInfo } from "@cliphy/shared";
 import type { Runtime } from "wxt/browser";
 import { parseDurationToSeconds, WEB_ROUTES } from "@cliphy/shared";
@@ -379,11 +380,14 @@ export function App() {
     setError(null);
     setEmailLoading(true);
     try {
+      track("sign_in_started", { method: authMode === "signup" ? "email_signup" : "email" });
       if (authMode === "signup") {
         await signUpWithEmail(emailInput, passwordInput);
       } else {
         await signInWithEmail(emailInput, passwordInput);
       }
+      linkAccount();
+      track("sign_in_completed", { method: authMode === "signup" ? "email_signup" : "email" });
       // Trigger realtime subscription in background
       browser.runtime.sendMessage({ type: "SETUP_REALTIME" }).catch(() => {});
       setEmailInput("");
@@ -392,6 +396,10 @@ export function App() {
       await init();
       setEmailLoading(false);
     } catch (err) {
+      track("sign_in_failed", {
+        method: authMode === "signup" ? "email_signup" : "email",
+        reason: "error",
+      });
       setEmailLoading(false);
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
