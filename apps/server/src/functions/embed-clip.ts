@@ -3,8 +3,9 @@ import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { generateEmbedding } from "../services/embedding.js";
 import { enrichClip, enrichPlan } from "../services/enrich.js";
-import { mergeTags } from "../services/tagger.js";
-import { MAX_TAGS_PER_SUMMARY, type SourceType, type Summary } from "@cliphy/shared";
+import { chooseTags } from "../services/chooseTags.js";
+import { rankTags } from "../services/tagger.js";
+import type { SourceType, Summary } from "@cliphy/shared";
 
 const log = logger.child({ fn: "embed-clip" });
 
@@ -64,17 +65,14 @@ export const embedClip = inngest.createFunction(
     const plan = enrichPlan(clip);
     if (plan !== "skip") {
       const enrichment = await step.run("enrich-clip", async () => {
-        const existingTags = await (async () => {
-          const { data } = await supabase
-            .from("clips")
-            .select("tags")
-            .eq("user_id", clip.user_id ?? "")
-            .is("deleted_at", null)
-            .limit(500);
-          const set = new Set<string>();
-          for (const row of data ?? []) for (const t of (row.tags as string[]) ?? []) set.add(t);
-          return [...set];
-        })();
+        const { data: tagRows } = await supabase
+          .from("clips")
+          .select("tags")
+          .eq("user_id", clip.user_id ?? "")
+          .is("deleted_at", null)
+          .limit(500);
+        // Most used first: that is the order Jev is asked in.
+        const existingTags = rankTags(tagRows ?? []);
         const e = await enrichClip({
           sourceType: clip.source_type as SourceType,
           title: clip.video_title ?? undefined,
@@ -82,14 +80,27 @@ export const embedClip = inngest.createFunction(
           existingTags,
         });
         const summaryJson = { summary: e.summary, keyPoints: [], timestamps: [] };
+        // Notes and voice notes are tagged the way videos are: existing tags
+        // that fit are applied, new ideas are only suggested. Web pages, tweets
+        // and images keep taking the model's tags as they are.
+        const spoken = clip.source_type === "note" || clip.source_type === "voice";
+        const chosen = spoken
+          ? await chooseTags({
+              kind: clip.source_type === "voice" ? "voice note" : "note",
+              title: clip.video_title ?? undefined,
+              summary: e.summary || (clip.content ?? "").slice(0, 600),
+              existingTags,
+              proposed: e.tags,
+              current: (clip.tags as string[] | null) ?? [],
+            })
+          : null;
         const { error } = await supabase
           .from("clips")
           .update({
             category: e.category,
-            tags:
-              plan === "refresh"
-                ? mergeTags((clip.tags as string[] | null) ?? [], e.tags, MAX_TAGS_PER_SUMMARY)
-                : e.tags,
+            ...(chosen
+              ? { tags: chosen.tags, suggested_tags: chosen.suggested }
+              : { tags: e.tags }),
             summary_json: summaryJson,
           })
           .eq("id", clipId);

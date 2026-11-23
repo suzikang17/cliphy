@@ -54,3 +54,11 @@ The owner asked whether Whisper is the best model for this. Measured rather than
 - **Long recordings.** Read whole, a 5-minute test kept every sentence but took 4 GB of memory. Cut at every pause, sentences were broken up ("Ask not. What your country can do for you."). The service reads up to two minutes whole and cuts longer ones only at pauses of 1.5 s or more, in pieces of at most 40 s; that kept 26 of 28 sentences.
 - Caveats: LibriSpeech is clean read speech these models are all tuned on, so the accuracy gap is a rough guide; the machine's load varied during the run (it rose, which if anything hurt the later models, and Parakeet ran last). Parakeet v2 is English only. Not yet run on the owner's own notes: none exist.
 - Two sample sources were tried first: one refused automated downloads (left alone), one API returned 503 for a few minutes (the script now retries).
+
+## Later: notes and voice notes tagged the way videos are
+
+- The owner asked whether Jev could be used here. Not for transcription (it answers typed questions about text); yes for tagging. Notes and voice notes had been taking the summarizing model's tags as they came, which applies new tags unasked and lets near-duplicates in.
+- `services/chooseTags.ts`: Jev decides which of the owner's existing tags fit (same 0.7 threshold as videos) and drops proposed tags that mean the same as an existing one; anything new goes to `suggested_tags`, never straight onto the clip; tags already on the clip are kept. Without `TYPESAFE_API_KEY`, or if Jev fails, a proposed tag is applied only when it is exactly an existing one.
+- `tagClip` takes a `kind` so the question reads "describe this note" or "this voice note"; videos are asked exactly what they were before.
+- Web pages, tweets and images are unchanged.
+- Not checked: whether the Jev key is set in production, and a real note's tags.

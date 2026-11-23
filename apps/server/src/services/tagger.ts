@@ -27,6 +27,8 @@ export function getJevClient(): TypeSafeClient {
 }
 
 export interface TagClipInput {
+  /** What is being tagged, as the question names it. Defaults to "video". */
+  kind?: string;
   summaryJson: SummaryJson;
   title?: string;
   /** User's existing tags, most-used first (truncated to MAX_EXISTING_TAGS). */
@@ -45,6 +47,7 @@ export interface TagClipResult {
 const label = (tag: string) => tagPath(tag).join(" › ");
 
 export async function tagClip({
+  kind = "video",
   summaryJson,
   title,
   existingTags,
@@ -62,7 +65,7 @@ export async function tagClip({
   // Jev answers are keyed by question name; tag strings aren't safe keys, so index them.
   const questions: Questions = {};
   tags.forEach((tag, i) => {
-    questions[`t${i}`] = noul(`Does the tag "${label(tag)}" describe this video?`);
+    questions[`t${i}`] = noul(`Does the tag "${label(tag)}" describe this ${kind}?`);
   });
 
   const options: Record<string, string> = { [NONE]: "None of these mean the same thing" };
