@@ -9,7 +9,6 @@ import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { addClip } from "../lib/api";
 import { uploadAndClipImage } from "../lib/uploadImage";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
@@ -23,6 +22,7 @@ import {
   syncLocalReminders,
 } from "../lib/coachNotifications";
 import { couldBeRequest, setPendingShare, type PendingShare } from "../lib/shareStore";
+import { shareOutbox } from "../lib/savedShares";
 import { SendToChatSheet } from "../components/coach/SendToChatSheet";
 import { DesktopShell } from "../components/coach/DesktopShell";
 import { useCoachTheme } from "../components/coach/ui";
@@ -174,6 +174,29 @@ export default function RootLayout() {
   const coachStatus = useCoach().status;
   const coachAskedRef = useRef(false);
 
+  // A shared link is stored on the phone and confirmed at once; the send to
+  // the server follows in the background (lib/shareOutbox.ts).
+  const saveSharedLink = (url: string) => {
+    void shareOutbox
+      .add(url)
+      .then(() => {
+        Alert.alert("Saved to Cliphy", "Clip saved");
+        return shareOutbox.flush();
+      })
+      .catch((err: unknown) => showQueueError(err));
+  };
+
+  // Links still waiting from an earlier share (the app was put away, or there
+  // was no network) go out when signed in and each time the app comes forward.
+  useEffect(() => {
+    if (!session || DESKTOP) return;
+    void shareOutbox.flush();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void shareOutbox.flush();
+    });
+    return () => sub.remove();
+  }, [session]);
+
   // On cliphy.app, an account without the coach has nothing to see here.
   useEffect(() => {
     if (DESKTOP && !MAC_WINDOW && coachStatus === "off") window.location.assign("/dashboard");
@@ -236,17 +259,7 @@ export default function RootLayout() {
       return;
     }
 
-    processingShareRef.current = true;
-    addClip({ url: urlMatch[0] })
-      .then((res) => {
-        Alert.alert("Saved to Cliphy", res.clip.videoTitle || "Clip saved");
-      })
-      .catch((err: unknown) => {
-        showQueueError(err);
-      })
-      .finally(() => {
-        processingShareRef.current = false;
-      });
+    saveSharedLink(urlMatch[0]);
   }, [shareIntent, session, resetShareIntent, coachStatus, shareTick]);
 
   // "Save to Library" from the Send to Chat sheet: what sharing always did.
@@ -266,9 +279,7 @@ export default function RootLayout() {
       Alert.alert("No link found", "Share a link or an image to save it to Cliphy.");
       return;
     }
-    addClip({ url })
-      .then((res) => Alert.alert("Saved to Cliphy", res.clip.videoTitle || "Clip saved"))
-      .catch((err: unknown) => showQueueError(err));
+    saveSharedLink(url);
   };
 
   const colorScheme = useColorScheme();

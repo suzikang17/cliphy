@@ -121,7 +121,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `API error ${res.status}`);
+    // The status rides along so a caller can tell a refusal from a server fault.
+    throw Object.assign(new Error(body.error || `API error ${res.status}`), {
+      status: res.status,
+    });
   }
 
   return res.json();
