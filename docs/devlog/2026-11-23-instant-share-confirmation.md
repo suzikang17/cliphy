@@ -24,6 +24,8 @@ phase: Growth
   - `f41545d`: articles and posts are saved as a bare link and read by a new `extract-clip` Inngest job. Production answered "Successfully registered, modified: true" after the deploy.
   - `c5b53ec`: shared pictures go through the outbox (resized copy kept, confirmed, uploaded after).
 
+- **Old tweets re-read** (`a78c376`): a hand-run workflow (`refetch-tweets.yml`, dry run unless "apply") re-read all 42 saved tweets in production. 40 were filled in (9,226 → 84,162 characters in all; the longest went from 274 to 14,116), 2 had only a wrong "cut" mark, none were unreadable, no write failed. A second dry run reported all 42 already right. The tweet's page now shows "Continues on X" when a post was saved cut.
+
 ## Issues
 
 - **`getClaims` throws on an expired token** (a plain `Error`, not an auth error), which would have been a 500 instead of the 401 the apps use to renew their sign-in. Caught by the real-signature test; the middleware now turns any throw into 401.
@@ -34,6 +36,8 @@ phase: Growth
 - The outbox says "Saved" before the server has the link. A refusal (monthly limit) arrives as a second alert a moment later.
 - Whether live tokens are ES256 or still HS256 was not confirmed (needs a real token). If HS256, the local check falls back to asking Supabase and gains nothing until the signing key is switched in Supabase → JWT Keys.
 - A signed-out session stays valid until its token expires (≤ 1 hour).
+- The re-read changed the words only. Summaries and tags on those 40 tweets were written from the cut text and were not redone.
+- Short tweets grew by exactly 20 characters where FxTwitter writes out a YouTube address in place of X's `t.co` link. Not missing text.
 - Not run end to end in production: a real article save through `extract-clip` (needs a signed-in request).
 - Three server tests fail on this devbox regardless (libvips missing, live smoke tests).
 
@@ -49,6 +53,7 @@ phase: Growth
 - `6cd382c` save long posts and threads in full
 - `f41545d` save an article or post as a bare link, read it in the background
 - `c5b53ec` confirm a shared picture at once, upload it after
+- `a78c376` re-read saved tweets, and say when a post continues on X
 
 ## Tomorrow's plan
 
