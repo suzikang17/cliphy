@@ -36,7 +36,7 @@ phase: Growth
 - The outbox says "Saved" before the server has the link. A refusal (monthly limit) arrives as a second alert a moment later.
 - Whether live tokens are ES256 or still HS256 was not confirmed (needs a real token). If HS256, the local check falls back to asking Supabase and gains nothing until the signing key is switched in Supabase → JWT Keys.
 - A signed-out session stays valid until its token expires (≤ 1 hour).
-- The re-read changed the words only. Summaries and tags on those 40 tweets were written from the cut text and were not redone.
+- **Summaries redone** (`43328ec`): the same workflow's `summaries` job rewrote the summary of the 31 tweets longer than the old cut (two had none), from the full text; 49 tags added, none removed, no failures. Not refreshed: the search embeddings of those tweets, which were made from the cut text (CI has no Voyage key and cannot send Inngest events). Running the job again would rewrite all 31 again; it leaves no mark.
 - Short tweets grew by exactly 20 characters where FxTwitter writes out a YouTube address in place of X's `t.co` link. Not missing text.
 - Not run end to end in production: a real article save through `extract-clip` (needs a signed-in request).
 - Three server tests fail on this devbox regardless (libvips missing, live smoke tests).
@@ -54,6 +54,7 @@ phase: Growth
 - `f41545d` save an article or post as a bare link, read it in the background
 - `c5b53ec` confirm a shared picture at once, upload it after
 - `a78c376` re-read saved tweets, and say when a post continues on X
+- `43328ec` rewrite summaries of long tweets from their full text
 
 ## Tomorrow's plan
 
