@@ -14,7 +14,7 @@ export interface EnqueueVideoInput {
   videoTitle?: string;
   videoChannel?: string;
   videoDurationSeconds?: number;
-  /** Count the items ahead of this one. Only POST /queue shows it; others skip the query. */
+  /** Count the items ahead of this one. Only POST /queue shows it; others skip the count. */
   wantPosition?: boolean;
 }
 
@@ -63,96 +63,58 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
     };
   }
 
-  // Windowed duplicate check: same user + same video + active, enqueued within
-  // the dedup window. Collapses accidental rapid re-submits (e.g. the share
-  // sheet firing 2-3×) without permanently blocking a later re-summarize. This
-  // is the fast path; the atomic guard is the partial unique index on
-  // (user_id, youtube_video_id, dedup_bucket), which closes the TOCTOU race
-  // below where concurrent requests both pass this check.
-  const dedupBucket = Math.floor(Date.now() / 1000 / DEDUP_WINDOW_SECONDS);
-  const windowStart = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+  // One trip to the database (migration 049, `enqueue_video`): the windowed
+  // duplicate check (same user + video + active within the window, which
+  // collapses the share sheet firing 2-3× without blocking a later
+  // re-summarize), the monthly limit (plan + recurring bonus, then the one-off
+  // credit wallet), the user's summary language, and the insert. A concurrent
+  // share that loses the race to the unique index on (user, video, bucket)
+  // comes back as a duplicate with its count undone.
+  // Title/channel come from the client when available; otherwise the summarize
+  // worker backfills them from the InnerTube response it already fetches.
+  const { data, error } = await supabase.rpc("enqueue_video", {
+    p_user_id: userId,
+    p_video_id: videoId,
+    p_video_url: videoUrl,
+    p_video_title: videoTitle ?? null,
+    p_video_channel: videoChannel ?? null,
+    p_duration_seconds: videoDurationSeconds ?? null,
+    p_limits: PLAN_LIMITS,
+    p_window_seconds: DEDUP_WINDOW_SECONDS,
+    p_want_position: Boolean(input.wantPosition),
+  });
+  const saved = data as
+    | { outcome: "duplicate" }
+    | { outcome: "limited"; limit: number; plan: string }
+    | { outcome: "ok"; row: Record<string, unknown>; position: number }
+    | null;
 
-  // Three reads that do not depend on each other, asked together: has this
-  // video just been queued, what plan is the user on, and their language.
-  const [{ data: existing }, { data: user }, { data: settingsRow }] = await Promise.all([
-    supabase
-      .from("clips")
-      .select("id, status")
-      .eq("user_id", userId)
-      .eq("youtube_video_id", videoId)
-      .neq("status", "failed")
-      .is("deleted_at", null)
-      .gte("created_at", windowStart)
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("users").select("plan, monthly_limit_bonus").eq("id", userId).single(),
-    supabase.from("user_settings").select("summary_language").eq("user_id", userId).single(),
-  ]);
-
-  if (existing) {
+  if (error || !saved) {
+    return { ok: false, status: 500, body: { error: "Failed to add to queue" } };
+  }
+  if (saved.outcome === "duplicate") {
     return { ok: false, status: 409, body: { error: "Video already queued", code: "DUPLICATE" } };
   }
-
-  // Rate limit check — atomic increment via DB function
-  const plan = (user?.plan as "free" | "pro") ?? "free";
-  // Effective monthly cap = plan limit + recurring admin bonus. The RPC draws
-  // from the one-off bonus_credits wallet automatically once this is exhausted.
-  const limit = PLAN_LIMITS[plan] + ((user?.monthly_limit_bonus as number) ?? 0);
-
-  const { data: allowed } = await supabase.rpc("increment_monthly_count", {
-    p_user_id: userId,
-    p_limit: limit,
-  });
-
-  if (!allowed) {
+  if (saved.outcome === "limited") {
     return {
       ok: false,
       status: 429,
-      body: { error: "Monthly summary limit reached", code: "RATE_LIMITED", limit, plan },
+      body: {
+        error: "Monthly summary limit reached",
+        code: "RATE_LIMITED",
+        limit: saved.limit,
+        plan: saved.plan,
+      },
     };
   }
-
-  // Title/channel come from the client when available; otherwise the summarize
-  // worker backfills them from the InnerTube response it already fetches.
-
-  const summaryLanguage = (settingsRow?.summary_language as string) ?? "en";
-
-  // Insert new queue item
-  const { data: row, error: insertError } = await supabase
-    .from("clips")
-    .insert({
-      user_id: userId,
-      youtube_video_id: videoId,
-      video_title: videoTitle || null,
-      video_channel: videoChannel || null,
-      video_duration_seconds: videoDurationSeconds ?? null,
-      video_url: videoUrl,
-      summary_language: summaryLanguage,
-      status: "pending",
-      dedup_bucket: dedupBucket,
-    })
-    .select("*")
-    .single();
-
-  if (insertError || !row) {
-    // Rollback the rate limit increment since the insert failed
-    await supabase.rpc("decrement_monthly_count", { p_user_id: userId });
-
-    // A concurrent request already queued this video — the partial unique index
-    // (summaries_user_video_active_uniq) fired. The SELECT-based check above is
-    // racy under concurrency (TOCTOU); this is the authoritative dedup guard.
-    if (insertError?.code === "23505") {
-      return { ok: false, status: 409, body: { error: "Video already queued", code: "DUPLICATE" } };
-    }
-    return { ok: false, status: 500, body: { error: "Failed to add to queue" } };
-  }
+  const { row } = saved;
 
   // Fire Inngest event for async processing. The event `id` makes ingestion
   // idempotent: under Inngest's at-least-once delivery, a redelivered enqueue
   // event won't trigger a second summarization. Keyed on the row id (unique per
   // enqueue), so it never collides with a retry of the same summary (the retry
   // path sends its own event) — re-summarizing still runs.
-  const sent = inngest.send({
+  await inngest.send({
     id: `summarize-${row.id as string}`,
     name: "video/summarize.requested",
     data: {
@@ -163,17 +125,5 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
     },
   });
 
-  // Queue position (pending/processing items created before this one), asked
-  // alongside the event and only for the caller that shows it.
-  const counted = input.wantPosition
-    ? supabase
-        .from("clips")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .in("status", ["pending", "processing"])
-        .lt("created_at", row.created_at)
-    : Promise.resolve({ count: 0 });
-  const [, { count }] = await Promise.all([sent, counted]);
-
-  return { ok: true, row, position: (count ?? 0) + 1 };
+  return { ok: true, row, position: saved.position };
 }

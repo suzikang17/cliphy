@@ -152,60 +152,70 @@ describe("Queue", () => {
       story("Single video");
     });
 
-    it("adds a video and returns 201 with summary and position", async () => {
-      severity("critical");
-      const row = {
-        id: "sum-1",
-        user_id: "test-user-id",
-        youtube_video_id: "dQw4w9WgXcQ",
-        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-        status: "pending",
-        summary_json: null,
-        error_message: null,
-        created_at: "2026-02-20T10:00:00Z",
-        updated_at: "2026-02-20T10:00:00Z",
-      };
-
-      // duplicate check → not found
-      const dupChain = mockChain({ data: null });
-      // user plan check
-      const planChain = mockChain({ data: { plan: "free" } });
-      // rate limit rpc
-      const rpcChain = mockChain({ data: true });
-      // insert
-      const insertChain = mockChain({ data: row });
-      // position count
-      const posChain = mockChain({ data: null, count: 0 });
-
-      // user_settings lookup
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-
-      let callCount = 0;
+    // The save itself is one database function (migration 049, enqueue_video);
+    // its rules are tested against real SQL in services/__tests__/enqueue-video.sql.test.ts.
+    const row = {
+      id: "sum-1",
+      user_id: "test-user-id",
+      youtube_video_id: "dQw4w9WgXcQ",
+      video_title: null,
+      video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+      status: "pending",
+      created_at: "2026-11-23T10:00:00Z",
+    };
+    const answering = (result: Record<string, unknown>) => {
       supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain; // duplicate check
-          if (callCount === 2) return planChain; // user plan
-          if (callCount === 3) return settingsChain; // user_settings
-          if (callCount === 4) return insertChain; // insert
-          if (callCount === 5) return posChain; // position
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
+        from: vi.fn().mockImplementation(() => mockChain({})),
+        rpc: vi.fn().mockReturnValue(mockChain(result)),
       } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
+    };
+    const post = async (body: Record<string, unknown>) =>
+      (await createApp()).request("/queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
+        body: JSON.stringify(body),
       });
+    const VIDEO = { videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" };
+
+    it("adds a video in one database call and returns 201 with summary and position", async () => {
+      severity("critical");
+      answering({ data: { outcome: "ok", row, position: 3 } });
+      const res = await post({ ...VIDEO, videoTitle: "Never Gonna" });
 
       expect(res.status).toBe(201);
       const json = await res.json();
       expect(json.summary.videoId).toBe("dQw4w9WgXcQ");
       expect(json.summary.status).toBe("pending");
-      expect(json.position).toBe(1);
+      expect(json.position).toBe(3);
+
+      expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+      expect(supabaseMock.rpc).toHaveBeenCalledWith("enqueue_video", {
+        p_user_id: "test-user-id",
+        p_video_id: "dQw4w9WgXcQ",
+        p_video_url: VIDEO.videoUrl,
+        p_video_title: "Never Gonna",
+        p_video_channel: null,
+        p_duration_seconds: null,
+        p_limits: { free: 5, pro: 100 },
+        p_window_seconds: 60,
+        p_want_position: true,
+      });
+      // Nothing else is read or written on the way.
+      expect(supabaseMock.from).not.toHaveBeenCalled();
+    });
+
+    it("fires the summarize event once, with an idempotent id", async () => {
+      answering({ data: { outcome: "ok", row, position: 1 } });
+      await post(VIDEO);
+      const { inngest } = await import("../../lib/inngest.js");
+      expect(inngest.send).toHaveBeenCalledTimes(1);
+      expect(inngest.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "summarize-sum-1",
+          name: "video/summarize.requested",
+          data: expect.objectContaining({ summaryId: "sum-1", videoId: "dQw4w9WgXcQ" }),
+        }),
+      );
     });
 
     it("returns 400 for invalid YouTube URL", async () => {
@@ -267,326 +277,37 @@ describe("Queue", () => {
     });
 
     it("accepts zero duration as valid", async () => {
-      const dupChain = mockChain({ data: null });
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true });
-      const row = {
-        id: "sum-1",
-        user_id: "test-user-id",
-        youtube_video_id: "dQw4w9WgXcQ",
-        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-        video_duration_seconds: 0,
-        status: "pending",
-        summary_json: null,
-        error_message: null,
-        created_at: "2026-02-20T10:00:00Z",
-        updated_at: "2026-02-20T10:00:00Z",
-      };
-      const insertChain = mockChain({ data: row });
-      const posChain = mockChain({ data: null, count: 0 });
-
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return settingsChain;
-          if (callCount === 4) return insertChain;
-          if (callCount === 5) return posChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-          videoDurationSeconds: 0,
-        }),
-      });
-
+      answering({ data: { outcome: "ok", row, position: 1 } });
+      const res = await post({ ...VIDEO, videoDurationSeconds: 0 });
       expect(res.status).toBe(201);
+      expect(supabaseMock.rpc).toHaveBeenCalledWith(
+        "enqueue_video",
+        expect.objectContaining({ p_duration_seconds: 0 }),
+      );
     });
 
-    it("returns 409 for duplicate video", async () => {
-      const dupChain = mockChain({ data: { id: "existing", status: "pending" } });
-
-      supabaseMock = {
-        from: vi.fn().mockReturnValue(dupChain),
-        rpc: vi.fn(),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
+    it("returns 409 for a video queued moments ago, and starts no summary", async () => {
+      answering({ data: { outcome: "duplicate" } });
+      const res = await post(VIDEO);
       expect(res.status).toBe(409);
-      const json = await res.json();
-      expect(json.code).toBe("DUPLICATE");
-    });
-
-    it("duplicate check includes deleted_at filter", async () => {
-      // The duplicate check should filter out soft-deleted rows,
-      // so a deleted completed video should not block re-adding
-      const dupChain = mockChain({ data: null }); // no non-deleted duplicate
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true });
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-      const row = {
-        id: "sum-new",
-        user_id: "test-user-id",
-        youtube_video_id: "dQw4w9WgXcQ",
-        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-        status: "pending",
-        summary_json: null,
-        error_message: null,
-        created_at: "2026-02-20T10:00:00Z",
-        updated_at: "2026-02-20T10:00:00Z",
-      };
-      const insertChain = mockChain({ data: row });
-      const posChain = mockChain({ data: null, count: 0 });
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return settingsChain;
-          if (callCount === 4) return insertChain;
-          if (callCount === 5) return posChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
-      expect(res.status).toBe(201);
-
-      // Verify the duplicate check chain called .is() for deleted_at filter
-      expect(dupChain.is).toHaveBeenCalled();
-    });
-
-    it("rolls back rate limit counter when insert fails", async () => {
-      const dupChain = mockChain({ data: null });
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true }); // rate limit allowed
-      const insertChain = mockChain({ data: null, error: { message: "insert failed" } });
-      const decrementChain = mockChain({});
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return insertChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockImplementation((fnName: string) => {
-          if (fnName === "increment_monthly_count") return rpcChain;
-          if (fnName === "decrement_monthly_count") return decrementChain;
-          return mockChain({});
-        }),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
-      expect(res.status).toBe(500);
-
-      // Verify decrement was called to rollback the rate limit
-      expect(supabaseMock.rpc as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        "decrement_monthly_count",
-        { p_user_id: "test-user-id" },
-      );
-    });
-
-    it("duplicate check is time-windowed (uses .gte on created_at)", async () => {
-      // The dup check should only look at recently-enqueued rows so a video can
-      // be re-summarized later — verified by the .gte (window lower bound) call.
-      const dupChain = mockChain({ data: null });
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true });
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-      const row = {
-        id: "sum-new",
-        user_id: "test-user-id",
-        youtube_video_id: "dQw4w9WgXcQ",
-        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-        status: "pending",
-        created_at: "2026-02-20T10:00:00Z",
-        updated_at: "2026-02-20T10:00:00Z",
-      };
-      const insertChain = mockChain({ data: row });
-      const posChain = mockChain({ data: null, count: 0 });
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return settingsChain;
-          if (callCount === 4) return insertChain;
-          if (callCount === 5) return posChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
-      expect(res.status).toBe(201);
-      expect(dupChain.gte).toHaveBeenCalledWith("created_at", expect.any(String));
-    });
-
-    it("stamps dedup_bucket on insert and an idempotent Inngest event id", async () => {
-      const dupChain = mockChain({ data: null });
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true });
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-      const row = {
-        id: "sum-77",
-        user_id: "test-user-id",
-        youtube_video_id: "dQw4w9WgXcQ",
-        video_url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-        status: "pending",
-        created_at: "2026-02-20T10:00:00Z",
-        updated_at: "2026-02-20T10:00:00Z",
-      };
-      const insertChain = mockChain({ data: row });
-      const posChain = mockChain({ data: null, count: 0 });
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return settingsChain;
-          if (callCount === 4) return insertChain;
-          if (callCount === 5) return posChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
-      expect(res.status).toBe(201);
-      expect(insertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ dedup_bucket: expect.any(Number) }),
-      );
-
+      expect((await res.json()).code).toBe("DUPLICATE");
       const { inngest } = await import("../../lib/inngest.js");
-      expect(inngest.send).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "summarize-sum-77" }),
-      );
+      expect(inngest.send).not.toHaveBeenCalled();
     });
 
-    it("returns 409 DUPLICATE when the unique index rejects a concurrent insert", async () => {
-      // The windowed SELECT can't see a sibling row that another in-flight
-      // request hasn't committed yet (TOCTOU). The partial unique index is the
-      // atomic backstop — a 23505 violation must surface as DUPLICATE, not 500.
-      const dupChain = mockChain({ data: null }); // race: no dup visible yet
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: true });
-      const settingsChain = mockChain({ data: { summary_language: "en" } });
-      const insertChain = mockChain({
-        data: null,
-        error: { code: "23505", message: "duplicate key value" },
-      });
-      const decrementChain = mockChain({});
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          if (callCount === 3) return settingsChain;
-          if (callCount === 4) return insertChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockImplementation((fnName: string) => {
-          if (fnName === "decrement_monthly_count") return decrementChain;
-          return rpcChain;
-        }),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
-      expect(res.status).toBe(409);
-      const json = await res.json();
-      expect(json.code).toBe("DUPLICATE");
-      // The reserved rate-limit slot must be refunded on the race loss.
-      expect(supabaseMock.rpc as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
-        "decrement_monthly_count",
-        { p_user_id: "test-user-id" },
-      );
-    });
-
-    it("returns 429 when rate limited", async () => {
-      const dupChain = mockChain({ data: null }); // no duplicate
-      const planChain = mockChain({ data: { plan: "free" } });
-      const rpcChain = mockChain({ data: false }); // rate limited
-
-      let callCount = 0;
-      supabaseMock = {
-        from: vi.fn().mockImplementation(() => {
-          callCount++;
-          if (callCount === 1) return dupChain;
-          if (callCount === 2) return planChain;
-          return mockChain({});
-        }),
-        rpc: vi.fn().mockReturnValue(rpcChain),
-      } as unknown as ReturnType<typeof mockChain>;
-
-      const app = await createApp();
-      const res = await app.request("/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ" }),
-      });
-
+    it("returns 429 with the limit and plan when the month is used up", async () => {
+      answering({ data: { outcome: "limited", limit: 5, plan: "free" } });
+      const res = await post(VIDEO);
       expect(res.status).toBe(429);
-      const json = await res.json();
-      expect(json.code).toBe("RATE_LIMITED");
+      expect(await res.json()).toMatchObject({ code: "RATE_LIMITED", limit: 5, plan: "free" });
+    });
+
+    it("returns 500 when the database call fails, and starts no summary", async () => {
+      answering({ data: null, error: { message: "boom" } });
+      const res = await post(VIDEO);
+      expect(res.status).toBe(500);
+      const { inngest } = await import("../../lib/inngest.js");
+      expect(inngest.send).not.toHaveBeenCalled();
     });
   });
 

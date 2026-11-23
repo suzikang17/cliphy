@@ -326,6 +326,9 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.17
+        version: 0.5.17
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -337,7 +340,7 @@ importers:
         version: 8.21.0
       promptfoo:
         specifier: ^0.120.26
-        version: 0.120.26(@noble/hashes@1.8.0)(@types/json-schema@7.0.15)(@types/node@22.19.11)(@types/pg@8.20.0)(@types/react@19.2.14)(pg@8.21.0)(playwright-core@1.58.2)(react-devtools-core@6.1.5)(socks@2.8.7)
+        version: 0.120.26(@electric-sql/pglite@0.5.17)(@noble/hashes@1.8.0)(@types/json-schema@7.0.15)(@types/node@22.19.11)(@types/pg@8.20.0)(@types/react@19.2.14)(pg@8.21.0)(playwright-core@1.58.2)(react-devtools-core@6.1.5)(socks@2.8.7)
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -1344,6 +1347,9 @@ packages:
     resolution: {integrity: sha512-7rBLLzWQnBwutH2WZ0EWUkQdihqrnLYCUMaB44hSol9e0/cdIhuNFcqZO0xNheAU6qqHVA8sMiLofkYTgb+lmw==}
     engines: {node: '>= 0.10.4'}
     hasBin: true
+
+  '@electric-sql/pglite@0.5.17':
+    resolution: {integrity: sha512-8SvKjiUjaU+0O0dbxjOfN+jXz14TEqDWbwDkYOW1aQ11y/ph2JvFVI27ABBo5nfw+ZfSqy4hKCNlbnbB1TDE+g==}
 
   '@electron-internal/extract-zip@1.0.8':
     resolution: {integrity: sha512-8iajeLFbzNwM0m3AsQZSZgYREWglAImyGvvFSWU34FgMW8sHlzdwj9QKvv9dgN7jMP591EFUF/sLOC3Jl9YIjQ==}
@@ -12662,6 +12668,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@electric-sql/pglite@0.5.17': {}
+
   '@electron-internal/extract-zip@1.0.8': {}
 
   '@electron/asar@3.4.1':
@@ -18019,8 +18027,9 @@ snapshots:
 
   dotenv@17.3.1: {}
 
-  drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(better-sqlite3@12.6.2)(pg@8.21.0):
+  drizzle-orm@0.45.1(@electric-sql/pglite@0.5.17)(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(better-sqlite3@12.6.2)(pg@8.21.0):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.17
       '@opentelemetry/api': 1.9.0
       '@types/pg': 8.20.0
       better-sqlite3: 12.6.2
@@ -21605,7 +21614,7 @@ snapshots:
     dependencies:
       asap: 2.0.6
 
-  promptfoo@0.120.26(@noble/hashes@1.8.0)(@types/json-schema@7.0.15)(@types/node@22.19.11)(@types/pg@8.20.0)(@types/react@19.2.14)(pg@8.21.0)(playwright-core@1.58.2)(react-devtools-core@6.1.5)(socks@2.8.7):
+  promptfoo@0.120.26(@electric-sql/pglite@0.5.17)(@noble/hashes@1.8.0)(@types/json-schema@7.0.15)(@types/node@22.19.11)(@types/pg@8.20.0)(@types/react@19.2.14)(pg@8.21.0)(playwright-core@1.58.2)(react-devtools-core@6.1.5)(socks@2.8.7):
     dependencies:
       '@anthropic-ai/sdk': 0.78.0(zod@4.3.6)
       '@apidevtools/json-schema-ref-parser': 15.3.1(@types/json-schema@7.0.15)
@@ -21646,7 +21655,7 @@ snapshots:
       debounce: 3.0.0
       dedent: 1.7.2
       dotenv: 17.3.1
-      drizzle-orm: 0.45.1(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(better-sqlite3@12.6.2)(pg@8.21.0)
+      drizzle-orm: 0.45.1(@electric-sql/pglite@0.5.17)(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)(better-sqlite3@12.6.2)(pg@8.21.0)
       execa: 9.6.1
       express: 5.2.1
       exsolve: 1.0.8
