@@ -38,11 +38,13 @@ export function SummaryContent({
     !!rawContent &&
     (summary.sourceType === "tweet" ||
       summary.sourceType === "web" ||
-      summary.sourceType === "image");
+      summary.sourceType === "image" ||
+      summary.sourceType === "note" ||
+      summary.sourceType === "voice");
   const hasTags = !!summary.tags && summary.tags.length > 0;
   const suggested = onTagsChange ? (summary.suggestedTags ?? []) : [];
 
-  if (!json && !showRaw && !hasTags && suggested.length === 0) return null;
+  if (!json && !showRaw && !hasTags && suggested.length === 0 && !summary.category) return null;
 
   function acceptSuggestion(tag: string) {
     if (!onTagsChange) return;
@@ -72,7 +74,17 @@ export function SummaryContent({
   return (
     <View className="gap-1">
       {showRaw && (
-        <Section title={summary.sourceType === "tweet" ? "Tweet" : "Content"}>
+        <Section
+          title={
+            summary.sourceType === "tweet"
+              ? "Tweet"
+              : summary.sourceType === "voice"
+                ? "Transcript"
+                : summary.sourceType === "note"
+                  ? "Note"
+                  : "Content"
+          }
+        >
           <Text
             className="text-base text-[#1f2937] dark:text-[#f0f0f0] leading-6"
             style={{ fontFamily: "DMSans" }}
@@ -161,6 +173,17 @@ export function SummaryContent({
           </View>
         </Section>
       )}
+
+      {summary.category ? (
+        <Section title="Category">
+          <Text
+            className="text-base text-[#1f2937] dark:text-[#f0f0f0] capitalize"
+            style={{ fontFamily: "DMSans" }}
+          >
+            {summary.category}
+          </Text>
+        </Section>
+      ) : null}
 
       {/* Tags + AI suggestions */}
       {(hasTags || suggested.length > 0) && (

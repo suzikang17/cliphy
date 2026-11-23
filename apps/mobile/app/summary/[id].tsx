@@ -10,6 +10,8 @@ import { SummaryContent } from "../../components/SummaryContent";
 import { ClipCard } from "../../components/ClipCard";
 import { QueueCardSkeleton } from "../../components/Skeleton";
 import { brutalShadowSm } from "../../lib/theme";
+import { VoicePlayer } from "../../components/VoicePlayer";
+import { voiceStatus } from "../../lib/voiceNote";
 
 export default function SummaryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +29,25 @@ export default function SummaryDetailScreen() {
       .then(setRelated)
       .catch(() => {});
   }, [id]);
+
+  // A voice note fills in over a few seconds: its words first, then its
+  // summary, category and tags. Read it again until they are there.
+  const waiting =
+    summary?.sourceType === "voice" &&
+    summary.status !== "failed" &&
+    (summary.status !== "completed" || !summary.summaryJson);
+  useEffect(() => {
+    if (!waiting) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      // Give up after a minute and a half; reopening the note reads it again.
+      if (++tries > 30) return clearInterval(timer);
+      getSummary(id)
+        .then((res) => setSummary(res.summary))
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [id, waiting]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
@@ -128,6 +149,30 @@ export default function SummaryDetailScreen() {
               })()}
             </View>
           </View>
+
+          {/* A voice note: play it back, and say so while its words are still being worked out. */}
+          {summary.sourceType === "voice" ? (
+            <View className="mb-5 gap-3">
+              {typeof summary.sourceMetadata?.audioUrl === "string" ? (
+                <VoicePlayer
+                  url={summary.sourceMetadata.audioUrl}
+                  seconds={
+                    typeof summary.sourceMetadata.seconds === "number"
+                      ? summary.sourceMetadata.seconds
+                      : undefined
+                  }
+                />
+              ) : null}
+              {voiceStatus(summary) ? (
+                <Text
+                  className="text-sm text-[#6b7280] dark:text-[#b4b4be]"
+                  style={{ fontFamily: "DMSans" }}
+                >
+                  {voiceStatus(summary)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           <SummaryContent
             summary={summary}

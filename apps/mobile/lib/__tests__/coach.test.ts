@@ -544,6 +544,8 @@ describe("desktopSection", () => {
     expect(desktopSection("/coach/upnext")).toBe("upnext");
     expect(desktopSection("/coach/threads")).toBe("texts");
     expect(desktopSection("/coach/setup")).toBe("settings");
+    expect(desktopSection("/coach/library")).toBe("library");
+    expect(desktopSection("/summary/abc")).toBe("library");
     expect(desktopSection("/coach/thread/p1")).toBe("texts");
   });
 

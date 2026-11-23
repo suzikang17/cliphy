@@ -24,12 +24,14 @@ const ITEMS: {
     | "folder-outline"
     | "chatbubbles-outline"
     | "list-outline"
+    | "grid-outline"
     | "settings-outline";
 }[] = [
   { section: "chat", label: "Chat", path: "/(tabs)/chat", icon: "chatbubble-outline" },
   { section: "projects", label: "Projects", path: "/(tabs)/projects", icon: "folder-outline" },
   { section: "texts", label: "Texts", path: "/coach/threads", icon: "chatbubbles-outline" },
   { section: "upnext", label: "Up next", path: "/coach/upnext", icon: "list-outline" },
+  { section: "library", label: "Library", path: "/coach/library", icon: "grid-outline" },
   { section: "settings", label: "Settings", path: "/coach/setup", icon: "settings-outline" },
 ];
 
@@ -192,28 +194,25 @@ export function DesktopShell({ children }: { children: ReactNode }) {
           })}
 
           <View style={{ flex: 1 }} />
-          {/* On the Mac: who is captured from Messages. On cliphy.app: the
-              website's own pages, where saved videos live. */}
-          <Pressable
-            onPress={() => (MAC_WINDOW ? openMacSetup() : window.location.assign("/dashboard"))}
-            accessibilityRole="button"
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-            }}
-          >
-            <Ionicons
-              name={MAC_WINDOW ? "phone-portrait-outline" : "grid-outline"}
-              size={18}
-              color={t.muted}
-            />
-            <Text style={{ fontFamily: FONT, fontSize: 14, fontWeight: "500", color: t.muted }}>
-              {MAC_WINDOW ? "Messages" : "Library"}
-            </Text>
-          </Pressable>
+          {/* On the Mac: who is captured from Messages. */}
+          {MAC_WINDOW ? (
+            <Pressable
+              onPress={() => openMacSetup()}
+              accessibilityRole="button"
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+              }}
+            >
+              <Ionicons name="phone-portrait-outline" size={18} color={t.muted} />
+              <Text style={{ fontFamily: FONT, fontSize: 14, fontWeight: "500", color: t.muted }}>
+                Messages
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={{ flex: 1, alignItems: "center" }}>

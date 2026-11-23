@@ -353,13 +353,14 @@ export function projectRows(
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export type DesktopSection = "chat" | "projects" | "texts" | "upnext" | "settings";
+export type DesktopSection = "chat" | "projects" | "texts" | "upnext" | "library" | "settings";
 
 /** Which item of the Mac window's side nav the current screen belongs to. */
 export function desktopSection(pathname: string): DesktopSection | null {
   if (pathname === "/chat") return "chat";
   if (pathname === "/coach/upnext") return "upnext";
   if (pathname === "/coach/setup") return "settings";
+  if (pathname === "/coach/library" || pathname.startsWith("/summary/")) return "library";
   if (
     pathname === "/coach/threads" ||
     pathname.startsWith("/coach/thread/") ||

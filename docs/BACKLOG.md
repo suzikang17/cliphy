@@ -65,3 +65,6 @@ the Atlas backlog page, or ask the agent) when it gets an owner, a link, or a pl
 - [ ] Mac window headings are not bold on macOS (they are on the phone and in Chromium on Linux).
 - [ ] Invented failure copy outside the coach (Library, summaries, subscriptions, the Vite web app, the extension) still needs the same treatment: system message or "Error".
 - [ ] Digest: show the pictures to the model (it only gets a count); run long ranges as a background job; keep the last digest so reopening does not read again.
+- [ ] Voice notes: set `DEEPGRAM_API_KEY` in Vercel (owner); nothing is transcribed until then. Then try a real note on the phone after the new build.
+- [ ] Voice notes: a waveform or level meter while recording; pause and resume; a "send to a project as a task" action.
+- [ ] Podcasts still call the Whisper service directly; move them onto `services/transcribe.ts` so one setting covers both.

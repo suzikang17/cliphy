@@ -51,7 +51,13 @@
           "androidIntentFilters": ["text/*", "image/*"]
         }
       ],
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Cliphy uses the microphone to record voice notes."
+        }
+      ]
     ],
     "extra": {
       "router": {},

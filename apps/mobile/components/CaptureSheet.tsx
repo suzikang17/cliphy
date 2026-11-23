@@ -1,4 +1,5 @@
 import { errorText } from "../lib/coach";
+import { useState } from "react";
 import { View, Text, Pressable, Modal, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -7,6 +8,8 @@ import { brutalShadow } from "../lib/theme";
 import { uploadAndClipImage } from "../lib/uploadImage";
 import { addClip } from "../lib/api";
 import { showQueueError } from "../lib/queueError";
+import { NoteSheet } from "./NoteSheet";
+import { VoiceNoteSheet } from "./VoiceNoteSheet";
 
 export function CaptureSheet({
   visible,
@@ -19,6 +22,9 @@ export function CaptureSheet({
 }) {
   const router = useRouter();
   const coachOn = useCoach().status === "on";
+  // The two things made here rather than picked: a voice note and a written one.
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   async function handle(pick: () => Promise<ImagePicker.ImagePickerResult>) {
     onClose();
@@ -54,53 +60,82 @@ export function CaptureSheet({
         "",
         "url",
       );
+    } else if (Platform.OS === "web") {
+      const pasted = window.prompt("Paste a YouTube, article, or tweet URL");
+      if (pasted) void saveLink(pasted);
     } else {
       Alert.alert("Add a link", "Share a link to Cliphy from your browser or another app.");
     }
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40 justify-end" onPress={onClose}>
-        <View
-          className="bg-white dark:bg-[#282828] border-2 border-black dark:border-[#505050] rounded-t-2xl p-4 gap-3"
-          style={brutalShadow()}
-        >
-          {coachOn ? (
+    <>
+      <VoiceNoteSheet
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onSaved={(note) => {
+          onCaptured();
+          // Straight to it: its words arrive there in a moment.
+          router.push(`/summary/${note.id}` as never);
+        }}
+      />
+      <NoteSheet visible={noteOpen} onClose={() => setNoteOpen(false)} onSaved={onCaptured} />
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Pressable className="flex-1 bg-black/40 justify-end" onPress={onClose}>
+          <View
+            className="bg-white dark:bg-[#282828] border-2 border-black dark:border-[#505050] rounded-t-2xl p-4 gap-3"
+            style={brutalShadow()}
+          >
+            {coachOn ? (
+              <SheetButton
+                label="Progress photo"
+                onPress={() => {
+                  onClose();
+                  router.push("/coach/camera" as never);
+                }}
+              />
+            ) : null}
             <SheetButton
-              label="Progress photo"
+              label="Voice note"
               onPress={() => {
                 onClose();
-                router.push("/coach/camera" as never);
+                setVoiceOpen(true);
               }}
             />
-          ) : null}
-          <SheetButton label="Paste a link" onPress={promptLink} />
-          <SheetButton
-            label="Choose from library"
-            onPress={() =>
-              handle(() =>
-                ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  quality: 1,
-                }),
-              )
-            }
-          />
-          <SheetButton
-            label="Take a photo"
-            onPress={async () => {
-              const perm = await ImagePicker.requestCameraPermissionsAsync();
-              if (!perm.granted) {
-                Alert.alert("Camera access needed", "Enable camera access in Settings.");
-                return;
+            <SheetButton
+              label="Write a note"
+              onPress={() => {
+                onClose();
+                setNoteOpen(true);
+              }}
+            />
+            <SheetButton label="Paste a link" onPress={promptLink} />
+            <SheetButton
+              label="Choose from library"
+              onPress={() =>
+                handle(() =>
+                  ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    quality: 1,
+                  }),
+                )
               }
-              handle(() => ImagePicker.launchCameraAsync({ quality: 1 }));
-            }}
-          />
-        </View>
-      </Pressable>
-    </Modal>
+            />
+            <SheetButton
+              label="Take a photo"
+              onPress={async () => {
+                const perm = await ImagePicker.requestCameraPermissionsAsync();
+                if (!perm.granted) {
+                  Alert.alert("Camera access needed", "Enable camera access in Settings.");
+                  return;
+                }
+                handle(() => ImagePicker.launchCameraAsync({ quality: 1 }));
+              }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
