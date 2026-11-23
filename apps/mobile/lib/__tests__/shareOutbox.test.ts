@@ -49,6 +49,8 @@ describe("judge", () => {
 
   it("treats a link the server already has as done", () => {
     expect(judge(named("DuplicateError"))).toBe("have");
+    // An article or post already saved comes back as a bare 409.
+    expect(judge(Object.assign(new Error("API error 409"), { status: 409 }))).toBe("have");
   });
 
   it("gives up on what the server refused", () => {

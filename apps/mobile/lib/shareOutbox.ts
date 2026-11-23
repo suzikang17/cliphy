@@ -39,7 +39,11 @@ export function judge(err: unknown): Verdict {
   const e = err as { name?: unknown; status?: unknown } | null;
   if (e?.name === "DuplicateError") return "have";
   if (e?.name === "AuthError") return "retry";
-  if (typeof e?.status === "number") return e.status >= 500 ? "retry" : "refused";
+  if (typeof e?.status === "number") {
+    // 409 is how the server says an article or post is already saved.
+    if (e.status === 409) return "have";
+    return e.status >= 500 ? "retry" : "refused";
+  }
   // The named refusals (limit reached, Pro needed) carry no status.
   if (e?.name === "RateLimitError" || e?.name === "ProRequiredError") return "refused";
   // Anything else is the request not getting through.
