@@ -14,6 +14,8 @@ export interface EnqueueVideoInput {
   videoTitle?: string;
   videoChannel?: string;
   videoDurationSeconds?: number;
+  /** Count the items ahead of this one. Only POST /queue shows it; others skip the query. */
+  wantPosition?: boolean;
 }
 
 export type EnqueueVideoResult =
@@ -70,28 +72,28 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
   const dedupBucket = Math.floor(Date.now() / 1000 / DEDUP_WINDOW_SECONDS);
   const windowStart = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
 
-  const { data: existing } = await supabase
-    .from("clips")
-    .select("id, status")
-    .eq("user_id", userId)
-    .eq("youtube_video_id", videoId)
-    .neq("status", "failed")
-    .is("deleted_at", null)
-    .gte("created_at", windowStart)
-    .limit(1)
-    .maybeSingle();
+  // Three reads that do not depend on each other, asked together: has this
+  // video just been queued, what plan is the user on, and their language.
+  const [{ data: existing }, { data: user }, { data: settingsRow }] = await Promise.all([
+    supabase
+      .from("clips")
+      .select("id, status")
+      .eq("user_id", userId)
+      .eq("youtube_video_id", videoId)
+      .neq("status", "failed")
+      .is("deleted_at", null)
+      .gte("created_at", windowStart)
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("users").select("plan, monthly_limit_bonus").eq("id", userId).single(),
+    supabase.from("user_settings").select("summary_language").eq("user_id", userId).single(),
+  ]);
 
   if (existing) {
     return { ok: false, status: 409, body: { error: "Video already queued", code: "DUPLICATE" } };
   }
 
   // Rate limit check — atomic increment via DB function
-  const { data: user } = await supabase
-    .from("users")
-    .select("plan, monthly_limit_bonus")
-    .eq("id", userId)
-    .single();
-
   const plan = (user?.plan as "free" | "pro") ?? "free";
   // Effective monthly cap = plan limit + recurring admin bonus. The RPC draws
   // from the one-off bonus_credits wallet automatically once this is exhausted.
@@ -113,12 +115,6 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
   // Title/channel come from the client when available; otherwise the summarize
   // worker backfills them from the InnerTube response it already fetches.
 
-  // Fetch user's preferred summary language
-  const { data: settingsRow } = await supabase
-    .from("user_settings")
-    .select("summary_language")
-    .eq("user_id", userId)
-    .single();
   const summaryLanguage = (settingsRow?.summary_language as string) ?? "en";
 
   // Insert new queue item
@@ -156,7 +152,7 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
   // event won't trigger a second summarization. Keyed on the row id (unique per
   // enqueue), so it never collides with a retry of the same summary (the retry
   // path sends its own event) — re-summarizing still runs.
-  await inngest.send({
+  const sent = inngest.send({
     id: `summarize-${row.id as string}`,
     name: "video/summarize.requested",
     data: {
@@ -167,13 +163,17 @@ export async function enqueueVideo(input: EnqueueVideoInput): Promise<EnqueueVid
     },
   });
 
-  // Calculate queue position (number of pending/processing items created before this one)
-  const { count } = await supabase
-    .from("clips")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .in("status", ["pending", "processing"])
-    .lt("created_at", row.created_at);
+  // Queue position (pending/processing items created before this one), asked
+  // alongside the event and only for the caller that shows it.
+  const counted = input.wantPosition
+    ? supabase
+        .from("clips")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .in("status", ["pending", "processing"])
+        .lt("created_at", row.created_at)
+    : Promise.resolve({ count: 0 });
+  const [, { count }] = await Promise.all([sent, counted]);
 
   return { ok: true, row, position: (count ?? 0) + 1 };
 }

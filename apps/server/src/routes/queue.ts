@@ -86,6 +86,7 @@ queueRoutes.post("/", async (c) => {
     videoTitle: body.videoTitle,
     videoChannel: body.videoChannel,
     videoDurationSeconds: body.videoDurationSeconds,
+    wantPosition: true,
   });
   if (!result.ok) return c.json(result.body, result.status);
 

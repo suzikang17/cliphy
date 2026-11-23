@@ -187,21 +187,22 @@ export default function RootLayout() {
 
     // With the coach on, images or words that are more than a link might be a
     // request someone sent: ask whether it goes to Chat or to the Library.
-    // A share that opens the app arrives before we know whether this account
-    // has the coach. Ask once, then decide.
-    if (coachStatus === "unknown" && !coachAskedRef.current) {
-      coachAskedRef.current = true;
-      void refreshCoach().finally(() => setShareTick((n) => n + 1));
-      return;
-    }
-    if (coachStatus === "on") {
-      const share: PendingShare = {
-        text: shareIntent?.text ?? "",
-        imageUris: (shareIntent?.files ?? [])
-          .filter((f) => f.mimeType?.startsWith("image/"))
-          .map((f) => f.path),
-      };
-      if (couldBeRequest(share)) {
+    // A bare link is always a clip to save, so it never waits on the coach.
+    const share: PendingShare = {
+      text: shareIntent?.text ?? "",
+      imageUris: (shareIntent?.files ?? [])
+        .filter((f) => f.mimeType?.startsWith("image/"))
+        .map((f) => f.path),
+    };
+    if (couldBeRequest(share)) {
+      // A share that opens the app arrives before we know whether this
+      // account has the coach. Ask once, then decide.
+      if (coachStatus === "unknown" && !coachAskedRef.current) {
+        coachAskedRef.current = true;
+        void refreshCoach().finally(() => setShareTick((n) => n + 1));
+        return;
+      }
+      if (coachStatus === "on") {
         resetShareIntent();
         setPendingShare(share);
         return;
