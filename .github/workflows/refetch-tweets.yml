@@ -1,0 +1,37 @@
+name: Refetch saved tweets
+
+# One-time pass: re-read tweets saved before long posts and threads were read
+# in full (ADR 0071). Run by hand. Reads only unless "apply" is ticked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write the changes (leave off for a dry run)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  refetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Re-read saved tweets
+        working-directory: apps/server
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: pnpm exec tsx scripts/refetch-tweets.ts ${{ inputs.apply && '--apply' || '' }}

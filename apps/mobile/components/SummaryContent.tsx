@@ -3,6 +3,7 @@ import type { Summary } from "@cliphy/shared";
 import { neon } from "@cliphy/shared";
 import { updateClipTags, dismissSuggestedTag, TagLimitError } from "../lib/api";
 import { showQueueError } from "../lib/queueError";
+import { cutTweetLink } from "../lib/tweet";
 import { SuggestedTags } from "./SuggestedTags";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export function SummaryContent({
       summary.sourceType === "image" ||
       summary.sourceType === "note" ||
       summary.sourceType === "voice");
+  const cutTweetUrl = cutTweetLink(summary);
   const hasTags = !!summary.tags && summary.tags.length > 0;
   const suggested = onTagsChange ? (summary.suggestedTags ?? []) : [];
 
@@ -91,6 +93,19 @@ export function SummaryContent({
           >
             {rawContent}
           </Text>
+          {/* A long post saved as only its opening: the rest is on X. */}
+          {cutTweetUrl ? (
+            <Pressable
+              onPress={() => Linking.openURL(cutTweetUrl)}
+              style={{ minHeight: 44, justifyContent: "center" }}
+              accessibilityRole="link"
+              accessibilityLabel="Continues on X"
+            >
+              <Text className="text-sm" style={{ fontFamily: "DMSans", color: neon[600] }}>
+                Continues on X
+              </Text>
+            </Pressable>
+          ) : null}
         </Section>
       )}
 
