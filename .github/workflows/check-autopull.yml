@@ -1,0 +1,32 @@
+name: Check YouTube auto-pull
+
+# Read-only look at the auto-pull (liked videos, playlists, Watch Later) in
+# production: what is connected, when it last ran, whether YouTube answers.
+# Run by hand. Writes nothing; prints counts and ages only.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check the auto-pull
+        working-directory: apps/server
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: pnpm exec tsx scripts/check-autopull.ts
