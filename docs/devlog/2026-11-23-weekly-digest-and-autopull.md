@@ -23,6 +23,8 @@ phase: Growth
 - **Where accounts come from** (`1341568`, `7e92eeb`): a counts-only breakdown script (`scripts/account-breakdown.ts`, the "accounts" job of the check workflow), then migration 052 and `services/clientKind.ts`. The server reads extension, website, Mac or phone off the `Origin` and `User-Agent` headers every installed version already sends, and stores `first_client` and `last_client` on the account with the hourly activity touch (`touch_user`). The admin users list shows Clips, First app, Last app and Last active.
 - **What the breakdown showed:** 92 accounts, 87 by Google sign-in, 90 on personal mailboxes; 24 sign-ups on Aug 3 to 5; 87 accounts with no clip at all; two accounts hold 295 of 302 clips. People sign in and stop before a first save. The database cannot say why.
 
+- **PostHog** (ADR 0073): the server records `clip_saved`, `save_refused` (with status and code), `summary_completed` and `summary_failed` per account id; the website loads `posthog-js` for pages, referrers and recordings, through `/ingest` on our own address. Privacy policy updated. The extension and phone app are not instrumented themselves.
+
 ## Issues
 
 - **The liked-videos pull stopped 7 days after connecting, twice.** Liked: made 166 days ago, last checked 159 days ago. Reconnected 78 days ago, token last refreshed 71 days ago. A Google OAuth consent screen left in "Testing" issues refresh tokens that expire after 7 days. That matches both runs to the day. **The fix is in Google Cloud Console, not in code: set the app's publishing status to "In production".** Not yet done; until it is, any connection will die after a week again (it will now say so).

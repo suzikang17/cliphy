@@ -213,3 +213,8 @@ export const SUMMARY_LANGUAGES = {
 } as const;
 
 export type SummaryLanguageCode = keyof typeof SUMMARY_LANGUAGES;
+
+// Product analytics (PostHog, ADR 0073). The project key is a public,
+// write-only key: it can send events and nothing else, so it lives in code.
+export const POSTHOG_KEY = "phc_mZgmh83s56G89TuVD32HjAtjr7AwDrNESw2v232hCrS4";
+export const POSTHOG_HOST = "https://us.i.posthog.com";

@@ -99,6 +99,8 @@ cat > .vercel/output/config.json << 'EOF'
   "routes": [
     { "src": "/api/(.*)", "dest": "/api" },
     { "src": "/admin/(.*)", "dest": "/api" },
+    { "src": "/ingest/static/(.*)", "dest": "https://us-assets.i.posthog.com/static/$1" },
+    { "src": "/ingest/(.*)", "dest": "https://us.i.posthog.com/$1" },
     { "handle": "filesystem" },
     { "src": "/(chat|projects)", "dest": "/coach-app.html" },
     { "src": "/coach/(.*)", "dest": "/coach-app.html" },

@@ -5,6 +5,7 @@ import { inngest } from "../lib/inngest.js";
 import { logger } from "../lib/logger.js";
 import { Sentry } from "../lib/sentry.js";
 import { supabase } from "../lib/supabase.js";
+import { trackClipOutcome } from "../lib/analytics.js";
 import {
   fetchTranscript,
   MAX_TRANSCRIPT_LENGTH,
@@ -58,6 +59,7 @@ export const summarizeVideo = inngest.createFunction(
       );
 
       const errorCategory = classifyError(errorMessage);
+      await trackClipOutcome(summaryId, "summary_failed", { category: errorCategory });
 
       if (errorCategory === "billing") {
         // P0: AI service is down for all users
@@ -261,6 +263,7 @@ export const summarizeVideo = inngest.createFunction(
         .from("clips")
         .update({ status: "completed", summary_json: summaryJson, transcript })
         .eq("id", summaryId);
+      await trackClipOutcome(summaryId, "summary_completed");
     });
 
     // Step 4: Auto-tag (Jev applies existing tags; unmatched topics become suggestions).

@@ -27,6 +27,7 @@ import { billingRoutes } from "./routes/billing.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { deviceRoutes } from "./routes/devices.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { trackSaves } from "./lib/analytics.js";
 import { digestRoutes } from "./routes/digest.js";
 import { apiKeyRoutes } from "./routes/api-keys.js";
 import { clipsRoutes } from "./routes/clips.js";
@@ -88,6 +89,9 @@ app.use("*", async (c, next) => {
     maxAge: 86400,
   })(c, next);
 });
+
+// Every save request is counted, stored or refused (ADR 0073).
+app.use("*", trackSaves);
 
 app.on(
   ["GET", "PUT", "POST"],

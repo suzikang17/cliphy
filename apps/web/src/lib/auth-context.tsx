@@ -1,3 +1,4 @@
+import { identifyUser, resetUser } from "./analytics";
 import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
@@ -43,14 +44,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
+      if (data.session?.user) identifyUser(data.session.user.id);
 
       // Subscribe only after initial state is settled to avoid null firing first
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, s) => {
+      } = supabase.auth.onAuthStateChange((event, s) => {
         setSession(s);
         setUser(s?.user ?? null);
         setLoading(false);
+        if (s?.user) identifyUser(s.user.id);
+        else if (event === "SIGNED_OUT") resetUser();
       });
       unsubscribe = () => subscription.unsubscribe();
     }

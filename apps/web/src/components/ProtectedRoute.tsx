@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router";
 import { useAuth } from "../lib/auth-context";
+import { PRIVATE } from "../lib/analytics";
 
 export function ProtectedRoute() {
   const { user, loading } = useAuth();
@@ -16,5 +17,10 @@ export function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  // Everything a signed-in person sees here is theirs: kept out of analytics.
+  return (
+    <div className={PRIVATE}>
+      <Outlet />
+    </div>
+  );
 }
