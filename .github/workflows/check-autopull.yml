@@ -6,6 +6,15 @@ name: Check YouTube auto-pull
 
 on:
   workflow_dispatch:
+    inputs:
+      job:
+        description: "autopull: the YouTube auto-pull. accounts: where accounts came from, as counts"
+        required: false
+        default: autopull
+        type: choice
+        options:
+          - autopull
+          - accounts
 
 jobs:
   check:
@@ -29,4 +38,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: pnpm exec tsx scripts/check-autopull.ts
+        run: pnpm exec tsx scripts/${{ inputs.job == 'accounts' && 'account-breakdown.ts' || 'check-autopull.ts' }}
