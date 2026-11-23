@@ -40,7 +40,7 @@ describe("fetchChannelVideos", () => {
       "https://www.youtube.com/feeds/videos.xml?channel_id=UCtest123",
     );
     expect(videos).toHaveLength(2);
-    expect(videos[0]).toEqual({
+    expect(videos[0]).toMatchObject({
       videoId: "abc123",
       title: "Test Video",
       publishedAt: "2024-01-15T10:00:00+00:00",

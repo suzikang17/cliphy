@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Clipboard from "expo-clipboard";
 import type { Subscription, SubscriptionType } from "@cliphy/shared";
@@ -60,6 +61,7 @@ const TYPE_LABELS: Record<SubscriptionType, string> = {
 
 export default function SubscriptionsScreen() {
   const theme = getTheme();
+  const router = useRouter();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [isPro, setIsPro] = useState(false);
@@ -283,6 +285,30 @@ export default function SubscriptionsScreen() {
         >
           Auto-queue new videos from channels, playlists, and your liked videos.
         </Text>
+
+        {/* Weekly digest: new uploads from channels saved from, summarized */}
+        <Pressable
+          onPress={() => router.push("/weekly-digest")}
+          className="border-2 border-black dark:border-[#505050] rounded-lg p-4 bg-[#f9fafb] dark:bg-[#282828] mb-4"
+          style={({ pressed }) =>
+            pressed ? { transform: [{ translateX: 2 }, { translateY: 2 }] } : brutalShadowSm()
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Weekly digest"
+        >
+          <Text
+            className="text-sm font-bold text-[#111827] dark:text-white mb-1"
+            style={{ fontFamily: "DMSans" }}
+          >
+            Weekly digest
+          </Text>
+          <Text
+            className="text-sm text-[#6b7280] dark:text-[#9ca3af]"
+            style={{ fontFamily: "DMSans" }}
+          >
+            New videos from channels you save from, summarized so you can skip watching.
+          </Text>
+        </Pressable>
 
         {!isPro && (
           <View

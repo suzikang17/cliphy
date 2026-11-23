@@ -3,6 +3,7 @@ import { SUMMARY_LANGUAGES } from "@cliphy/shared";
 import type { SummaryLanguageCode } from "@cliphy/shared";
 import type { AppEnv } from "../env.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { inngest } from "../lib/inngest.js";
 import { supabase } from "../lib/supabase.js";
 
 const settings = new Hono<AppEnv>();
@@ -15,20 +16,25 @@ settings.get("/", async (c) => {
 
   const { data } = await supabase
     .from("user_settings")
-    .select("summary_language, auto_discover_playlists")
+    .select("summary_language, auto_discover_playlists, weekly_digest")
     .eq("user_id", userId)
     .single();
 
   return c.json({
     summaryLanguage: (data?.summary_language as SummaryLanguageCode) ?? "en",
     autoDiscoverPlaylists: (data?.auto_discover_playlists as boolean) ?? true,
+    weeklyDigest: (data?.weekly_digest as boolean) ?? false,
   });
 });
 
 /** PATCH /settings — update user settings */
 settings.patch("/", async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ summaryLanguage?: string; autoDiscoverPlaylists?: boolean }>();
+  const body = await c.req.json<{
+    summaryLanguage?: string;
+    autoDiscoverPlaylists?: boolean;
+    weeklyDigest?: boolean;
+  }>();
 
   const update: Record<string, unknown> = {};
 
@@ -46,6 +52,13 @@ settings.patch("/", async (c) => {
     update.auto_discover_playlists = body.autoDiscoverPlaylists;
   }
 
+  if (body.weeklyDigest !== undefined) {
+    if (typeof body.weeklyDigest !== "boolean") {
+      return c.json({ error: "weeklyDigest must be a boolean" }, 400);
+    }
+    update.weekly_digest = body.weeklyDigest;
+  }
+
   if (Object.keys(update).length > 0) {
     const { error } = await supabase
       .from("user_settings")
@@ -56,16 +69,26 @@ settings.patch("/", async (c) => {
     }
   }
 
+  // Turning the digest on builds the first one now, not next Sunday.
+  if (body.weeklyDigest === true) {
+    try {
+      await inngest.send({ name: "digest/build.requested", data: { userId } });
+    } catch {
+      // Non-fatal: the weekly run builds it anyway
+    }
+  }
+
   // Return the effective settings after the update
   const { data } = await supabase
     .from("user_settings")
-    .select("summary_language, auto_discover_playlists")
+    .select("summary_language, auto_discover_playlists, weekly_digest")
     .eq("user_id", userId)
     .single();
 
   return c.json({
     summaryLanguage: (data?.summary_language as SummaryLanguageCode) ?? "en",
     autoDiscoverPlaylists: (data?.auto_discover_playlists as boolean) ?? true,
+    weeklyDigest: (data?.weekly_digest as boolean) ?? false,
   });
 });
 

@@ -27,6 +27,7 @@ import { billingRoutes } from "./routes/billing.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { deviceRoutes } from "./routes/devices.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { digestRoutes } from "./routes/digest.js";
 import { apiKeyRoutes } from "./routes/api-keys.js";
 import { clipsRoutes } from "./routes/clips.js";
 import { pinsRoutes } from "./routes/pins.js";
@@ -46,6 +47,7 @@ import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.j
 import { transcribeVoiceNote } from "./functions/transcribeVoiceNote.js";
 import { visionClip } from "./functions/visionClip.js";
 import { extractClip } from "./functions/extract-clip.js";
+import { buildDigest, weeklyDigestCron } from "./functions/digest.js";
 import { processBundle, reprocessBundle, sweepBundles } from "./functions/processBundle.js";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
@@ -104,6 +106,8 @@ app.on(
       transcribeVoiceNote,
       visionClip,
       extractClip,
+      weeklyDigestCron,
+      buildDigest,
       purgeTrailCron,
       processBundle,
       reprocessBundle,
@@ -134,6 +138,7 @@ app.route("/billing", billingRoutes);
 app.route("/devices", deviceRoutes);
 app.route("/admin", adminRoutes);
 app.route("/settings", settingsRoutes);
+app.route("/digest", digestRoutes);
 app.route("/keys", apiKeyRoutes);
 app.route("/podcasts", podcastRoutes);
 app.route("/tabs", tabsRoutes);

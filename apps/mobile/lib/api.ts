@@ -11,6 +11,7 @@ import type {
   ApiKey,
   ApiKeyCreateResponse,
   UserSettings,
+  VideoDigestResponse,
   PodcastFeed,
   PodcastEpisode,
   PodcastFeedSettings,
@@ -236,6 +237,15 @@ export const updateSettings = (body: Partial<UserSettings>) =>
     method: "PATCH",
     body: JSON.stringify(body),
   });
+
+// Weekly digest: new uploads from channels the person saves from, summarized
+export const getVideoDigest = () => apiFetch<VideoDigestResponse>("/api/digest");
+
+export const keepDigestItem = (id: string) =>
+  apiFetch<{ clipId: string }>(`/api/digest/${id}/keep`, { method: "POST" });
+
+export const dismissDigestItem = (id: string) =>
+  apiFetch<{ dismissed: true }>(`/api/digest/${id}/dismiss`, { method: "POST" });
 
 // API keys (for the Apple Shortcut)
 export const getApiKeys = () => apiFetch<{ apiKeys: ApiKey[] }>("/api/keys");

@@ -238,6 +238,30 @@ export interface UserSettings {
   summaryLanguage: import("./constants.js").SummaryLanguageCode;
   /** Auto-subscribe the user's own playlists with "cliphy" in the name. */
   autoDiscoverPlaylists: boolean;
+  /** Weekly digest of new uploads from channels the person saves from. */
+  weeklyDigest: boolean;
+}
+
+/** One video in the weekly digest: summarized, not (yet) saved. */
+export interface VideoDigestItem {
+  id: string;
+  videoId: string;
+  videoUrl: string;
+  title: string;
+  channel: string | null;
+  publishedAt: string | null;
+  summaryJson: SummaryJson;
+  /** Title of the saved clip this is closest to, when there is one. */
+  becauseTitle: string | null;
+  /** The clip it became, once kept. */
+  keptClipId: string | null;
+}
+
+export interface VideoDigestResponse {
+  enabled: boolean;
+  /** YYYY-MM-DD of the newest digest, or null when none has been made. */
+  digestDate: string | null;
+  items: VideoDigestItem[];
 }
 
 export type SubscriptionType = "channel" | "playlist" | "watch_later" | "liked" | "podcast_feed";

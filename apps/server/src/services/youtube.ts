@@ -5,6 +5,10 @@ export interface YouTubeVideoPreview {
   title: string;
   publishedAt: string;
   channelTitle?: string;
+  /** From the channel feed only: the uploader's description. */
+  description?: string;
+  /** From the channel feed only: the feed links it as a Short. */
+  isShort?: boolean;
 }
 
 export interface ResolvedSource {
@@ -101,9 +105,59 @@ function parseRssFeed(xml: string): YouTubeVideoPreview[] {
       const publishedAt =
         entry.match(/<published>([^<]+)<\/published>/)?.[1] ?? new Date().toISOString();
       const channelTitle = entry.match(/<name>([^<]+)<\/name>/)?.[1];
-      return { videoId, title, publishedAt, channelTitle };
+      const description = entry.match(/<media:description>([\s\S]*?)<\/media:description>/)?.[1];
+      const isShort = /<link[^>]+href="[^"]*\/shorts\//.test(entry);
+      return {
+        videoId,
+        title: decodeXml(title),
+        publishedAt,
+        channelTitle: channelTitle && decodeXml(channelTitle),
+        description: description ? decodeXml(description) : undefined,
+        isShort,
+      };
     })
     .filter((v) => v.videoId);
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+export interface VideoChannel {
+  videoId: string;
+  channelId: string;
+  channelTitle: string;
+}
+
+/** Which channel each video belongs to. One quota unit per 50 videos. */
+export async function fetchVideoChannels(videoIds: string[]): Promise<VideoChannel[]> {
+  const out: VideoChannel[] = [];
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const params = new URLSearchParams({
+      part: "snippet",
+      id: videoIds.slice(i, i + 50).join(","),
+      maxResults: "50",
+      key: YOUTUBE_API_KEY,
+    });
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`);
+    if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+    const data = (await res.json()) as {
+      items?: Array<{ id: string; snippet: { channelId: string; channelTitle: string } }>;
+    };
+    for (const item of data.items ?? []) {
+      out.push({
+        videoId: item.id,
+        channelId: item.snippet.channelId,
+        channelTitle: item.snippet.channelTitle,
+      });
+    }
+  }
+  return out;
 }
 
 export interface MyPlaylistPreview {
