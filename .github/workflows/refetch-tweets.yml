@@ -6,6 +6,14 @@ name: Refetch saved tweets
 on:
   workflow_dispatch:
     inputs:
+      job:
+        description: "text: re-read the posts. summaries: rewrite summaries of long posts from the full text"
+        required: false
+        default: text
+        type: choice
+        options:
+          - text
+          - summaries
       apply:
         description: "Write the changes (leave off for a dry run)"
         required: false
@@ -30,8 +38,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Re-read saved tweets
+        if: inputs.job == 'text'
         working-directory: apps/server
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: pnpm exec tsx scripts/refetch-tweets.ts ${{ inputs.apply && '--apply' || '' }}
+
+      - name: Rewrite summaries of long tweets
+        if: inputs.job == 'summaries'
+        working-directory: apps/server
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: pnpm exec tsx scripts/resummarize-tweets.ts ${{ inputs.apply && '--apply' || '' }}
