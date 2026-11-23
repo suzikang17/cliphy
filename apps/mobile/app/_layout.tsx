@@ -9,7 +9,7 @@ import { useFonts } from "expo-font";
 import { useShareIntent } from "expo-share-intent";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { uploadAndClipImage } from "../lib/uploadImage";
+import { prepareImage } from "../lib/uploadImage";
 import { showQueueError } from "../lib/queueError";
 import { registerForPushNotifications } from "../lib/notifications";
 import * as Notifications from "expo-notifications";
@@ -186,6 +186,23 @@ export default function RootLayout() {
       .catch((err: unknown) => showQueueError(err));
   };
 
+  // A shared picture, the same way: a resized copy is made in the app's own
+  // storage (the shared original does not last), that copy is kept in the
+  // outbox and confirmed, and the upload follows.
+  const saveSharedImages = (uris: string[], said: string) => {
+    processingShareRef.current = true;
+    void Promise.all(uris.map(prepareImage))
+      .then(async (prepared) => {
+        for (const uri of prepared) await shareOutbox.add(uri, "image");
+        Alert.alert("Saved to Cliphy", said);
+        return shareOutbox.flush();
+      })
+      .catch((err: unknown) => showQueueError(err))
+      .finally(() => {
+        processingShareRef.current = false;
+      });
+  };
+
   // Links still waiting from an earlier share (the app was put away, or there
   // was no network) go out when signed in and each time the app comes forward.
   useEffect(() => {
@@ -236,13 +253,7 @@ export default function RootLayout() {
     const sharedImage = shareIntent?.files?.find((f) => f.mimeType?.startsWith("image/"));
     if (sharedImage) {
       resetShareIntent();
-      processingShareRef.current = true;
-      uploadAndClipImage(sharedImage.path)
-        .then(() => Alert.alert("Saved to Cliphy", "Image saved"))
-        .catch((err: unknown) => showQueueError(err))
-        .finally(() => {
-          processingShareRef.current = false;
-        });
+      saveSharedImages([sharedImage.path], "Image saved");
       return;
     }
 
@@ -265,13 +276,7 @@ export default function RootLayout() {
   // "Save to Library" from the Send to Chat sheet: what sharing always did.
   const saveShareToLibrary = (share: PendingShare) => {
     if (share.imageUris.length > 0) {
-      processingShareRef.current = true;
-      Promise.all(share.imageUris.map((uri) => uploadAndClipImage(uri)))
-        .then(() => Alert.alert("Saved to Cliphy", "Saved to Library"))
-        .catch((err: unknown) => showQueueError(err))
-        .finally(() => {
-          processingShareRef.current = false;
-        });
+      saveSharedImages(share.imageUris, "Saved to Library");
       return;
     }
     const url = share.text.match(/https?:\/\/[^\s]+/)?.[0];

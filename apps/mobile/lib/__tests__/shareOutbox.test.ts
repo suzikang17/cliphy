@@ -19,10 +19,10 @@ const outbox = () =>
     save: async (value) => {
       stored = value;
     },
-    send: async (url) => {
-      const err = fail(url);
+    send: async (item) => {
+      const err = fail(item.url);
       if (err) throw err;
-      sent.push(url);
+      sent.push(item.kind === "image" ? `image:${item.url}` : item.url);
     },
     refused: (err, item) => refused.push({ err, item }),
     now: () => new Date("2026-11-23T10:00:00Z"),
@@ -136,6 +136,28 @@ describe("the outbox", () => {
     const box = outbox();
     await box.add("https://youtu.be/a");
     await Promise.all([box.flush(), box.flush()]);
+    expect(sent).toEqual(["https://youtu.be/a"]);
+  });
+
+  it("keeps a picture as the file on the phone and sends it as an upload", async () => {
+    fail = offline;
+    const first = outbox();
+    await first.add("file:///cache/shot.jpg", "image");
+    await first.flush();
+    expect((JSON.parse(stored ?? "[]") as OutboxItem[])[0]).toMatchObject({
+      kind: "image",
+      url: "file:///cache/shot.jpg",
+    });
+
+    fail = () => undefined;
+    await outbox().flush();
+    expect(sent).toEqual(["image:file:///cache/shot.jpg"]);
+    expect(kept()).toEqual([]);
+  });
+
+  it("sends a link stored before pictures existed as a link", async () => {
+    stored = JSON.stringify([{ id: "1", url: "https://youtu.be/a", addedAt: "x", tries: 0 }]);
+    await outbox().flush();
     expect(sent).toEqual(["https://youtu.be/a"]);
   });
 

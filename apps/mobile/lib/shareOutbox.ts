@@ -1,13 +1,17 @@
-// Links shared into the app, kept on the phone until the server has them.
+// Links and pictures shared into the app, kept on the phone until the server
+// has them.
 //
-// Sharing confirms at once: the link is written here first, then sent in the
-// background. If the app is put away before the send finishes, or there is no
+// Sharing confirms at once: the link (or the picture's file on this phone) is
+// written here first, then sent in the background. If the app is put away before the send finishes, or there is no
 // network, the link waits and is sent the next time the app comes to the front.
 // A link the server refuses (monthly limit, a bad link) is dropped and the
 // refusal is shown; one it already has is dropped quietly.
 
 export interface OutboxItem {
   id: string;
+  /** A picture is sent as an upload; anything else is a link. */
+  kind?: "link" | "image";
+  /** The link, or for a picture the file on this phone. */
   url: string;
   addedAt: string;
   /** Sends that failed for a reason worth trying again. */
@@ -18,8 +22,8 @@ export interface OutboxDeps {
   /** The stored list, or null when nothing was stored. */
   load(): Promise<string | null>;
   save(value: string): Promise<void>;
-  /** Send one link to the server. Throws what the API client throws. */
-  send(url: string): Promise<void>;
+  /** Send one link or picture to the server. Throws what the API client throws. */
+  send(item: OutboxItem): Promise<void>;
   /** The server said no, for good: tell the person. */
   refused(err: unknown, item: OutboxItem): void;
   now(): Date;
@@ -91,7 +95,7 @@ export function createOutbox(deps: OutboxDeps) {
       let verdict: Verdict | "sent" = "sent";
       let failure: unknown;
       try {
-        await deps.send(item.url);
+        await deps.send(item);
       } catch (err) {
         failure = err;
         verdict = judge(err);
@@ -112,14 +116,15 @@ export function createOutbox(deps: OutboxDeps) {
   }
 
   return {
-    /** Keep a link. Resolves once it is stored on the phone, before it is sent. */
-    async add(url: string): Promise<void> {
+    /** Keep a link or picture. Resolves once it is stored on the phone, before it is sent. */
+    async add(url: string, kind: "link" | "image" = "link"): Promise<void> {
       const list = await read();
       // The share sheet can fire the same link two or three times.
       if (!list.some((i) => i.url === url)) {
         const at = deps.now();
         list.push({
           id: `${at.getTime()}-${list.length}`,
+          kind,
           url,
           addedAt: at.toISOString(),
           tries: 0,
