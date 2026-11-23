@@ -1,13 +1,25 @@
-# Cliphy Whisper service
+# Cliphy transcription service
 
 Speech to text on a machine of your own, for voice notes and podcast episodes.
+(The folder and the settings are named for Whisper, the model it began with.)
 The Cliphy server uses it when `WHISPER_SERVICE_URL` is set and
 `DEEPGRAM_API_KEY` is not (see `apps/server/src/services/transcribe.ts` and
 `docs/decisions/0071`).
 
-It needs no GPU. On a plain CPU with the `small` model it uses about 550 MB of
-memory and takes roughly one to three seconds per second of audio, depending on
-how busy the machine is.
+It needs no GPU. The default model is NVIDIA's Parakeet (`nemo-parakeet-tdt-0.6b-v2`,
+English), chosen by measuring. On an 8-core ARM machine, 24 public recordings
+with known text (204 seconds of speech):
+
+| Model                    | Time  | Speed          | Words wrong |
+| ------------------------ | ----- | -------------- | ----------- |
+| Parakeet TDT 0.6B v2     | 12 s  | 17x real time  | 2.4%        |
+| Whisper `large-v3-turbo` | 577 s | 0.4x real time | 2.8%        |
+| Whisper `small`          | 155 s | 1.3x real time | 5.8%        |
+
+`compare.py` reruns this, on the public samples or on recordings of your own.
+The samples are clean, read speech, so the accuracy figures are a rough guide;
+your own notes are the real test. Memory: about 1.3 GB idle, up to about 2 GB
+while reading a two-minute note.
 
 ## Run it
 
@@ -27,12 +39,14 @@ docker run -d --name cliphy-whisper --restart unless-stopped \
 curl http://127.0.0.1:9010/health
 ```
 
-The first start downloads the model (about 500 MB) into the `cliphy-whisper-models`
+The first start downloads the model (about 700 MB) into the `cliphy-whisper-models`
 volume. `--restart unless-stopped` brings it back after a reboot. It listens on
 this machine only until you give it a public address (next section).
 
-A more accurate model: add `-e WHISPER_MODEL=large-v3-turbo` to `docker run`.
-It needs more memory and time.
+Another model: add `-e WHISPER_MODEL=<name>` to `docker run`.
+`nemo-parakeet-tdt-0.6b-v3` covers 25 European languages. For anything else,
+a Whisper model (`small`, `large-v3-turbo`) covers about a hundred languages
+and is much slower on a CPU.
 
 ## Give it a public address
 

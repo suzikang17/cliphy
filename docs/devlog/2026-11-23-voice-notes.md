@@ -39,3 +39,18 @@ The owner asked what self-hosting would take, having two servers. The service wa
 - Left for the owner: a public address (`sudo tailscale funnel --bg 9010`) and two settings in Vercel. See `services/whisper/README.md`.
 - The iOS build with the audio library finished and went to TestFlight (run 45102846163).
 - TDD lapse: `startTranscription`/`checkTranscription` and the job's waiting loop were written together with their tests, not after seeing them fail.
+
+## Later: which model, measured
+
+The owner asked whether Whisper is the best model for this. Measured rather than argued: `services/whisper/compare.py` runs the same recordings through several models. On the devbox (8 ARM cores, no GPU), 24 LibriSpeech recordings with known text, 204 seconds of speech:
+
+| Model                                | Time  | Speed          | Words wrong      |
+| ------------------------------------ | ----- | -------------- | ---------------- |
+| Parakeet TDT 0.6B v2                 | 12 s  | 17x real time  | 12 of 496 (2.4%) |
+| Whisper large-v3-turbo               | 577 s | 0.4x real time | 14 of 496 (2.8%) |
+| Whisper small (what the service ran) | 155 s | 1.3x real time | 29 of 496 (5.8%) |
+
+- The service now runs Parakeet by default (`onnx-asr`), with the Whisper models still selectable through `WHISPER_MODEL`. A real job through the running service: 11 seconds of speech in about 3 seconds, word for word.
+- **Long recordings.** Read whole, a 5-minute test kept every sentence but took 4 GB of memory. Cut at every pause, sentences were broken up ("Ask not. What your country can do for you."). The service reads up to two minutes whole and cuts longer ones only at pauses of 1.5 s or more, in pieces of at most 40 s; that kept 26 of 28 sentences.
+- Caveats: LibriSpeech is clean read speech these models are all tuned on, so the accuracy gap is a rough guide; the machine's load varied during the run (it rose, which if anything hurt the later models, and Parakeet ran last). Parakeet v2 is English only. Not yet run on the owner's own notes: none exist.
+- Two sample sources were tried first: one refused automated downloads (left alone), one API returned 503 for a few minutes (the script now retries).

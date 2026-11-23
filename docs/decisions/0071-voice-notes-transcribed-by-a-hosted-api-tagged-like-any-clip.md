@@ -30,3 +30,7 @@ The owner wants voice notes and written notes in Cliphy, auto-tagged the way vid
 - `expo-audio` is a native module: the phone needs a new build before it gets this or any later update (the native fingerprint changed from `6e52…` to `dc55…`).
 - A note is re-read by the model on every edit. Each read is small; a note edited fifty times a day would be fifty small calls.
 - Nothing works until a transcription key is set in Vercel. Until then a voice note is saved, can be played back, and says "Transcription is not set up".
+
+## Update, same day: self-hosted after all, on Parakeet
+
+The owner has servers and wanted to try self-hosting. The service in `services/whisper` was fixed, packaged and started on the devbox, and three models were measured there on the same recordings: Parakeet TDT 0.6B v2 was the most accurate (2.4% of words wrong, against 2.8% for Whisper large-v3-turbo and 5.8% for Whisper small) and by far the fastest (17x real time on CPU, against 0.4x and 1.3x). The service now runs Parakeet by default. The hosted API stays in the code as the other choice; whichever setting is present in Vercel decides. The self-hosted service is called through start-then-check jobs, because the function that calls it is cut off after a minute.

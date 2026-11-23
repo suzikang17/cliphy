@@ -6,8 +6,9 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
+import av
 import httpx
-from faster_whisper import WhisperModel
+import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
@@ -20,23 +21,62 @@ logger = logging.getLogger("whisper")
 
 app = FastAPI(title="Cliphy Whisper Service")
 
-model: WhisperModel | None = None
-
 WHISPER_API_KEY = os.environ.get("WHISPER_API_KEY", "")
-# "small" is quick on a plain CPU. "large-v3-turbo" is more accurate and still
-# usable on a machine with several cores. Set WHISPER_MODEL to change it.
-MODEL_SIZE = os.environ.get("WHISPER_MODEL", "small")
-DEVICE = "cpu"
-COMPUTE_TYPE = "int8"
+# Which model does the listening. Measured on this kind of machine (CPU only,
+# 24 public recordings, 204 seconds of speech):
+#   nemo-parakeet-tdt-0.6b-v2   17x real time, 2.4% of words wrong   (default)
+#   large-v3-turbo (Whisper)    0.4x real time, 2.8%
+#   small (Whisper)             1.3x real time, 5.8%
+# Parakeet v2 is English only; nemo-parakeet-tdt-0.6b-v3 covers 25 European
+# languages; the Whisper models cover about a hundred. `compare.py` reruns the test.
+MODEL_NAME = os.environ.get("WHISPER_MODEL", "nemo-parakeet-tdt-0.6b-v2")
+PARAKEET = MODEL_NAME.startswith(("nemo-", "parakeet"))
 DOWNLOAD_TIMEOUT = 600  # 10 minutes
+# Parakeet reads a recording whole up to this length: that is the most accurate
+# (a five-minute test lost nothing), but memory grows with length (about 2 GB at
+# two minutes, 4 GB at five). Longer ones are cut into pieces of at most
+# PIECE_SECONDS, and only at a pause of PAUSE_MS or more, so sentences are
+# rarely split (the same test then kept 26 of 28 sentences word for word).
+LONG_SECONDS = 120
+PIECE_SECONDS = 40
+PAUSE_MS = 1500
+
+whisper_model = None
+parakeet_model = None
+parakeet_long = None
 
 
 @app.on_event("startup")
 def load_model() -> None:
-    global model
-    logger.info("Loading Whisper model '%s' on %s (%s)...", MODEL_SIZE, DEVICE, COMPUTE_TYPE)
-    model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
+    global whisper_model, parakeet_model, parakeet_long
+    logger.info("Loading model '%s'...", MODEL_NAME)
+    if PARAKEET:
+        import onnx_asr
+
+        parakeet_model = onnx_asr.load_model(MODEL_NAME, quantization="int8")
+        parakeet_long = parakeet_model.with_vad(
+            onnx_asr.load_vad("silero"),
+            min_silence_duration_ms=PAUSE_MS,
+            max_speech_duration_s=PIECE_SECONDS,
+        )
+    else:
+        from faster_whisper import WhisperModel
+
+        whisper_model = WhisperModel(MODEL_NAME, device="cpu", compute_type="int8")
     logger.info("Model loaded.")
+
+
+def decode(path: str) -> np.ndarray:
+    """Any audio file as 16 kHz mono floats."""
+    resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+    chunks = []
+    with av.open(path) as container:
+        for frame in container.decode(audio=0):
+            for out in resampler.resample(frame):
+                chunks.append(out.to_ndarray().reshape(-1))
+    if not chunks:
+        return np.zeros(0, dtype=np.float32)
+    return np.concatenate(chunks).astype(np.float32) / 32768.0
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +116,7 @@ class TranscribeResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": MODEL_SIZE, "device": DEVICE}
+    return {"status": "ok", "model": MODEL_NAME, "device": "cpu"}
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +133,19 @@ worker = ThreadPoolExecutor(max_workers=1)
 
 
 def run_transcription(path: str) -> dict:
-    segments, info = model.transcribe(path, beam_size=5)  # type: ignore[union-attr]
+    if PARAKEET:
+        audio = decode(path)
+        seconds = len(audio) / 16000
+        if seconds == 0:
+            return {"transcript": "", "duration_seconds": 0.0, "language": "en"}
+        if seconds <= LONG_SECONDS:
+            transcript = parakeet_model.recognize(audio, sample_rate=16000)  # type: ignore[union-attr]
+        else:
+            parts = parakeet_long.recognize(audio, sample_rate=16000)  # type: ignore[union-attr]
+            transcript = " ".join(part.text.strip() for part in parts)
+        return {"transcript": transcript.strip(), "duration_seconds": seconds, "language": "en"}
+
+    segments, info = whisper_model.transcribe(path, beam_size=5)  # type: ignore[union-attr]
     transcript = "".join(seg.text for seg in segments).strip()
     return {
         "transcript": transcript,
@@ -166,61 +218,22 @@ def job_status(job_id: str):
 
 
 @app.post("/transcribe", response_model=TranscribeResponse)
-async def transcribe(body: TranscribeRequest):
+def transcribe(body: TranscribeRequest):
+    """Wait for the transcript. For callers that can; the others use /jobs."""
     audio_url = str(body.audio_url)
     logger.info("Transcription request: %s", audio_url)
-
-    tmp_path: str | None = None
+    path: str | None = None
     try:
-        # Download audio to a temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".audio") as tmp:
-            tmp_path = tmp.name
-
-        timeout = httpx.Timeout(connect=30.0, read=DOWNLOAD_TIMEOUT, write=30.0, pool=5.0)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            async with client.stream("GET", audio_url) as response:
-                if response.status_code != 200:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Audio URL returned HTTP {response.status_code}",
-                    )
-                with open(tmp_path, "wb") as f:
-                    async for chunk in response.aiter_bytes(chunk_size=65536):
-                        f.write(chunk)
-
-        logger.info("Download complete, starting transcription: %s", audio_url)
-
-        # Run transcription (blocking — fine for a dedicated service)
-        segments, info = model.transcribe(tmp_path, beam_size=5)  # type: ignore[union-attr]
-
-        transcript_parts: list[str] = [seg.text for seg in segments]
-        transcript = "".join(transcript_parts).strip()
-
-        duration = float(info.duration) if info.duration else 0.0
-        language = info.language or "en"
-
-        logger.info(
-            "Transcription complete: %s | duration=%.1fs language=%s chars=%d",
-            audio_url,
-            duration,
-            language,
-            len(transcript),
-        )
-
-        return TranscribeResponse(
-            transcript=transcript,
-            duration_seconds=duration,
-            language=language,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as exc:
+        path = download(audio_url)
+        result = run_transcription(path)
+        logger.info("Transcription complete: %.1fs of audio", result["duration_seconds"])
+        return TranscribeResponse(**result)
+    except Exception as exc:  # noqa: BLE001 - the reason is reported to the caller
         logger.exception("Transcription failed for %s: %s", audio_url, exc)
         return JSONResponse(status_code=500, content={"error": str(exc)})
     finally:
-        if tmp_path:
+        if path:
             try:
-                os.unlink(tmp_path)
+                os.unlink(path)
             except OSError:
                 pass
