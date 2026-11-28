@@ -59,6 +59,19 @@ async function main() {
     .gte("created_at", "2026-11-23T02:54:00Z");
   console.log(`articles saved since the background read went in: ${web?.length ?? 0}`);
   for (const w of web ?? []) console.log(`  ${age(w.created_at as string)} · ${w.status}`);
+  const { data: recent } = await supabase
+    .from("clips")
+    .select("source_type, status, created_at, updated_at")
+    .is("deleted_at", null)
+    .gte("created_at", "2026-11-22T00:00:00Z")
+    .order("created_at", { ascending: false });
+  console.log(
+    `every clip saved since Nov 22: ${recent?.length ?? 0} (age · type · status · last change)`,
+  );
+  for (const r of recent ?? [])
+    console.log(
+      `  ${age(r.created_at as string)} · ${r.source_type} · ${r.status} · ${age(r.updated_at as string)}`,
+    );
   console.log(`${rows.length} saved post(s)`);
   for (const [k, n] of [...tally].sort()) console.log(`  ${n}  ${k}`);
 }
