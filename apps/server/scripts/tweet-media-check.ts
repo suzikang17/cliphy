@@ -40,6 +40,17 @@ async function main() {
     bump(`hero_image_url: ${r.hero_image_url ? "yes" : "no"}`);
     bump(`content: ${r.content ? "yes" : "no"}`);
   }
+  const age = (iso: string) =>
+    `${Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000)} h`;
+  const sorted = [...rows].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  console.log("newest 10, as age · status · has text · has picture:");
+  for (const r of sorted.slice(0, 10)) {
+    const meta = (r.source_metadata ?? {}) as { media?: { previewUrl?: string; url?: string }[] };
+    const pic = !!(meta.media?.[0]?.previewUrl || r.hero_image_url);
+    console.log(
+      `  ${age(r.created_at as string)} · ${r.status} · ${r.content ? "text" : "NO text"} · ${pic ? "picture" : "no picture"}`,
+    );
+  }
   console.log(`${rows.length} saved post(s)`);
   for (const [k, n] of [...tally].sort()) console.log(`  ${n}  ${k}`);
 }
