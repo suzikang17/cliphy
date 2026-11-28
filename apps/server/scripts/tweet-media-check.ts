@@ -51,6 +51,14 @@ async function main() {
       `  ${age(r.created_at as string)} · ${r.status} · ${r.content ? "text" : "NO text"} · ${pic ? "picture" : "no picture"}`,
     );
   }
+  const { data: web } = await supabase
+    .from("clips")
+    .select("status, created_at, updated_at")
+    .eq("source_type", "web")
+    .is("deleted_at", null)
+    .gte("created_at", "2026-11-23T02:54:00Z");
+  console.log(`articles saved since the background read went in: ${web?.length ?? 0}`);
+  for (const w of web ?? []) console.log(`  ${age(w.created_at as string)} · ${w.status}`);
   console.log(`${rows.length} saved post(s)`);
   for (const [k, n] of [...tally].sort()) console.log(`  ${n}  ${k}`);
 }
