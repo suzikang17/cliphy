@@ -13,8 +13,8 @@ type Handler = (ctx: unknown) => Promise<unknown>;
 let onFailure: Handler;
 vi.mock("../../lib/inngest.js", () => ({
   inngest: {
-    createFunction: (config: { onFailure: Handler }, fn: Handler) => {
-      onFailure = config.onFailure;
+    createFunction: (config: { onFailure?: Handler }, fn: Handler) => {
+      if (config.onFailure) onFailure = config.onFailure;
       return fn;
     },
     send: (...a: unknown[]) => send(...a),
@@ -32,7 +32,7 @@ vi.mock("../../services/extractors/tweet.js", () => ({
   extractTweetClip: (...a: unknown[]) => extractTweetClip(...a),
 }));
 
-const { extractClip } = await import("../extract-clip.js");
+const { extractClip, sweepStuckExtracts } = await import("../extract-clip.js");
 const run = (clipId = "c1") =>
   (extractClip as unknown as Handler)({
     event: { data: { clipId } },
@@ -125,5 +125,52 @@ describe("extract-clip", () => {
     const [write] = updates();
     expect(write.payload).toEqual({ status: "failed", error_message: "fetch failed: 503" });
     expect(write.filters).toContainEqual(["eq", "id", "c1"]);
+  });
+});
+
+describe("sweep-stuck-extracts", () => {
+  const sweep = () =>
+    (sweepStuckExtracts as unknown as Handler)({
+      step: { run: async (_name: string, fn: () => Promise<unknown>) => fn() },
+    });
+  // The list of waiting clips is the one query that is not .single().
+  const withWaiting = (ids: string[]) => {
+    db = makeDb((op: Op) =>
+      op.action !== "select"
+        ? { data: null }
+        : op.single
+          ? { data: clip }
+          : { data: ids.map((id) => ({ id })) },
+    );
+  };
+
+  it("reads a link left waiting, fills it in, and asks for its summary", async () => {
+    withWaiting(["c1"]);
+    expect(await sweep()).toEqual({ found: 1, read: 1, failed: 0 });
+    const [list] = db.ops;
+    expect(list.filters).toContainEqual(["eq", "status", "processing"]);
+    expect(list.filters).toContainEqual(["in", "source_type", ["web", "tweet"]]);
+    expect(list.filters.some(([m, c]) => m === "lt" && c === "created_at")).toBe(true);
+    expect(updates()[0].payload).toMatchObject({
+      status: "completed",
+      video_title: "A real title",
+    });
+    expect(send).toHaveBeenCalledWith({ name: "clip/embed.requested", data: { clipId: "c1" } });
+  });
+
+  it("marks a link that cannot be read failed, with the reason, so it is not tried forever", async () => {
+    withWaiting(["c1"]);
+    extractWebClip.mockRejectedValue(new Error("fetch failed: 404"));
+    expect(await sweep()).toEqual({ found: 1, read: 0, failed: 1 });
+    const [write] = updates();
+    expect(write.payload).toEqual({ status: "failed", error_message: "fetch failed: 404" });
+    expect(write.filters).toContainEqual(["eq", "status", "processing"]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when nothing is waiting", async () => {
+    withWaiting([]);
+    expect(await sweep()).toEqual({ found: 0, read: 0, failed: 0 });
+    expect(updates()).toEqual([]);
   });
 });

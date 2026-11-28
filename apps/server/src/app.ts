@@ -47,7 +47,7 @@ import { pollPodcastFeedsCron, processPodcastFeedPoll } from "./functions/pollPo
 import { transcribePodcastEpisode } from "./functions/transcribePodcastEpisode.js";
 import { transcribeVoiceNote } from "./functions/transcribeVoiceNote.js";
 import { visionClip } from "./functions/visionClip.js";
-import { extractClip } from "./functions/extract-clip.js";
+import { extractClip, sweepStuckExtracts } from "./functions/extract-clip.js";
 import { buildDigest, weeklyDigestCron } from "./functions/digest.js";
 import { processBundle, reprocessBundle, sweepBundles } from "./functions/processBundle.js";
 
@@ -110,6 +110,7 @@ app.on(
       transcribeVoiceNote,
       visionClip,
       extractClip,
+      sweepStuckExtracts,
       weeklyDigestCron,
       buildDigest,
       purgeTrailCron,

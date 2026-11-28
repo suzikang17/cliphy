@@ -11,7 +11,7 @@ import { resolveClipImage } from "../lib/storage.js";
 
 // Columns to select on list/search queries — omits heavy vector + raw transcript columns.
 const CLIP_LIST_COLS =
-  "id, user_id, youtube_video_id, source_type, source_url, content, author, published_at, source_metadata, video_title, video_url, video_channel, video_duration_seconds, status, summary_json, summary_language, translations, error_message, tags, user_notes, deleted_at, created_at, updated_at";
+  "id, user_id, youtube_video_id, source_type, source_url, content, author, published_at, source_metadata, hero_image_url, excerpt, category, suggested_tags, video_title, video_url, video_channel, video_duration_seconds, status, summary_json, summary_language, translations, error_message, tags, user_notes, deleted_at, created_at, updated_at";
 
 // ─── Routes ────────────────────────────────────────────────
 

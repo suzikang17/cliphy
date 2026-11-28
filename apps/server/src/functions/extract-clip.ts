@@ -54,6 +54,30 @@ export async function extractedFields(
   };
 }
 
+/**
+ * Read a waiting clip's page and fill the clip in. "skipped" when the clip
+ * is no longer waiting (deleted and re-saved, or filled in already).
+ */
+export async function extractAndStore(clipId: string): Promise<"completed" | "skipped"> {
+  const { data, error } = await supabase
+    .from("clips")
+    .select("id, source_type, source_url, status")
+    .eq("id", clipId)
+    .single();
+  if (error || !data) throw new Error(`Extract: clip ${clipId} not found: ${error?.message}`);
+  const clip = data as { source_type: string; source_url: string | null; status: string };
+  if (clip.status !== "processing" || !clip.source_url) return "skipped";
+
+  const fields = await extractedFields(clip.source_type, clip.source_url);
+  const { error: writeError } = await supabase
+    .from("clips")
+    .update({ ...fields, status: "completed" })
+    .eq("id", clipId)
+    .eq("status", "processing");
+  if (writeError) throw new Error(`Extract: failed to write ${clipId}: ${writeError.message}`);
+  return "completed";
+}
+
 export const extractClip = inngest.createFunction(
   {
     id: "extract-clip",
@@ -78,26 +102,7 @@ export const extractClip = inngest.createFunction(
 
     // Read and write in one step: an article's text is too much to pass
     // between steps, and a retry should read the page again anyway.
-    const outcome = await step.run("extract", async () => {
-      const { data, error } = await supabase
-        .from("clips")
-        .select("id, source_type, source_url, status")
-        .eq("id", clipId)
-        .single();
-      if (error || !data) throw new Error(`Extract: clip ${clipId} not found: ${error?.message}`);
-      const clip = data as { source_type: string; source_url: string | null; status: string };
-      // Deleted and re-saved, or already filled in by an earlier delivery.
-      if (clip.status !== "processing" || !clip.source_url) return "skipped";
-
-      const fields = await extractedFields(clip.source_type, clip.source_url);
-      const { error: writeError } = await supabase
-        .from("clips")
-        .update({ ...fields, status: "completed" })
-        .eq("id", clipId)
-        .eq("status", "processing");
-      if (writeError) throw new Error(`Extract: failed to write ${clipId}: ${writeError.message}`);
-      return "completed";
-    });
+    const outcome = await step.run("extract", () => extractAndStore(clipId));
 
     if (outcome === "completed") {
       await step.run("request-embed", async () => {
@@ -107,5 +112,57 @@ export const extractClip = inngest.createFunction(
 
     log.info("Extract clip done", { clipId, outcome });
     return { clipId, status: outcome };
+  },
+);
+
+/** A saved link still unread after this long is read by the sweep instead. */
+export const STUCK_AFTER_MS = 10 * 60_000;
+
+// The safety net: an article or post still waiting ten minutes after it was
+// saved is read here, directly, whatever kept extract-clip from reading it.
+// One that cannot be read is marked failed with the reason, so it is tried
+// once by the sweep and never again.
+export const sweepStuckExtracts = inngest.createFunction(
+  { id: "sweep-stuck-extracts", triggers: [{ cron: "*/10 * * * *" }] },
+  async ({ step }) => {
+    const stuck = await step.run("find-stuck", async () => {
+      const { data, error } = await supabase
+        .from("clips")
+        .select("id")
+        .eq("status", "processing")
+        .in("source_type", ["web", "tweet"])
+        .is("deleted_at", null)
+        .lt("created_at", new Date(Date.now() - STUCK_AFTER_MS).toISOString())
+        .order("created_at", { ascending: true })
+        .limit(10);
+      if (error) throw new Error(`Sweep: could not list waiting clips: ${error.message}`);
+      return (data ?? []).map((r) => r.id as string);
+    });
+
+    let read = 0;
+    let failed = 0;
+    for (const clipId of stuck) {
+      const outcome = await step.run(`read-${clipId}`, async () => {
+        try {
+          return await extractAndStore(clipId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Extraction failed";
+          await supabase
+            .from("clips")
+            .update({ status: "failed", error_message: message || "Extraction failed" })
+            .eq("id", clipId)
+            .eq("status", "processing");
+          return "failed" as const;
+        }
+      });
+      if (outcome === "completed") {
+        read++;
+        await step.run(`embed-${clipId}`, async () => {
+          await inngest.send({ name: "clip/embed.requested", data: { clipId } });
+        });
+      } else if (outcome === "failed") failed++;
+    }
+    if (stuck.length) log.warn("Swept waiting clips", { found: stuck.length, read, failed });
+    return { found: stuck.length, read, failed };
   },
 );
