@@ -12,6 +12,7 @@ import { QueueCardSkeleton } from "../../components/Skeleton";
 import { brutalShadowSm } from "../../lib/theme";
 import { VoicePlayer } from "../../components/VoicePlayer";
 import { voiceStatus } from "../../lib/voiceNote";
+import { tweetImage } from "../../lib/tweet";
 
 export default function SummaryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,6 +49,8 @@ export default function SummaryDetailScreen() {
     }, 3000);
     return () => clearInterval(timer);
   }, [id, waiting]);
+
+  const postImage = summary ? tweetImage(summary) : null;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-white dark:bg-[#1e1e1e]">
@@ -94,6 +97,13 @@ export default function SummaryDetailScreen() {
                 style={{ width: "100%", aspectRatio: 3 / 4 }}
                 resizeMode="contain"
                 accessibilityLabel="Captured image"
+              />
+            ) : postImage ? (
+              <Image
+                source={{ uri: postImage }}
+                style={{ width: "100%", aspectRatio: 4 / 3 }}
+                resizeMode="cover"
+                accessibilityLabel="Image from the post"
               />
             ) : summary.videoId ? (
               <Image

@@ -2,6 +2,7 @@ import { View, Text, Pressable, Image } from "react-native";
 import { useRouter } from "expo-router";
 import type { Summary, TweetClipMetadata } from "@cliphy/shared";
 import { brutalShadowSm } from "../lib/theme";
+import { tweetImage } from "../lib/tweet";
 
 export function TweetCard({
   item,
@@ -13,6 +14,7 @@ export function TweetCard({
   const router = useRouter();
   const meta = (item.sourceMetadata ?? {}) as unknown as TweetClipMetadata;
   const threadCount = meta.threadTweetIds?.length ?? 1;
+  const image = tweetImage(item);
 
   return (
     <Pressable
@@ -54,9 +56,9 @@ export function TweetCard({
       >
         {item.content}
       </Text>
-      {meta.media && meta.media.length > 0 && meta.media[0].previewUrl ? (
+      {image ? (
         <Image
-          source={{ uri: meta.media[0].previewUrl }}
+          source={{ uri: image }}
           resizeMode="cover"
           style={{ aspectRatio: 4 / 3 }}
           className="w-full rounded-md border-2 border-black dark:border-[#505050] mt-2 bg-[#e5e7eb] dark:bg-[#1e1e1e]"
