@@ -8,13 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "autopull: the YouTube auto-pull. accounts: where accounts came from, as counts"
+        description: "autopull: the YouTube auto-pull. accounts: where accounts came from, as counts. tweets: what saved posts carry for a picture"
         required: false
         default: autopull
         type: choice
         options:
           - autopull
           - accounts
+          - tweets
 
 jobs:
   check:
@@ -38,4 +39,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: pnpm exec tsx scripts/${{ inputs.job == 'accounts' && 'account-breakdown.ts' || 'check-autopull.ts' }}
+        run: pnpm exec tsx scripts/${{ inputs.job == 'accounts' && 'account-breakdown.ts' || inputs.job == 'tweets' && 'tweet-media-check.ts' || 'check-autopull.ts' }}
